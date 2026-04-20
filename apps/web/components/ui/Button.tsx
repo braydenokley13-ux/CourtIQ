@@ -1,5 +1,6 @@
 'use client'
 
+import type React from 'react'
 import { motion, type HTMLMotionProps } from 'framer-motion'
 import { Icon, type IconName } from './Icon'
 
@@ -42,9 +43,10 @@ export function PrimaryButton({ children, loading, icon, disabled, className = '
   )
 }
 
-interface GhostButtonProps extends HTMLMotionProps<'button'> {
+interface GhostButtonProps extends Omit<HTMLMotionProps<'button'>, 'children'> {
   iconLeft?: IconName
   iconRight?: IconName
+  children?: React.ReactNode
 }
 
 export function GhostButton({ children, iconLeft, iconRight, className = '', ...rest }: GhostButtonProps) {
