@@ -38,6 +38,9 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# TypeScript
+*.tsbuildinfo
+
 # Misc
 coverage/
 *.log
