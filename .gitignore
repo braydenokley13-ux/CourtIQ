@@ -1,11 +1,13 @@
 # Dependencies
 node_modules/
+.pnp
+.pnp.js
 .pnpm-store/
 
 # Build outputs
 .next/
-dist/
 out/
+dist/
 build/
 .turbo/
 
@@ -27,6 +29,9 @@ build/
 .DS_Store
 Thumbs.db
 
+# Prisma
+/packages/db/node_modules
+
 # Debug
 npm-debug.log*
 pnpm-debug.log*
@@ -36,3 +41,9 @@ yarn-error.log*
 # Misc
 coverage/
 *.log
+
+# Vercel
+.vercel
+
+# Sentry
+.sentryclirc

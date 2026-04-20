@@ -1,6 +1,5 @@
 import type { Config } from 'tailwindcss'
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const courtiqPreset = require('@courtiq/config/tailwind') as Config
+import courtiqPreset from '@courtiq/config/tailwind'
 
 const config: Config = {
   presets: [courtiqPreset],
