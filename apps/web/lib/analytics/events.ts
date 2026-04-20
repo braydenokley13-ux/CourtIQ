@@ -37,7 +37,7 @@ export type EventMap = {
 
 /** Redacts email-like patterns from a string to prevent accidental PII leakage. */
 export function scrubUserInput(value: string): string {
-  return value.replace(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g, '[redacted]')
+  return value.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[redacted]')
 }
 
 /** Type-safe PostHog event tracker. Only fires client-side; silently no-ops in SSR. */
