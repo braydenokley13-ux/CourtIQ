@@ -4,6 +4,7 @@ import { motion, type HTMLMotionProps } from 'framer-motion'
 import { Icon, type IconName } from './Icon'
 
 interface PrimaryButtonProps extends HTMLMotionProps<'button'> {
+  children?: React.ReactNode
   loading?: boolean
   icon?: IconName
 }
@@ -43,6 +44,7 @@ export function PrimaryButton({ children, loading, icon, disabled, className = '
 }
 
 interface GhostButtonProps extends HTMLMotionProps<'button'> {
+  children?: React.ReactNode
   iconLeft?: IconName
   iconRight?: IconName
 }
