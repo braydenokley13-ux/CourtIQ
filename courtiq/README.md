@@ -14,8 +14,7 @@ A user mocked up designs in HTML/CSS/JS using an AI design tool, then exported t
 
 ## About the design files
 
-The design medium is **HTML/CSS/JS** — these are prototypes, not production code. Your job is to **recreate them pixel-perfectly** in whatever technology makes sense for the target codebase (React, Vue, native, whatever fits). Match the visual output; don't copy the prototype's internal structure unless it happens to fit.
-
+The design medium is **HTML/CSS/JS** — these are prototypes, not production code. Your job is NOT to **recreate them pixel-perfectly**, but rather to use them as inspiration, and then implement in whatever technology makes sense for the target codebase (React, Vue, native, whatever fits). 
 **Don't render these files in a browser or take screenshots unless the user asks you to.** Everything you need — dimensions, colors, layout rules — is spelled out in the source. Read the HTML and CSS directly; a screenshot won't tell you anything they don't.
 
 ## Bundle contents
