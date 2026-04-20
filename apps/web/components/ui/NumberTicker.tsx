@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import { useMotionValue, useTransform, animate, motion } from 'framer-motion'
+import { useEffect, useRef, useState } from 'react'
+import { useMotionValue, useTransform, animate, useMotionValueEvent } from 'framer-motion'
 
 interface NumberTickerProps {
   value: number
@@ -18,7 +18,10 @@ export function NumberTicker({
 }: NumberTickerProps) {
   const motionVal = useMotionValue(value)
   const display = useTransform(motionVal, format)
+  const [displayStr, setDisplayStr] = useState(() => format(value))
   const isFirst = useRef(true)
+
+  useMotionValueEvent(display, 'change', setDisplayStr)
 
   useEffect(() => {
     if (isFirst.current) {
@@ -33,5 +36,5 @@ export function NumberTicker({
     return () => controls.stop()
   }, [value, duration, motionVal])
 
-  return <motion.span className={className}>{display}</motion.span>
+  return <span className={className}>{displayStr}</span>
 }
