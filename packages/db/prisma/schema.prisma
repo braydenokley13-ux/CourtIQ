@@ -1,0 +1,11 @@
+// Sprint 0 stub — full schema defined in ARCHITECTURE.md §6.1
+// Run `prisma migrate dev --name init` after filling DATABASE_URL to create the first migration.
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}

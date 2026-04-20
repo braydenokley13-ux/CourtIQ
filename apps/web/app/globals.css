@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Background stack (ARCHITECTURE.md §4.2) */
+  --bg-0: #0a0b0e;
+  --bg-1: #13151a;
+  --bg-2: #1c1f26;
+  --bg-3: #262a33;
+
+  /* Borders */
+  --hairline:   rgba(255, 255, 255, 0.06);
+  --hairline-2: rgba(255, 255, 255, 0.10);
+
+  /* Text */
+  --text:      #f4f5f7;
+  --text-dim:  #9ba1ad;
+  --text-mute: #5b6170;
+
+  /* Brand */
+  --brand:     #3be383;
+  --brand-dim: #1f9f5b;
+
+  /* Accents */
+  --xp:   #ff8a3d;
+  --iq:   #8b7cff;
+  --heat: #ff4d6d;
+  --info: #5ac8ff;
+
+  /* Court */
+  --court-line:   rgba(255, 255, 255, 0.55);
+  --court-fill:   #13151a;
+  --court-accent: rgba(59, 227, 131, 0.08);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: #0a0b0e;
+  color: #f4f5f7;
+  font-family: var(--font-ui, 'Inter', system-ui, -apple-system, sans-serif);
+  min-height: 100dvh;
+}
