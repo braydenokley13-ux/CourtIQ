@@ -14,14 +14,14 @@ export async function createClient() {
         },
         setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
+            cookiesToSet.forEach(({ name, value, options }) => {
               cookieStore.set(name, value, options)
-            )
+            })
           } catch {
-            // Server Component — cookies can't be set, middleware handles this
+            // Called from a Server Component — middleware handles cookie writes.
           }
         },
       },
-    }
+    },
   )
 }

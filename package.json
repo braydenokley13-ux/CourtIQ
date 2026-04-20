@@ -2,6 +2,10 @@
   "name": "courtiq",
   "private": true,
   "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",

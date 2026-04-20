@@ -13,33 +13,27 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          cookiesToSet.forEach(({ name, value }: { name: string; value: string }) =>
+            request.cookies.set(name, value),
+          )
           supabaseResponse = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+          cookiesToSet.forEach(
+            ({ name, value, options }: { name: string; value: string; options: CookieOptions }) =>
+              supabaseResponse.cookies.set(name, value, options),
           )
         },
       },
-    }
+    },
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
-
-  const pathname = request.nextUrl.pathname
-  const isAppRoute = pathname.startsWith('/home') ||
-    pathname.startsWith('/train') ||
-    pathname.startsWith('/academy') ||
-    pathname.startsWith('/profile') ||
-    pathname.startsWith('/leaderboard') ||
-    pathname.startsWith('/settings')
-
-  if (isAppRoute && !user) {
-    return NextResponse.redirect(new URL('/login', request.url))
-  }
+  // Refreshes session — required for Server Components to read auth state correctly
+  await supabase.auth.getUser()
 
   return supabaseResponse
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
 }

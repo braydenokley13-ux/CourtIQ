@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Space_Grotesk, Inter, JetBrains_Mono } from 'next/font/google'
-import '../styles/globals.css'
+import './globals.css'
+import { PostHogProvider } from '@/lib/analytics/posthog'
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -38,7 +39,9 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable} dark`}>
-      <body>{children}</body>
+      <body>
+        <PostHogProvider>{children}</PostHogProvider>
+      </body>
     </html>
   )
 }
