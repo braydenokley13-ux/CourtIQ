@@ -3,6 +3,10 @@ import { withSentryConfig } from '@sentry/nextjs'
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Expose the Vercel git SHA so client-side Sentry can tag releases.
+  env: {
+    NEXT_PUBLIC_COMMIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA ?? 'local',
+  },
 }
 
 export default withSentryConfig(nextConfig, {
