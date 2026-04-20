@@ -1,6 +1,3 @@
-// Sprint 0 stub — full schema defined in ARCHITECTURE.md §6.1
-// Run `prisma migrate dev --name init` after filling DATABASE_URL to create the first migration.
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -8,4 +5,223 @@ datasource db {
 
 generator client {
   provider = "prisma-client-js"
+}
+
+model User {
+  id           String      @id @default(uuid())
+  email        String      @unique
+  display_name String?
+  birthdate    DateTime?
+  position     Position?
+  skill_level  SkillLevel?
+  role         UserRole    @default(PLAYER)
+  created_at   DateTime    @default(now())
+  profile      Profile?
+  attempts     Attempt[]
+  session_runs SessionRun[]
+  masteries    Mastery[]
+  badges       UserBadge[]
+  streaks      StreakEvent[]
+}
+
+model Profile {
+  user_id             String   @id
+  user                User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  avatar_url          String?
+  iq_score            Int      @default(500)
+  xp_total            Int      @default(0)
+  level               Int      @default(1)
+  current_streak      Int      @default(0)
+  longest_streak      Int      @default(0)
+  streak_freeze_count Int      @default(0)
+  updated_at          DateTime @updatedAt
+}
+
+model Concept {
+  id          String    @id @default(uuid())
+  slug        String    @unique
+  name        String
+  category    Category
+  parent_id   String?
+  parent      Concept?  @relation("ConceptTree", fields: [parent_id], references: [id])
+  children    Concept[] @relation("ConceptTree")
+  description String?
+}
+
+model Module {
+  id               String   @id @default(uuid())
+  slug             String   @unique
+  title            String
+  concept_id       String
+  order            Int
+  prerequisite_ids String[]
+  lessons          Lesson[]
+}
+
+model Lesson {
+  id         String @id @default(uuid())
+  module_id  String
+  module     Module @relation(fields: [module_id], references: [id])
+  order      Int
+  title      String
+  body_md    String
+  media_refs String[]
+}
+
+model Scenario {
+  id             String           @id @default(uuid())
+  version        Int              @default(1)
+  status         ScenarioStatus   @default(DRAFT)
+  category       Category
+  concept_tags   String[]
+  sub_concepts   String[]
+  difficulty     Int
+  court_state    Json
+  user_role      String
+  prompt         String
+  explanation_md String
+  xp_reward      Int              @default(10)
+  mastery_weight Float            @default(1.0)
+  render_tier    Int              @default(1)
+  media_refs     String[]
+  created_at     DateTime         @default(now())
+  updated_at     DateTime         @updatedAt
+  choices        ScenarioChoice[]
+  attempts       Attempt[]
+}
+
+model ScenarioChoice {
+  id            String   @id @default(uuid())
+  scenario_id   String
+  scenario      Scenario @relation(fields: [scenario_id], references: [id], onDelete: Cascade)
+  label         String
+  is_correct    Boolean
+  feedback_text String
+  order         Int
+}
+
+model SessionRun {
+  id            String    @id @default(uuid())
+  user_id       String
+  user          User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  started_at    DateTime  @default(now())
+  ended_at      DateTime?
+  scenario_ids  String[]
+  correct_count Int       @default(0)
+  xp_earned     Int       @default(0)
+  iq_delta      Int       @default(0)
+  attempts      Attempt[]
+}
+
+model Attempt {
+  id             String     @id @default(uuid())
+  user_id        String
+  user           User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  scenario_id    String
+  scenario       Scenario   @relation(fields: [scenario_id], references: [id])
+  choice_id      String
+  is_correct     Boolean
+  time_ms        Int
+  iq_before      Int
+  iq_after       Int
+  session_run_id String?
+  session_run    SessionRun? @relation(fields: [session_run_id], references: [id])
+  created_at     DateTime   @default(now())
+
+  @@index([user_id, scenario_id])
+  @@index([user_id, created_at])
+}
+
+model Mastery {
+  user_id           String
+  user              User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  concept_id        String
+  rolling_accuracy  Float     @default(0)
+  attempts_count    Int       @default(0)
+  last_seen_at      DateTime?
+  spaced_rep_due_at DateTime?
+
+  @@id([user_id, concept_id])
+}
+
+model Badge {
+  id          String      @id @default(uuid())
+  slug        String      @unique
+  name        String
+  family      BadgeFamily
+  criteria    Json
+  icon_ref    String
+  user_badges UserBadge[]
+}
+
+model UserBadge {
+  user_id   String
+  user      User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  badge_id  String
+  badge     Badge    @relation(fields: [badge_id], references: [id])
+  earned_at DateTime @default(now())
+
+  @@id([user_id, badge_id])
+}
+
+model StreakEvent {
+  user_id   String
+  user      User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  completed Boolean  @default(true)
+
+  @@id([user_id, date])
+}
+
+model LeaderboardEntry {
+  user_id    String
+  week_start DateTime @db.Date
+  xp_week    Int      @default(0)
+  rank       Int?
+  updated_at DateTime @updatedAt
+
+  @@id([user_id, week_start])
+}
+
+enum Position {
+  PG
+  SG
+  SF
+  PF
+  C
+  ALL
+}
+
+enum SkillLevel {
+  ROOKIE
+  VARSITY
+  ELITE
+}
+
+enum UserRole {
+  PLAYER
+  PARENT
+  COACH
+  TRAINER
+  ADMIN
+}
+
+enum Category {
+  OFFENSE
+  DEFENSE
+  TRANSITION
+  SITUATIONAL
+}
+
+enum ScenarioStatus {
+  DRAFT
+  REVIEW
+  LIVE
+  RETIRED
+}
+
+enum BadgeFamily {
+  CONCEPT
+  MILESTONE
+  ACCURACY
 }

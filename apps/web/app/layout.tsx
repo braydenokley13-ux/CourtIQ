@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Space_Grotesk, Inter, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import { PostHogProvider } from '@/lib/analytics/posthog'
@@ -6,37 +6,39 @@ import { PostHogProvider } from '@/lib/analytics/posthog'
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
   variable: '--font-display',
-  weight: ['400', '500', '600', '700'],
+  display: 'swap',
 })
 
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-ui',
-  weight: ['400', '500', '600', '700'],
+  display: 'swap',
 })
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   variable: '--font-mono',
-  weight: ['400', '500'],
+  display: 'swap',
 })
 
 export const metadata: Metadata = {
-  title: 'CourtIQ — Train your brain like you train your game',
-  description:
-    'The operating system for basketball decision-making. Train off-ball movement, spacing, cuts, help defense, and pick-and-roll reads.',
+  title: {
+    default: 'CourtIQ — Train Your Basketball IQ',
+    template: '%s | CourtIQ',
+  },
+  description: 'The basketball IQ training app. Read the game faster, make smarter decisions.',
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'),
 }
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+export const viewport: Viewport = {
+  themeColor: '#0A0B0E',
+  width: 'device-width',
+  initialScale: 1,
+}
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="en"
-      className={`dark ${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable}`}
-    >
+    <html lang="en" className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable} dark`}>
       <body>
         <PostHogProvider>{children}</PostHogProvider>
       </body>

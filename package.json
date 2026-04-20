@@ -1,22 +1,23 @@
 {
   "name": "courtiq",
   "private": true,
+  "packageManager": "pnpm@9.15.0",
   "engines": {
     "node": ">=20",
     "pnpm": ">=9"
   },
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev",
+    "dev": "turbo run dev --parallel",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
     "prisma:validate": "turbo run prisma:validate",
-    "format": "prettier --write \"**/*.{ts,tsx,md,json}\""
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
   },
   "devDependencies": {
     "prettier": "^3.3.3",
     "turbo": "^2.3.3",
-    "typescript": "^5.6.3"
-  },
-  "packageManager": "pnpm@9.15.0"
+    "typescript": "^5.7.2"
+  }
 }

@@ -1,38 +1,35 @@
 name: CI
 
 on:
-  pull_request:
   push:
-    branches:
-      - main
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  DATABASE_URL: "postgresql://postgres:password@localhost:5432/courtiq_ci"
+  NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-anon-key"
+  NEXT_PUBLIC_POSTHOG_KEY: "phc_placeholder"
+  NEXT_PUBLIC_POSTHOG_HOST: "https://app.posthog.com"
+  NEXT_PUBLIC_SENTRY_DSN: "https://placeholder@sentry.io/0"
+  NEXT_PUBLIC_APP_URL: "http://localhost:3000"
 
 jobs:
   ci:
-    name: CI
+    name: Typecheck → Lint → Validate → Build
     runs-on: ubuntu-latest
-
-    env:
-      DATABASE_URL: postgresql://ci:ci@localhost:5432/courtiq_ci
-      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder_anon_key
-      NEXT_PUBLIC_POSTHOG_KEY: phc_placeholder
-      NEXT_PUBLIC_POSTHOG_HOST: https://app.posthog.com
-      NEXT_PUBLIC_SENTRY_DSN: ""
-      SENTRY_AUTH_TOKEN: ""
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        # version read from packageManager field in package.json
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          # cache omitted until pnpm-lock.yaml is committed to the repo
+          node-version: 20
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
@@ -43,7 +40,7 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Validate Prisma schema
+      - name: Prisma validate
         run: pnpm prisma:validate
 
       - name: Build
