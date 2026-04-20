@@ -3,6 +3,7 @@ export interface PlayerData {
   x: number
   y: number
   hasBall?: boolean
+  label?: string
   role?: string
   highlight?: boolean
   ghost?: boolean
