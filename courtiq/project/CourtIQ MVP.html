@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CourtIQ — MVP Prototype</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  html, body {
+    margin: 0; padding: 0;
+    background: #07080A;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: #F4F5F7;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  * { box-sizing: border-box; }
+
+  @keyframes ciq-pulse {
+    0% { transform: scale(1); opacity: 0.8; }
+    100% { transform: scale(1.4); opacity: 0; }
+  }
+  @keyframes ciq-slideup {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  @keyframes ciq-pop {
+    0% { transform: scale(0.6); opacity: 0; }
+    60% { transform: scale(1.15); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes ciq-fadein {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Hide scrollbars inside device */
+  .ciq-screen::-webkit-scrollbar { display: none; }
+  .ciq-screen { scrollbar-width: none; }
+
+  /* Stage layout */
+  .stage {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+  .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    font-weight: 500;
+    text-align: center;
+  }
+  .phone-wrap { display: flex; flex-direction: column; align-items: center; }
+  .phone-num {
+    color: rgba(59,227,131,0.6);
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+
+  /* Header */
+  .brandbar {
+    padding: 32px 40px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700; font-size: 22px;
+    letter-spacing: -0.5px;
+  }
+  .logo-mark {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: linear-gradient(135deg, #3BE383, #1F9F5B);
+    display: flex; align-items: center; justify-content: center;
+    color: #021810; font-weight: 800; font-size: 14px;
+    font-family: 'Space Grotesk';
+  }
+  .tagline {
+    font-family: 'Inter', sans-serif;
+    color: rgba(255,255,255,0.5);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .nav-toggle {
+    display: flex; gap: 4px;
+    background: #13151A;
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 4px; border-radius: 12px;
+  }
+  .nav-toggle button {
+    appearance: none; border: none; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-weight: 600; font-size: 13px;
+    padding: 8px 14px; border-radius: 8px;
+    background: transparent; color: rgba(255,255,255,0.55);
+    transition: all 160ms;
+  }
+  .nav-toggle button.active {
+    background: #3BE383; color: #021810;
+  }
+
+  @media (max-width: 900px) {
+    .stage { flex-direction: column; gap: 50px; }
+    .brandbar { padding: 24px 20px; flex-wrap: wrap; gap: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="brandbar">
+  <div class="logo">
+    <div class="logo-mark">C</div>
+    <span>CourtIQ</span>
+  </div>
+  <span class="tagline">Train your brain like you train your game.</span>
+  <div class="nav-toggle" id="nav">
+    <button data-view="all" class="active">All Screens</button>
+    <button data-view="home">Home</button>
+    <button data-view="academy">Academy</button>
+    <button data-view="scenario">Scenario</button>
+  </div>
+</div>
+
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="design-system.jsx"></script>
+<script type="text/babel" src="court.jsx"></script>
+<script type="text/babel" src="home.jsx"></script>
+<script type="text/babel" src="academy.jsx"></script>
+<script type="text/babel" src="scenario.jsx"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+
+function PhoneShell({ num, label, children }) {
+  return (
+    <div className="phone-wrap">
+      <div className="label"><span className="phone-num">{num}</span> {label}</div>
+      <div style={{ transform: 'scale(0.95)' }}>
+        <IOSDevice width={390} height={844} dark={true}>
+          <div className="ciq-screen" style={{ height: '100%', overflowY: 'auto', background: CIQ.bg0 }}>
+            {children}
+          </div>
+        </IOSDevice>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [view, setView] = useState(() => localStorage.getItem('ciq-view') || 'all');
+  // Shared interactive state — clicks on CTAs drive navigation across demo
+  const [homeNav, setHomeNav] = useState(0);
+  const [scenKey, setScenKey] = useState(0);
+
+  useEffect(() => {
+    localStorage.setItem('ciq-view', view);
+    document.querySelectorAll('#nav button').forEach(b => {
+      b.classList.toggle('active', b.dataset.view === view);
+      b.onclick = () => setView(b.dataset.view);
+    });
+  }, [view]);
+
+  const goHome = () => setView('home');
+  const goAcademy = () => setView('academy');
+  const goScenario = () => setView('scenario');
+  const resetScen = () => setScenKey(k => k + 1);
+
+  const home = (
+    <HomeScreen
+      onStartScenario={goScenario}
+      onOpenAcademy={goAcademy}
+    />
+  );
+  const academy = <AcademyScreen onStartLesson={goScenario}/>;
+  const scenario = (
+    <ScenarioScreen key={scenKey}
+      onComplete={() => { resetScen(); goHome(); }}
+      onExit={goHome}
+    />
+  );
+
+  if (view === 'all') {
+    return (
+      <div className="stage">
+        <PhoneShell num="01" label="Home Dashboard">{home}</PhoneShell>
+        <PhoneShell num="02" label="Academy">{academy}</PhoneShell>
+        <PhoneShell num="03" label="Scenario Engine">{scenario}</PhoneShell>
+      </div>
+    );
+  }
+
+  return (
+    <div className="stage">
+      <PhoneShell
+        num={view === 'home' ? '01' : view === 'academy' ? '02' : '03'}
+        label={view === 'home' ? 'Home Dashboard' : view === 'academy' ? 'Academy' : 'Scenario Engine'}>
+        {view === 'home' ? home : view === 'academy' ? academy : scenario}
+      </PhoneShell>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+
+</body>
+</html>
