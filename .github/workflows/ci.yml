@@ -12,8 +12,6 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      # Dummy values so Next.js build, Prisma validate, and PostHog init
-      # succeed without live credentials in CI.
       DATABASE_URL: postgresql://ci:ci@localhost:5432/courtiq_ci
       NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder_anon_key
@@ -28,17 +26,16 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
+        # version read from packageManager field in package.json
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "pnpm"
+          # cache omitted until pnpm-lock.yaml is committed to the repo
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --no-frozen-lockfile
 
       - name: Typecheck
         run: pnpm typecheck
