@@ -1,0 +1,1302 @@
+[
+  {
+    "id": "spacing_fundamentals_01",
+    "version": 1,
+    "status": "DRAFT",
+    "category": "OFFENSE",
+    "concept_tags": [
+      "spacing_fundamentals"
+    ],
+    "sub_concepts": [
+      "spacing_fundamentals_read"
+    ],
+    "difficulty": 1,
+    "user_role": "off_ball_guard",
+    "court_state": {
+      "offense": [
+        {
+          "id": "o1",
+          "x": 154,
+          "y": 290,
+          "role": "ball_handler",
+          "hasBall": true
+        },
+        {
+          "id": "o2",
+          "x": 95,
+          "y": 176,
+          "role": "strong_wing",
+          "hasBall": false
+        },
+        {
+          "id": "o3",
+          "x": 445,
+          "y": 125,
+          "role": "weak_corner",
+          "hasBall": false
+        },
+        {
+          "id": "o4",
+          "x": 365,
+          "y": 250,
+          "role": "slot",
+          "hasBall": false
+        },
+        {
+          "id": "o5",
+          "x": 250,
+          "y": 360,
+          "role": "trailer",
+          "hasBall": false
+        }
+      ],
+      "defense": [
+        {
+          "id": "d1",
+          "x": 200,
+          "y": 280,
+          "role": "on_ball",
+          "hasBall": false
+        },
+        {
+          "id": "d2",
+          "x": 108,
+          "y": 220,
+          "role": "strong_wing_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d3",
+          "x": 392,
+          "y": 165,
+          "role": "weak_corner_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d4",
+          "x": 352,
+          "y": 292,
+          "role": "slot_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d5",
+          "x": 250,
+          "y": 330,
+          "role": "rim_defender",
+          "hasBall": false
+        }
+      ],
+      "ball_location": {
+        "x": 154,
+        "y": 290
+      }
+    },
+    "prompt": "You are one pass away and your teammate drives middle. Where do you move?",
+    "choices": [
+      {
+        "id": "a",
+        "label": "Stay planted at the slot",
+        "is_correct": false,
+        "feedback_text": "You shrink the lane and invite your defender to stunt.",
+        "order": 1
+      },
+      {
+        "id": "b",
+        "label": "Drift to the deep corner",
+        "is_correct": true,
+        "feedback_text": "Correct. Drifting widens help and keeps the kickout window open.",
+        "order": 2
+      },
+      {
+        "id": "c",
+        "label": "Cut to the rim behind your teammate",
+        "is_correct": false,
+        "feedback_text": "That cut crowds the drive and brings your defender to the paint.",
+        "order": 3
+      },
+      {
+        "id": "d",
+        "label": "Screen for the ball handler",
+        "is_correct": false,
+        "feedback_text": "A surprise screen here brings two defenders to the ball.",
+        "order": 4
+      }
+    ],
+    "explanation_md": "You read the advantage early and take the highest-value action first. In this concept, timing and spacing decide whether the offense or defense keeps control. The right answer protects the primary priority, then flows into the next rotation or pass window. This rep targets spacing fundamentals at level 1.",
+    "xp_reward": 10,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": []
+  },
+  {
+    "id": "spacing_fundamentals_02",
+    "version": 1,
+    "status": "DRAFT",
+    "category": "OFFENSE",
+    "concept_tags": [
+      "spacing_fundamentals"
+    ],
+    "sub_concepts": [
+      "spacing_fundamentals_read"
+    ],
+    "difficulty": 1,
+    "user_role": "off_ball_guard",
+    "court_state": {
+      "offense": [
+        {
+          "id": "o1",
+          "x": 160,
+          "y": 290,
+          "role": "ball_handler",
+          "hasBall": true
+        },
+        {
+          "id": "o2",
+          "x": 95,
+          "y": 180,
+          "role": "strong_wing",
+          "hasBall": false
+        },
+        {
+          "id": "o3",
+          "x": 440,
+          "y": 125,
+          "role": "weak_corner",
+          "hasBall": false
+        },
+        {
+          "id": "o4",
+          "x": 365,
+          "y": 250,
+          "role": "slot",
+          "hasBall": false
+        },
+        {
+          "id": "o5",
+          "x": 250,
+          "y": 360,
+          "role": "trailer",
+          "hasBall": false
+        }
+      ],
+      "defense": [
+        {
+          "id": "d1",
+          "x": 205,
+          "y": 280,
+          "role": "on_ball",
+          "hasBall": false
+        },
+        {
+          "id": "d2",
+          "x": 108,
+          "y": 220,
+          "role": "strong_wing_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d3",
+          "x": 392,
+          "y": 168,
+          "role": "weak_corner_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d4",
+          "x": 352,
+          "y": 292,
+          "role": "slot_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d5",
+          "x": 250,
+          "y": 330,
+          "role": "rim_defender",
+          "hasBall": false
+        }
+      ],
+      "ball_location": {
+        "x": 160,
+        "y": 290
+      }
+    },
+    "prompt": "The ball swings to the wing and your defender is in the gap. Best spacing read?",
+    "choices": [
+      {
+        "id": "a",
+        "label": "Lift from corner to slot",
+        "is_correct": true,
+        "feedback_text": "Correct. Lifting punishes the gap defender and opens a clean passing angle.",
+        "order": 1
+      },
+      {
+        "id": "b",
+        "label": "Stand in the corner and wait",
+        "is_correct": false,
+        "feedback_text": "You stay hidden and let the gap defender clog the paint.",
+        "order": 2
+      },
+      {
+        "id": "c",
+        "label": "Cut through the lane now",
+        "is_correct": false,
+        "feedback_text": "Cutting now drags your defender into traffic and kills spacing.",
+        "order": 3
+      },
+      {
+        "id": "d",
+        "label": "Call for an immediate handoff",
+        "is_correct": false,
+        "feedback_text": "The handoff brings extra bodies where space is already tight.",
+        "order": 4
+      }
+    ],
+    "explanation_md": "You read the advantage early and take the highest-value action first. In this concept, timing and spacing decide whether the offense or defense keeps control. The right answer protects the primary priority, then flows into the next rotation or pass window. This rep targets spacing fundamentals at level 1.",
+    "xp_reward": 10,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": []
+  },
+  {
+    "id": "spacing_fundamentals_03",
+    "version": 1,
+    "status": "DRAFT",
+    "category": "OFFENSE",
+    "concept_tags": [
+      "spacing_fundamentals"
+    ],
+    "sub_concepts": [
+      "spacing_fundamentals_read"
+    ],
+    "difficulty": 1,
+    "user_role": "off_ball_guard",
+    "court_state": {
+      "offense": [
+        {
+          "id": "o1",
+          "x": 166,
+          "y": 290,
+          "role": "ball_handler",
+          "hasBall": true
+        },
+        {
+          "id": "o2",
+          "x": 95,
+          "y": 184,
+          "role": "strong_wing",
+          "hasBall": false
+        },
+        {
+          "id": "o3",
+          "x": 435,
+          "y": 125,
+          "role": "weak_corner",
+          "hasBall": false
+        },
+        {
+          "id": "o4",
+          "x": 365,
+          "y": 250,
+          "role": "slot",
+          "hasBall": false
+        },
+        {
+          "id": "o5",
+          "x": 250,
+          "y": 360,
+          "role": "trailer",
+          "hasBall": false
+        }
+      ],
+      "defense": [
+        {
+          "id": "d1",
+          "x": 210,
+          "y": 280,
+          "role": "on_ball",
+          "hasBall": false
+        },
+        {
+          "id": "d2",
+          "x": 108,
+          "y": 220,
+          "role": "strong_wing_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d3",
+          "x": 392,
+          "y": 171,
+          "role": "weak_corner_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d4",
+          "x": 352,
+          "y": 292,
+          "role": "slot_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d5",
+          "x": 250,
+          "y": 330,
+          "role": "rim_defender",
+          "hasBall": false
+        }
+      ],
+      "ball_location": {
+        "x": 166,
+        "y": 290
+      }
+    },
+    "prompt": "You are in the dunker spot as a guard while the lane is occupied. Best action?",
+    "choices": [
+      {
+        "id": "a",
+        "label": "Stay low to rebound",
+        "is_correct": false,
+        "feedback_text": "As a guard, this spot crowds your big and shortens driving lanes.",
+        "order": 1
+      },
+      {
+        "id": "b",
+        "label": "Relocate to weak-side corner",
+        "is_correct": true,
+        "feedback_text": "Correct. Corner spacing restores room for the roll and drive.",
+        "order": 2
+      },
+      {
+        "id": "c",
+        "label": "Set a screen on your own defender",
+        "is_correct": false,
+        "feedback_text": "Self-screening does not create a passing lane in this spacing.",
+        "order": 3
+      },
+      {
+        "id": "d",
+        "label": "Flash to the nail",
+        "is_correct": false,
+        "feedback_text": "Flashing to the nail brings another defender to the paint.",
+        "order": 4
+      }
+    ],
+    "explanation_md": "You read the advantage early and take the highest-value action first. In this concept, timing and spacing decide whether the offense or defense keeps control. The right answer protects the primary priority, then flows into the next rotation or pass window. This rep targets spacing fundamentals at level 1.",
+    "xp_reward": 10,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": []
+  },
+  {
+    "id": "spacing_fundamentals_04",
+    "version": 1,
+    "status": "DRAFT",
+    "category": "OFFENSE",
+    "concept_tags": [
+      "spacing_fundamentals"
+    ],
+    "sub_concepts": [
+      "spacing_fundamentals_read"
+    ],
+    "difficulty": 2,
+    "user_role": "off_ball_guard",
+    "court_state": {
+      "offense": [
+        {
+          "id": "o1",
+          "x": 172,
+          "y": 290,
+          "role": "ball_handler",
+          "hasBall": true
+        },
+        {
+          "id": "o2",
+          "x": 95,
+          "y": 188,
+          "role": "strong_wing",
+          "hasBall": false
+        },
+        {
+          "id": "o3",
+          "x": 430,
+          "y": 125,
+          "role": "weak_corner",
+          "hasBall": false
+        },
+        {
+          "id": "o4",
+          "x": 365,
+          "y": 250,
+          "role": "slot",
+          "hasBall": false
+        },
+        {
+          "id": "o5",
+          "x": 250,
+          "y": 360,
+          "role": "trailer",
+          "hasBall": false
+        }
+      ],
+      "defense": [
+        {
+          "id": "d1",
+          "x": 215,
+          "y": 280,
+          "role": "on_ball",
+          "hasBall": false
+        },
+        {
+          "id": "d2",
+          "x": 108,
+          "y": 220,
+          "role": "strong_wing_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d3",
+          "x": 392,
+          "y": 174,
+          "role": "weak_corner_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d4",
+          "x": 352,
+          "y": 292,
+          "role": "slot_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d5",
+          "x": 250,
+          "y": 330,
+          "role": "rim_defender",
+          "hasBall": false
+        }
+      ],
+      "ball_location": {
+        "x": 172,
+        "y": 290
+      }
+    },
+    "prompt": "Ball reverses quickly. You are at the wing with your defender helping. What now?",
+    "choices": [
+      {
+        "id": "a",
+        "label": "Hold wing depth and be shot ready",
+        "is_correct": true,
+        "feedback_text": "Correct. Hold depth so the helper cannot stunt and recover on time.",
+        "order": 1
+      },
+      {
+        "id": "b",
+        "label": "Dribble toward the ball to help",
+        "is_correct": false,
+        "feedback_text": "You bring your defender right back into the passing lane.",
+        "order": 2
+      },
+      {
+        "id": "c",
+        "label": "Cut backdoor before the pass leaves",
+        "is_correct": false,
+        "feedback_text": "Backdoor before the cue leaves no angle for the passer.",
+        "order": 3
+      },
+      {
+        "id": "d",
+        "label": "Slide down to the short corner",
+        "is_correct": false,
+        "feedback_text": "Short corner narrows help-side spacing for the next drive.",
+        "order": 4
+      }
+    ],
+    "explanation_md": "You read the advantage early and take the highest-value action first. In this concept, timing and spacing decide whether the offense or defense keeps control. The right answer protects the primary priority, then flows into the next rotation or pass window. This rep targets spacing fundamentals at level 2.",
+    "xp_reward": 12,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": []
+  },
+  {
+    "id": "spacing_fundamentals_05",
+    "version": 1,
+    "status": "DRAFT",
+    "category": "OFFENSE",
+    "concept_tags": [
+      "spacing_fundamentals"
+    ],
+    "sub_concepts": [
+      "spacing_fundamentals_read"
+    ],
+    "difficulty": 2,
+    "user_role": "off_ball_guard",
+    "court_state": {
+      "offense": [
+        {
+          "id": "o1",
+          "x": 148,
+          "y": 290,
+          "role": "ball_handler",
+          "hasBall": true
+        },
+        {
+          "id": "o2",
+          "x": 95,
+          "y": 172,
+          "role": "strong_wing",
+          "hasBall": false
+        },
+        {
+          "id": "o3",
+          "x": 450,
+          "y": 125,
+          "role": "weak_corner",
+          "hasBall": false
+        },
+        {
+          "id": "o4",
+          "x": 365,
+          "y": 250,
+          "role": "slot",
+          "hasBall": false
+        },
+        {
+          "id": "o5",
+          "x": 250,
+          "y": 360,
+          "role": "trailer",
+          "hasBall": false
+        }
+      ],
+      "defense": [
+        {
+          "id": "d1",
+          "x": 195,
+          "y": 280,
+          "role": "on_ball",
+          "hasBall": false
+        },
+        {
+          "id": "d2",
+          "x": 108,
+          "y": 220,
+          "role": "strong_wing_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d3",
+          "x": 392,
+          "y": 162,
+          "role": "weak_corner_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d4",
+          "x": 352,
+          "y": 292,
+          "role": "slot_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d5",
+          "x": 250,
+          "y": 330,
+          "role": "rim_defender",
+          "hasBall": false
+        }
+      ],
+      "ball_location": {
+        "x": 148,
+        "y": 290
+      }
+    },
+    "prompt": "Your post player seals inside. You are on strong-side corner. Best spacing decision?",
+    "choices": [
+      {
+        "id": "a",
+        "label": "Lift to wing to clear baseline",
+        "is_correct": false,
+        "feedback_text": "Lifting here lets your defender dig from the top.",
+        "order": 1
+      },
+      {
+        "id": "b",
+        "label": "Stay deep corner to keep help occupied",
+        "is_correct": true,
+        "feedback_text": "Correct. Corner gravity keeps your defender from digging at the post.",
+        "order": 2
+      },
+      {
+        "id": "c",
+        "label": "Cut baseline behind the post",
+        "is_correct": false,
+        "feedback_text": "That cut brings a second defender to your own post touch.",
+        "order": 3
+      },
+      {
+        "id": "d",
+        "label": "Screen the nearest defender",
+        "is_correct": false,
+        "feedback_text": "A random screen adds traffic and can trigger a turnover.",
+        "order": 4
+      }
+    ],
+    "explanation_md": "You read the advantage early and take the highest-value action first. In this concept, timing and spacing decide whether the offense or defense keeps control. The right answer protects the primary priority, then flows into the next rotation or pass window. This rep targets spacing fundamentals at level 2.",
+    "xp_reward": 12,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": []
+  },
+  {
+    "id": "spacing_fundamentals_06",
+    "version": 1,
+    "status": "DRAFT",
+    "category": "OFFENSE",
+    "concept_tags": [
+      "spacing_fundamentals"
+    ],
+    "sub_concepts": [
+      "spacing_fundamentals_read"
+    ],
+    "difficulty": 2,
+    "user_role": "off_ball_guard",
+    "court_state": {
+      "offense": [
+        {
+          "id": "o1",
+          "x": 154,
+          "y": 290,
+          "role": "ball_handler",
+          "hasBall": true
+        },
+        {
+          "id": "o2",
+          "x": 95,
+          "y": 176,
+          "role": "strong_wing",
+          "hasBall": false
+        },
+        {
+          "id": "o3",
+          "x": 445,
+          "y": 125,
+          "role": "weak_corner",
+          "hasBall": false
+        },
+        {
+          "id": "o4",
+          "x": 365,
+          "y": 250,
+          "role": "slot",
+          "hasBall": false
+        },
+        {
+          "id": "o5",
+          "x": 250,
+          "y": 360,
+          "role": "trailer",
+          "hasBall": false
+        }
+      ],
+      "defense": [
+        {
+          "id": "d1",
+          "x": 200,
+          "y": 280,
+          "role": "on_ball",
+          "hasBall": false
+        },
+        {
+          "id": "d2",
+          "x": 108,
+          "y": 220,
+          "role": "strong_wing_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d3",
+          "x": 392,
+          "y": 165,
+          "role": "weak_corner_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d4",
+          "x": 352,
+          "y": 292,
+          "role": "slot_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d5",
+          "x": 250,
+          "y": 330,
+          "role": "rim_defender",
+          "hasBall": false
+        }
+      ],
+      "ball_location": {
+        "x": 154,
+        "y": 290
+      }
+    },
+    "prompt": "You are one pass away and your teammate drives middle. Where do you move?",
+    "choices": [
+      {
+        "id": "a",
+        "label": "Stay planted at the slot",
+        "is_correct": false,
+        "feedback_text": "You shrink the lane and invite your defender to stunt.",
+        "order": 1
+      },
+      {
+        "id": "b",
+        "label": "Drift to the deep corner",
+        "is_correct": true,
+        "feedback_text": "Correct. Drifting widens help and keeps the kickout window open.",
+        "order": 2
+      },
+      {
+        "id": "c",
+        "label": "Cut to the rim behind your teammate",
+        "is_correct": false,
+        "feedback_text": "That cut crowds the drive and brings your defender to the paint.",
+        "order": 3
+      },
+      {
+        "id": "d",
+        "label": "Screen for the ball handler",
+        "is_correct": false,
+        "feedback_text": "A surprise screen here brings two defenders to the ball.",
+        "order": 4
+      }
+    ],
+    "explanation_md": "You read the advantage early and take the highest-value action first. In this concept, timing and spacing decide whether the offense or defense keeps control. The right answer protects the primary priority, then flows into the next rotation or pass window. This rep targets spacing fundamentals at level 2.",
+    "xp_reward": 12,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": []
+  },
+  {
+    "id": "spacing_fundamentals_07",
+    "version": 1,
+    "status": "DRAFT",
+    "category": "OFFENSE",
+    "concept_tags": [
+      "spacing_fundamentals"
+    ],
+    "sub_concepts": [
+      "spacing_fundamentals_read"
+    ],
+    "difficulty": 3,
+    "user_role": "off_ball_guard",
+    "court_state": {
+      "offense": [
+        {
+          "id": "o1",
+          "x": 160,
+          "y": 290,
+          "role": "ball_handler",
+          "hasBall": true
+        },
+        {
+          "id": "o2",
+          "x": 95,
+          "y": 180,
+          "role": "strong_wing",
+          "hasBall": false
+        },
+        {
+          "id": "o3",
+          "x": 440,
+          "y": 125,
+          "role": "weak_corner",
+          "hasBall": false
+        },
+        {
+          "id": "o4",
+          "x": 365,
+          "y": 250,
+          "role": "slot",
+          "hasBall": false
+        },
+        {
+          "id": "o5",
+          "x": 250,
+          "y": 360,
+          "role": "trailer",
+          "hasBall": false
+        }
+      ],
+      "defense": [
+        {
+          "id": "d1",
+          "x": 205,
+          "y": 280,
+          "role": "on_ball",
+          "hasBall": false
+        },
+        {
+          "id": "d2",
+          "x": 108,
+          "y": 220,
+          "role": "strong_wing_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d3",
+          "x": 392,
+          "y": 168,
+          "role": "weak_corner_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d4",
+          "x": 352,
+          "y": 292,
+          "role": "slot_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d5",
+          "x": 250,
+          "y": 330,
+          "role": "rim_defender",
+          "hasBall": false
+        }
+      ],
+      "ball_location": {
+        "x": 160,
+        "y": 290
+      }
+    },
+    "prompt": "The ball swings to the wing and your defender is in the gap. Best spacing read?",
+    "choices": [
+      {
+        "id": "a",
+        "label": "Lift from corner to slot",
+        "is_correct": true,
+        "feedback_text": "Correct. Lifting punishes the gap defender and opens a clean passing angle.",
+        "order": 1
+      },
+      {
+        "id": "b",
+        "label": "Stand in the corner and wait",
+        "is_correct": false,
+        "feedback_text": "You stay hidden and let the gap defender clog the paint.",
+        "order": 2
+      },
+      {
+        "id": "c",
+        "label": "Cut through the lane now",
+        "is_correct": false,
+        "feedback_text": "Cutting now drags your defender into traffic and kills spacing.",
+        "order": 3
+      },
+      {
+        "id": "d",
+        "label": "Call for an immediate handoff",
+        "is_correct": false,
+        "feedback_text": "The handoff brings extra bodies where space is already tight.",
+        "order": 4
+      }
+    ],
+    "explanation_md": "You read the advantage early and take the highest-value action first. In this concept, timing and spacing decide whether the offense or defense keeps control. The right answer protects the primary priority, then flows into the next rotation or pass window. This rep targets spacing fundamentals at level 3.",
+    "xp_reward": 14,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": []
+  },
+  {
+    "id": "spacing_fundamentals_08",
+    "version": 1,
+    "status": "DRAFT",
+    "category": "OFFENSE",
+    "concept_tags": [
+      "spacing_fundamentals"
+    ],
+    "sub_concepts": [
+      "spacing_fundamentals_read"
+    ],
+    "difficulty": 3,
+    "user_role": "off_ball_guard",
+    "court_state": {
+      "offense": [
+        {
+          "id": "o1",
+          "x": 166,
+          "y": 290,
+          "role": "ball_handler",
+          "hasBall": true
+        },
+        {
+          "id": "o2",
+          "x": 95,
+          "y": 184,
+          "role": "strong_wing",
+          "hasBall": false
+        },
+        {
+          "id": "o3",
+          "x": 435,
+          "y": 125,
+          "role": "weak_corner",
+          "hasBall": false
+        },
+        {
+          "id": "o4",
+          "x": 365,
+          "y": 250,
+          "role": "slot",
+          "hasBall": false
+        },
+        {
+          "id": "o5",
+          "x": 250,
+          "y": 360,
+          "role": "trailer",
+          "hasBall": false
+        }
+      ],
+      "defense": [
+        {
+          "id": "d1",
+          "x": 210,
+          "y": 280,
+          "role": "on_ball",
+          "hasBall": false
+        },
+        {
+          "id": "d2",
+          "x": 108,
+          "y": 220,
+          "role": "strong_wing_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d3",
+          "x": 392,
+          "y": 171,
+          "role": "weak_corner_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d4",
+          "x": 352,
+          "y": 292,
+          "role": "slot_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d5",
+          "x": 250,
+          "y": 330,
+          "role": "rim_defender",
+          "hasBall": false
+        }
+      ],
+      "ball_location": {
+        "x": 166,
+        "y": 290
+      }
+    },
+    "prompt": "You are in the dunker spot as a guard while the lane is occupied. Best action?",
+    "choices": [
+      {
+        "id": "a",
+        "label": "Stay low to rebound",
+        "is_correct": false,
+        "feedback_text": "As a guard, this spot crowds your big and shortens driving lanes.",
+        "order": 1
+      },
+      {
+        "id": "b",
+        "label": "Relocate to weak-side corner",
+        "is_correct": true,
+        "feedback_text": "Correct. Corner spacing restores room for the roll and drive.",
+        "order": 2
+      },
+      {
+        "id": "c",
+        "label": "Set a screen on your own defender",
+        "is_correct": false,
+        "feedback_text": "Self-screening does not create a passing lane in this spacing.",
+        "order": 3
+      },
+      {
+        "id": "d",
+        "label": "Flash to the nail",
+        "is_correct": false,
+        "feedback_text": "Flashing to the nail brings another defender to the paint.",
+        "order": 4
+      }
+    ],
+    "explanation_md": "You read the advantage early and take the highest-value action first. In this concept, timing and spacing decide whether the offense or defense keeps control. The right answer protects the primary priority, then flows into the next rotation or pass window. This rep targets spacing fundamentals at level 3.",
+    "xp_reward": 14,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": []
+  },
+  {
+    "id": "spacing_fundamentals_09",
+    "version": 1,
+    "status": "DRAFT",
+    "category": "OFFENSE",
+    "concept_tags": [
+      "spacing_fundamentals"
+    ],
+    "sub_concepts": [
+      "spacing_fundamentals_read"
+    ],
+    "difficulty": 4,
+    "user_role": "off_ball_guard",
+    "court_state": {
+      "offense": [
+        {
+          "id": "o1",
+          "x": 172,
+          "y": 290,
+          "role": "ball_handler",
+          "hasBall": true
+        },
+        {
+          "id": "o2",
+          "x": 95,
+          "y": 188,
+          "role": "strong_wing",
+          "hasBall": false
+        },
+        {
+          "id": "o3",
+          "x": 430,
+          "y": 125,
+          "role": "weak_corner",
+          "hasBall": false
+        },
+        {
+          "id": "o4",
+          "x": 365,
+          "y": 250,
+          "role": "slot",
+          "hasBall": false
+        },
+        {
+          "id": "o5",
+          "x": 250,
+          "y": 360,
+          "role": "trailer",
+          "hasBall": false
+        }
+      ],
+      "defense": [
+        {
+          "id": "d1",
+          "x": 215,
+          "y": 280,
+          "role": "on_ball",
+          "hasBall": false
+        },
+        {
+          "id": "d2",
+          "x": 108,
+          "y": 220,
+          "role": "strong_wing_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d3",
+          "x": 392,
+          "y": 174,
+          "role": "weak_corner_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d4",
+          "x": 352,
+          "y": 292,
+          "role": "slot_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d5",
+          "x": 250,
+          "y": 330,
+          "role": "rim_defender",
+          "hasBall": false
+        }
+      ],
+      "ball_location": {
+        "x": 172,
+        "y": 290
+      }
+    },
+    "prompt": "Ball reverses quickly. You are at the wing with your defender helping. What now?",
+    "choices": [
+      {
+        "id": "a",
+        "label": "Hold wing depth and be shot ready",
+        "is_correct": true,
+        "feedback_text": "Correct. Hold depth so the helper cannot stunt and recover on time.",
+        "order": 1
+      },
+      {
+        "id": "b",
+        "label": "Dribble toward the ball to help",
+        "is_correct": false,
+        "feedback_text": "You bring your defender right back into the passing lane.",
+        "order": 2
+      },
+      {
+        "id": "c",
+        "label": "Cut backdoor before the pass leaves",
+        "is_correct": false,
+        "feedback_text": "Backdoor before the cue leaves no angle for the passer.",
+        "order": 3
+      },
+      {
+        "id": "d",
+        "label": "Slide down to the short corner",
+        "is_correct": false,
+        "feedback_text": "Short corner narrows help-side spacing for the next drive.",
+        "order": 4
+      }
+    ],
+    "explanation_md": "You read the advantage early and take the highest-value action first. In this concept, timing and spacing decide whether the offense or defense keeps control. The right answer protects the primary priority, then flows into the next rotation or pass window. This rep targets spacing fundamentals at level 4.",
+    "xp_reward": 16,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": []
+  },
+  {
+    "id": "spacing_fundamentals_10",
+    "version": 1,
+    "status": "DRAFT",
+    "category": "OFFENSE",
+    "concept_tags": [
+      "spacing_fundamentals"
+    ],
+    "sub_concepts": [
+      "spacing_fundamentals_read"
+    ],
+    "difficulty": 5,
+    "user_role": "off_ball_guard",
+    "court_state": {
+      "offense": [
+        {
+          "id": "o1",
+          "x": 148,
+          "y": 290,
+          "role": "ball_handler",
+          "hasBall": true
+        },
+        {
+          "id": "o2",
+          "x": 95,
+          "y": 172,
+          "role": "strong_wing",
+          "hasBall": false
+        },
+        {
+          "id": "o3",
+          "x": 450,
+          "y": 125,
+          "role": "weak_corner",
+          "hasBall": false
+        },
+        {
+          "id": "o4",
+          "x": 365,
+          "y": 250,
+          "role": "slot",
+          "hasBall": false
+        },
+        {
+          "id": "o5",
+          "x": 250,
+          "y": 360,
+          "role": "trailer",
+          "hasBall": false
+        }
+      ],
+      "defense": [
+        {
+          "id": "d1",
+          "x": 195,
+          "y": 280,
+          "role": "on_ball",
+          "hasBall": false
+        },
+        {
+          "id": "d2",
+          "x": 108,
+          "y": 220,
+          "role": "strong_wing_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d3",
+          "x": 392,
+          "y": 162,
+          "role": "weak_corner_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d4",
+          "x": 352,
+          "y": 292,
+          "role": "slot_defender",
+          "hasBall": false
+        },
+        {
+          "id": "d5",
+          "x": 250,
+          "y": 330,
+          "role": "rim_defender",
+          "hasBall": false
+        }
+      ],
+      "ball_location": {
+        "x": 148,
+        "y": 290
+      }
+    },
+    "prompt": "Your post player seals inside. You are on strong-side corner. Best spacing decision?",
+    "choices": [
+      {
+        "id": "a",
+        "label": "Lift to wing to clear baseline",
+        "is_correct": false,
+        "feedback_text": "Lifting here lets your defender dig from the top.",
+        "order": 1
+      },
+      {
+        "id": "b",
+        "label": "Stay deep corner to keep help occupied",
+        "is_correct": true,
+        "feedback_text": "Correct. Corner gravity keeps your defender from digging at the post.",
+        "order": 2
+      },
+      {
+        "id": "c",
+        "label": "Cut baseline behind the post",
+        "is_correct": false,
+        "feedback_text": "That cut brings a second defender to your own post touch.",
+        "order": 3
+      },
+      {
+        "id": "d",
+        "label": "Screen the nearest defender",
+        "is_correct": false,
+        "feedback_text": "A random screen adds traffic and can trigger a turnover.",
+        "order": 4
+      }
+    ],
+    "explanation_md": "You read the advantage early and take the highest-value action first. In this concept, timing and spacing decide whether the offense or defense keeps control. The right answer protects the primary priority, then flows into the next rotation or pass window. This rep targets spacing fundamentals at level 5.",
+    "xp_reward": 18,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": []
+  }
+]
