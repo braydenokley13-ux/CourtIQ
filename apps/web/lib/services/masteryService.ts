@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client'
+import { mastery } from '@courtiq/core'
 
 export async function update(
   tx: Prisma.TransactionClient,
@@ -17,9 +18,10 @@ export async function update(
       },
     })
 
-    const attempts = (current?.attempts_count ?? 0) + 1
-    const prevAcc = current?.rolling_accuracy ?? 0
-    const nextAcc = ((prevAcc * (attempts - 1)) + (input.isCorrect ? 1 : 0)) / attempts
+    const next = mastery.update(
+      { attempts: current?.attempts_count ?? 0, accuracy: current?.rolling_accuracy ?? 0 },
+      input.isCorrect,
+    )
 
     await tx.mastery.upsert({
       where: {
@@ -31,14 +33,14 @@ export async function update(
       create: {
         user_id: input.userId,
         concept_id: conceptId,
-        attempts_count: attempts,
-        rolling_accuracy: nextAcc,
+        attempts_count: next.attempts,
+        rolling_accuracy: next.accuracy,
         last_seen_at: now,
         spaced_rep_due_at: dueAt,
       },
       update: {
-        attempts_count: attempts,
-        rolling_accuracy: nextAcc,
+        attempts_count: next.attempts,
+        rolling_accuracy: next.accuracy,
         last_seen_at: now,
         spaced_rep_due_at: dueAt,
       },

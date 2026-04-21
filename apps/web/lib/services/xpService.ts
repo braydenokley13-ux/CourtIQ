@@ -1,17 +1,16 @@
-import type { Prisma } from '@prisma/client'
-import { calcXP, xpToLevel } from '@courtiq/core'
+import type { Prisma, Scenario } from '@prisma/client'
+import { level, xp } from '@courtiq/core'
 
 export async function award(
   tx: Prisma.TransactionClient,
-  input: { userId: string; isCorrect: boolean; xpReward: number },
+  input: { userId: string; amount: number; difficulty: Scenario['difficulty'] },
 ): Promise<{ xpDelta: number; xpTotal: number; levelBefore: number; levelAfter: number }> {
   const profile = await tx.profile.findUnique({ where: { user_id: input.userId } })
   const levelBefore = profile?.level ?? 1
   const xpBefore = profile?.xp_total ?? 0
-  const streak = profile?.current_streak ?? 0
-  const xpDelta = calcXP(input.isCorrect, input.xpReward, streak)
+  const xpDelta = xp.award(input.amount, input.difficulty)
   const xpTotal = xpBefore + xpDelta
-  const levelAfter = xpToLevel(xpTotal)
+  const levelAfter = level.fromXp(xpTotal)
 
   await tx.profile.upsert({
     where: { user_id: input.userId },

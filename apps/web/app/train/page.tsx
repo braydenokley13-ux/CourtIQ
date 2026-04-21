@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Court } from '@/components/court'
+import type { CourtState } from '@/components/court/types'
 
 type SessionScenario = {
   id: string
   difficulty: number
   prompt: string
-  court_state: any
+  court_state: CourtState
   concept_tags: string[]
   render_tier: number
   choices: Array<{ id: string; label: string; order: number }>
