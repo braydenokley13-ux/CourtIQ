@@ -3,6 +3,8 @@ import { prisma } from '@/lib/db/prisma'
 import { applyAttempt } from '@/lib/services/iqService'
 import { award } from '@/lib/services/xpService'
 import { update as updateMastery } from '@/lib/services/masteryService'
+import { tick as tickStreak } from '@/lib/services/streakService'
+import { checkAndAward } from '@/lib/services/badgeService'
 import { captureServerEvent } from '@/lib/analytics/serverEvents'
 
 export async function POST(
@@ -46,13 +48,13 @@ export async function POST(
     const iq = await applyAttempt(tx, {
       userId: body.userId!,
       scenario,
-      isCorrect: selectedChoice.is_correct,
+      choice: selectedChoice,
       timeMs,
     })
     const xp = await award(tx, {
       userId: body.userId!,
-      isCorrect: selectedChoice.is_correct,
-      xpReward: scenario.xp_reward,
+      amount: selectedChoice.is_correct ? 10 : 0,
+      difficulty: scenario.difficulty,
     })
 
     await tx.attempt.create({
@@ -83,9 +85,14 @@ export async function POST(
       isCorrect: selectedChoice.is_correct,
     })
 
+    const streak = await tickStreak(tx, { userId: body.userId! })
+    const badges = await checkAndAward(tx, { userId: body.userId!, sessionId })
+
     return {
       iq,
       xp,
+      streak,
+      badges,
     }
   })
 
@@ -99,6 +106,40 @@ export async function POST(
     xp_delta: result.xp.xpDelta,
   })
 
+  captureServerEvent('iq_updated', {
+    iq_before: result.iq.iqBefore,
+    iq_after: result.iq.iqAfter,
+    delta: result.iq.iqDelta,
+    source: 'scenario',
+  })
+
+  if (result.xp.levelAfter > result.xp.levelBefore) {
+    captureServerEvent('level_up', {
+      level_before: result.xp.levelBefore,
+      level_after: result.xp.levelAfter,
+      xp_total: result.xp.xpTotal,
+    })
+  }
+
+  if (result.streak.extended) {
+    captureServerEvent('streak_extended', {
+      streak_current: result.streak.current,
+    })
+  }
+
+  if (result.streak.broken) {
+    captureServerEvent('streak_broken', {
+      streak_previous: result.streak.previous,
+    })
+  }
+
+  for (const badge of result.badges) {
+    captureServerEvent('badge_earned', {
+      badge_slug: badge.slug,
+      family: badge.family,
+    })
+  }
+
   return NextResponse.json({
     scenario_id: scenario.id,
     choice_id: selectedChoice.id,
@@ -111,5 +152,7 @@ export async function POST(
     iq_after: result.iq.iqAfter,
     xp_total: result.xp.xpTotal,
     level: result.xp.levelAfter,
+    streak: result.streak.current,
+    badges_awarded: result.badges,
   })
 }
