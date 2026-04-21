@@ -6,7 +6,7 @@ type BadgeSeed = {
   name: string
   family: BadgeFamily
   icon_ref: string
-  criteria: Record<string, unknown>
+  criteria: Prisma.InputJsonValue
 }
 
 type UserBadgeWithBadge = { badge: { slug: string } }
