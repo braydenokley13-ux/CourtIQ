@@ -2,6 +2,9 @@ import { prisma } from '@/lib/db/prisma'
 import { Card, Chip, StreakFlame } from '@/components/ui'
 import { level } from '@courtiq/core'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 function Sparkline({ values }: { values: number[] }) {
   const safe = values.length ? values : [500, 510, 520, 530, 540]
   const min = Math.min(...safe)
