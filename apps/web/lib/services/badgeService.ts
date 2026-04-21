@@ -5,7 +5,7 @@ type BadgeSeed = {
   name: string
   family: BadgeFamily
   icon_ref: string
-  criteria: Record<string, unknown>
+  criteria: Prisma.InputJsonValue
 }
 
 const STARTER_BADGES: BadgeSeed[] = [
