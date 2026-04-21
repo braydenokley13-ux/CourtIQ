@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -73,6 +73,22 @@ function CourtLines() {
 }
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginSkeleton />}>
+      <LoginContent />
+    </Suspense>
+  )
+}
+
+function LoginSkeleton() {
+  return (
+    <div className="flex min-h-dvh items-center justify-center bg-bg-0">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-hairline-2 border-t-brand" />
+    </div>
+  )
+}
+
+function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
