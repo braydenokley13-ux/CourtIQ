@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db/prisma'
 import { level } from '@courtiq/core'
+import type { BadgeFamily } from '@prisma/client'
 
 type AttemptHistoryPoint = {
   created_at: Date
@@ -8,11 +9,11 @@ type AttemptHistoryPoint = {
   is_correct: boolean
 }
 
-type UserBadgeRow = {
+type BadgeProjection = {
   badge: {
     slug: string
     name: string
-    family: string
+    family: BadgeFamily
     icon_ref: string
   }
   earned_at: Date
@@ -33,33 +34,41 @@ export async function GET(request: Request) {
       orderBy: { created_at: 'asc' },
       select: { created_at: true, iq_after: true, is_correct: true },
     }),
-    prisma.mastery.findMany({ where: { user_id: userId }, orderBy: { rolling_accuracy: 'desc' }, take: 6 }),
-    prisma.userBadge.findMany({ where: { user_id: userId }, include: { badge: true }, orderBy: { earned_at: 'desc' } }),
+    prisma.mastery.findMany({
+      where: { user_id: userId },
+      orderBy: { rolling_accuracy: 'desc' },
+      take: 6,
+    }),
+    prisma.userBadge.findMany({
+      where: { user_id: userId },
+      include: { badge: true },
+      orderBy: { earned_at: 'desc' },
+    }),
   ])
 
-  const typedAttempts = attempts as AttemptHistoryPoint[]
-  const typedBadges = badges as UserBadgeRow[]
+  const attemptRows: AttemptHistoryPoint[] = attempts
+  const badgeRows: BadgeProjection[] = badges
 
   const rankLabel = level.rankLabel(profile?.level ?? 1)
 
   return NextResponse.json({
     profile,
-    iqHistory30d: typedAttempts.slice(-30).map((attempt: AttemptHistoryPoint) => ({
+    iqHistory30d: attemptRows.slice(-30).map((attempt: AttemptHistoryPoint) => ({
       date: attempt.created_at.toISOString(),
       iq: attempt.iq_after,
     })),
     mastery: masteries,
-    badges: typedBadges.map((userBadge: UserBadgeRow) => ({
-      slug: userBadge.badge.slug,
-      name: userBadge.badge.name,
-      family: userBadge.badge.family,
-      icon_ref: userBadge.badge.icon_ref,
-      earned_at: userBadge.earned_at,
+    badges: badgeRows.map((row: BadgeProjection) => ({
+      slug: row.badge.slug,
+      name: row.badge.name,
+      family: row.badge.family,
+      icon_ref: row.badge.icon_ref,
+      earned_at: row.earned_at,
     })),
     rankLabel,
-    accuracy: typedAttempts.length
-      ? typedAttempts.filter((attempt: AttemptHistoryPoint) => attempt.is_correct).length / typedAttempts.length
+    accuracy: attemptRows.length
+      ? attemptRows.filter((attempt: AttemptHistoryPoint) => attempt.is_correct).length / attemptRows.length
       : 0,
-    attemptsCount: typedAttempts.length,
+    attemptsCount: attemptRows.length,
   })
 }
