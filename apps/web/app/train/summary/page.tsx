@@ -1,9 +1,28 @@
 'use client'
 
 import Link from 'next/link'
+import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 export default function TrainSummaryPage() {
+  return (
+    <Suspense fallback={<SummaryFallback />}>
+      <SummaryContent />
+    </Suspense>
+  )
+}
+
+function SummaryFallback() {
+  return (
+    <main className="min-h-dvh bg-bg-0 text-text p-6">
+      <div className="max-w-md mx-auto rounded-3xl border border-hairline-2 bg-bg-1 p-6">
+        <p className="text-text-dim">Loading summary…</p>
+      </div>
+    </main>
+  )
+}
+
+function SummaryContent() {
   const params = useSearchParams()
   const correct = Number(params.get('correct') ?? 0)
   const total = Number(params.get('total') ?? 0)
