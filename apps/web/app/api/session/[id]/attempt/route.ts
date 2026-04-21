@@ -6,7 +6,7 @@ import { update as updateMastery } from '@/lib/services/masteryService'
 import { tick as tickStreak } from '@/lib/services/streakService'
 import { checkAndAward } from '@/lib/services/badgeService'
 import { captureServerEvent } from '@/lib/analytics/serverEvents'
-import type { ScenarioChoice } from '@prisma/client'
+import type { Prisma, BadgeFamily, ScenarioChoice } from '@prisma/client'
 
 export async function POST(
   request: Request,
@@ -45,7 +45,7 @@ export async function POST(
   }
 
   const timeMs = Math.max(0, body.timeMs ?? 8000)
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const iq = await applyAttempt(tx, {
       userId: body.userId!,
       scenario,
@@ -134,7 +134,7 @@ export async function POST(
     })
   }
 
-  for (const badge of result.badges) {
+  for (const badge of result.badges as Array<{ slug: string; family: BadgeFamily }>) {
     captureServerEvent('badge_earned', {
       badge_slug: badge.slug,
       family: badge.family,
