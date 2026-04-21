@@ -6,7 +6,8 @@ import { update as updateMastery } from '@/lib/services/masteryService'
 import { tick as tickStreak } from '@/lib/services/streakService'
 import { checkAndAward } from '@/lib/services/badgeService'
 import { captureServerEvent } from '@/lib/analytics/serverEvents'
-import type { Prisma, BadgeFamily, ScenarioChoice } from '@prisma/client'
+import type { Prisma, ScenarioChoice } from '@prisma/client'
+import type { BadgeFamily } from '@courtiq/core'
 
 export async function POST(
   request: Request,
