@@ -7,7 +7,7 @@ import { usePathname, useSearchParams } from 'next/navigation'
 
 // PII guardrail (ARCHITECTURE.md §10): only email + display_name are permitted.
 // Redact anything that looks like an email in arbitrary event property values.
-const EMAIL_RE = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g
+const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
 
 function sanitizeProperties(
   props: Record<string, unknown>,

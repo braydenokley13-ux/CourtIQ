@@ -13,6 +13,7 @@ interface BaseCardProps {
 
 interface InteractiveCardProps extends BaseCardProps, HTMLMotionProps<'div'> {
   interactive: true
+  children?: React.ReactNode
 }
 
 interface StaticCardProps extends BaseCardProps, HTMLAttributes<HTMLDivElement> {
