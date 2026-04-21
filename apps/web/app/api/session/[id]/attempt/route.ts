@@ -6,8 +6,14 @@ import { update as updateMastery } from '@/lib/services/masteryService'
 import { tick as tickStreak } from '@/lib/services/streakService'
 import { checkAndAward } from '@/lib/services/badgeService'
 import { captureServerEvent } from '@/lib/analytics/serverEvents'
-import type { Prisma, ScenarioChoice } from '@prisma/client'
+import type { Prisma } from '@prisma/client'
 import type { BadgeFamily } from '@courtiq/core'
+
+type ScenarioChoiceShape = {
+  id: string
+  is_correct: boolean
+  feedback_text: string
+}
 
 export async function POST(
   request: Request,
@@ -38,8 +44,9 @@ export async function POST(
     return NextResponse.json({ error: 'Scenario not found' }, { status: 404 })
   }
 
-  const selectedChoice = scenario.choices.find((choice: ScenarioChoice) => choice.id === body.choiceId)
-  const correctChoice = scenario.choices.find((choice: ScenarioChoice) => choice.is_correct)
+  const choices = scenario.choices as ScenarioChoiceShape[]
+  const selectedChoice = choices.find((choice) => choice.id === body.choiceId)
+  const correctChoice = choices.find((choice) => choice.is_correct)
 
   if (!selectedChoice || !correctChoice) {
     return NextResponse.json({ error: 'Invalid choice' }, { status: 400 })

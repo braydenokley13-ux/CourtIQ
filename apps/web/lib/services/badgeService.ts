@@ -1,4 +1,5 @@
-import type { BadgeFamily, Prisma } from '@prisma/client'
+import type { Prisma } from '@prisma/client'
+import type { BadgeFamily } from '@courtiq/core'
 
 type BadgeSeed = {
   slug: string
