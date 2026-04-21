@@ -1,11 +1,11 @@
-import type { Prisma, Scenario } from '@prisma/client'
+import type { Prisma } from '@prisma/client'
 import { iq } from '@courtiq/core'
 
 export async function applyAttempt(
   tx: Prisma.TransactionClient,
   input: {
     userId: string
-    scenario: Pick<Scenario, 'difficulty'>
+    scenario: { difficulty: number }
     choice: { is_correct: boolean }
     timeMs: number
   },

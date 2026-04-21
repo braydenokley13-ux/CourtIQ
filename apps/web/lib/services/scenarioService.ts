@@ -1,4 +1,3 @@
-import type { Scenario, ScenarioChoice } from '@prisma/client'
 import { prisma } from '@/lib/db/prisma'
 
 interface SanitizedChoice {
@@ -7,11 +6,27 @@ interface SanitizedChoice {
   order: number
 }
 
+type ScenarioChoiceRow = {
+  id: string
+  label: string
+  order: number
+}
+
+type ScenarioWithChoices = {
+  id: string
+  difficulty: number
+  prompt: string
+  court_state: unknown
+  concept_tags: string[]
+  render_tier: number
+  choices: ScenarioChoiceRow[]
+}
+
 export interface SessionScenario {
   id: string
   difficulty: number
   prompt: string
-  court_state: Scenario['court_state']
+  court_state: unknown
   concept_tags: string[]
   choices: SanitizedChoice[]
   render_tier: number
@@ -26,8 +41,6 @@ export interface SessionBundle {
     daily_goal_progress: number
   }
 }
-
-type ScenarioWithChoices = Scenario & { choices: ScenarioChoice[] }
 
 function pickRandom<T>(arr: T[], n: number, exclude = new Set<string>()): T[] {
   const pool = [...arr]
@@ -50,7 +63,7 @@ function sanitizeScenario(s: ScenarioWithChoices): SessionScenario {
     render_tier: s.render_tier,
     choices: [...s.choices]
       .sort((a, b) => a.order - b.order)
-      .map((choice) => ({ id: choice.id, label: choice.label, order: choice.order })),
+      .map((choice: ScenarioChoiceRow) => ({ id: choice.id, label: choice.label, order: choice.order })),
   }
 }
 
@@ -85,8 +98,10 @@ export async function generateSessionBundle(userId: string, n = 5): Promise<Sess
     }),
   ])
 
-  const weakestConceptIds = new Set(weakestConcepts.map((m) => m.concept_id))
-  const weakestPool = allLiveScenarios.filter((s) => s.concept_tags.some((tag) => weakestConceptIds.has(tag)))
+  const typedLiveScenarios = allLiveScenarios as ScenarioWithChoices[]
+
+  const weakestConceptIds = new Set(weakestConcepts.map((mastery) => mastery.concept_id))
+  const weakestPool = typedLiveScenarios.filter((scenario) => scenario.concept_tags.some((tag) => weakestConceptIds.has(tag)))
 
   const conceptFrequency = new Map<string, number>()
   for (const attempt of recentAttempts) {
@@ -96,11 +111,11 @@ export async function generateSessionBundle(userId: string, n = 5): Promise<Sess
   }
   const currentConcept = [...conceptFrequency.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
   const modulePool = currentConcept
-    ? allLiveScenarios.filter((s) => s.concept_tags.includes(currentConcept))
+    ? typedLiveScenarios.filter((scenario) => scenario.concept_tags.includes(currentConcept))
     : []
 
-  const dueIds = new Set(dueIncorrect.map((a) => a.scenario_id))
-  const spacedRepPool = allLiveScenarios.filter((s) => dueIds.has(s.id))
+  const dueIds = new Set(dueIncorrect.map((attempt) => attempt.scenario_id))
+  const spacedRepPool = typedLiveScenarios.filter((scenario) => dueIds.has(scenario.id))
 
   const selected: ScenarioWithChoices[] = []
   const used = new Set<string>()
@@ -109,7 +124,7 @@ export async function generateSessionBundle(userId: string, n = 5): Promise<Sess
     { pool: weakestPool, count: Math.round(size * 0.4) },
     { pool: modulePool, count: Math.round(size * 0.3) },
     { pool: spacedRepPool, count: Math.round(size * 0.2) },
-    { pool: allLiveScenarios, count: Math.max(1, Math.round(size * 0.1)) },
+    { pool: typedLiveScenarios, count: Math.max(1, Math.round(size * 0.1)) },
   ]
 
   for (const bucket of buckets) {
@@ -121,7 +136,7 @@ export async function generateSessionBundle(userId: string, n = 5): Promise<Sess
   }
 
   if (selected.length < size) {
-    const fallback = pickRandom(allLiveScenarios, size - selected.length, used)
+    const fallback = pickRandom(typedLiveScenarios, size - selected.length, used)
     for (const pick of fallback) {
       selected.push(pick)
       used.add(pick.id)
@@ -133,7 +148,7 @@ export async function generateSessionBundle(userId: string, n = 5): Promise<Sess
   const session = await prisma.sessionRun.create({
     data: {
       user_id: userId,
-      scenario_ids: scenarios.map((s) => s.id),
+      scenario_ids: scenarios.map((scenario) => scenario.id),
     },
   })
 
