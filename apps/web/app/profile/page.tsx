@@ -2,6 +2,8 @@ import { prisma } from '@/lib/db/prisma'
 import { Card, Chip, StreakFlame } from '@/components/ui'
 import { level } from '@courtiq/core'
 
+export const dynamic = 'force-dynamic'
+
 type AttemptRow = { iq_after: number }
 type MasteryRow = { concept_id: string; rolling_accuracy: number }
 type LeaderboardRow = { user_id: string }
