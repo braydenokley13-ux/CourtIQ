@@ -6,6 +6,7 @@ import { update as updateMastery } from '@/lib/services/masteryService'
 import { tick as tickStreak } from '@/lib/services/streakService'
 import { checkAndAward } from '@/lib/services/badgeService'
 import { captureServerEvent } from '@/lib/analytics/serverEvents'
+import type { ScenarioChoice } from '@prisma/client'
 
 export async function POST(
   request: Request,
@@ -36,8 +37,8 @@ export async function POST(
     return NextResponse.json({ error: 'Scenario not found' }, { status: 404 })
   }
 
-  const selectedChoice = scenario.choices.find((choice) => choice.id === body.choiceId)
-  const correctChoice = scenario.choices.find((choice) => choice.is_correct)
+  const selectedChoice = scenario.choices.find((choice: ScenarioChoice) => choice.id === body.choiceId)
+  const correctChoice = scenario.choices.find((choice: ScenarioChoice) => choice.is_correct)
 
   if (!selectedChoice || !correctChoice) {
     return NextResponse.json({ error: 'Invalid choice' }, { status: 400 })
