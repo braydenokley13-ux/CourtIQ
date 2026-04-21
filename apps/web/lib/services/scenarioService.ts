@@ -12,6 +12,10 @@ type ScenarioChoiceRow = {
   order: number
 }
 
+
+type WeakMasteryRow = { concept_id: string }
+type AttemptWithScenario = { scenario_id: string; scenario: { concept_tags: string[] } }
+
 type ScenarioWithChoices = {
   id: string
   difficulty: number
@@ -99,12 +103,15 @@ export async function generateSessionBundle(userId: string, n = 5): Promise<Sess
   ])
 
   const typedLiveScenarios = allLiveScenarios as ScenarioWithChoices[]
+  const typedWeakestConcepts = weakestConcepts as WeakMasteryRow[]
+  const typedRecentAttempts = recentAttempts as AttemptWithScenario[]
+  const typedDueIncorrect = dueIncorrect as AttemptWithScenario[]
 
-  const weakestConceptIds = new Set(weakestConcepts.map((mastery) => mastery.concept_id))
+  const weakestConceptIds = new Set(typedWeakestConcepts.map((mastery: WeakMasteryRow) => mastery.concept_id))
   const weakestPool = typedLiveScenarios.filter((scenario) => scenario.concept_tags.some((tag) => weakestConceptIds.has(tag)))
 
   const conceptFrequency = new Map<string, number>()
-  for (const attempt of recentAttempts) {
+  for (const attempt of typedRecentAttempts) {
     for (const tag of attempt.scenario.concept_tags) {
       conceptFrequency.set(tag, (conceptFrequency.get(tag) ?? 0) + 1)
     }
@@ -114,7 +121,7 @@ export async function generateSessionBundle(userId: string, n = 5): Promise<Sess
     ? typedLiveScenarios.filter((scenario) => scenario.concept_tags.includes(currentConcept))
     : []
 
-  const dueIds = new Set(dueIncorrect.map((attempt) => attempt.scenario_id))
+  const dueIds = new Set(typedDueIncorrect.map((attempt: AttemptWithScenario) => attempt.scenario_id))
   const spacedRepPool = typedLiveScenarios.filter((scenario) => dueIds.has(scenario.id))
 
   const selected: ScenarioWithChoices[] = []
