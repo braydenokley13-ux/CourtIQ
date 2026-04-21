@@ -9,6 +9,12 @@ type BadgeSeed = {
   criteria: Record<string, unknown>
 }
 
+type UserBadgeWithBadge = { badge: { slug: string } }
+type MasteryRow = { concept_id: string; rolling_accuracy: number; attempts_count: number }
+type AttemptRow = { is_correct: boolean; time_ms: number }
+type SessionRow = { id: string; scenario_ids: string[]; correct_count: number }
+type BadgeRow = { id: string; slug: string; family: BadgeFamily; criteria: unknown }
+
 const STARTER_BADGES: BadgeSeed[] = [
   // Concept mastery (5)
   { slug: 'concept-help-side-guru', name: 'Help Side Guru', family: 'CONCEPT', icon_ref: 'shield-help', criteria: { type: 'concept_mastery', concept: 'help_defense_basics', min_accuracy: 0.8, min_attempts: 10 } },
@@ -33,7 +39,7 @@ const STARTER_BADGES: BadgeSeed[] = [
 ]
 
 async function seedStarterBadges(tx: Prisma.TransactionClient): Promise<void> {
-  await Promise.all(STARTER_BADGES.map((badge) => tx.badge.upsert({
+  await Promise.all(STARTER_BADGES.map((badge: BadgeSeed) => tx.badge.upsert({
     where: { slug: badge.slug },
     create: badge,
     update: {
@@ -59,15 +65,22 @@ export async function checkAndAward(
     tx.sessionRun.findMany({ where: { user_id: input.userId } }),
   ])
 
-  const earned = new Set(userBadges.map((ub) => ub.badge.slug))
-  const candidateBadges = await tx.badge.findMany()
+  const typedUserBadges = userBadges as UserBadgeWithBadge[]
+  const typedMasteries = masteries as MasteryRow[]
+  const typedAttempts = attempts as AttemptRow[]
+  const typedSessions = sessions as SessionRow[]
+
+  const earned = new Set(typedUserBadges.map((userBadge: UserBadgeWithBadge) => userBadge.badge.slug))
+  const candidateBadges = await tx.badge.findMany() as BadgeRow[]
   const awarded: Array<{ slug: string; family: BadgeFamily }> = []
 
-  const accuracy = attempts.length ? attempts.filter((a) => a.is_correct).length / attempts.length : 0
+  const accuracy = typedAttempts.length
+    ? typedAttempts.filter((attempt: AttemptRow) => attempt.is_correct).length / typedAttempts.length
+    : 0
 
   let currentCorrectRun = 0
   let bestCorrectRun = 0
-  for (const attempt of attempts) {
+  for (const attempt of typedAttempts) {
     if (attempt.is_correct) {
       currentCorrectRun += 1
       bestCorrectRun = Math.max(bestCorrectRun, currentCorrectRun)
@@ -76,8 +89,8 @@ export async function checkAndAward(
     }
   }
 
-  const fastCorrectCount = attempts.filter((a) => a.is_correct && a.time_ms < 3000).length
-  const latestSession = sessions.find((s) => s.id === input.sessionId)
+  const fastCorrectCount = typedAttempts.filter((attempt: AttemptRow) => attempt.is_correct && attempt.time_ms < 3000).length
+  const latestSession = typedSessions.find((session: SessionRow) => session.id === input.sessionId)
   const sessionPerfect = !!latestSession && latestSession.scenario_ids.length >= 5 && latestSession.correct_count === latestSession.scenario_ids.length
 
   for (const badge of candidateBadges) {
@@ -91,9 +104,9 @@ export async function checkAndAward(
       const concept = String(criteria.concept ?? '')
       const minAccuracy = Number(criteria.min_accuracy ?? 0.8)
       const minAttempts = Number(criteria.min_attempts ?? 10)
-      shouldAward = masteries.some((m) => m.concept_id === concept && m.rolling_accuracy >= minAccuracy && m.attempts_count >= minAttempts)
+      shouldAward = typedMasteries.some((mastery: MasteryRow) => mastery.concept_id === concept && mastery.rolling_accuracy >= minAccuracy && mastery.attempts_count >= minAttempts)
     } else if (type === 'scenario_count') {
-      shouldAward = attempts.length >= Number(criteria.min_attempts ?? 0)
+      shouldAward = typedAttempts.length >= Number(criteria.min_attempts ?? 0)
     } else if (type === 'xp_total') {
       shouldAward = (profile?.xp_total ?? 0) >= Number(criteria.min_xp ?? 0)
     } else if (type === 'level') {
@@ -105,7 +118,7 @@ export async function checkAndAward(
     } else if (type === 'correct_in_row') {
       shouldAward = bestCorrectRun >= Number(criteria.min_row ?? 0)
     } else if (type === 'overall_accuracy') {
-      shouldAward = attempts.length >= Number(criteria.min_attempts ?? 0) && accuracy >= Number(criteria.min_accuracy ?? 0)
+      shouldAward = typedAttempts.length >= Number(criteria.min_attempts ?? 0) && accuracy >= Number(criteria.min_accuracy ?? 0)
     } else if (type === 'fast_correct_count') {
       shouldAward = fastCorrectCount >= Number(criteria.min_count ?? 0)
     }
