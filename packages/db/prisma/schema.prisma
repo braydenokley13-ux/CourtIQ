@@ -88,6 +88,8 @@ model Scenario {
   updated_at     DateTime         @updatedAt
   choices        ScenarioChoice[]
   attempts       Attempt[]
+
+  @@index([status, difficulty])
 }
 
 model ScenarioChoice {
@@ -98,6 +100,8 @@ model ScenarioChoice {
   is_correct    Boolean
   feedback_text String
   order         Int
+
+  @@index([scenario_id, order])
 }
 
 model SessionRun {
@@ -111,6 +115,8 @@ model SessionRun {
   xp_earned     Int       @default(0)
   iq_delta      Int       @default(0)
   attempts      Attempt[]
+
+  @@index([user_id, started_at])
 }
 
 model Attempt {
@@ -129,6 +135,7 @@ model Attempt {
   created_at     DateTime   @default(now())
 
   @@index([user_id, scenario_id])
+  @@index([session_run_id, created_at])
   @@index([user_id, created_at])
 }
 
@@ -142,6 +149,7 @@ model Mastery {
   spaced_rep_due_at DateTime?
 
   @@id([user_id, concept_id])
+  @@index([spaced_rep_due_at])
 }
 
 model Badge {
