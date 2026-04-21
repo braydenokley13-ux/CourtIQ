@@ -2,6 +2,11 @@ import { prisma } from '@/lib/db/prisma'
 import { Card, Chip, StreakFlame } from '@/components/ui'
 import { level } from '@courtiq/core'
 
+type AttemptRow = { iq_after: number }
+type MasteryRow = { concept_id: string; rolling_accuracy: number }
+type LeaderboardRow = { user_id: string }
+type UserBadgeRow = { badge: { id: string; family: string; name: string } }
+
 function Sparkline({ values }: { values: number[] }) {
   const safe = values.length ? values : [500, 510, 520, 530, 540]
   const min = Math.min(...safe)
@@ -58,16 +63,21 @@ export default async function ProfilePage() {
     prisma.leaderboardEntry.findMany({ orderBy: { xp_week: 'desc' }, take: 100 }),
   ])
 
-  const iqHistory = attempts.slice(-30).map((a) => a.iq_after)
-  const strengthData = (masteries.length ? masteries : [
+  const typedAttempts = attempts as AttemptRow[]
+  const typedMasteries = masteries as MasteryRow[]
+  const typedBadges = userBadges as UserBadgeRow[]
+  const typedLeaderboard = leaderboard as LeaderboardRow[]
+
+  const iqHistory = typedAttempts.slice(-30).map((attempt: AttemptRow) => attempt.iq_after)
+  const strengthData = (typedMasteries.length ? typedMasteries : [
     { concept_id: 'help_defense_basics', rolling_accuracy: 0.68 },
     { concept_id: 'transition_stop_ball', rolling_accuracy: 0.76 },
     { concept_id: 'closeouts', rolling_accuracy: 0.62 },
     { concept_id: 'low_man_rotation', rolling_accuracy: 0.72 },
     { concept_id: 'spacing_fundamentals', rolling_accuracy: 0.81 },
-  ]).slice(0, 5).map((m) => ({ label: m.concept_id.replaceAll('_', ' '), value: m.rolling_accuracy }))
+  ]).slice(0, 5).map((mastery: MasteryRow) => ({ label: mastery.concept_id.replaceAll('_', ' '), value: mastery.rolling_accuracy }))
 
-  const rank = leaderboard.findIndex((entry) => entry.user_id === userId) + 1
+  const rank = typedLeaderboard.findIndex((entry: LeaderboardRow) => entry.user_id === userId) + 1
 
   return (
     <main className="min-h-dvh bg-bg-0 text-text p-5 pb-24">
@@ -112,7 +122,7 @@ export default async function ProfilePage() {
         <Card>
           <p className="text-xs uppercase tracking-wide text-text-dim">Badges</p>
           <div className="mt-3 grid grid-cols-3 gap-2">
-            {userBadges.length ? userBadges.map(({ badge }) => (
+            {typedBadges.length ? typedBadges.map(({ badge }: UserBadgeRow) => (
               <div key={badge.id} className="rounded-xl border border-hairline bg-bg-2 p-2 text-center">
                 <p className="text-[11px] text-brand">{badge.family}</p>
                 <p className="mt-1 text-xs font-semibold">{badge.name}</p>
