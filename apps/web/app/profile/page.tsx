@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/db/prisma'
 import { Card, Chip, StreakFlame } from '@/components/ui'
 import { level } from '@courtiq/core'
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -46,11 +48,25 @@ function Radar({ data }: { data: Array<{ label: string; value: number }> }) {
 }
 
 export default async function ProfilePage() {
-  const userId = 'demo-user'
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect('/login')
+  }
+
+  const userId = user.id
   await prisma.user.upsert({
     where: { id: userId },
-    create: { id: userId, email: `${userId}@courtiq.local` },
-    update: {},
+    create: {
+      id: userId,
+      email: user.email ?? `${userId}@courtiq.local`,
+      display_name: user.user_metadata?.full_name ?? null,
+    },
+    update: {
+      email: user.email ?? `${userId}@courtiq.local`,
+      display_name: user.user_metadata?.full_name ?? undefined,
+    },
   })
 
   const [profile, attempts, masteries, userBadges, leaderboard] = await Promise.all([
