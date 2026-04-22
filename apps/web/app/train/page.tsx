@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Court } from '@/components/court'
 import type { CourtState } from '@/components/court'
+import { createClient } from '@/lib/supabase/client'
 
 type SessionScenario = {
   id: string
@@ -29,10 +30,9 @@ type AttemptFeedback = {
   level: number
 }
 
-const USER_ID = 'demo-player'
-
 export default function TrainPage() {
   const router = useRouter()
+  const [userId, setUserId] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [scenarios, setScenarios] = useState<SessionScenario[]>([])
   const [idx, setIdx] = useState(0)
@@ -42,24 +42,44 @@ export default function TrainPage() {
   const [iq, setIq] = useState(500)
   const [xp, setXp] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const current = scenarios[idx]
   const phase = feedback ? 'feedback' : 'prompt'
 
   useEffect(() => {
     void (async () => {
-      const res = await fetch('/api/session/start', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ userId: USER_ID, n: 5 }),
-      })
-      const data = await res.json()
-      setSessionId(data.session_run_id)
-      setScenarios(data.scenarios)
-      setIq(data.meta.user_iq)
-      setLoading(false)
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.replace('/login')
+        return
+      }
+
+      setUserId(user.id)
+      try {
+        const res = await fetch('/api/session/start', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ userId: user.id, n: 5 }),
+        })
+        const data = await res.json()
+
+        if (!res.ok) {
+          throw new Error(data?.error ?? 'session_start_failed')
+        }
+
+        setSessionId(data.session_run_id)
+        setScenarios(data.scenarios)
+        setIq(data.meta.user_iq)
+      } catch (error) {
+        console.error('[train/page] failed to start session', error)
+        setLoadError('Session service is unavailable right now. Please try again in a moment.')
+      } finally {
+        setLoading(false)
+      }
     })()
-  }, [])
+  }, [router])
 
   useEffect(() => {
     if (phase !== 'prompt') return
@@ -76,11 +96,20 @@ export default function TrainPage() {
 
   const orderedChoices = useMemo(() => [...(current?.choices ?? [])].sort((a, b) => a.order - b.order), [current])
 
-  if (loading || !current || !sessionId) {
+  if (loading) {
     return <main className="p-6 text-text-dim">Loading session…</main>
   }
 
+  if (loadError) {
+    return <main className="p-6 text-heat">{loadError}</main>
+  }
+
+  if (!current || !sessionId) {
+    return <main className="p-6 text-text-dim">Session unavailable.</main>
+  }
+
   const submitChoice = async (choiceId: string) => {
+    if (!userId) return
     if (feedback) return
     setSelected(choiceId)
     const spentMs = Math.round((8 - timeLeft) * 1000)
@@ -88,7 +117,7 @@ export default function TrainPage() {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        userId: USER_ID,
+        userId,
         scenarioId: current.id,
         choiceId,
         timeMs: spentMs,
@@ -101,6 +130,7 @@ export default function TrainPage() {
   }
 
   const next = async () => {
+    if (!userId) return
     if (idx < scenarios.length - 1) {
       setIdx((v) => v + 1)
       return
@@ -109,7 +139,7 @@ export default function TrainPage() {
     const res = await fetch(`/api/session/${sessionId}/complete`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ userId: USER_ID }),
+      body: JSON.stringify({ userId }),
     })
     const data = await res.json()
     const qs = new URLSearchParams({
