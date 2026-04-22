@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Court } from '@/components/court'
 import type { CourtState } from '@/components/court'
+import { createClient } from '@/lib/supabase/client'
 
 type SessionScenario = {
   id: string
@@ -29,10 +30,9 @@ type AttemptFeedback = {
   level: number
 }
 
-const USER_ID = 'demo-player'
-
 export default function TrainPage() {
   const router = useRouter()
+  const [userId, setUserId] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [scenarios, setScenarios] = useState<SessionScenario[]>([])
   const [idx, setIdx] = useState(0)
@@ -48,10 +48,18 @@ export default function TrainPage() {
 
   useEffect(() => {
     void (async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.replace('/login')
+        return
+      }
+
+      setUserId(user.id)
       const res = await fetch('/api/session/start', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ userId: USER_ID, n: 5 }),
+        body: JSON.stringify({ userId: user.id, n: 5 }),
       })
       const data = await res.json()
       setSessionId(data.session_run_id)
@@ -59,7 +67,7 @@ export default function TrainPage() {
       setIq(data.meta.user_iq)
       setLoading(false)
     })()
-  }, [])
+  }, [router])
 
   useEffect(() => {
     if (phase !== 'prompt') return
@@ -81,6 +89,7 @@ export default function TrainPage() {
   }
 
   const submitChoice = async (choiceId: string) => {
+    if (!userId) return
     if (feedback) return
     setSelected(choiceId)
     const spentMs = Math.round((8 - timeLeft) * 1000)
@@ -88,7 +97,7 @@ export default function TrainPage() {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        userId: USER_ID,
+        userId,
         scenarioId: current.id,
         choiceId,
         timeMs: spentMs,
@@ -101,6 +110,7 @@ export default function TrainPage() {
   }
 
   const next = async () => {
+    if (!userId) return
     if (idx < scenarios.length - 1) {
       setIdx((v) => v + 1)
       return
@@ -109,7 +119,7 @@ export default function TrainPage() {
     const res = await fetch(`/api/session/${sessionId}/complete`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ userId: USER_ID }),
+      body: JSON.stringify({ userId }),
     })
     const data = await res.json()
     const qs = new URLSearchParams({

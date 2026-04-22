@@ -1,9 +1,19 @@
 import { prisma } from '@/lib/db/prisma'
 import { Card, Chip, StreakFlame } from '@/components/ui'
-import { level } from '@courtiq/core'
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+function rankLabel(levelNumber: number): string {
+  if (levelNumber <= 5) return 'Rookie'
+  if (levelNumber <= 15) return 'Starter'
+  if (levelNumber <= 25) return 'Sixth Man of the Year'
+  if (levelNumber <= 35) return 'All-Star'
+  if (levelNumber <= 45) return 'Floor General'
+  return 'Maestro'
+}
 
 function Sparkline({ values }: { values: number[] }) {
   const safe = values.length ? values : [500, 510, 520, 530, 540]
@@ -46,31 +56,60 @@ function Radar({ data }: { data: Array<{ label: string; value: number }> }) {
 }
 
 export default async function ProfilePage() {
-  const userId = 'demo-user'
-  await prisma.user.upsert({
-    where: { id: userId },
-    create: { id: userId, email: `${userId}@courtiq.local` },
-    update: {},
-  })
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  const [profile, attempts, masteries, userBadges, leaderboard] = await Promise.all([
-    prisma.profile.findUnique({ where: { user_id: userId } }),
-    prisma.attempt.findMany({ where: { user_id: userId }, orderBy: { created_at: 'asc' } }),
-    prisma.mastery.findMany({ where: { user_id: userId }, orderBy: { rolling_accuracy: 'desc' }, take: 6 }),
-    prisma.userBadge.findMany({ where: { user_id: userId }, include: { badge: true } }),
-    prisma.leaderboardEntry.findMany({ orderBy: { xp_week: 'desc' }, take: 100 }),
-  ])
+  if (!user) {
+    redirect('/login')
+  }
 
-  const iqHistory = attempts.slice(-30).map((a) => a.iq_after)
+  const userId = user.id
+  let loadError: string | null = null
+  let profile: Awaited<ReturnType<typeof prisma.profile.findUnique>> = null
+  let attempts: Awaited<ReturnType<typeof prisma.attempt.findMany>> = []
+  let masteries: Awaited<ReturnType<typeof prisma.mastery.findMany>> = []
+  let userBadges: Awaited<ReturnType<typeof prisma.userBadge.findMany>> = []
+  let leaderboard: Awaited<ReturnType<typeof prisma.leaderboardEntry.findMany>> = []
+
+  try {
+    await prisma.user.upsert({
+      where: { id: userId },
+      create: {
+        id: userId,
+        email: user.email ?? `${userId}@courtiq.local`,
+        display_name: user.user_metadata?.full_name ?? null,
+      },
+      update: {
+        email: user.email ?? `${userId}@courtiq.local`,
+        display_name: user.user_metadata?.full_name ?? undefined,
+      },
+    })
+
+    ;[profile, attempts, masteries, userBadges, leaderboard] = await Promise.all([
+      prisma.profile.findUnique({ where: { user_id: userId } }),
+      prisma.attempt.findMany({ where: { user_id: userId }, orderBy: { created_at: 'asc' } }),
+      prisma.mastery.findMany({ where: { user_id: userId }, orderBy: { rolling_accuracy: 'desc' }, take: 6 }),
+      prisma.userBadge.findMany({ where: { user_id: userId }, include: { badge: true } }),
+      prisma.leaderboardEntry.findMany({ orderBy: { xp_week: 'desc' }, take: 100 }),
+    ])
+  } catch (error) {
+    loadError = 'We couldn’t load your full profile right now. Showing cached defaults.'
+    console.error('[profile/page] failed to load profile data', error)
+  }
+
+  const iqHistory = attempts.slice(-30).map((a: { iq_after: number }) => a.iq_after)
   const strengthData = (masteries.length ? masteries : [
     { concept_id: 'help_defense_basics', rolling_accuracy: 0.68 },
     { concept_id: 'transition_stop_ball', rolling_accuracy: 0.76 },
     { concept_id: 'closeouts', rolling_accuracy: 0.62 },
     { concept_id: 'low_man_rotation', rolling_accuracy: 0.72 },
     { concept_id: 'spacing_fundamentals', rolling_accuracy: 0.81 },
-  ]).slice(0, 5).map((m) => ({ label: m.concept_id.replaceAll('_', ' '), value: m.rolling_accuracy }))
+  ]).slice(0, 5).map((m: { concept_id: string; rolling_accuracy: number }) => ({
+    label: m.concept_id.replaceAll('_', ' '),
+    value: m.rolling_accuracy,
+  }))
 
-  const rank = leaderboard.findIndex((entry) => entry.user_id === userId) + 1
+  const rank = leaderboard.findIndex((entry: { user_id: string }) => entry.user_id === userId) + 1
 
   return (
     <main className="min-h-dvh bg-bg-0 text-text p-5 pb-24">
@@ -85,7 +124,7 @@ export default async function ProfilePage() {
               </div>
               <div className="text-right">
                 <p className="text-[11px] uppercase tracking-[1.5px] text-text-dim">Rank</p>
-                <p className="mt-1 font-display text-xl font-bold">{level.rankLabel(profile?.level ?? 1)}</p>
+                <p className="mt-1 font-display text-xl font-bold">{rankLabel(profile?.level ?? 1)}</p>
                 <p className="font-mono text-[11px] text-brand">#{rank > 0 ? rank : '—'} WEEKLY</p>
               </div>
             </div>
@@ -103,7 +142,7 @@ export default async function ProfilePage() {
           <Card>
             <p className="text-xs uppercase tracking-wide text-text-dim">Level</p>
             <p className="mt-2 font-display text-2xl font-bold">{profile?.level ?? 1}</p>
-            <p className="text-xs text-brand">{level.rankLabel(profile?.level ?? 1)}</p>
+            <p className="text-xs text-brand">{rankLabel(profile?.level ?? 1)}</p>
           </Card>
         </div>
 
@@ -112,10 +151,16 @@ export default async function ProfilePage() {
           <div className="mt-3 flex items-center justify-center"><Radar data={strengthData} /></div>
         </Card>
 
+        {loadError ? (
+          <Card>
+            <p className="text-sm text-heat">{loadError}</p>
+          </Card>
+        ) : null}
+
         <Card>
           <p className="text-xs uppercase tracking-wide text-text-dim">Badges</p>
           <div className="mt-3 grid grid-cols-3 gap-2">
-            {userBadges.length ? userBadges.map(({ badge }) => (
+            {userBadges.length ? userBadges.map(({ badge }: { badge: { id: string; family: string; name: string } }) => (
               <div key={badge.id} className="rounded-xl border border-hairline bg-bg-2 p-2 text-center">
                 <p className="text-[11px] text-brand">{badge.family}</p>
                 <p className="mt-1 text-xs font-semibold">{badge.name}</p>
