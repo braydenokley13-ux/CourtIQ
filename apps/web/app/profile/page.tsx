@@ -1,9 +1,20 @@
-import { prisma } from '@/lib/db/prisma'
-import { Card, Chip, StreakFlame } from '@/components/ui'
-import { level } from '@courtiq/core'
+'use client'
 
-export const dynamic = 'force-dynamic'
-export const revalidate = 0
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { Card, Chip, StreakFlame } from '@/components/ui'
+
+interface ProfilePayload {
+  profile: {
+    iq_score: number
+    level: number
+    current_streak: number
+  } | null
+  iqHistory30d: Array<{ date: string; iq: number }>
+  mastery: Array<{ concept_id: string; rolling_accuracy: number }>
+  badges: Array<{ slug: string; name: string; family: string }>
+  rankLabel: string
+}
 
 function Sparkline({ values }: { values: number[] }) {
   const safe = values.length ? values : [500, 510, 520, 530, 540]
@@ -45,32 +56,45 @@ function Radar({ data }: { data: Array<{ label: string; value: number }> }) {
   )
 }
 
-export default async function ProfilePage() {
-  const userId = 'demo-user'
-  await prisma.user.upsert({
-    where: { id: userId },
-    create: { id: userId, email: `${userId}@courtiq.local` },
-    update: {},
-  })
+export default function ProfilePage() {
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [data, setData] = useState<ProfilePayload | null>(null)
 
-  const [profile, attempts, masteries, userBadges, leaderboard] = await Promise.all([
-    prisma.profile.findUnique({ where: { user_id: userId } }),
-    prisma.attempt.findMany({ where: { user_id: userId }, orderBy: { created_at: 'asc' } }),
-    prisma.mastery.findMany({ where: { user_id: userId }, orderBy: { rolling_accuracy: 'desc' }, take: 6 }),
-    prisma.userBadge.findMany({ where: { user_id: userId }, include: { badge: true } }),
-    prisma.leaderboardEntry.findMany({ orderBy: { xp_week: 'desc' }, take: 100 }),
-  ])
+  useEffect(() => {
+    async function load() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
 
-  const iqHistory = attempts.slice(-30).map((a) => a.iq_after)
-  const strengthData = (masteries.length ? masteries : [
+      if (!user) {
+        window.location.href = '/login'
+        return
+      }
+
+      try {
+        const res = await fetch(`/api/profile?userId=${user.id}`)
+        if (!res.ok) throw new Error('profile_load_failed')
+        setData(await res.json() as ProfilePayload)
+      } catch (error) {
+        console.error('[profile/page] load failed', error)
+        setLoadError('We could not load your profile right now. Try again in a moment.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    load()
+  }, [])
+
+  const iqHistory = data?.iqHistory30d.map((point) => point.iq) ?? []
+  const profile = data?.profile
+  const strengthData = (data?.mastery.length ? data.mastery : [
     { concept_id: 'help_defense_basics', rolling_accuracy: 0.68 },
     { concept_id: 'transition_stop_ball', rolling_accuracy: 0.76 },
     { concept_id: 'closeouts', rolling_accuracy: 0.62 },
     { concept_id: 'low_man_rotation', rolling_accuracy: 0.72 },
     { concept_id: 'spacing_fundamentals', rolling_accuracy: 0.81 },
   ]).slice(0, 5).map((m) => ({ label: m.concept_id.replaceAll('_', ' '), value: m.rolling_accuracy }))
-
-  const rank = leaderboard.findIndex((entry) => entry.user_id === userId) + 1
 
   return (
     <main className="min-h-dvh bg-bg-0 text-text p-5 pb-24">
@@ -85,8 +109,8 @@ export default async function ProfilePage() {
               </div>
               <div className="text-right">
                 <p className="text-[11px] uppercase tracking-[1.5px] text-text-dim">Rank</p>
-                <p className="mt-1 font-display text-xl font-bold">{level.rankLabel(profile?.level ?? 1)}</p>
-                <p className="font-mono text-[11px] text-brand">#{rank > 0 ? rank : '—'} WEEKLY</p>
+                <p className="mt-1 font-display text-xl font-bold">{data?.rankLabel ?? 'Rookie'}</p>
+                <p className="font-mono text-[11px] text-brand">{loading ? 'Loading…' : 'ACTIVE'}</p>
               </div>
             </div>
           </div>
@@ -103,7 +127,7 @@ export default async function ProfilePage() {
           <Card>
             <p className="text-xs uppercase tracking-wide text-text-dim">Level</p>
             <p className="mt-2 font-display text-2xl font-bold">{profile?.level ?? 1}</p>
-            <p className="text-xs text-brand">{level.rankLabel(profile?.level ?? 1)}</p>
+            <p className="text-xs text-brand">{data?.rankLabel ?? 'Rookie'}</p>
           </Card>
         </div>
 
@@ -112,11 +136,17 @@ export default async function ProfilePage() {
           <div className="mt-3 flex items-center justify-center"><Radar data={strengthData} /></div>
         </Card>
 
+        {loadError ? (
+          <Card>
+            <p className="text-sm text-heat">{loadError}</p>
+          </Card>
+        ) : null}
+
         <Card>
           <p className="text-xs uppercase tracking-wide text-text-dim">Badges</p>
           <div className="mt-3 grid grid-cols-3 gap-2">
-            {userBadges.length ? userBadges.map(({ badge }) => (
-              <div key={badge.id} className="rounded-xl border border-hairline bg-bg-2 p-2 text-center">
+            {data?.badges.length ? data.badges.map((badge) => (
+              <div key={badge.slug} className="rounded-xl border border-hairline bg-bg-2 p-2 text-center">
                 <p className="text-[11px] text-brand">{badge.family}</p>
                 <p className="mt-1 text-xs font-semibold">{badge.name}</p>
               </div>
