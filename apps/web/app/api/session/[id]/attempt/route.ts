@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db/prisma'
 import { applyAttempt } from '@/lib/services/iqService'
@@ -38,15 +39,15 @@ export async function POST(
     return NextResponse.json({ error: 'Scenario not found' }, { status: 404 })
   }
 
-  const selectedChoice = scenario.choices.find((choice) => choice.id === body.choiceId)
-  const correctChoice = scenario.choices.find((choice) => choice.is_correct)
+  const selectedChoice = scenario.choices.find((choice: { id: string }) => choice.id === body.choiceId)
+  const correctChoice = scenario.choices.find((choice: { is_correct: boolean }) => choice.is_correct)
 
   if (!selectedChoice || !correctChoice) {
     return NextResponse.json({ error: 'Invalid choice' }, { status: 400 })
   }
 
   const timeMs = Math.max(0, body.timeMs ?? 8000)
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const iq = await applyAttempt(tx, {
       userId: body.userId!,
       scenario,

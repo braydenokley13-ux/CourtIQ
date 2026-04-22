@@ -1,34 +1,35 @@
-import type { BadgeFamily, Prisma } from '@prisma/client'
+import type { Prisma } from '@prisma/client'
+import type { BadgeFamily } from '@courtiq/core'
 
 type BadgeSeed = {
   slug: string
   name: string
   family: BadgeFamily
   icon_ref: string
-  criteria: Prisma.InputJsonValue
+  criteria: unknown
 }
 
 const STARTER_BADGES: BadgeSeed[] = [
   // Concept mastery (5)
-  { slug: 'concept-help-side-guru', name: 'Help Side Guru', family: 'CONCEPT', icon_ref: 'shield-help', criteria: { type: 'concept_mastery', concept: 'help_defense_basics', min_accuracy: 0.8, min_attempts: 10 } },
-  { slug: 'concept-transition-maestro', name: 'Transition Maestro', family: 'CONCEPT', icon_ref: 'fastbreak', criteria: { type: 'concept_mastery', concept: 'transition_stop_ball', min_accuracy: 0.8, min_attempts: 10 } },
-  { slug: 'concept-closeout-commander', name: 'Closeout Commander', family: 'CONCEPT', icon_ref: 'closeout', criteria: { type: 'concept_mastery', concept: 'closeouts', min_accuracy: 0.8, min_attempts: 10 } },
-  { slug: 'concept-rotation-reader', name: 'Rotation Reader', family: 'CONCEPT', icon_ref: 'rotation', criteria: { type: 'concept_mastery', concept: 'low_man_rotation', min_accuracy: 0.8, min_attempts: 10 } },
-  { slug: 'concept-space-architect', name: 'Space Architect', family: 'CONCEPT', icon_ref: 'spacing', criteria: { type: 'concept_mastery', concept: 'spacing_fundamentals', min_accuracy: 0.8, min_attempts: 10 } },
+  { slug: 'concept-help-side-guru', name: 'Help Side Guru', family: 'mastery', icon_ref: 'shield-help', criteria: { type: 'concept_mastery', concept: 'help_defense_basics', min_accuracy: 0.8, min_attempts: 10 } },
+  { slug: 'concept-transition-maestro', name: 'Transition Maestro', family: 'mastery', icon_ref: 'fastbreak', criteria: { type: 'concept_mastery', concept: 'transition_stop_ball', min_accuracy: 0.8, min_attempts: 10 } },
+  { slug: 'concept-closeout-commander', name: 'Closeout Commander', family: 'mastery', icon_ref: 'closeout', criteria: { type: 'concept_mastery', concept: 'closeouts', min_accuracy: 0.8, min_attempts: 10 } },
+  { slug: 'concept-rotation-reader', name: 'Rotation Reader', family: 'mastery', icon_ref: 'rotation', criteria: { type: 'concept_mastery', concept: 'low_man_rotation', min_accuracy: 0.8, min_attempts: 10 } },
+  { slug: 'concept-space-architect', name: 'Space Architect', family: 'mastery', icon_ref: 'spacing', criteria: { type: 'concept_mastery', concept: 'spacing_fundamentals', min_accuracy: 0.8, min_attempts: 10 } },
 
   // Milestones (5)
-  { slug: 'milestone-first-50', name: 'First 50 Reps', family: 'MILESTONE', icon_ref: 'milestone-50', criteria: { type: 'scenario_count', min_attempts: 50 } },
-  { slug: 'milestone-century', name: '100 Scenarios', family: 'MILESTONE', icon_ref: 'milestone-100', criteria: { type: 'scenario_count', min_attempts: 100 } },
-  { slug: 'milestone-xp-1000', name: '1,000 XP', family: 'MILESTONE', icon_ref: 'xp-1000', criteria: { type: 'xp_total', min_xp: 1000 } },
-  { slug: 'milestone-level-10', name: 'Double Digits', family: 'MILESTONE', icon_ref: 'level-10', criteria: { type: 'level', min_level: 10 } },
-  { slug: 'milestone-streak-30', name: '30-Day Streak', family: 'MILESTONE', icon_ref: 'streak-30', criteria: { type: 'streak', min_streak: 30 } },
+  { slug: 'milestone-first-50', name: 'First 50 Reps', family: 'volume', icon_ref: 'milestone-50', criteria: { type: 'scenario_count', min_attempts: 50 } },
+  { slug: 'milestone-century', name: '100 Scenarios', family: 'volume', icon_ref: 'milestone-100', criteria: { type: 'scenario_count', min_attempts: 100 } },
+  { slug: 'milestone-xp-1000', name: '1,000 XP', family: 'volume', icon_ref: 'xp-1000', criteria: { type: 'xp_total', min_xp: 1000 } },
+  { slug: 'milestone-level-10', name: 'Double Digits', family: 'volume', icon_ref: 'level-10', criteria: { type: 'level', min_level: 10 } },
+  { slug: 'milestone-streak-30', name: '30-Day Streak', family: 'volume', icon_ref: 'streak-30', criteria: { type: 'streak', min_streak: 30 } },
 
   // Accuracy (5)
-  { slug: 'accuracy-perfect-5', name: 'Perfect Session (5/5)', family: 'ACCURACY', icon_ref: 'perfect-5', criteria: { type: 'perfect_session', min_total: 5 } },
-  { slug: 'accuracy-hot-hand-10', name: '10 in a Row', family: 'ACCURACY', icon_ref: 'streak-10', criteria: { type: 'correct_in_row', min_row: 10 } },
-  { slug: 'accuracy-sharpshooter-80', name: 'Sharpshooter 80%', family: 'ACCURACY', icon_ref: 'acc-80', criteria: { type: 'overall_accuracy', min_accuracy: 0.8, min_attempts: 30 } },
-  { slug: 'accuracy-lockdown-90', name: 'Lockdown 90%', family: 'ACCURACY', icon_ref: 'acc-90', criteria: { type: 'overall_accuracy', min_accuracy: 0.9, min_attempts: 50 } },
-  { slug: 'accuracy-snap-read', name: 'Snap Read', family: 'ACCURACY', icon_ref: 'speed', criteria: { type: 'fast_correct_count', max_time_ms: 3000, min_count: 25 } },
+  { slug: 'accuracy-perfect-5', name: 'Perfect Session (5/5)', family: 'iq', icon_ref: 'perfect-5', criteria: { type: 'perfect_session', min_total: 5 } },
+  { slug: 'accuracy-hot-hand-10', name: '10 in a Row', family: 'iq', icon_ref: 'streak-10', criteria: { type: 'correct_in_row', min_row: 10 } },
+  { slug: 'accuracy-sharpshooter-80', name: 'Sharpshooter 80%', family: 'iq', icon_ref: 'acc-80', criteria: { type: 'overall_accuracy', min_accuracy: 0.8, min_attempts: 30 } },
+  { slug: 'accuracy-lockdown-90', name: 'Lockdown 90%', family: 'iq', icon_ref: 'acc-90', criteria: { type: 'overall_accuracy', min_accuracy: 0.9, min_attempts: 50 } },
+  { slug: 'accuracy-snap-read', name: 'Snap Read', family: 'iq', icon_ref: 'speed', criteria: { type: 'fast_correct_count', max_time_ms: 3000, min_count: 25 } },
 ]
 
 async function seedStarterBadges(tx: Prisma.TransactionClient): Promise<void> {
@@ -58,11 +59,11 @@ export async function checkAndAward(
     tx.sessionRun.findMany({ where: { user_id: input.userId } }),
   ])
 
-  const earned = new Set(userBadges.map((ub) => ub.badge.slug))
+  const earned = new Set(userBadges.map((ub: { badge: { slug: string } }) => ub.badge.slug))
   const candidateBadges = await tx.badge.findMany()
   const awarded: Array<{ slug: string; family: BadgeFamily }> = []
 
-  const accuracy = attempts.length ? attempts.filter((a) => a.is_correct).length / attempts.length : 0
+  const accuracy = attempts.length ? attempts.filter((a: { is_correct: boolean }) => a.is_correct).length / attempts.length : 0
 
   let currentCorrectRun = 0
   let bestCorrectRun = 0
@@ -75,8 +76,8 @@ export async function checkAndAward(
     }
   }
 
-  const fastCorrectCount = attempts.filter((a) => a.is_correct && a.time_ms < 3000).length
-  const latestSession = sessions.find((s) => s.id === input.sessionId)
+  const fastCorrectCount = attempts.filter((a: { is_correct: boolean; time_ms: number }) => a.is_correct && a.time_ms < 3000).length
+  const latestSession = sessions.find((s: { id: string; scenario_ids: string[]; correct_count: number }) => s.id === input.sessionId)
   const sessionPerfect = !!latestSession && latestSession.scenario_ids.length >= 5 && latestSession.correct_count === latestSession.scenario_ids.length
 
   for (const badge of candidateBadges) {
@@ -90,7 +91,7 @@ export async function checkAndAward(
       const concept = String(criteria.concept ?? '')
       const minAccuracy = Number(criteria.min_accuracy ?? 0.8)
       const minAttempts = Number(criteria.min_attempts ?? 10)
-      shouldAward = masteries.some((m) => m.concept_id === concept && m.rolling_accuracy >= minAccuracy && m.attempts_count >= minAttempts)
+      shouldAward = masteries.some((m: { concept_id: string; rolling_accuracy: number; attempts_count: number }) => m.concept_id === concept && m.rolling_accuracy >= minAccuracy && m.attempts_count >= minAttempts)
     } else if (type === 'scenario_count') {
       shouldAward = attempts.length >= Number(criteria.min_attempts ?? 0)
     } else if (type === 'xp_total') {

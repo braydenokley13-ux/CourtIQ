@@ -1,9 +1,9 @@
-import type { Prisma, Scenario } from '@prisma/client'
+import type { Prisma } from '@prisma/client'
 import { level, xp } from '@courtiq/core'
 
 export async function award(
   tx: Prisma.TransactionClient,
-  input: { userId: string; amount: number; difficulty: Scenario['difficulty'] },
+  input: { userId: string; amount: number; difficulty: number },
 ): Promise<{ xpDelta: number; xpTotal: number; levelBefore: number; levelAfter: number }> {
   const profile = await tx.profile.findUnique({ where: { user_id: input.userId } })
   const levelBefore = profile?.level ?? 1

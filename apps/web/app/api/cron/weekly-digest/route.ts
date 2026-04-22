@@ -55,7 +55,7 @@ export async function GET(request: Request) {
       const iqEnd = user.profile?.iq_score ?? 500
       const iqStart = iqEnd - iqDelta
       const accuracy = totalScenarios > 0 ? totalCorrect / totalScenarios : 0
-      const weeklyRank = leaderboard.findIndex((e) => e.user_id === user.email) + 1
+      const weeklyRank = leaderboard.findIndex((e: { user_id: string }) => e.user_id === user.email) + 1
 
       const { subject, html } = weeklyDigestEmail({
         name: user.display_name ?? user.email.split('@')[0],
@@ -67,7 +67,7 @@ export async function GET(request: Request) {
         accuracy,
         streakDays: user.profile?.current_streak ?? 0,
         weeklyRank: weeklyRank > 0 ? weeklyRank : undefined,
-        topConcepts: user.masteries.map((m) => m.concept_id),
+        topConcepts: user.masteries.map((m: { concept_id: string }) => m.concept_id),
       })
       await sendEmail({ to: user.email, subject, html })
       sent++

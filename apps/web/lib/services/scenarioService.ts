@@ -1,4 +1,3 @@
-import type { Scenario, ScenarioChoice } from '@prisma/client'
 import { prisma } from '@/lib/db/prisma'
 
 interface SanitizedChoice {
@@ -11,7 +10,7 @@ export interface SessionScenario {
   id: string
   difficulty: number
   prompt: string
-  court_state: Scenario['court_state']
+  court_state: Record<string, unknown>
   concept_tags: string[]
   choices: SanitizedChoice[]
   render_tier: number
@@ -27,7 +26,15 @@ export interface SessionBundle {
   }
 }
 
-type ScenarioWithChoices = Scenario & { choices: ScenarioChoice[] }
+type ScenarioWithChoices = {
+  id: string
+  difficulty: number
+  prompt: string
+  court_state: Record<string, unknown>
+  concept_tags: string[]
+  render_tier: number
+  choices: Array<{ id: string; label: string; order: number }>
+}
 
 function pickRandom<T>(arr: T[], n: number, exclude = new Set<string>()): T[] {
   const pool = [...arr]
@@ -56,7 +63,7 @@ function sanitizeScenario(s: ScenarioWithChoices): SessionScenario {
 
 export async function generateSessionBundle(userId: string, n = 5): Promise<SessionBundle> {
   const size = Math.max(1, n)
-  const [profile, allLiveScenarios, weakestConcepts, recentAttempts, dueIncorrect] = await Promise.all([
+  const [profile, rawScenarios, weakestConcepts, recentAttempts, dueIncorrect] = await Promise.all([
     prisma.profile.findUnique({ where: { user_id: userId } }),
     prisma.scenario.findMany({
       where: { status: 'LIVE' },
@@ -85,22 +92,24 @@ export async function generateSessionBundle(userId: string, n = 5): Promise<Sess
     }),
   ])
 
-  const weakestConceptIds = new Set(weakestConcepts.map((m) => m.concept_id))
-  const weakestPool = allLiveScenarios.filter((s) => s.concept_tags.some((tag) => weakestConceptIds.has(tag)))
+  const allLiveScenarios = rawScenarios as ScenarioWithChoices[]
+
+  const weakestConceptIds = new Set(weakestConcepts.map((m: { concept_id: string }) => m.concept_id))
+  const weakestPool = allLiveScenarios.filter((s: ScenarioWithChoices) => s.concept_tags.some((tag: string) => weakestConceptIds.has(tag)))
 
   const conceptFrequency = new Map<string, number>()
-  for (const attempt of recentAttempts) {
+  for (const attempt of recentAttempts as Array<{ scenario: { concept_tags: string[] } }>) {
     for (const tag of attempt.scenario.concept_tags) {
       conceptFrequency.set(tag, (conceptFrequency.get(tag) ?? 0) + 1)
     }
   }
   const currentConcept = [...conceptFrequency.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
   const modulePool = currentConcept
-    ? allLiveScenarios.filter((s) => s.concept_tags.includes(currentConcept))
+    ? allLiveScenarios.filter((s: ScenarioWithChoices) => s.concept_tags.includes(currentConcept))
     : []
 
-  const dueIds = new Set(dueIncorrect.map((a) => a.scenario_id))
-  const spacedRepPool = allLiveScenarios.filter((s) => dueIds.has(s.id))
+  const dueIds = new Set(dueIncorrect.map((a: { scenario_id: string }) => a.scenario_id))
+  const spacedRepPool = allLiveScenarios.filter((s: ScenarioWithChoices) => dueIds.has(s.id))
 
   const selected: ScenarioWithChoices[] = []
   const used = new Set<string>()
@@ -121,7 +130,7 @@ export async function generateSessionBundle(userId: string, n = 5): Promise<Sess
   }
 
   if (selected.length < size) {
-    const fallback = pickRandom(allLiveScenarios, size - selected.length, used)
+    const fallback = pickRandom<ScenarioWithChoices>(allLiveScenarios, size - selected.length, used)
     for (const pick of fallback) {
       selected.push(pick)
       used.add(pick.id)
