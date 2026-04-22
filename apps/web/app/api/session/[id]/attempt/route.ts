@@ -6,6 +6,8 @@ import { update as updateMastery } from '@/lib/services/masteryService'
 import { tick as tickStreak } from '@/lib/services/streakService'
 import { checkAndAward } from '@/lib/services/badgeService'
 import { captureServerEvent } from '@/lib/analytics/serverEvents'
+import { sendEmail } from '@/lib/email/sender'
+import { badgeEarnedEmail } from '@/lib/email/templates/badge-earned'
 
 export async function POST(
   request: Request,
@@ -138,6 +140,27 @@ export async function POST(
       badge_slug: badge.slug,
       family: badge.family,
     })
+  }
+
+  // Fire badge emails without blocking the response
+  if (result.badges.length > 0) {
+    const userRecord = await prisma.user.findUnique({
+      where: { id: body.userId! },
+      select: { email: true, display_name: true, profile: { select: { iq_score: true } } },
+    })
+    if (userRecord) {
+      for (const badge of result.badges) {
+        const { subject, html } = badgeEarnedEmail({
+          name: userRecord.display_name ?? userRecord.email.split('@')[0],
+          email: userRecord.email,
+          badgeName: badge.slug.split('-').slice(1).map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+          badgeSlug: badge.slug,
+          badgeFamily: badge.family,
+          currentIQ: result.iq.iqAfter,
+        })
+        sendEmail({ to: userRecord.email, subject, html }).catch(err => console.error('[email/badge]', err))
+      }
+    }
   }
 
   return NextResponse.json({

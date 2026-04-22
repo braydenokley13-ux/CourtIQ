@@ -18,6 +18,7 @@
     "@supabase/supabase-js": "^2.47.3",
     "framer-motion": "^11.15.0",
     "next": "^15.1.2",
+    "nodemailer": "^8.0.5",
     "posthog-js": "^1.205.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
@@ -25,6 +26,7 @@
   "devDependencies": {
     "@courtiq/config": "workspace:*",
     "@types/node": "^22.10.2",
+    "@types/nodemailer": "^8.0.0",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "@typescript-eslint/eslint-plugin": "^7.18.0",

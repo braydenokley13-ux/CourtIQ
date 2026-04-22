@@ -175,6 +175,13 @@ function SignupContent() {
 
     trackSignup('email')
 
+    // Fire welcome email (best-effort, non-blocking)
+    fetch('/api/email/welcome', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim(), email }),
+    }).catch(() => {})
+
     // If session is immediately available, the project has email confirmation disabled
     if (data.session) {
       router.push('/home')
