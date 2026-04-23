@@ -2,7 +2,7 @@
   {
     "id": "closeouts_01",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "DEFENSE",
     "concept_tags": [
       "closeouts"
@@ -132,7 +132,7 @@
   {
     "id": "closeouts_02",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "DEFENSE",
     "concept_tags": [
       "closeouts"
@@ -262,7 +262,7 @@
   {
     "id": "closeouts_03",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "DEFENSE",
     "concept_tags": [
       "closeouts"
@@ -392,7 +392,7 @@
   {
     "id": "closeouts_04",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "DEFENSE",
     "concept_tags": [
       "closeouts"
@@ -522,7 +522,7 @@
   {
     "id": "closeouts_05",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "DEFENSE",
     "concept_tags": [
       "closeouts"
@@ -652,7 +652,7 @@
   {
     "id": "closeouts_06",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "DEFENSE",
     "concept_tags": [
       "closeouts"
@@ -782,7 +782,7 @@
   {
     "id": "closeouts_07",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "DEFENSE",
     "concept_tags": [
       "closeouts"
@@ -912,7 +912,7 @@
   {
     "id": "closeouts_08",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "DEFENSE",
     "concept_tags": [
       "closeouts"
@@ -1042,7 +1042,7 @@
   {
     "id": "closeouts_09",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "DEFENSE",
     "concept_tags": [
       "closeouts"
@@ -1172,7 +1172,7 @@
   {
     "id": "closeouts_10",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "DEFENSE",
     "concept_tags": [
       "closeouts"
