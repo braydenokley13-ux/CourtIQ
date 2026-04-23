@@ -2,7 +2,7 @@
   {
     "id": "cutting_relocation_01",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -132,7 +132,7 @@
   {
     "id": "cutting_relocation_02",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -262,7 +262,7 @@
   {
     "id": "cutting_relocation_03",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -392,7 +392,7 @@
   {
     "id": "cutting_relocation_04",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -522,7 +522,7 @@
   {
     "id": "cutting_relocation_05",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -652,7 +652,7 @@
   {
     "id": "cutting_relocation_06",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -782,7 +782,7 @@
   {
     "id": "cutting_relocation_07",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -912,7 +912,7 @@
   {
     "id": "cutting_relocation_08",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -1042,7 +1042,7 @@
   {
     "id": "cutting_relocation_09",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -1172,7 +1172,7 @@
   {
     "id": "cutting_relocation_10",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -1302,7 +1302,7 @@
   {
     "id": "cutting_relocation_11",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -1432,7 +1432,7 @@
   {
     "id": "cutting_relocation_12",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -1562,7 +1562,7 @@
   {
     "id": "cutting_relocation_13",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -1692,7 +1692,7 @@
   {
     "id": "cutting_relocation_14",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -1822,7 +1822,7 @@
   {
     "id": "cutting_relocation_15",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -1952,7 +1952,7 @@
   {
     "id": "cutting_relocation_16",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -2082,7 +2082,7 @@
   {
     "id": "cutting_relocation_17",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -2212,7 +2212,7 @@
   {
     "id": "cutting_relocation_18",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -2342,7 +2342,7 @@
   {
     "id": "cutting_relocation_19",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -2472,7 +2472,7 @@
   {
     "id": "cutting_relocation_20",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -2602,7 +2602,7 @@
   {
     "id": "cutting_relocation_21",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -2732,7 +2732,7 @@
   {
     "id": "cutting_relocation_22",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -2862,7 +2862,7 @@
   {
     "id": "cutting_relocation_23",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -2992,7 +2992,7 @@
   {
     "id": "cutting_relocation_24",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -3122,7 +3122,7 @@
   {
     "id": "cutting_relocation_25",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -3252,7 +3252,7 @@
   {
     "id": "cutting_relocation_26",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -3382,7 +3382,7 @@
   {
     "id": "cutting_relocation_27",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -3512,7 +3512,7 @@
   {
     "id": "cutting_relocation_28",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -3642,7 +3642,7 @@
   {
     "id": "cutting_relocation_29",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"
@@ -3772,7 +3772,7 @@
   {
     "id": "cutting_relocation_30",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "category": "OFFENSE",
     "concept_tags": [
       "cutting_relocation"

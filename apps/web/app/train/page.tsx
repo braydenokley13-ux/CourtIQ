@@ -42,6 +42,7 @@ export default function TrainPage() {
   const [iq, setIq] = useState(500)
   const [xp, setXp] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const current = scenarios[idx]
   const phase = feedback ? 'feedback' : 'prompt'
@@ -56,16 +57,28 @@ export default function TrainPage() {
       }
 
       setUserId(user.id)
-      const res = await fetch('/api/session/start', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ userId: user.id, n: 5 }),
-      })
-      const data = await res.json()
-      setSessionId(data.session_run_id)
-      setScenarios(data.scenarios)
-      setIq(data.meta.user_iq)
-      setLoading(false)
+      try {
+        const res = await fetch('/api/session/start', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ n: 5 }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error(body.error ?? `Session start failed (HTTP ${res.status}).`)
+        }
+        const data = await res.json()
+        if (!data?.session_run_id || !Array.isArray(data?.scenarios) || data.scenarios.length === 0) {
+          throw new Error('No scenarios are available yet. Run `pnpm seed:scenarios` against your DB to load the curriculum.')
+        }
+        setSessionId(data.session_run_id)
+        setScenarios(data.scenarios)
+        setIq(data.meta?.user_iq ?? 500)
+      } catch (err) {
+        setLoadError(err instanceof Error ? err.message : 'Could not load session.')
+      } finally {
+        setLoading(false)
+      }
     })()
   }, [router])
 
@@ -84,8 +97,40 @@ export default function TrainPage() {
 
   const orderedChoices = useMemo(() => [...(current?.choices ?? [])].sort((a, b) => a.order - b.order), [current])
 
-  if (loading || !current || !sessionId) {
-    return <main className="p-6 text-text-dim">Loading session…</main>
+  if (loading) {
+    return (
+      <main className="flex min-h-dvh items-center justify-center bg-bg-0 text-text-dim">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-hairline-2 border-t-brand" />
+          <p className="text-sm">Loading session…</p>
+        </div>
+      </main>
+    )
+  }
+
+  if (loadError || !current || !sessionId) {
+    return (
+      <main className="flex min-h-dvh items-center justify-center bg-bg-0 px-6 text-text">
+        <div className="max-w-sm rounded-2xl border border-hairline-2 bg-bg-1 p-6 text-center">
+          <h1 className="font-display text-[20px] font-bold">Couldn&apos;t start a session</h1>
+          <p className="mt-2 text-sm text-text-dim">
+            {loadError ?? 'No scenarios were returned. Make sure the curriculum is seeded.'}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 w-full rounded-xl bg-brand py-3 font-display text-[14px] font-bold uppercase tracking-[0.3px] text-brand-ink"
+          >
+            Try again
+          </button>
+          <button
+            onClick={() => router.push('/home')}
+            className="mt-2 w-full rounded-xl border border-hairline bg-bg-2 py-3 font-display text-[13px] font-semibold text-foreground-dim"
+          >
+            Back to home
+          </button>
+        </div>
+      </main>
+    )
   }
 
   const submitChoice = async (choiceId: string) => {

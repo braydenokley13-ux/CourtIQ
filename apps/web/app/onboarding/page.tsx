@@ -107,6 +107,7 @@ export default function OnboardingPage() {
   const [startingIq, setStartingIq] = useState<number | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [finishError, setFinishError] = useState<string | null>(null)
+  const [calibrationError, setCalibrationError] = useState<string | null>(null)
 
   useEffect(() => {
     void (async () => {
@@ -134,22 +135,41 @@ export default function OnboardingPage() {
   async function startCalibration() {
     if (!userId || sessionId) return
     setCalibrationLoading(true)
+    setCalibrationError(null)
     try {
       const res = await fetch('/api/session/start', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ userId, n: 3 }),
+        body: JSON.stringify({ n: 3 }),
       })
-      if (!res.ok) throw new Error('Failed to start calibration')
-      const data = await res.json() as { session_run_id: string; scenarios: CalibrationScenario[]; meta: { user_iq: number } }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? `Failed to start calibration (HTTP ${res.status}).`)
+      }
+      const data = await res.json() as { session_run_id?: string; scenarios?: CalibrationScenario[]; meta?: { user_iq: number } }
+      if (!data.session_run_id || !Array.isArray(data.scenarios) || data.scenarios.length === 0) {
+        throw new Error('No scenarios are available yet. Run `pnpm seed:scenarios` against your DB to load the curriculum.')
+      }
       setSessionId(data.session_run_id)
       setScenarios(data.scenarios)
-      setStartingIq(data.meta.user_iq)
+      setStartingIq(data.meta?.user_iq ?? 500)
     } catch (err) {
       console.error('[onboarding/calibration]', err)
+      setCalibrationError(err instanceof Error ? err.message : 'Could not start calibration.')
     } finally {
       setCalibrationLoading(false)
     }
+  }
+
+  function retryCalibration() {
+    setSessionId(null)
+    setScenarios([])
+    setCalibrationIdx(0)
+    setSelected(null)
+    setSubmitted(null)
+    setStartingIq(null)
+    setCalibrationError(null)
+    void startCalibration()
   }
 
   async function submitCalibrationChoice(choiceId: string) {
@@ -431,7 +451,21 @@ export default function OnboardingPage() {
                 title="Let&apos;s calibrate your IQ"
                 subtitle="3 quick reads. No pressure — we&apos;re just finding your starting line."
               >
-                {calibrationLoading || !currentScenario ? (
+                {calibrationError ? (
+                  <div className="flex flex-col items-stretch gap-3 py-6">
+                    <div className="rounded-2xl border border-[rgba(255,77,109,0.25)] bg-[rgba(255,77,109,0.06)] p-4">
+                      <p className="font-display text-[14px] font-bold text-[#FF4D6D]">Couldn&apos;t load scenarios</p>
+                      <p className="mt-1 text-[13px] leading-relaxed text-text-dim">{calibrationError}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={retryCalibration}
+                      className="w-full rounded-xl bg-brand py-3 font-display text-[14px] font-bold uppercase tracking-[0.3px] text-brand-ink"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                ) : calibrationLoading || !currentScenario ? (
                   <div className="flex flex-col items-center justify-center gap-3 py-10">
                     <div className="h-8 w-8 animate-spin rounded-full border-2 border-hairline-2 border-t-brand" />
                     <p className="text-[13px] text-text-dim">Loading calibration scenarios…</p>
