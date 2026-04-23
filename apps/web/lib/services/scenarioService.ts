@@ -56,7 +56,8 @@ function sanitizeScenario(s: ScenarioWithChoices): SessionScenario {
 
 export async function generateSessionBundle(userId: string, n = 5): Promise<SessionBundle> {
   const size = Math.max(1, n)
-  const [profile, allLiveScenarios, weakestConcepts, recentAttempts, dueIncorrect] = await Promise.all([
+  const now = new Date()
+  const [profile, allLiveScenarios, weakestConcepts, recentAttempts, dueIncorrect, dueMasteries] = await Promise.all([
     prisma.profile.findUnique({ where: { user_id: userId } }),
     prisma.scenario.findMany({
       where: { status: 'LIVE' },
@@ -77,11 +78,19 @@ export async function generateSessionBundle(userId: string, n = 5): Promise<Sess
       where: {
         user_id: userId,
         is_correct: false,
-        created_at: { lte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+        created_at: { lte: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
       },
       include: { scenario: true },
       orderBy: { created_at: 'asc' },
       take: 30,
+    }),
+    prisma.mastery.findMany({
+      where: {
+        user_id: userId,
+        spaced_rep_due_at: { not: null, lte: now },
+      },
+      orderBy: { spaced_rep_due_at: 'asc' },
+      take: 10,
     }),
   ])
 
@@ -99,8 +108,14 @@ export async function generateSessionBundle(userId: string, n = 5): Promise<Sess
     ? allLiveScenarios.filter((s) => s.concept_tags.includes(currentConcept))
     : []
 
+  // Spaced-rep pool combines two signals:
+  // 1) Concepts whose Mastery.spaced_rep_due_at has elapsed (primary).
+  // 2) Specific incorrect attempts >24h old (fallback until the mastery signal warms up).
+  const dueConceptIds = new Set(dueMasteries.map((m) => m.concept_id))
   const dueIds = new Set(dueIncorrect.map((a) => a.scenario_id))
-  const spacedRepPool = allLiveScenarios.filter((s) => dueIds.has(s.id))
+  const spacedRepPool = allLiveScenarios.filter(
+    (s) => dueIds.has(s.id) || s.concept_tags.some((tag) => dueConceptIds.has(tag)),
+  )
 
   const selected: ScenarioWithChoices[] = []
   const used = new Set<string>()

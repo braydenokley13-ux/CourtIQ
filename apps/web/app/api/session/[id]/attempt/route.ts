@@ -146,9 +146,9 @@ export async function POST(
   if (result.badges.length > 0) {
     const userRecord = await prisma.user.findUnique({
       where: { id: body.userId! },
-      select: { email: true, display_name: true, profile: { select: { iq_score: true } } },
+      select: { email: true, display_name: true, email_unsubscribed: true, profile: { select: { iq_score: true } } },
     })
-    if (userRecord) {
+    if (userRecord && !userRecord.email_unsubscribed) {
       for (const badge of result.badges) {
         const { subject, html } = badgeEarnedEmail({
           name: userRecord.display_name ?? userRecord.email.split('@')[0],

@@ -106,6 +106,7 @@ export default function OnboardingPage() {
   const [submitted, setSubmitted] = useState<{ is_correct: boolean; correct_choice_id: string; feedback_text: string; iq_after: number } | null>(null)
   const [startingIq, setStartingIq] = useState<number | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [finishError, setFinishError] = useState<string | null>(null)
 
   useEffect(() => {
     void (async () => {
@@ -194,6 +195,7 @@ export default function OnboardingPage() {
   async function finishOnboarding() {
     if (!userId || !sessionId) return
     setSubmitting(true)
+    setFinishError(null)
     try {
       // End the calibration session
       await fetch(`/api/session/${sessionId}/complete`, {
@@ -217,7 +219,7 @@ export default function OnboardingPage() {
       if (!res.ok) throw new Error('complete failed')
 
       const supabase = createClient()
-      await supabase.auth.updateUser({
+      const { error: updateError } = await supabase.auth.updateUser({
         data: {
           onboarded: true,
           position,
@@ -225,6 +227,7 @@ export default function OnboardingPage() {
           goal,
         },
       })
+      if (updateError) throw new Error(updateError.message)
 
       const age = hideAge || !birthYear
         ? ('hidden' as const)
@@ -242,6 +245,7 @@ export default function OnboardingPage() {
       router.refresh()
     } catch (err) {
       console.error('[onboarding/finish]', err)
+      setFinishError(err instanceof Error ? err.message : 'Something went wrong finishing onboarding.')
       setSubmitting(false)
     }
   }
@@ -477,6 +481,11 @@ export default function OnboardingPage() {
                           {submitted.is_correct ? 'Nice read.' : "That's one we can work on."}
                         </p>
                         <p className="text-sm text-text-dim">{submitted.feedback_text}</p>
+                        {finishError && (
+                          <p className="rounded-lg border border-[rgba(255,77,109,0.25)] bg-[rgba(255,77,109,0.08)] px-3 py-2 text-[13px] text-[#FF4D6D]">
+                            {finishError} — tap to retry.
+                          </p>
+                        )}
                         <button
                           type="button"
                           onClick={() => void advanceCalibration()}
@@ -484,7 +493,7 @@ export default function OnboardingPage() {
                           className="w-full rounded-xl bg-brand py-3 font-display text-[14px] font-bold uppercase tracking-[0.3px] text-brand-ink disabled:opacity-50"
                         >
                           {calibrationIdx >= scenarios.length - 1
-                            ? (submitting ? 'Finishing…' : 'Finish calibration')
+                            ? (submitting ? 'Finishing…' : finishError ? 'Retry' : 'Finish calibration')
                             : 'Next scenario'}
                         </button>
                       </div>

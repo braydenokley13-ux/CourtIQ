@@ -43,9 +43,10 @@ export async function POST(
     try {
       const userRecord = await prisma.user.findUnique({
         where: { id: body.userId! },
-        select: { email: true, display_name: true, profile: { select: { iq_score: true, current_streak: true } } },
+        select: { email: true, display_name: true, email_unsubscribed: true, profile: { select: { iq_score: true, current_streak: true } } },
       })
       if (!userRecord) return
+      if (userRecord.email_unsubscribed) return
       const { subject, html } = sessionCompleteEmail({
         name: userRecord.display_name ?? userRecord.email.split('@')[0],
         email: userRecord.email,
