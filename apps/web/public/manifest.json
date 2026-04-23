@@ -1,0 +1,20 @@
+{
+  "name": "CourtIQ",
+  "short_name": "CourtIQ",
+  "description": "Train your brain like you train your game.",
+  "start_url": "/home",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0A0B0E",
+  "theme_color": "#0A0B0E",
+  "categories": ["sports", "education", "games"],
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ]
+}

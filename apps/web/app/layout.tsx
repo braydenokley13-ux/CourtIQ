@@ -28,12 +28,30 @@ export const metadata: Metadata = {
   },
   description: 'The basketball IQ training app. Read the game faster, make smarter decisions.',
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'),
+  manifest: '/manifest.json',
+  applicationName: 'CourtIQ',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'CourtIQ',
+  },
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/icons/icon.svg', type: 'image/svg+xml' },
+    ],
+    apple: [{ url: '/icons/apple-touch-icon.svg', type: 'image/svg+xml' }],
+  },
+  formatDetection: { telephone: false },
 }
 
 export const viewport: Viewport = {
   themeColor: '#0A0B0E',
   width: 'device-width',
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { NumberTicker } from '@/components/ui/NumberTicker'
+import { XPBar } from '@/components/ui/XPBar'
 
 const ease = [0.22, 1, 0.36, 1]
 
@@ -144,6 +146,8 @@ export default function HomePage() {
   const iq = data?.profile?.iq_score ?? 500
   const streak = data?.profile?.current_streak ?? 0
   const level = data?.profile?.level ?? 1
+  const xpTotal = data?.profile?.xp_total ?? 0
+  const xpInLevel = xpTotal % 100
   const accuracyPct = Math.round((data?.accuracy ?? 0) * 100)
 
   return (
@@ -189,14 +193,20 @@ export default function HomePage() {
           {loading ? (
             <div className="h-16 w-32 animate-pulse rounded-xl bg-[#1F2937]" />
           ) : (
-            <p
+            <div
               className="font-display text-[64px] font-black leading-none tracking-[-3px]"
               style={{ color: '#3BE383', textShadow: '0 0 40px rgba(59,227,131,0.4)' }}
             >
-              {iq.toLocaleString()}
-            </p>
+              <NumberTicker value={iq} format={(n) => Math.round(n).toLocaleString()} />
+            </div>
           )}
           <p className="mt-2 text-[13px] text-[#4B5563]">{data?.rankLabel ?? 'Rookie'} · Level {level}</p>
+
+          {!loading && (
+            <div className="mt-4">
+              <XPBar xp={xpInLevel} xpForNextLevel={100} level={level} />
+            </div>
+          )}
 
           {/* Decorative glow ring */}
           <div
@@ -319,6 +329,8 @@ export default function HomePage() {
           {[
             { href: '/profile', label: '📊 Profile & Stats' },
             { href: '/academy', label: '🎓 IQ Academy' },
+            { href: '/leaderboard', label: '🏆 Leaderboard' },
+            { href: '/settings', label: '⚙️ Settings' },
           ].map(({ href, label }) => (
             <Link
               key={href}
