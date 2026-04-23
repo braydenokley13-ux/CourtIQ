@@ -319,6 +319,8 @@ export default function HomePage() {
           {[
             { href: '/profile', label: '📊 Profile & Stats' },
             { href: '/academy', label: '🎓 IQ Academy' },
+            { href: '/leaderboard', label: '🏆 Leaderboard' },
+            { href: '/settings', label: '⚙️ Settings' },
           ].map(({ href, label }) => (
             <Link
               key={href}

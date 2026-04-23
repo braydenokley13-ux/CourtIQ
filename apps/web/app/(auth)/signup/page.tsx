@@ -162,8 +162,8 @@ function SignupContent() {
       email,
       password,
       options: {
-        data: { full_name: name.trim() },
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=/home`,
+        data: { full_name: name.trim(), onboarded: false },
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
       },
     })
 
@@ -184,7 +184,7 @@ function SignupContent() {
 
     // If session is immediately available, the project has email confirmation disabled
     if (data.session) {
-      router.push('/home')
+      router.push('/onboarding')
       router.refresh()
     } else {
       setConfirmed(true)
@@ -199,7 +199,7 @@ function SignupContent() {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/home`,
+        redirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
       },
     })
   }

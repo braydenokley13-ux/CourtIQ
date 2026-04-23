@@ -17,6 +17,7 @@ export async function GET(request: Request) {
   const users = await prisma.user.findMany({
     where: { email_unsubscribed: false },
     select: {
+      id: true,
       email: true,
       display_name: true,
       profile: { select: { iq_score: true, current_streak: true } },
@@ -55,7 +56,7 @@ export async function GET(request: Request) {
       const iqEnd = user.profile?.iq_score ?? 500
       const iqStart = iqEnd - iqDelta
       const accuracy = totalScenarios > 0 ? totalCorrect / totalScenarios : 0
-      const weeklyRank = leaderboard.findIndex((e) => e.user_id === user.email) + 1
+      const weeklyRank = leaderboard.findIndex((e) => e.user_id === user.id) + 1
 
       const { subject, html } = weeklyDigestEmail({
         name: user.display_name ?? user.email.split('@')[0],

@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/home'
+  const explicitNext = searchParams.get('next')
 
   if (code) {
     const cookieStore = await cookies()
@@ -28,7 +28,12 @@ export async function GET(request: NextRequest) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`)
+      const { data: { user } } = await supabase.auth.getUser()
+      const onboarded = user?.user_metadata?.onboarded === true
+      // If the caller specified `next`, honor it (e.g. /reset-password).
+      // Otherwise route by onboarding status.
+      const destination = explicitNext ?? (onboarded ? '/home' : '/onboarding')
+      return NextResponse.redirect(`${origin}${destination}`)
     }
   }
 
