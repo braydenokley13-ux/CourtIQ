@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import type { ReactNode } from 'react'
+import { Scenario3DErrorBoundary } from './Scenario3DErrorBoundary'
 import type { Scene3D } from '@/lib/scenario3d/scene'
 import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
 
@@ -35,8 +36,14 @@ interface Scenario3DViewProps {
 
 /**
  * Public entry point for the 3D scenario engine. SSR-safe: only loads the
- * R3F bundle on the client, after the page is hydrated.
+ * R3F bundle on the client, after the page is hydrated. Wraps the canvas
+ * in an error boundary so any rendering failure stays scoped to the court
+ * surface instead of taking down the whole /train page.
  */
 export function Scenario3DView(props: Scenario3DViewProps) {
-  return <Scenario3DCanvasDynamic {...props} />
+  return (
+    <Scenario3DErrorBoundary scenarioId={props.scene?.id}>
+      <Scenario3DCanvasDynamic {...props} />
+    </Scenario3DErrorBoundary>
+  )
 }

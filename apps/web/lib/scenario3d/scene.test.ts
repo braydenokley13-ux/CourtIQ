@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildScene } from './scene'
 import { KNOWN_CONCEPT_PRESETS } from './presets'
+import { COURT } from './coords'
 
 describe('buildScene', () => {
   it('synthesises from court_state when no scene/concept matches', () => {
@@ -79,5 +80,92 @@ describe('buildScene', () => {
       scene: { ball: { start: { x: 0, z: 0 } } },
     })
     expect(result.type).toBe('spacing_fundamentals')
+  })
+
+  it('returns a default scene when source has nothing usable', () => {
+    const result = buildScene({ id: 'empty' })
+    expect(result.id).toBe('empty')
+    expect(result.players.length).toBeGreaterThan(0)
+    expect(result.players[0]!.isUser).toBe(true)
+  })
+
+  it('returns a default scene when concept is unknown and court_state is missing', () => {
+    const result = buildScene({ id: 'mystery', concept_tags: ['unknown_concept'] })
+    expect(result.players.length).toBeGreaterThan(0)
+  })
+
+  it('clamps NaN/Infinity coordinates to a safe position on the half-court', () => {
+    const result = buildScene({
+      id: 'nan',
+      scene: {
+        players: [
+          {
+            id: 'user',
+            team: 'offense',
+            role: 'wing',
+            start: { x: Number.NaN, z: Number.POSITIVE_INFINITY },
+            isUser: true,
+          },
+        ],
+        ball: { start: { x: Number.NaN, z: Number.NaN } },
+      },
+    })
+    const player = result.players[0]!
+    expect(Number.isFinite(player.start.x)).toBe(true)
+    expect(Number.isFinite(player.start.z)).toBe(true)
+    expect(player.start.x).toBeGreaterThanOrEqual(-COURT.halfWidthFt)
+    expect(player.start.x).toBeLessThanOrEqual(COURT.halfWidthFt)
+    expect(player.start.z).toBeGreaterThanOrEqual(0)
+    expect(player.start.z).toBeLessThanOrEqual(COURT.halfLengthFt)
+    expect(Number.isFinite(result.ball.start.x)).toBe(true)
+    expect(Number.isFinite(result.ball.start.z)).toBe(true)
+  })
+
+  it('drops movements that point at unknown players', () => {
+    const result = buildScene({
+      id: 'orphan_moves',
+      concept_tags: ['closeouts'],
+    })
+    // closeouts preset is valid; manually fabricate a scene with an orphan
+    const fabricated = buildScene({
+      id: 'orphan_moves2',
+      scene: {
+        players: [
+          { id: 'a', team: 'offense', role: 'wing', start: { x: 0, z: 10 }, isUser: true },
+        ],
+        ball: { start: { x: 0, z: 10 } },
+        // movement schema requires the playerId to match a player or "ball";
+        // the schema rejects this, so buildScene falls through to default.
+        movements: [{ id: 'm', playerId: 'ghost', kind: 'cut', to: { x: 0, z: 0 } }],
+      },
+    })
+    expect(result.movements.every((m) => m.playerId === 'ball' || result.players.find((p) => p.id === m.playerId))).toBe(true)
+    expect(fabricated.movements.every((m) => m.playerId === 'ball' || fabricated.players.find((p) => p.id === m.playerId))).toBe(true)
+  })
+
+  it('keeps at most one isUser player even if input flags many', () => {
+    const result = buildScene({
+      id: 'multiuser',
+      court_state: {
+        offense: [
+          { id: 'you', x: 250, y: 200, role: 'wing' },
+          { id: 'them', x: 100, y: 100, role: 'wing' },
+        ],
+        defense: [],
+        ball_location: { x: 250, y: 200 },
+      },
+      user_role: 'wing',
+    })
+    expect(result.players.filter((p) => p.isUser)).toHaveLength(1)
+  })
+
+  it('every preset normalises to a valid scene with players and ball', () => {
+    for (const tag of KNOWN_CONCEPT_PRESETS) {
+      const result = buildScene({ id: `s_${tag}`, concept_tags: [tag] })
+      expect(result.players.length).toBeGreaterThan(0)
+      expect(Number.isFinite(result.ball.start.x)).toBe(true)
+      expect(Number.isFinite(result.ball.start.z)).toBe(true)
+      expect(result.players.filter((p) => p.isUser).length).toBeLessThanOrEqual(1)
+    }
   })
 })

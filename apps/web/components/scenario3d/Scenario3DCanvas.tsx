@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
 import { Court3D } from './Court3D'
 import { ScenarioScene3D } from './ScenarioScene3D'
 import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
 import { SceneMotionProvider } from './SceneMotionContext'
-import { hasWebGL, is3DDisabled } from '@/lib/scenario3d/feature'
+import { hasWebGL } from '@/lib/scenario3d/feature'
 import { useReducedMotion } from '@/lib/scenario3d/useReducedMotion'
 import { COURT } from '@/lib/scenario3d/coords'
 import type { Scene3D } from '@/lib/scenario3d/scene'
@@ -17,7 +17,7 @@ interface Scenario3DCanvasProps {
   children?: React.ReactNode
   /** Optional className passed to the outer wrapper. */
   className?: string
-  /** Optional explicit pixel height. Defaults to a 3:2 aspect of width. */
+  /** Optional explicit pixel height. Defaults to 280px. */
   height?: number
   /** Normalised scene to render. If omitted, only the empty court shows. */
   scene?: Scene3D | null
@@ -32,8 +32,9 @@ interface Scenario3DCanvasProps {
 
 /**
  * Top-level wrapper that mounts the R3F <Canvas> for a scenario scene. Falls
- * back to the supplied 2D node when WebGL is unavailable, the user has
- * disabled 3D, or the WebGL context is lost.
+ * back to the supplied 2D node only when WebGL is genuinely unavailable on
+ * the device, or when the WebGL context is lost. 3D is the default — we do
+ * not gate behind any feature flag.
  */
 export function Scenario3DCanvas({
   fallback,
@@ -52,10 +53,6 @@ export function Scenario3DCanvas({
   const reducedMotion = useReducedMotion()
 
   useEffect(() => {
-    if (is3DDisabled()) {
-      setMode('fallback')
-      return
-    }
     setMode(hasWebGL() ? '3d' : 'fallback')
   }, [])
 
@@ -63,7 +60,7 @@ export function Scenario3DCanvas({
     return (
       <div
         className={className}
-        style={{ height, background: '#0A0B0E' }}
+        style={{ height, background: '#0A0B0E', minHeight: height }}
         aria-busy="true"
       >
         <div className="flex h-full items-center justify-center text-[11px] uppercase tracking-[1.5px] text-text-dim">
@@ -78,14 +75,20 @@ export function Scenario3DCanvas({
   }
 
   return (
-    <div ref={containerRef} className={className} style={{ height, position: 'relative' }}>
+    <div
+      ref={containerRef}
+      className={className}
+      style={{ height, minHeight: height, position: 'relative' }}
+    >
       <Canvas
         dpr={[1, 2]}
         camera={{ position: [0, 36, 50], fov: 38, near: 0.1, far: 220 }}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
         onCreated={({ gl }) => {
           gl.setClearColor('#0A0B0E', 1)
-          gl.domElement.addEventListener(
+          const dom = gl.domElement
+          if (!dom) return
+          dom.addEventListener(
             'webglcontextlost',
             (event) => {
               event.preventDefault()
@@ -99,17 +102,20 @@ export function Scenario3DCanvas({
           <SceneLighting />
           <CameraTarget />
           <Court3D />
-          {scene ? (
-            <ScenarioScene3D
-              scene={scene}
-              mode={replayMode}
-              resetCounter={resetCounter}
-              onCaption={onCaption}
-              onPhase={onPhase}
-              showPaths={showPaths}
-            />
-          ) : null}
-          {children}
+          <Suspense fallback={null}>
+            {scene ? (
+              <ScenarioScene3D
+                key={scene.id}
+                scene={scene}
+                mode={replayMode}
+                resetCounter={resetCounter}
+                onCaption={onCaption}
+                onPhase={onPhase}
+                showPaths={showPaths}
+              />
+            ) : null}
+            {children}
+          </Suspense>
         </SceneMotionProvider>
       </Canvas>
     </div>

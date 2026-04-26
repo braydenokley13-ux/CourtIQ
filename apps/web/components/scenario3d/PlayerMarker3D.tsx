@@ -1,9 +1,9 @@
 'use client'
 
-import { useMemo, useRef } from 'react'
+import { useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
-import { Billboard, Text } from '@react-three/drei'
+import { LabelSprite } from './LabelSprite'
 import { useSceneMotion } from './SceneMotionContext'
 
 export type PlayerTeam = 'offense' | 'defense'
@@ -34,7 +34,7 @@ export interface PlayerMarker3DProps {
 /**
  * 3D marker for a player. Visually:
  *   - cylinder body (jersey color)
- *   - billboarded label that always faces the camera
+ *   - sprite label with a 2D-canvas texture (synchronous, no font load)
  *   - ground ring (yellow for "you", orange for ball handler, optional pulse)
  */
 export function PlayerMarker3D({
@@ -57,7 +57,10 @@ export function PlayerMarker3D({
       const t = state.clock.getElapsedTime()
       const s = 1 + Math.sin(t * 3) * 0.18
       pulseRef.current.scale.set(s, s, 1)
-      ;(pulseRef.current.material as THREE.MeshBasicMaterial).opacity = 0.18 + Math.sin(t * 3) * 0.1
+      const material = pulseRef.current.material as THREE.MeshBasicMaterial | undefined
+      if (material) {
+        material.opacity = 0.18 + Math.sin(t * 3) * 0.1
+      }
     }
     if (isUser && ringRef.current) {
       // gentle rotation on the "you" indicator
@@ -100,11 +103,18 @@ export function PlayerMarker3D({
         <meshStandardMaterial color={fill} roughness={0.45} metalness={0.05} />
       </mesh>
 
-      {/* Label */}
+      {/* Label — sprite is camera-facing by definition, so we don't need
+          drei's <Billboard> wrapper. Using a CanvasTexture sprite rather
+          than drei's <Text> avoids the suspended Roboto font fetch that
+          crashes the canvas in production. */}
       {label ? (
-        <Billboard position={[0, 4.6, 0]}>
-          <LabelChip text={label} fill={fill} highlight={!!isUser} />
-        </Billboard>
+        <LabelSprite
+          text={label}
+          position={[0, 4.6, 0]}
+          scale={0.9}
+          color={isUser ? '#1A1400' : '#FBFBFD'}
+          bg={isUser ? fill : 'rgba(10,11,14,0.85)'}
+        />
       ) : null}
     </group>
   )
@@ -123,38 +133,5 @@ function PossessionRing({ color }: { color: string }) {
       <ringGeometry args={[1.5, 1.7, 36]} />
       <meshBasicMaterial color={color} transparent opacity={0.85} />
     </mesh>
-  )
-}
-
-interface LabelChipProps {
-  text: string
-  fill: string
-  highlight?: boolean
-}
-
-function LabelChip({ text, fill, highlight }: LabelChipProps) {
-  const padX = 0.4 + text.length * 0.18
-  const padY = 0.55
-  const bg = useMemo(() => new THREE.Color(highlight ? fill : '#0A0B0E'), [fill, highlight])
-  const ink = useMemo(
-    () => new THREE.Color(highlight ? '#1A1400' : '#FBFBFD'),
-    [highlight],
-  )
-  return (
-    <group>
-      <mesh position={[0, 0, -0.01]}>
-        <planeGeometry args={[padX, padY]} />
-        <meshBasicMaterial color={bg} transparent opacity={highlight ? 0.95 : 0.85} />
-      </mesh>
-      <Text
-        fontSize={0.32}
-        color={`#${ink.getHexString()}`}
-        anchorX="center"
-        anchorY="middle"
-        font={undefined}
-      >
-        {text}
-      </Text>
-    </group>
   )
 }
