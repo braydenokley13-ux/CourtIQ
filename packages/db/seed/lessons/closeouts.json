@@ -1,0 +1,13 @@
+{
+  "module_slug": "closeouts",
+  "title": "Closeouts: Stop the Shot, Contain the Drive",
+  "concept_id": "closeouts",
+  "category": "DEFENSE",
+  "order": 1,
+  "prerequisite_module_ids": [],
+  "lesson": {
+    "order": 1,
+    "title": "How to close out without getting blown by",
+    "body_md": "## Why closeouts matter\n\nA closeout is the sprint from a help spot back to your shooter when the ball is skipped or swung. If you do it wrong, two bad things happen: the shooter gets a clean look, **or** they rip past you for a layup. Good closeouts take away both.\n\n## The three jobs of a closeout\n\n1. **Get there.** Sprint the first two-thirds of the distance.\n2. **Break down.** Choppy, short steps the last third with your hands up high.\n3. **Take something away.** You can't take away the shot **and** the drive. Pick one based on the shooter.\n\n## Read the shooter\n\n- **Shooter first?** Closeout high, hand up, force a drive into help.\n- **Driver first?** Closeout short. Stay low. Force a tougher pull-up.\n- **Both?** Lean to take away the strong hand. Trust your help defender behind you.\n\n## The 5 rules\n\n1. **Sprint then chop.** Long strides early, short steps late. Never run in a straight line all the way to the shooter.\n2. **High hand on the shooting side.** Don't slap. Just contest with the inside hand up.\n3. **Inside foot up.** The foot closer to the middle is forward. This shades the drive away from the rim.\n4. **Don't fly past.** A bad closeout is worse than no closeout. If you can't break down in time, stay home.\n5. **Talk on the way.** \"Closing!\" tells the help defender you've got it.\n\n## Common mistakes\n\n- **Running upright.** You'll skid past the shooter every time. Sink your hips.\n- **Two hands down.** That's a wide open shot.\n- **Closing out flat.** Square shoulders means the shooter picks any direction. Angle your hips so they only have one good option.\n- **Late and lazy.** A closeout that arrives after the ball goes up is just standing under a jump shot.\n\n## What you're training\n\nThe Scenario Engine will put you in moments where the ball is in the air to a shooter, and you have a half-second to pick the right closeout angle. You're training your eyes to read **shooter or driver** before your feet move. That recognition is what separates good defenders from great ones.\n\n## Coach's cue\n\n> *\"Sprint, chop, contest. Never both feet flat. Never both hands down.\"*\n\nWhen you see the skip pass leave the passer's hands, your first step should already be moving. Don't wait for the catch."
+  }
+}

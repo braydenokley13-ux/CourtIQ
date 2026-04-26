@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Court } from '@/components/court'
 import type { CourtState } from '@/components/court'
 import { createClient } from '@/lib/supabase/client'
@@ -31,7 +31,26 @@ type AttemptFeedback = {
 }
 
 export default function TrainPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-dvh items-center justify-center bg-bg-0 text-text-dim">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-hairline-2 border-t-brand" />
+            <p className="text-sm">Loading session…</p>
+          </div>
+        </main>
+      }
+    >
+      <TrainPageInner />
+    </Suspense>
+  )
+}
+
+function TrainPageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const conceptParam = searchParams.get('concept')
   const [userId, setUserId] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [scenarios, setScenarios] = useState<SessionScenario[]>([])
@@ -61,15 +80,18 @@ export default function TrainPage() {
         const res = await fetch('/api/session/start', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ n: 5 }),
+          body: JSON.stringify({ n: 5, concept: conceptParam ?? undefined }),
         })
         if (!res.ok) {
-          const body = await res.json().catch(() => ({}))
-          throw new Error(body.error ?? `Session start failed (HTTP ${res.status}).`)
+          const body = await res.json().catch(() => ({})) as { error?: string; message?: string }
+          if (body.error === 'CONTENT_NOT_LOADED') {
+            throw new Error('Training content is still loading. Please try again shortly.')
+          }
+          throw new Error(body.message ?? body.error ?? `Session start failed (HTTP ${res.status}).`)
         }
         const data = await res.json()
         if (!data?.session_run_id || !Array.isArray(data?.scenarios) || data.scenarios.length === 0) {
-          throw new Error('No scenarios are available yet. Run `pnpm seed:scenarios` against your DB to load the curriculum.')
+          throw new Error('Training content is still loading. Please try again shortly.')
         }
         setSessionId(data.session_run_id)
         setScenarios(data.scenarios)
@@ -80,7 +102,7 @@ export default function TrainPage() {
         setLoading(false)
       }
     })()
-  }, [router])
+  }, [router, conceptParam])
 
   useEffect(() => {
     if (phase !== 'prompt') return

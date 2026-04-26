@@ -11,6 +11,7 @@ export type EventMap = {
 
   // Session lifecycle
   session_started:        { session_run_id: string, scenario_count: number, user_iq: number }
+  session_start_blocked:  { reason: 'CONTENT_NOT_LOADED' }
   scenario_presented:     { session_run_id: string, scenario_id: string, difficulty: number, concept_tags: string[], order: number }
   scenario_answered:      { session_run_id: string, scenario_id: string, choice_id: string, is_correct: boolean, time_ms: number, iq_delta: number, xp_delta: number }
   session_completed:      { session_run_id: string, correct_count: number, total: number, xp_earned: number, iq_delta: number, duration_ms: number }

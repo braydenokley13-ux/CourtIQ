@@ -15,7 +15,9 @@
     "prisma:validate": "turbo run prisma:validate",
     "db:push": "pnpm --filter @courtiq/db exec prisma db push",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "seed:scenarios": "pnpm exec tsx scripts/seed-scenarios.ts"
+    "seed:scenarios": "pnpm exec tsx scripts/seed-scenarios.ts",
+    "seed:lessons": "pnpm exec tsx scripts/seed-lessons.ts",
+    "seed:content": "pnpm seed:scenarios && pnpm seed:lessons"
   },
   "devDependencies": {
     "prettier": "^3.3.3",

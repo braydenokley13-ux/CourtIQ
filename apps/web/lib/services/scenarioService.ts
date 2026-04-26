@@ -54,13 +54,25 @@ function sanitizeScenario(s: ScenarioWithChoices): SessionScenario {
   }
 }
 
-export async function generateSessionBundle(userId: string, n = 5): Promise<SessionBundle> {
+export interface SessionBundleOptions {
+  /** Restrict the session to scenarios that include this concept tag. */
+  concept?: string | null
+}
+
+export async function generateSessionBundle(
+  userId: string,
+  n = 5,
+  options: SessionBundleOptions = {},
+): Promise<SessionBundle> {
   const size = Math.max(1, n)
   const now = new Date()
   const [profile, allLiveScenarios, weakestConcepts, recentAttempts, dueIncorrect, dueMasteries] = await Promise.all([
     prisma.profile.findUnique({ where: { user_id: userId } }),
     prisma.scenario.findMany({
-      where: { status: 'LIVE' },
+      where: {
+        status: 'LIVE',
+        ...(options.concept ? { concept_tags: { has: options.concept } } : {}),
+      },
       include: { choices: true },
     }),
     prisma.mastery.findMany({
