@@ -9,11 +9,13 @@ interface ScenarioInput {
   court_state: CourtState
   scene?: unknown
   user_role?: string
+  concept_tags?: string[]
 }
 
 /**
  * Returns a stable, normalised Scene3D for a scenario. Uses authored scene
- * data when present, otherwise synthesises from the legacy court_state.
+ * data when present, otherwise picks the matching concept preset, otherwise
+ * synthesises from the legacy court_state.
  */
 export function useScenarioSceneData(scenario: ScenarioInput | null | undefined): Scene3D | null {
   return useMemo(() => {
@@ -23,6 +25,7 @@ export function useScenarioSceneData(scenario: ScenarioInput | null | undefined)
       court_state: scenario.court_state,
       scene: scenario.scene as Scene3D | undefined,
       user_role: scenario.user_role,
+      concept_tags: scenario.concept_tags,
     })
   }, [scenario])
 }

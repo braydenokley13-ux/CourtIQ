@@ -7,6 +7,7 @@
 import type { CourtState } from '@/components/court'
 import { projectLegacyPoint, type CourtPoint } from './coords'
 import { sceneSchema } from './schema'
+import { getPresetForConcept } from './presets'
 
 export type SceneTeam = 'offense' | 'defense'
 
@@ -84,13 +85,15 @@ interface SourceScenario {
   scene?: unknown
   /** The id of the player marked as the user (defaults to "you"). */
   user_role?: string
+  /** Concept tags from the scenario; used to pick a default preset. */
+  concept_tags?: string[]
 }
 
 /**
- * Returns a normalised Scene3D for a scenario, backed by an authored scene
- * if present and synthesised from legacy court_state otherwise. If an
- * authored scene fails validation, falls back to the synthetic scene rather
- * than crashing the render.
+ * Returns a normalised Scene3D for a scenario, in preference order:
+ *   1. Authored `scene` block (validated by Zod).
+ *   2. A concept-specific preset (one of the launch concepts).
+ *   3. A synth scene built from the legacy `court_state` projection.
  */
 export function buildScene(scenario: SourceScenario): Scene3D {
   if (scenario.scene != null) {
@@ -102,6 +105,13 @@ export function buildScene(scenario: SourceScenario): Scene3D {
       console.warn(`[scenario3d] invalid scene for "${scenario.id}":`, parsed.error.flatten())
     }
   }
+
+  const conceptTags = scenario.concept_tags ?? []
+  if (conceptTags.length > 0) {
+    const preset = getPresetForConcept(scenario.id, conceptTags)
+    if (preset) return preset
+  }
+
   return synthesiseSceneFromCourtState(scenario)
 }
 
