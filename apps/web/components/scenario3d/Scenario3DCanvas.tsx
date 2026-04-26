@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
 import { Court3D } from './Court3D'
+import { SceneDebug3D } from './SceneDebug3D'
 import { ScenarioScene3D } from './ScenarioScene3D'
 import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
 import { SceneMotionProvider } from './SceneMotionContext'
@@ -29,6 +30,16 @@ interface Scenario3DCanvasProps {
   onPhase?: (phase: ReplayPhase) => void
   showPaths?: boolean
 }
+
+// Background of the canvas. Slightly lifted off pure-black so the dark
+// outer floor frame is still visible against it.
+const CANVAS_BG = '#101521'
+
+// Camera defaults — broadcast-style elevated angle that frames the entire
+// half-court at typical mobile aspect ratios.
+const CAMERA_POSITION: [number, number, number] = [0, 30, 60]
+const CAMERA_LOOKAT: [number, number, number] = [0, 0, 16]
+const CAMERA_FOV = 42
 
 /**
  * Top-level wrapper that mounts the R3F <Canvas> for a scenario scene. Falls
@@ -60,7 +71,7 @@ export function Scenario3DCanvas({
     return (
       <div
         className={className}
-        style={{ height, background: '#0A0B0E', minHeight: height }}
+        style={{ height, background: CANVAS_BG, minHeight: height }}
         aria-busy="true"
       >
         <div className="flex h-full items-center justify-center text-[11px] uppercase tracking-[1.5px] text-text-dim">
@@ -78,14 +89,14 @@ export function Scenario3DCanvas({
     <div
       ref={containerRef}
       className={className}
-      style={{ height, minHeight: height, position: 'relative' }}
+      style={{ height, minHeight: height, position: 'relative', background: CANVAS_BG }}
     >
       <Canvas
         dpr={[1, 2]}
-        camera={{ position: [0, 36, 50], fov: 38, near: 0.1, far: 220 }}
+        camera={{ position: CAMERA_POSITION, fov: CAMERA_FOV, near: 0.1, far: 260 }}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
         onCreated={({ gl }) => {
-          gl.setClearColor('#0A0B0E', 1)
+          gl.setClearColor(CANVAS_BG, 1)
           const dom = gl.domElement
           if (!dom) return
           dom.addEventListener(
@@ -116,6 +127,7 @@ export function Scenario3DCanvas({
             ) : null}
             {children}
           </Suspense>
+          <SceneDebug3D scene={scene ?? null} />
         </SceneMotionProvider>
       </Canvas>
     </div>
@@ -125,18 +137,24 @@ export function Scenario3DCanvas({
 function SceneLighting() {
   return (
     <>
-      <ambientLight intensity={0.55} color="#D7E2F4" />
+      {/* Hemisphere fills shadows with a touch of arena cool light. */}
+      <hemisphereLight args={['#D7E2F4', '#1A1408', 0.55]} />
+      {/* Ambient lift so the warm hardwood reads on every device. */}
+      <ambientLight intensity={0.85} color="#FFF1E0" />
+      {/* Key light — warm spotlight over the rim, like an arena. */}
       <directionalLight
-        intensity={0.9}
-        color="#FFE0B0"
-        position={[12, 28, 16]}
+        intensity={1.25}
+        color="#FFE4B5"
+        position={[14, 32, 18]}
+        castShadow
       />
-      <directionalLight intensity={0.25} color="#7EB6FF" position={[-18, 18, 30]} />
-      {/* Subtle hoop fill */}
+      {/* Cool rim light from the half-court side keeps depth readable. */}
+      <directionalLight intensity={0.4} color="#7EB6FF" position={[-22, 22, 36]} />
+      {/* Tight rim glow under the hoop. */}
       <pointLight
         position={[0, COURT.rimHeightFt + 4, 0]}
-        intensity={6}
-        distance={14}
+        intensity={8}
+        distance={18}
         color="#FF8A3D"
       />
     </>
@@ -145,12 +163,14 @@ function SceneLighting() {
 
 /**
  * Aims the default camera at a teaching-friendly point near the free throw
- * line so the rim sits at the back of the frame.
+ * line so the rim sits at the back of the frame and the back-court action
+ * stays comfortably in view.
  */
 function CameraTarget() {
   const camera = useThree((state) => state.camera)
   useEffect(() => {
-    camera.lookAt(0, 4, COURT.freeThrowDistFt - 6)
+    camera.position.set(...CAMERA_POSITION)
+    camera.lookAt(...CAMERA_LOOKAT)
     camera.updateProjectionMatrix()
   }, [camera])
   return null
