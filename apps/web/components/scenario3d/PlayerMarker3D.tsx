@@ -4,6 +4,7 @@ import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { Billboard, Text } from '@react-three/drei'
+import { useSceneMotion } from './SceneMotionContext'
 
 export type PlayerTeam = 'offense' | 'defense'
 export type PlayerRole = 'user' | 'teammate' | 'defender' | 'ball_handler' | 'help' | 'rotater'
@@ -48,8 +49,10 @@ export function PlayerMarker3D({
   const fill = color ?? (isUser ? USER_COLOR : TEAM_COLOR[team])
   const ringRef = useRef<THREE.Mesh | null>(null)
   const pulseRef = useRef<THREE.Mesh | null>(null)
+  const { reduced } = useSceneMotion()
 
   useFrame((state) => {
+    if (reduced) return
     if (active && pulseRef.current) {
       const t = state.clock.getElapsedTime()
       const s = 1 + Math.sin(t * 3) * 0.18
@@ -109,8 +112,9 @@ export function PlayerMarker3D({
 
 function PossessionRing({ color }: { color: string }) {
   const ref = useRef<THREE.Mesh | null>(null)
+  const { reduced } = useSceneMotion()
   useFrame((state) => {
-    if (!ref.current) return
+    if (reduced || !ref.current) return
     const t = state.clock.getElapsedTime()
     ref.current.rotation.z = t * 0.4
   })

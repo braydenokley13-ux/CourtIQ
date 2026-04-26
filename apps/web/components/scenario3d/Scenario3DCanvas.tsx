@@ -5,7 +5,9 @@ import { Canvas, useThree } from '@react-three/fiber'
 import { Court3D } from './Court3D'
 import { ScenarioScene3D } from './ScenarioScene3D'
 import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
+import { SceneMotionProvider } from './SceneMotionContext'
 import { hasWebGL, is3DDisabled } from '@/lib/scenario3d/feature'
+import { useReducedMotion } from '@/lib/scenario3d/useReducedMotion'
 import { COURT } from '@/lib/scenario3d/coords'
 import type { Scene3D } from '@/lib/scenario3d/scene'
 
@@ -47,6 +49,7 @@ export function Scenario3DCanvas({
 }: Scenario3DCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [mode, setMode] = useState<'probing' | '3d' | 'fallback'>('probing')
+  const reducedMotion = useReducedMotion()
 
   useEffect(() => {
     if (is3DDisabled()) {
@@ -62,7 +65,11 @@ export function Scenario3DCanvas({
         className={className}
         style={{ height, background: '#0A0B0E' }}
         aria-busy="true"
-      />
+      >
+        <div className="flex h-full items-center justify-center text-[11px] uppercase tracking-[1.5px] text-text-dim">
+          Loading court…
+        </div>
+      </div>
     )
   }
 
@@ -88,20 +95,22 @@ export function Scenario3DCanvas({
           )
         }}
       >
-        <SceneLighting />
-        <CameraTarget />
-        <Court3D />
-        {scene ? (
-          <ScenarioScene3D
-            scene={scene}
-            mode={replayMode}
-            resetCounter={resetCounter}
-            onCaption={onCaption}
-            onPhase={onPhase}
-            showPaths={showPaths}
-          />
-        ) : null}
-        {children}
+        <SceneMotionProvider reduced={reducedMotion}>
+          <SceneLighting />
+          <CameraTarget />
+          <Court3D />
+          {scene ? (
+            <ScenarioScene3D
+              scene={scene}
+              mode={replayMode}
+              resetCounter={resetCounter}
+              onCaption={onCaption}
+              onPhase={onPhase}
+              showPaths={showPaths}
+            />
+          ) : null}
+          {children}
+        </SceneMotionProvider>
       </Canvas>
     </div>
   )
@@ -140,3 +149,5 @@ function CameraTarget() {
   }, [camera])
   return null
 }
+
+export type { Scene3D, ReplayMode, ReplayPhase }

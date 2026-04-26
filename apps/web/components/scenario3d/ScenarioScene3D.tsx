@@ -108,6 +108,7 @@ export function ScenarioScene3D({
             label={player.label}
             isUser={player.isUser}
             hasBall={player.hasBall}
+            active={player.isUser}
             color={player.color}
           />
         </group>

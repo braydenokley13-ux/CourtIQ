@@ -3,6 +3,7 @@
 import { useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
+import { useSceneMotion } from './SceneMotionContext'
 
 interface BallMarker3DProps {
   position: [number, number, number]
@@ -17,9 +18,10 @@ interface BallMarker3DProps {
 export function BallMarker3D({ position, idleBounce = true }: BallMarker3DProps) {
   const groupRef = useRef<THREE.Group | null>(null)
   const baseY = position[1]
+  const { reduced } = useSceneMotion()
 
   useFrame((state) => {
-    if (!idleBounce || !groupRef.current) return
+    if (reduced || !idleBounce || !groupRef.current) return
     const t = state.clock.getElapsedTime()
     groupRef.current.position.y = baseY + Math.abs(Math.sin(t * 2.6)) * 0.18
   })
