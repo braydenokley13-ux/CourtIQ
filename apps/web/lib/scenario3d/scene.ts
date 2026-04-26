@@ -213,8 +213,10 @@ function synthesiseSceneFromCourtState(
 }
 
 /**
- * Minimal default scene used as a last resort when no source data can
- * produce a valid scene. The renderer always has something to draw.
+ * "Hero" default scene used when no source data produces a valid scene.
+ * Populates the court with five offensive and five defensive players plus
+ * the ball so the canvas always reads as basketball — never an empty
+ * rectangle. The user is the wing offensive player by default.
  */
 export function createDefaultScene(id = 'default_3d_scene'): Scene3D {
   return {
@@ -222,9 +224,32 @@ export function createDefaultScene(id = 'default_3d_scene'): Scene3D {
     court: 'half',
     camera: 'teaching_angle',
     players: createDefaultPlayers(),
-    ball: { start: { x: 0, z: 18 }, holderId: 'you' },
+    ball: { start: { x: 0, z: 22 }, holderId: 'you' },
     movements: [],
     answerDemo: [],
+    synthetic: true,
+  }
+}
+
+/**
+ * "Self-test" scene used when /train is loaded with `?debug3d=1`. Mirrors
+ * the hero default but with a movement + answer demo so the replay path is
+ * also exercised.
+ */
+export function createDebugSelfTestScene(): Scene3D {
+  return {
+    id: 'debug_self_test',
+    court: 'half',
+    camera: 'teaching_angle',
+    players: createDefaultPlayers(),
+    ball: { start: { x: 0, z: 22 }, holderId: 'you' },
+    movements: [
+      { id: 'drive', playerId: 'you', kind: 'drive', to: { x: 6, z: 10 }, durationMs: 700, caption: 'Attack middle' },
+    ],
+    answerDemo: [
+      { id: 'kickout', playerId: 'ball', kind: 'pass', to: { x: -22, z: 1 }, durationMs: 600, caption: 'Kickout to the corner' },
+      { id: 'cut', playerId: 'o_slot', kind: 'cut', to: { x: -3, z: 5 }, delayMs: 400, durationMs: 700, caption: 'Slot cuts to the rim' },
+    ],
     synthetic: true,
   }
 }
@@ -292,22 +317,18 @@ function sanitiseScene(scene: Scene3D): Scene3D {
 
 function createDefaultPlayers(): ScenePlayer[] {
   return [
-    {
-      id: 'you',
-      team: 'offense',
-      role: 'wing',
-      label: 'You',
-      start: { x: 0, z: 18 },
-      isUser: true,
-      hasBall: true,
-    },
-    {
-      id: 'default_defender',
-      team: 'defense',
-      role: 'defender',
-      label: 'DEF',
-      start: { x: 2.8, z: 14 },
-    },
+    // Offense — "You" is the ball handler at the top of the key.
+    { id: 'you', team: 'offense', role: 'ball_handler', label: 'You', start: { x: 0, z: 22 }, isUser: true, hasBall: true },
+    { id: 'o_wing', team: 'offense', role: 'wing', label: 'SG', start: { x: 18, z: 10 } },
+    { id: 'o_corner', team: 'offense', role: 'corner', label: 'SF', start: { x: -22, z: 1 } },
+    { id: 'o_slot', team: 'offense', role: 'slot', label: 'PF', start: { x: -9, z: 17 } },
+    { id: 'o_post', team: 'offense', role: 'post', label: 'C', start: { x: 5, z: 4 } },
+    // Defense
+    { id: 'd_user', team: 'defense', role: 'on_ball', label: 'D', start: { x: 0, z: 24 } },
+    { id: 'd_wing', team: 'defense', role: 'wing_d', label: 'D', start: { x: 17, z: 12 } },
+    { id: 'd_corner', team: 'defense', role: 'corner_d', label: 'D', start: { x: -20, z: 3 } },
+    { id: 'd_slot', team: 'defense', role: 'slot_d', label: 'D', start: { x: -9, z: 19 } },
+    { id: 'd_post', team: 'defense', role: 'post_d', label: 'D', start: { x: 6, z: 6 } },
   ]
 }
 

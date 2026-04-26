@@ -7,10 +7,14 @@ import { SceneDebug3D } from './SceneDebug3D'
 import { ScenarioScene3D } from './ScenarioScene3D'
 import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
 import { SceneMotionProvider } from './SceneMotionContext'
-import { hasWebGL } from '@/lib/scenario3d/feature'
+import { hasWebGL, isDebug3D } from '@/lib/scenario3d/feature'
 import { useReducedMotion } from '@/lib/scenario3d/useReducedMotion'
 import { COURT } from '@/lib/scenario3d/coords'
-import { createDefaultScene, type Scene3D } from '@/lib/scenario3d/scene'
+import {
+  createDebugSelfTestScene,
+  createDefaultScene,
+  type Scene3D,
+} from '@/lib/scenario3d/scene'
 
 interface Scenario3DCanvasProps {
   /** Mounted as the WebGL fallback when WebGL is unavailable. */
@@ -18,7 +22,7 @@ interface Scenario3DCanvasProps {
   children?: React.ReactNode
   /** Optional className passed to the outer wrapper. */
   className?: string
-  /** Optional explicit pixel height. Defaults to 280px. */
+  /** Optional explicit pixel height. Defaults to 320px. */
   height?: number
   /** Normalised scene to render. If omitted, the built-in default is used. */
   scene?: Scene3D | null
@@ -33,24 +37,32 @@ interface Scenario3DCanvasProps {
   showPaths?: boolean
 }
 
-const CANVAS_BG = '#101521'
+const CANVAS_BG = '#0E1626'
 
-const CAMERA_POSITION: [number, number, number] = [0, 30, 60]
-const CAMERA_LOOKAT: [number, number, number] = [0, 0, 16]
-const CAMERA_FOV = 42
+// Tighter, broadcast-style angle. The camera sits high behind the
+// half-court looking down at the free-throw line. Distance and FOV are
+// tuned so a 50ft × 47ft half-court fills the canvas with a touch of
+// margin even on narrow mobile aspect ratios.
+const CAMERA_POSITION: [number, number, number] = [0, 32, 56]
+const CAMERA_LOOKAT: [number, number, number] = [0, 0, 18]
+const CAMERA_FOV = 44
 
 /**
  * Top-level wrapper that mounts the R3F <Canvas> for a scenario scene. The
- * R3F scene IS the product — we render the real scene as the primary path
- * and only fall through to the supplied 2D node when WebGL is genuinely
- * unavailable on the device or the WebGL context is lost at runtime. Errors
- * thrown inside the canvas are caught by Scenario3DErrorBoundary further up.
+ * 3D scene IS the product — the real scene renders as the primary path and
+ * we only fall back to the supplied 2D node when WebGL is genuinely
+ * unavailable on the device or the WebGL context is lost. Errors thrown
+ * inside the canvas are caught by Scenario3DErrorBoundary further up.
+ *
+ * `?debug3d=1` swaps in a self-test scene (5+5 players, ball, replay)
+ * regardless of the supplied scenario, so the rendering path can be
+ * exercised without depending on scenario data.
  */
 export function Scenario3DCanvas({
   fallback,
   children,
   className,
-  height = 280,
+  height = 320,
   scene,
   concept,
   replayMode = 'intro',
@@ -64,20 +76,22 @@ export function Scenario3DCanvas({
   const [webglSupported, setWebglSupported] = useState<boolean | null>(null)
   const [canvasMounted, setCanvasMounted] = useState(false)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
+  const [debugMode, setDebugMode] = useState(false)
 
   const reducedMotion = useReducedMotion()
 
-  const visibleScene = useMemo(
-    () => scene ?? createDefaultScene('default_3d_scene'),
-    [scene],
-  )
+  const visibleScene = useMemo(() => {
+    if (debugMode) return createDebugSelfTestScene()
+    return scene ?? createDefaultScene('default_3d_scene')
+  }, [scene, debugMode])
 
   const sceneValidationStatus = useMemo(
-    () => getSceneValidationStatus(visibleScene, scene),
-    [scene, visibleScene],
+    () => getSceneValidationStatus(visibleScene, scene, debugMode),
+    [scene, visibleScene, debugMode],
   )
 
   useEffect(() => {
+    setDebugMode(isDebug3D())
     const supported = hasWebGL()
     setWebglSupported(supported)
     setMode(supported ? '3d' : 'fallback')
@@ -100,6 +114,7 @@ export function Scenario3DCanvas({
           concept={concept}
           validationStatus={sceneValidationStatus}
           errorMessage={runtimeError}
+          debugMode={debugMode}
         />
       </div>
     )
@@ -124,9 +139,8 @@ export function Scenario3DCanvas({
       }}
     >
       <Canvas
-        // `flat` disables ACES Filmic tone mapping, which by default
-        // crushes mid-tones in our dark UI to near-black. With NoToneMapping
-        // the wood floor renders as the literal sRGB color we set.
+        // `flat` disables ACES Filmic tone mapping so unlit basic materials
+        // render at the literal sRGB color we set, not crushed to black.
         flat
         dpr={[1, 2]}
         camera={{ position: CAMERA_POSITION, fov: CAMERA_FOV, near: 0.1, far: 260 }}
@@ -147,8 +161,6 @@ export function Scenario3DCanvas({
                 { once: true },
               )
             }
-            // Mark mount AFTER GL setup so the proof-of-life state only
-            // flips when the renderer is actually usable.
             setCanvasMounted(true)
           } catch (error) {
             setRuntimeError(error instanceof Error ? error.message : 'Unknown WebGL error')
@@ -156,8 +168,8 @@ export function Scenario3DCanvas({
           }
         }}
       >
-        {/* Explicit scene background ensures the canvas paints even before
-            the first lighting pass completes on slow devices. */}
+        {/* Scene background — slightly lighter than the page bg so the
+            canvas reads as a discrete arena floor and not a void. */}
         <color attach="background" args={[CANVAS_BG]} />
         <SceneMotionProvider reduced={reducedMotion}>
           <SceneLighting />
@@ -170,7 +182,7 @@ export function Scenario3DCanvas({
             resetCounter={resetCounter}
             onCaption={onCaption}
             onPhase={onPhase}
-            showPaths={showPaths}
+            showPaths={showPaths || debugMode}
           />
           <Suspense fallback={null}>{children}</Suspense>
           <SceneDebug3D scene={visibleScene} />
@@ -183,7 +195,13 @@ export function Scenario3DCanvas({
         concept={concept}
         validationStatus={sceneValidationStatus}
         errorMessage={runtimeError}
+        debugMode={debugMode}
       />
+      {debugMode ? (
+        <div className="pointer-events-none absolute right-2 top-2 rounded-full bg-brand/15 px-2 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-brand">
+          debug3d self-test
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -195,6 +213,7 @@ interface CanvasDebugOverlayProps {
   concept?: string
   validationStatus: string
   errorMessage: string | null
+  debugMode: boolean
 }
 
 function CanvasDebugOverlay({
@@ -204,8 +223,10 @@ function CanvasDebugOverlay({
   concept,
   validationStatus,
   errorMessage,
+  debugMode,
 }: CanvasDebugOverlayProps) {
-  if (process.env.NODE_ENV === 'production') return null
+  // In production, the overlay is only shown when ?debug3d=1 is set.
+  if (process.env.NODE_ENV === 'production' && !debugMode) return null
 
   return (
     <div className="pointer-events-none absolute left-2 top-2 max-w-[92%] rounded-lg bg-bg-0/85 px-2 py-1 text-[10px] leading-snug text-text-dim">
@@ -215,6 +236,7 @@ function CanvasDebugOverlay({
       <div>concept: {concept ?? 'none'}</div>
       <div>scene: {validationStatus}</div>
       <div>error: {errorMessage ?? 'none'}</div>
+      {debugMode ? <div>mode: debug3d self-test</div> : null}
     </div>
   )
 }
@@ -222,7 +244,9 @@ function CanvasDebugOverlay({
 function getSceneValidationStatus(
   visibleScene: Scene3D,
   inputScene: Scene3D | null | undefined,
+  debugMode: boolean,
 ): string {
+  if (debugMode) return 'debug self-test'
   if (!inputScene) return 'missing input, using default'
 
   const hasPlayers = visibleScene.players.length > 0
@@ -239,14 +263,14 @@ function getSceneValidationStatus(
 function SceneLighting() {
   return (
     <>
-      <hemisphereLight args={['#D7E2F4', '#1A1408', 0.55]} />
-      <ambientLight intensity={0.95} color="#FFF1E0" />
-      <directionalLight intensity={1.4} color="#FFE4B5" position={[14, 32, 18]} />
-      <directionalLight intensity={0.5} color="#7EB6FF" position={[-22, 22, 36]} />
+      <hemisphereLight args={['#D7E2F4', '#1A1408', 0.6]} />
+      <ambientLight intensity={1.05} color="#FFF1E0" />
+      <directionalLight intensity={1.5} color="#FFE4B5" position={[14, 32, 18]} />
+      <directionalLight intensity={0.6} color="#7EB6FF" position={[-22, 22, 36]} />
       <pointLight
         position={[0, COURT.rimHeightFt + 4, 0]}
-        intensity={9}
-        distance={20}
+        intensity={12}
+        distance={22}
         color="#FF8A3D"
       />
     </>
