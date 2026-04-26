@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic'
 import type { ReactNode } from 'react'
 import type { Scene3D } from '@/lib/scenario3d/scene'
+import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
 
 const Scenario3DCanvasDynamic = dynamic(
   () => import('./Scenario3DCanvas').then((m) => m.Scenario3DCanvas),
@@ -25,6 +26,11 @@ interface Scenario3DViewProps {
   height?: number
   className?: string
   scene?: Scene3D | null
+  replayMode?: ReplayMode
+  resetCounter?: number
+  onCaption?: (caption: string | undefined) => void
+  onPhase?: (phase: ReplayPhase) => void
+  showPaths?: boolean
 }
 
 /**

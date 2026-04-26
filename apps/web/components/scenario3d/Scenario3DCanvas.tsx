@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
 import { Court3D } from './Court3D'
 import { ScenarioScene3D } from './ScenarioScene3D'
+import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
 import { hasWebGL, is3DDisabled } from '@/lib/scenario3d/feature'
 import { COURT } from '@/lib/scenario3d/coords'
 import type { Scene3D } from '@/lib/scenario3d/scene'
@@ -18,6 +19,13 @@ interface Scenario3DCanvasProps {
   height?: number
   /** Normalised scene to render. If omitted, only the empty court shows. */
   scene?: Scene3D | null
+  /** Animation mode for the scene. */
+  replayMode?: ReplayMode
+  /** Bumping resets the active timeline. */
+  resetCounter?: number
+  onCaption?: (caption: string | undefined) => void
+  onPhase?: (phase: ReplayPhase) => void
+  showPaths?: boolean
 }
 
 /**
@@ -31,6 +39,11 @@ export function Scenario3DCanvas({
   className,
   height = 280,
   scene,
+  replayMode = 'intro',
+  resetCounter,
+  onCaption,
+  onPhase,
+  showPaths,
 }: Scenario3DCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [mode, setMode] = useState<'probing' | '3d' | 'fallback'>('probing')
@@ -78,7 +91,16 @@ export function Scenario3DCanvas({
         <SceneLighting />
         <CameraTarget />
         <Court3D />
-        {scene ? <ScenarioScene3D scene={scene} /> : null}
+        {scene ? (
+          <ScenarioScene3D
+            scene={scene}
+            mode={replayMode}
+            resetCounter={resetCounter}
+            onCaption={onCaption}
+            onPhase={onPhase}
+            showPaths={showPaths}
+          />
+        ) : null}
         {children}
       </Canvas>
     </div>
