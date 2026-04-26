@@ -19,3 +19,18 @@ export function hasWebGL(): boolean {
     return false
   }
 }
+
+/**
+ * True when the page is loaded with `?debug3d=1`. Used by the 3D engine to
+ * render the visual self-test scene (5+5 players, ball, replay) regardless
+ * of the supplied scenario, so we can debug rendering issues without
+ * scenarios loading.
+ */
+export function isDebug3D(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return new URLSearchParams(window.location.search).get('debug3d') === '1'
+  } catch {
+    return false
+  }
+}

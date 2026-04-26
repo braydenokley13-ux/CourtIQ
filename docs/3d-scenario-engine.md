@@ -30,7 +30,7 @@ the existing Next.js app.
 | Concern | Choice | Why |
 | --- | --- | --- |
 | Renderer | `@react-three/fiber` | React-friendly Three.js binding, integrates with Next.js 15 / React 19. |
-| Helpers | `@react-three/drei` | Pre-built `OrbitControls`, `Text`, `Line`, `Html`, `useGLTF`, etc. Cherry-picked imports keep bundle small. |
+| Helpers | Local primitives first | The MVP court, players, ball, labels, and paths use synchronous Three.js geometry/materials. Drei helpers are avoided in the baseline render path so loading cannot wait on helper internals or external assets. |
 | Engine | `three` | Underlying WebGL engine. |
 | Animation | `framer-motion` (already installed) for DOM, hand-rolled `useFrame` lerps for 3D. | Avoid pulling in `framer-motion-3d` until we need it. |
 | Validation | `zod` (already installed) | Validate scene JSON in seed + at runtime. |
@@ -64,16 +64,26 @@ Three layers of fallback, in order:
 
 1. **Reduced motion** — when `prefers-reduced-motion: reduce` is set, the 3D
    scene mounts but disables animated camera moves and movement trails.
-2. **WebGL unavailable / context lost** — `Scenario3DCanvas` probes for
+2. **Hard 3D timeout** — if the canvas does not report a rendered scene within
+   3 seconds, `Scenario3DCanvas` switches to a built-in emergency 3D scene
+   with the court, "You", a defender, and the ball. This keeps the 3D surface
+   visible instead of leaving a loading message forever.
+3. **WebGL unavailable / context lost** — `Scenario3DCanvas` probes for
    WebGL on mount via a feature-detection hook (`hasWebGL()`). If absent or
    if the canvas fires a `webglcontextlost` event, the component renders the
    existing 2D `<Court />` from `components/court/`.
-3. **Feature flag opt-out** — `NEXT_PUBLIC_DISABLE_3D=1` forces the 2D
-   fallback. Useful for QA and emergency rollback.
 
 The 2D `<Court />` is intentionally **not removed** in Phase 4 — it remains
-the single source of truth for fallback rendering and content authors who do
-not yet ship a `scene` block.
+the fallback for devices that cannot create WebGL. Missing or invalid scene
+data does not use the 2D path; it renders a safe default 3D scene.
+
+### Phase 4.5C Root Cause
+
+The infinite "Drawing the court..." state was caused by the baseline 3D path
+depending on helper-rendered scene primitives before any guaranteed default
+scene was visible. If that path never reported readiness, the loading UI had
+no hard stop. The fix makes the first visible court synchronous, normalizes
+missing data to a built-in 3D scene, and adds a 3-second emergency 3D timeout.
 
 ## Component architecture
 

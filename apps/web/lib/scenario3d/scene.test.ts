@@ -85,13 +85,31 @@ describe('buildScene', () => {
   it('returns a default scene when source has nothing usable', () => {
     const result = buildScene({ id: 'empty' })
     expect(result.id).toBe('empty')
-    expect(result.players.length).toBeGreaterThan(0)
-    expect(result.players[0]!.isUser).toBe(true)
+    expect(result.players.length).toBeGreaterThanOrEqual(2)
+    expect(result.players.some((p) => p.isUser && p.label === 'You')).toBe(true)
+    expect(result.players.some((p) => p.team === 'defense')).toBe(true)
+    expect(result.ball.holderId).toBe('you')
   })
 
   it('returns a default scene when concept is unknown and court_state is missing', () => {
     const result = buildScene({ id: 'mystery', concept_tags: ['unknown_concept'] })
-    expect(result.players.length).toBeGreaterThan(0)
+    expect(result.players.some((p) => p.label === 'You')).toBe(true)
+    expect(result.players.some((p) => p.team === 'defense')).toBe(true)
+  })
+
+  it('returns a visible default scene when authored scene is invalid and no preset matches', () => {
+    const result = buildScene({
+      id: 'invalid_default',
+      scene: {
+        players: 'not an array',
+        ball: null,
+      },
+    })
+    expect(result.synthetic).toBe(true)
+    expect(result.players.some((p) => p.label === 'You')).toBe(true)
+    expect(result.players.some((p) => p.team === 'defense')).toBe(true)
+    expect(Number.isFinite(result.ball.start.x)).toBe(true)
+    expect(Number.isFinite(result.ball.start.z)).toBe(true)
   })
 
   it('clamps NaN/Infinity coordinates to a safe position on the half-court', () => {

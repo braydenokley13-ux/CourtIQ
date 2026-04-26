@@ -125,7 +125,7 @@ export function buildScene(scenario: SourceScenario): Scene3D {
   }
 
   // Last-resort default scene so the renderer always has something to show.
-  return sanitiseScene(buildDefaultScene(id))
+  return sanitiseScene(createDefaultScene(id))
 }
 
 function normaliseAuthoredScene(id: string, scene: AuthoredScene): Scene3D {
@@ -213,26 +213,18 @@ function synthesiseSceneFromCourtState(
 }
 
 /**
- * Minimal default scene used as a last resort when no source data can
- * produce a valid scene. The renderer always has something to draw.
+ * "Hero" default scene used when no source data produces a valid scene.
+ * Populates the court with five offensive and five defensive players plus
+ * the ball so the canvas always reads as basketball — never an empty
+ * rectangle. The user is the wing offensive player by default.
  */
-function buildDefaultScene(id: string): Scene3D {
+export function createDefaultScene(id = 'default_3d_scene'): Scene3D {
   return {
     id,
     court: 'half',
     camera: 'teaching_angle',
-    players: [
-      {
-        id: 'you',
-        team: 'offense',
-        role: 'wing',
-        label: 'You',
-        start: { x: 0, z: 18 },
-        isUser: true,
-        hasBall: true,
-      },
-    ],
-    ball: { start: { x: 0, z: 18 }, holderId: 'you' },
+    players: createDefaultPlayers(),
+    ball: { start: { x: 0, z: 22 }, holderId: 'you' },
     movements: [],
     answerDemo: [],
     synthetic: true,
@@ -258,15 +250,7 @@ function sanitiseScene(scene: Scene3D): Scene3D {
   }
 
   if (players.length === 0) {
-    players.push({
-      id: 'you',
-      team: 'offense',
-      role: 'wing',
-      label: 'You',
-      start: { x: 0, z: 18 },
-      isUser: true,
-      hasBall: true,
-    })
+    players.push(...createDefaultPlayers())
   }
 
   // Cap "isUser" to a single player.
@@ -306,6 +290,23 @@ function sanitiseScene(scene: Scene3D): Scene3D {
     movements: cleanMovements(scene.movements),
     answerDemo: cleanMovements(scene.answerDemo),
   }
+}
+
+function createDefaultPlayers(): ScenePlayer[] {
+  return [
+    // Offense — "You" is the ball handler at the top of the key.
+    { id: 'you', team: 'offense', role: 'ball_handler', label: 'You', start: { x: 0, z: 22 }, isUser: true, hasBall: true },
+    { id: 'o_wing', team: 'offense', role: 'wing', label: 'SG', start: { x: 18, z: 10 } },
+    { id: 'o_corner', team: 'offense', role: 'corner', label: 'SF', start: { x: -22, z: 1 } },
+    { id: 'o_slot', team: 'offense', role: 'slot', label: 'PF', start: { x: -9, z: 17 } },
+    { id: 'o_post', team: 'offense', role: 'post', label: 'C', start: { x: 5, z: 4 } },
+    // Defense
+    { id: 'd_user', team: 'defense', role: 'on_ball', label: 'D', start: { x: 0, z: 24 } },
+    { id: 'd_wing', team: 'defense', role: 'wing_d', label: 'D', start: { x: 17, z: 12 } },
+    { id: 'd_corner', team: 'defense', role: 'corner_d', label: 'D', start: { x: -20, z: 3 } },
+    { id: 'd_slot', team: 'defense', role: 'slot_d', label: 'D', start: { x: -9, z: 19 } },
+    { id: 'd_post', team: 'defense', role: 'post_d', label: 'D', start: { x: 6, z: 6 } },
+  ]
 }
 
 function safePoint(point: CourtPoint | undefined | null): CourtPoint {

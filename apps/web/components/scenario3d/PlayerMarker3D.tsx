@@ -10,11 +10,16 @@ export type PlayerTeam = 'offense' | 'defense'
 export type PlayerRole = 'user' | 'teammate' | 'defender' | 'ball_handler' | 'help' | 'rotater'
 
 const TEAM_COLOR: Record<PlayerTeam, string> = {
-  offense: '#3BE383',
+  offense: '#3BFF8F',
   defense: '#FF4D6D',
 }
 
 const USER_COLOR = '#FFD60A'
+
+const BODY_HEIGHT = 4.0
+const BODY_RADIUS_TOP = 0.85
+const BODY_RADIUS_BOTTOM = 1.0
+const HEAD_RADIUS = 0.7
 
 export interface PlayerMarker3DProps {
   position: [number, number, number]
@@ -70,49 +75,49 @@ export function PlayerMarker3D({
 
   return (
     <group position={position}>
-      {/* Footprint ring */}
-      <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
-        <ringGeometry args={[1.05, 1.35, 36]} />
+      {/* Footprint ring — well above the floor decals to avoid z-fighting. */}
+      <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.15, 0]}>
+        <ringGeometry args={[1.2, 1.55, 48]} />
         <meshBasicMaterial
           color={isUser ? USER_COLOR : fill}
           transparent
-          opacity={isUser ? 0.95 : 0.35}
+          opacity={isUser ? 0.98 : 0.55}
+          toneMapped={false}
         />
       </mesh>
 
       {/* Active pulse ring */}
       {active ? (
-        <mesh ref={pulseRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
-          <ringGeometry args={[1.4, 2.2, 36]} />
-          <meshBasicMaterial color={fill} transparent opacity={0.25} />
+        <mesh ref={pulseRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.17, 0]}>
+          <ringGeometry args={[1.7, 2.7, 48]} />
+          <meshBasicMaterial color={fill} transparent opacity={0.3} toneMapped={false} />
         </mesh>
       ) : null}
 
       {/* Possession ring */}
       {hasBall ? <PossessionRing color="#FF8A3D" /> : null}
 
-      {/* Body — unlit so jersey color is unmistakable on every device.
-          Lifted slightly off the floor to prevent z-fighting with the wood. */}
-      <mesh position={[0, 1.7, 0]}>
-        <cylinderGeometry args={[0.7, 0.85, 3.2, 16]} />
-        <meshBasicMaterial color={fill} />
+      {/* Body — taller cylinder, unlit so the jersey color is unmistakable. */}
+      <mesh position={[0, BODY_HEIGHT / 2 + 0.2, 0]}>
+        <cylinderGeometry
+          args={[BODY_RADIUS_TOP, BODY_RADIUS_BOTTOM, BODY_HEIGHT, 20]}
+        />
+        <meshBasicMaterial color={fill} toneMapped={false} />
       </mesh>
 
       {/* Head */}
-      <mesh position={[0, 3.65, 0]}>
-        <sphereGeometry args={[0.55, 16, 16]} />
-        <meshBasicMaterial color={fill} />
+      <mesh position={[0, BODY_HEIGHT + 0.4, 0]}>
+        <sphereGeometry args={[HEAD_RADIUS, 20, 20]} />
+        <meshBasicMaterial color={fill} toneMapped={false} />
       </mesh>
 
-      {/* Label — sprite is camera-facing by definition, so we don't need
-          drei's <Billboard> wrapper. Using a CanvasTexture sprite rather
-          than drei's <Text> avoids the suspended Roboto font fetch that
-          crashes the canvas in production. */}
+      {/* Label sprite (camera-facing). Uses a CanvasTexture, so it's
+          synchronous and never suspends. */}
       {label ? (
         <LabelSprite
           text={label}
-          position={[0, 4.6, 0]}
-          scale={0.9}
+          position={[0, BODY_HEIGHT + 1.6, 0]}
+          scale={1.1}
           color={isUser ? '#1A1400' : '#FBFBFD'}
           bg={isUser ? fill : 'rgba(10,11,14,0.85)'}
         />
@@ -130,9 +135,9 @@ function PossessionRing({ color }: { color: string }) {
     ref.current.rotation.z = t * 0.4
   })
   return (
-    <mesh ref={ref} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
-      <ringGeometry args={[1.5, 1.7, 36]} />
-      <meshBasicMaterial color={color} transparent opacity={0.85} />
+    <mesh ref={ref} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.18, 0]}>
+      <ringGeometry args={[1.7, 1.95, 48]} />
+      <meshBasicMaterial color={color} transparent opacity={0.9} toneMapped={false} />
     </mesh>
   )
 }
