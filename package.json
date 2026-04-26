@@ -3,7 +3,7 @@
   "private": true,
   "packageManager": "pnpm@9.15.0",
   "engines": {
-    "node": ">=20",
+    "node": "22.x",
     "pnpm": ">=9"
   },
   "scripts": {
@@ -13,6 +13,7 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "prisma:validate": "turbo run prisma:validate",
+    "db:push": "pnpm --filter @courtiq/db exec prisma db push",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "seed:scenarios": "pnpm exec tsx scripts/seed-scenarios.ts"
   },
