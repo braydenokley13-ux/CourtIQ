@@ -1,0 +1,63 @@
+{
+  "id": "spacing_demo_01",
+  "version": 1,
+  "status": "DRAFT",
+  "category": "OFFENSE",
+  "concept_tags": ["spacing_fundamentals"],
+  "sub_concepts": ["spacing_drift"],
+  "difficulty": 2,
+  "user_role": "off_ball_guard",
+  "court_state": {
+    "offense": [
+      { "id": "you", "x": 95, "y": 220, "role": "off_ball_guard", "hasBall": false },
+      { "id": "o2", "x": 250, "y": 90, "role": "ball_handler", "hasBall": true },
+      { "id": "o3", "x": 405, "y": 220, "role": "strong_wing", "hasBall": false },
+      { "id": "o4", "x": 445, "y": 360, "role": "strong_corner", "hasBall": false },
+      { "id": "o5", "x": 250, "y": 200, "role": "post", "hasBall": false }
+    ],
+    "defense": [
+      { "id": "d1", "x": 110, "y": 200, "role": "gap_helper", "hasBall": false },
+      { "id": "d2", "x": 250, "y": 110, "role": "on_ball", "hasBall": false },
+      { "id": "d3", "x": 395, "y": 230, "role": "wing_d", "hasBall": false },
+      { "id": "d4", "x": 425, "y": 350, "role": "corner_d", "hasBall": false },
+      { "id": "d5", "x": 250, "y": 220, "role": "post_d", "hasBall": false }
+    ],
+    "ball_location": { "x": 250, "y": 90 }
+  },
+  "prompt": "Your teammate drives middle. Where do you move?",
+  "choices": [
+    { "id": "c1", "label": "Drift to the deep corner", "is_correct": true, "feedback_text": "Drifting widens the help and keeps the kickout window open.", "order": 1 },
+    { "id": "c2", "label": "Cut to the rim", "is_correct": false, "feedback_text": "Cutting clogs the lane your driver is using.", "order": 2 },
+    { "id": "c3", "label": "Hold the slot", "is_correct": false, "feedback_text": "Your defender can dig from the slot. Drift to break that gravity.", "order": 3 }
+  ],
+  "explanation_md": "Drifting deepens spacing without crowding the drive.",
+  "xp_reward": 10,
+  "mastery_weight": 1.0,
+  "render_tier": 1,
+  "media_refs": [],
+  "scene": {
+    "type": "spacing_drift",
+    "court": "half",
+    "camera": "teaching_angle",
+    "players": [
+      { "id": "you", "team": "offense", "role": "off_ball_guard", "label": "You", "start": { "x": -16, "z": 10 }, "isUser": true },
+      { "id": "pg", "team": "offense", "role": "ball_handler", "label": "PG", "start": { "x": 0, "z": 22 }, "hasBall": true },
+      { "id": "wing", "team": "offense", "role": "strong_wing", "label": "SG", "start": { "x": 18, "z": 10 } },
+      { "id": "corner", "team": "offense", "role": "strong_corner", "label": "SF", "start": { "x": 22, "z": 1 } },
+      { "id": "post", "team": "offense", "role": "post", "label": "C", "start": { "x": 5, "z": 4 } },
+      { "id": "d_you", "team": "defense", "role": "gap_helper", "label": "D", "start": { "x": -10, "z": 14 } },
+      { "id": "d_pg", "team": "defense", "role": "on_ball", "label": "D", "start": { "x": 0, "z": 24 } },
+      { "id": "d_wing", "team": "defense", "role": "wing_d", "label": "D", "start": { "x": 17, "z": 12 } },
+      { "id": "d_corner", "team": "defense", "role": "corner_d", "label": "D", "start": { "x": 20, "z": 3 } },
+      { "id": "d_post", "team": "defense", "role": "post_d", "label": "D", "start": { "x": 6, "z": 6 } }
+    ],
+    "ball": { "start": { "x": 0, "z": 22 }, "holderId": "pg" },
+    "movements": [
+      { "id": "drive", "playerId": "pg", "kind": "drive", "to": { "x": 0, "z": 10 }, "durationMs": 700, "caption": "Teammate drives middle" }
+    ],
+    "answerDemo": [
+      { "id": "drift", "playerId": "you", "kind": "drift", "to": { "x": -22, "z": 1.5 }, "durationMs": 800, "caption": "Drift to the deep corner" },
+      { "id": "kickout", "playerId": "ball", "kind": "pass", "to": { "x": -22, "z": 1.5 }, "delayMs": 400, "durationMs": 500, "caption": "Kickout opens up" }
+    ]
+  }
+}

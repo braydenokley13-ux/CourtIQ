@@ -115,5 +115,12 @@ mirrored in `scripts/seed-scenarios.ts` so seeded JSON is validated.
 - Mark the user once — the schema rejects multiple `isUser: true` players.
 - Set `hasBall: true` on the offensive player who starts with the ball *and*
   set `ball.holderId` to their id; the engine snaps the ball to the holder.
-- If you skip authoring a scene, the engine falls back to a synthetic scene
-  built from `court_state`. That keeps existing scenarios working.
+- If you skip authoring a scene, the engine falls back first to the
+  matching concept preset (see `apps/web/lib/scenario3d/presets.ts`) and
+  then to a synthetic scene built from `court_state`. That keeps existing
+  scenarios working.
+
+## Full example
+
+A complete scenario JSON with both legacy `court_state` and a new `scene`
+block lives at [docs/scene-example.json](./scene-example.json).

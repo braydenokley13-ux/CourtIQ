@@ -207,10 +207,43 @@ Phase 4 keeps every existing scenario working with zero edits:
 
 ## Testing notes
 
-- Unit: `coords.ts` projection is round-trip tested.
-- Unit: `schema.ts` validates good and rejects malformed scenes.
-- Component: `Scenario3DCanvas` mounts in jsdom under a WebGL stub and
-  renders the fallback (no real WebGL in CI).
-- Manual QA matrix is in Phase 4I: every concept renders, answer flow still
-  works, replay plays, mobile (≤ 390 px) layout, reduced-motion, and WebGL
-  fallback paths all verified before shipping.
+Automated:
+
+- `lib/scenario3d/coords.test.ts` — projection / unprojection round-trip,
+  half-court bounds.
+- `lib/scenario3d/schema.test.ts` — Zod validation accepts well-formed
+  scenes and rejects duplicate ids, multiple users, unknown movement
+  targets, bad ball holders.
+- `lib/scenario3d/timeline.test.ts` — chained movements share start/end
+  times, sampling produces interpolated positions, idle players hold their
+  start.
+- `lib/scenario3d/scene.test.ts` — preset selection by concept tag,
+  authored-scene precedence, graceful fallback when authored scene is
+  malformed.
+
+Run with:
+
+```bash
+pnpm --filter @courtiq/web test
+```
+
+Manual QA matrix (run before shipping a scene change):
+
+| Check | How |
+| --- | --- |
+| All 6 launch concepts render with distinct visuals | Start a session for each concept (`/train?concept=closeouts`, etc.) |
+| Existing scenarios with no `scene` block still render | Pick any older scenario; preset or synth fills in |
+| Answer flow still works (XP, IQ, streaks) | Submit a correct + an incorrect choice in the same session |
+| Replay plays and "Show me again" replays it | Answer, watch the answer demo, hit the button |
+| Captions appear during replay | Authored scenes with `caption` strings should show them |
+| Mobile (≤390 px) layout | DevTools mobile emulation, no horizontal scroll, court fits |
+| Reduced motion | OS-level "reduce motion"; ball stops bouncing, user ring stops spinning |
+| WebGL fallback | DevTools "Disable WebGL" or `NEXT_PUBLIC_DISABLE_3D=1`; 2D court appears |
+| No SSR hydration warnings | View `/train` page source → no `Scenario3DCanvas` markup, only fallback |
+
+## Authoring docs
+
+- [Scene authoring guide](./scene-authoring.md) — schema, coordinate
+  system, examples.
+- [Scenario seed README](../packages/db/seed/scenarios/README.md) — DRAFT →
+  REVIEW → LIVE workflow and the existing scenario JSON shape.
