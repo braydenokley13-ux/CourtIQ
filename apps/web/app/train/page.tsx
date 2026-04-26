@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Court } from '@/components/court'
 import type { CourtState } from '@/components/court'
 import { createClient } from '@/lib/supabase/client'
@@ -32,6 +32,8 @@ type AttemptFeedback = {
 
 export default function TrainPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const conceptParam = searchParams.get('concept')
   const [userId, setUserId] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [scenarios, setScenarios] = useState<SessionScenario[]>([])
@@ -61,7 +63,7 @@ export default function TrainPage() {
         const res = await fetch('/api/session/start', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ n: 5 }),
+          body: JSON.stringify({ n: 5, concept: conceptParam ?? undefined }),
         })
         if (!res.ok) {
           const body = await res.json().catch(() => ({})) as { error?: string; message?: string }
@@ -83,7 +85,7 @@ export default function TrainPage() {
         setLoading(false)
       }
     })()
-  }, [router])
+  }, [router, conceptParam])
 
   useEffect(() => {
     if (phase !== 'prompt') return

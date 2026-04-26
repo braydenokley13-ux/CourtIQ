@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { generateSessionBundle } from '@/lib/services/scenarioService'
+import { listValidConcepts } from '@/lib/services/academyService'
 import { prisma } from '@/lib/db/prisma'
 import { captureServerEvent } from '@/lib/analytics/serverEvents'
 import { createClient } from '@/lib/supabase/server'
@@ -11,7 +12,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const body = await request.json().catch(() => ({})) as { n?: number }
+  const body = await request.json().catch(() => ({})) as { n?: number; concept?: string }
+  const url = new URL(request.url)
+  const conceptRaw = body.concept ?? url.searchParams.get('concept') ?? null
+  const concept = conceptRaw && conceptRaw.trim().length > 0 ? conceptRaw.trim() : null
 
   await prisma.user.upsert({
     where: { id: user.id },
@@ -25,19 +29,33 @@ export async function POST(request: Request) {
     },
   })
 
-  const liveCount = await prisma.scenario.count({ where: { status: 'LIVE' } })
+  if (concept) {
+    const valid = await listValidConcepts()
+    if (!valid.has(concept)) {
+      return NextResponse.json(
+        { error: 'INVALID_CONCEPT', message: `Unknown concept: ${concept}` },
+        { status: 400 },
+      )
+    }
+  }
+
+  const liveCount = await prisma.scenario.count({
+    where: { status: 'LIVE', ...(concept ? { concept_tags: { has: concept } } : {}) },
+  })
   if (liveCount === 0) {
     captureServerEvent('session_start_blocked', { reason: 'CONTENT_NOT_LOADED' })
     return NextResponse.json(
       {
         error: 'CONTENT_NOT_LOADED',
-        message: 'Scenario content has not been loaded yet. Please run the scenario seed.',
+        message: concept
+          ? `No scenarios available yet for concept "${concept}".`
+          : 'Scenario content has not been loaded yet. Please run the scenario seed.',
       },
       { status: 503 },
     )
   }
 
-  const bundle = await generateSessionBundle(user.id, body.n ?? 5)
+  const bundle = await generateSessionBundle(user.id, body.n ?? 5, { concept })
 
   captureServerEvent('session_started', {
     session_run_id: bundle.session_run_id,
