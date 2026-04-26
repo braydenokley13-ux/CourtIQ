@@ -105,8 +105,14 @@ async function loadScenarioFiles(): Promise<SeedScenario[]> {
   return scenarios;
 }
 
-async function upsertScenario(prisma: PrismaClient, scenario: SeedScenario): Promise<void> {
+async function upsertScenario(
+  prisma: PrismaClient,
+  scenario: SeedScenario,
+): Promise<'created' | 'updated'> {
+  let action: 'created' | 'updated' = 'created'
   await prisma.$transaction(async (tx) => {
+    const existing = await tx.scenario.findUnique({ where: { id: scenario.id }, select: { id: true } })
+    action = existing ? 'updated' : 'created'
     await tx.scenario.upsert({
       where: { id: scenario.id },
       create: {
@@ -155,25 +161,51 @@ async function upsertScenario(prisma: PrismaClient, scenario: SeedScenario): Pro
       })),
     });
   });
+  return action;
 }
 
 async function main(): Promise<void> {
+  if (!process.env.DATABASE_URL) {
+    console.error('[seed:scenarios] DATABASE_URL is not set. Refusing to run.');
+    process.exit(1);
+  }
+
   const prisma = new PrismaClient();
+  const start = Date.now();
 
   try {
+    console.log(`[seed:scenarios] loading from ${SCENARIOS_DIR}`);
     const scenarios = await loadScenarioFiles();
+    console.log(`[seed:scenarios] validated ${scenarios.length} scenarios across seed files.`);
+
+    let created = 0;
+    let updated = 0;
+    const liveCount = scenarios.filter((s) => s.status === ScenarioStatus.LIVE).length;
 
     for (const scenario of scenarios) {
-      await upsertScenario(prisma, scenario);
+      const action = await upsertScenario(prisma, scenario);
+      if (action === 'created') created += 1;
+      else updated += 1;
     }
 
-    console.log(`Seeded ${scenarios.length} scenarios from ${SCENARIOS_DIR}.`);
+    const liveInDb = await prisma.scenario.count({ where: { status: ScenarioStatus.LIVE } });
+
+    console.log(
+      `[seed:scenarios] done in ${Date.now() - start}ms — ` +
+        `created=${created} updated=${updated} total_in_seed=${scenarios.length} ` +
+        `live_in_seed=${liveCount} live_in_db=${liveInDb}`,
+    );
+
+    if (liveInDb === 0) {
+      console.error('[seed:scenarios] WARNING: 0 LIVE scenarios in DB after seed. Sessions will fail.');
+      process.exit(2);
+    }
   } finally {
     await prisma.$disconnect();
   }
 }
 
 main().catch((error) => {
-  console.error(error);
+  console.error('[seed:scenarios] failed:', error);
   process.exit(1);
 });

@@ -25,6 +25,18 @@ export async function POST(request: Request) {
     },
   })
 
+  const liveCount = await prisma.scenario.count({ where: { status: 'LIVE' } })
+  if (liveCount === 0) {
+    captureServerEvent('session_start_blocked', { reason: 'CONTENT_NOT_LOADED' })
+    return NextResponse.json(
+      {
+        error: 'CONTENT_NOT_LOADED',
+        message: 'Scenario content has not been loaded yet. Please run the scenario seed.',
+      },
+      { status: 503 },
+    )
+  }
+
   const bundle = await generateSessionBundle(user.id, body.n ?? 5)
 
   captureServerEvent('session_started', {

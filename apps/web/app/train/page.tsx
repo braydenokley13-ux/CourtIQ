@@ -64,12 +64,15 @@ export default function TrainPage() {
           body: JSON.stringify({ n: 5 }),
         })
         if (!res.ok) {
-          const body = await res.json().catch(() => ({}))
-          throw new Error(body.error ?? `Session start failed (HTTP ${res.status}).`)
+          const body = await res.json().catch(() => ({})) as { error?: string; message?: string }
+          if (body.error === 'CONTENT_NOT_LOADED') {
+            throw new Error('Training content is still loading. Please try again shortly.')
+          }
+          throw new Error(body.message ?? body.error ?? `Session start failed (HTTP ${res.status}).`)
         }
         const data = await res.json()
         if (!data?.session_run_id || !Array.isArray(data?.scenarios) || data.scenarios.length === 0) {
-          throw new Error('No scenarios are available yet. Run `pnpm seed:scenarios` against your DB to load the curriculum.')
+          throw new Error('Training content is still loading. Please try again shortly.')
         }
         setSessionId(data.session_run_id)
         setScenarios(data.scenarios)
