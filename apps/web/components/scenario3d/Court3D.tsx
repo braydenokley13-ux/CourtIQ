@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Line } from '@react-three/drei'
+import { LinePrimitive3D } from './LinePrimitive3D'
 import { COURT } from '@/lib/scenario3d/coords'
 
 // Hardwood-like palette: distinctly lighter than the page background
@@ -25,7 +25,7 @@ interface Court3DProps {
 
 /**
  * Half-court 3D model. Built from primitive meshes so we never need a GLTF
- * download. All lines are drawn through drei's <Line>.
+ * download. All lines are local Three.js primitives.
  */
 export function Court3D({ floorY = 0 }: Court3DProps) {
   const halfW = COURT.halfWidthFt
@@ -87,14 +87,14 @@ export function Court3D({ floorY = 0 }: Court3DProps) {
       </mesh>
 
       {/* Court outline */}
-      <Line points={outline} color={LINE_COLOR} lineWidth={3} transparent opacity={1} />
+      <LinePrimitive3D points={outline} color={LINE_COLOR} />
 
       {/* Paint outline */}
-      <Line points={paintOutline} color={LINE_COLOR} lineWidth={3} transparent opacity={1} />
+      <LinePrimitive3D points={paintOutline} color={LINE_COLOR} />
 
       {/* Three-point arc */}
       <group rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.013, 0]}>
-        <Line points={arcPoints} color={LINE_COLOR} lineWidth={3} transparent opacity={1} />
+        <LinePrimitive3D points={arcPoints} color={LINE_COLOR} />
       </group>
 
       {/* Three-point straight corner lines */}
@@ -102,7 +102,7 @@ export function Court3D({ floorY = 0 }: Court3DProps) {
 
       {/* Free-throw arc */}
       <group rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.014, COURT.freeThrowDistFt]}>
-        <Line points={ftArcPoints} color={LINE_COLOR} lineWidth={2.5} transparent opacity={0.95} />
+        <LinePrimitive3D points={ftArcPoints} color={LINE_COLOR} opacity={0.95} />
       </group>
 
       {/* Backboard + rim */}
@@ -116,25 +116,19 @@ function CornerThree({ halfW }: { halfW: number }) {
   const xCorner = halfW - 3
   return (
     <>
-      <Line
+      <LinePrimitive3D
         points={[
           [-xCorner, 0.013, 0],
           [-xCorner, 0.013, cornerZ],
         ]}
         color={LINE_COLOR}
-        lineWidth={3}
-        transparent
-        opacity={1}
       />
-      <Line
+      <LinePrimitive3D
         points={[
           [xCorner, 0.013, 0],
           [xCorner, 0.013, cornerZ],
         ]}
         color={LINE_COLOR}
-        lineWidth={3}
-        transparent
-        opacity={1}
       />
     </>
   )

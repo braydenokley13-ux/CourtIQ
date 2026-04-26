@@ -125,7 +125,7 @@ export function buildScene(scenario: SourceScenario): Scene3D {
   }
 
   // Last-resort default scene so the renderer always has something to show.
-  return sanitiseScene(buildDefaultScene(id))
+  return sanitiseScene(createDefaultScene(id))
 }
 
 function normaliseAuthoredScene(id: string, scene: AuthoredScene): Scene3D {
@@ -216,22 +216,12 @@ function synthesiseSceneFromCourtState(
  * Minimal default scene used as a last resort when no source data can
  * produce a valid scene. The renderer always has something to draw.
  */
-function buildDefaultScene(id: string): Scene3D {
+export function createDefaultScene(id = 'default_3d_scene'): Scene3D {
   return {
     id,
     court: 'half',
     camera: 'teaching_angle',
-    players: [
-      {
-        id: 'you',
-        team: 'offense',
-        role: 'wing',
-        label: 'You',
-        start: { x: 0, z: 18 },
-        isUser: true,
-        hasBall: true,
-      },
-    ],
+    players: createDefaultPlayers(),
     ball: { start: { x: 0, z: 18 }, holderId: 'you' },
     movements: [],
     answerDemo: [],
@@ -258,15 +248,7 @@ function sanitiseScene(scene: Scene3D): Scene3D {
   }
 
   if (players.length === 0) {
-    players.push({
-      id: 'you',
-      team: 'offense',
-      role: 'wing',
-      label: 'You',
-      start: { x: 0, z: 18 },
-      isUser: true,
-      hasBall: true,
-    })
+    players.push(...createDefaultPlayers())
   }
 
   // Cap "isUser" to a single player.
@@ -306,6 +288,27 @@ function sanitiseScene(scene: Scene3D): Scene3D {
     movements: cleanMovements(scene.movements),
     answerDemo: cleanMovements(scene.answerDemo),
   }
+}
+
+function createDefaultPlayers(): ScenePlayer[] {
+  return [
+    {
+      id: 'you',
+      team: 'offense',
+      role: 'wing',
+      label: 'You',
+      start: { x: 0, z: 18 },
+      isUser: true,
+      hasBall: true,
+    },
+    {
+      id: 'default_defender',
+      team: 'defense',
+      role: 'defender',
+      label: 'DEF',
+      start: { x: 2.8, z: 14 },
+    },
+  ]
 }
 
 function safePoint(point: CourtPoint | undefined | null): CourtPoint {

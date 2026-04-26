@@ -321,6 +321,7 @@ function TrainPageInner() {
           <Scenario3DView
             height={280}
             scene={scene}
+            concept={current.concept_tags.join(', ')}
             replayMode={replayMode}
             resetCounter={replayCounter}
             showPaths={replayMode === 'answer'}

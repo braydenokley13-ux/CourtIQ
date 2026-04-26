@@ -1,7 +1,7 @@
 'use client'
 
-import { Suspense, useEffect, useRef, useState } from 'react'
-import { Canvas, useThree } from '@react-three/fiber'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Court3D } from './Court3D'
 import { SceneDebug3D } from './SceneDebug3D'
 import { ScenarioScene3D } from './ScenarioScene3D'
@@ -10,7 +10,7 @@ import { SceneMotionProvider } from './SceneMotionContext'
 import { hasWebGL } from '@/lib/scenario3d/feature'
 import { useReducedMotion } from '@/lib/scenario3d/useReducedMotion'
 import { COURT } from '@/lib/scenario3d/coords'
-import type { Scene3D } from '@/lib/scenario3d/scene'
+import { createDefaultScene, type Scene3D } from '@/lib/scenario3d/scene'
 
 interface Scenario3DCanvasProps {
   /** Mounted as the WebGL fallback when WebGL is unavailable. */
@@ -22,6 +22,8 @@ interface Scenario3DCanvasProps {
   height?: number
   /** Normalised scene to render. If omitted, only the empty court shows. */
   scene?: Scene3D | null
+  /** Human-readable concept tag(s), shown in dev-only canvas diagnostics. */
+  concept?: string
   /** Animation mode for the scene. */
   replayMode?: ReplayMode
   /** Bumping resets the active timeline. */
@@ -40,6 +42,7 @@ const CANVAS_BG = '#101521'
 const CAMERA_POSITION: [number, number, number] = [0, 30, 60]
 const CAMERA_LOOKAT: [number, number, number] = [0, 0, 16]
 const CAMERA_FOV = 42
+const SCENE_LOAD_TIMEOUT_MS = 3_000
 
 /**
  * Top-level wrapper that mounts the R3F <Canvas> for a scenario scene. Falls
@@ -53,6 +56,7 @@ export function Scenario3DCanvas({
   className,
   height = 280,
   scene,
+  concept,
   replayMode = 'intro',
   resetCounter,
   onCaption,
@@ -61,22 +65,72 @@ export function Scenario3DCanvas({
 }: Scenario3DCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [mode, setMode] = useState<'probing' | '3d' | 'fallback'>('probing')
+  const [webglSupported, setWebglSupported] = useState<boolean | null>(null)
+  const [canvasMounted, setCanvasMounted] = useState(false)
+  const [sceneLoaded, setSceneLoaded] = useState(false)
+  const [useEmergencyScene, setUseEmergencyScene] = useState(false)
+  const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const [runtimeError, setRuntimeError] = useState<string | null>(null)
   const reducedMotion = useReducedMotion()
+  const sceneLoadedRef = useRef(false)
+
+  const visibleScene = useMemo(() => {
+    if (useEmergencyScene) return createDefaultScene('emergency_3d_scene')
+    return scene ?? createDefaultScene('default_3d_scene')
+  }, [scene, useEmergencyScene])
+
+  const sceneValidationStatus = useMemo(
+    () => getSceneValidationStatus(visibleScene, scene, useEmergencyScene),
+    [scene, useEmergencyScene, visibleScene],
+  )
 
   useEffect(() => {
-    setMode(hasWebGL() ? '3d' : 'fallback')
+    const supported = hasWebGL()
+    setWebglSupported(supported)
+    setMode(supported ? '3d' : 'fallback')
   }, [])
+
+  useEffect(() => {
+    sceneLoadedRef.current = sceneLoaded
+  }, [sceneLoaded])
+
+  useEffect(() => {
+    sceneLoadedRef.current = false
+    setSceneLoaded(false)
+    setUseEmergencyScene(false)
+    setStatusMessage(null)
+    setRuntimeError(null)
+
+    const timeout = window.setTimeout(() => {
+      if (sceneLoadedRef.current) return
+      setUseEmergencyScene(true)
+      setStatusMessage('Loaded simple 3D view')
+    }, SCENE_LOAD_TIMEOUT_MS)
+
+    return () => {
+      window.clearTimeout(timeout)
+    }
+  }, [scene?.id])
 
   if (mode === 'probing') {
     return (
       <div
         className={className}
-        style={{ height, background: CANVAS_BG, minHeight: height }}
+        style={{ height, background: CANVAS_BG, minHeight: height, position: 'relative' }}
         aria-busy="true"
       >
         <div className="flex h-full items-center justify-center text-[11px] uppercase tracking-[1.5px] text-text-dim">
           Loading court…
         </div>
+        <CanvasDebugOverlay
+          canvasMounted={canvasMounted}
+          sceneLoaded={sceneLoaded}
+          webglSupported={webglSupported}
+          scenarioId={scene?.id}
+          concept={concept}
+          validationStatus={sceneValidationStatus}
+          errorMessage={runtimeError}
+        />
       </div>
     )
   }
@@ -108,17 +162,25 @@ export function Scenario3DCanvas({
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
         style={{ width: '100%', height: '100%', display: 'block' }}
         onCreated={({ gl }) => {
-          gl.setClearColor(CANVAS_BG, 1)
-          const dom = gl.domElement
-          if (!dom) return
-          dom.addEventListener(
-            'webglcontextlost',
-            (event) => {
-              event.preventDefault()
-              setMode('fallback')
-            },
-            { once: true },
-          )
+          try {
+            setCanvasMounted(true)
+            gl.setClearColor(CANVAS_BG, 1)
+            const dom = gl.domElement
+            if (!dom) return
+            dom.addEventListener(
+              'webglcontextlost',
+              (event) => {
+                event.preventDefault()
+                setRuntimeError('WebGL context was lost')
+                setMode('fallback')
+              },
+              { once: true },
+            )
+          } catch (error) {
+            setRuntimeError(error instanceof Error ? error.message : 'Unknown WebGL error')
+            setUseEmergencyScene(true)
+            setStatusMessage('Loaded simple 3D view')
+          }
         }}
       >
         {/* Explicit scene background ensures the canvas paints even before
@@ -128,25 +190,119 @@ export function Scenario3DCanvas({
           <SceneLighting />
           <CameraTarget />
           <Court3D />
+          <ScenarioScene3D
+            key={visibleScene.id}
+            scene={visibleScene}
+            mode={useEmergencyScene ? 'static' : replayMode}
+            resetCounter={resetCounter}
+            onCaption={useEmergencyScene ? undefined : onCaption}
+            onPhase={useEmergencyScene ? undefined : onPhase}
+            showPaths={useEmergencyScene ? false : showPaths}
+          />
+          <SceneReadySignal
+            sceneId={visibleScene.id}
+            onReady={() => {
+              sceneLoadedRef.current = true
+              setSceneLoaded(true)
+            }}
+          />
           <Suspense fallback={null}>
-            {scene ? (
-              <ScenarioScene3D
-                key={scene.id}
-                scene={scene}
-                mode={replayMode}
-                resetCounter={resetCounter}
-                onCaption={onCaption}
-                onPhase={onPhase}
-                showPaths={showPaths}
-              />
-            ) : null}
-            {children}
+            {useEmergencyScene ? null : children}
           </Suspense>
-          <SceneDebug3D scene={scene ?? null} />
+          <SceneDebug3D scene={visibleScene} />
         </SceneMotionProvider>
       </Canvas>
+      {statusMessage ? (
+        <div className="pointer-events-none absolute bottom-2 right-2 rounded-full bg-bg-0/80 px-2 py-1 text-[10px] font-semibold text-text-dim">
+          {statusMessage}
+        </div>
+      ) : null}
+      <CanvasDebugOverlay
+        canvasMounted={canvasMounted}
+        sceneLoaded={sceneLoaded}
+        webglSupported={webglSupported}
+        scenarioId={scene?.id}
+        concept={concept}
+        validationStatus={sceneValidationStatus}
+        errorMessage={runtimeError}
+      />
     </div>
   )
+}
+
+function SceneReadySignal({
+  sceneId,
+  onReady,
+}: {
+  sceneId: string
+  onReady: () => void
+}) {
+  const reportedRef = useRef(false)
+
+  useEffect(() => {
+    reportedRef.current = false
+  }, [sceneId])
+
+  useFrame(() => {
+    if (reportedRef.current) return
+    reportedRef.current = true
+    onReady()
+  })
+
+  return null
+}
+
+interface CanvasDebugOverlayProps {
+  canvasMounted: boolean
+  sceneLoaded: boolean
+  webglSupported: boolean | null
+  scenarioId?: string
+  concept?: string
+  validationStatus: string
+  errorMessage: string | null
+}
+
+function CanvasDebugOverlay({
+  canvasMounted,
+  sceneLoaded,
+  webglSupported,
+  scenarioId,
+  concept,
+  validationStatus,
+  errorMessage,
+}: CanvasDebugOverlayProps) {
+  if (process.env.NODE_ENV === 'production') return null
+
+  return (
+    <div className="pointer-events-none absolute left-2 top-2 max-w-[92%] rounded-lg bg-bg-0/85 px-2 py-1 text-[10px] leading-snug text-text-dim">
+      <div>canvas mounted: {canvasMounted ? 'yes' : 'no'}</div>
+      <div>scene loaded: {sceneLoaded ? 'yes' : 'no'}</div>
+      <div>webgl supported: {webglSupported === null ? 'checking' : webglSupported ? 'yes' : 'no'}</div>
+      <div>scenario: {scenarioId ?? 'none'}</div>
+      <div>concept: {concept ?? 'none'}</div>
+      <div>scene: {validationStatus}</div>
+      <div>error: {errorMessage ?? 'none'}</div>
+    </div>
+  )
+}
+
+function getSceneValidationStatus(
+  visibleScene: Scene3D,
+  inputScene: Scene3D | null | undefined,
+  emergency: boolean,
+): string {
+  if (emergency) return 'emergency default'
+  if (!inputScene) return 'missing input, using default'
+
+  const hasPlayers = visibleScene.players.length > 0
+  const hasFinitePlayers = visibleScene.players.every(
+    (player) => Number.isFinite(player.start.x) && Number.isFinite(player.start.z),
+  )
+  const ballIsFinite =
+    Number.isFinite(visibleScene.ball.start.x) && Number.isFinite(visibleScene.ball.start.z)
+
+  if (hasPlayers && hasFinitePlayers && ballIsFinite) return 'valid'
+  return 'invalid, using safe values'
 }
 
 function SceneLighting() {

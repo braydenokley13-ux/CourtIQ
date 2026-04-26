@@ -27,6 +27,7 @@ interface Scenario3DViewProps {
   height?: number
   className?: string
   scene?: Scene3D | null
+  concept?: string
   replayMode?: ReplayMode
   resetCounter?: number
   onCaption?: (caption: string | undefined) => void

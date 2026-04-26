@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Line } from '@react-three/drei'
+import { LinePrimitive3D } from './LinePrimitive3D'
 
 interface MovementPath3DProps {
   from: [number, number]
@@ -11,7 +11,7 @@ interface MovementPath3DProps {
   progress?: number
   /** Render an arrowhead at the destination. */
   arrow?: boolean
-  /** If true, the body of the line is dashed. */
+  /** If true, the body of the line is dimmed to imply a teaching dashed path. */
   dashed?: boolean
 }
 
@@ -76,18 +76,13 @@ export function MovementPath3D({
 
   return (
     <group>
-      <Line
+      <LinePrimitive3D
         points={bodyPoints}
         color={color}
-        lineWidth={dashed ? 1.5 : 2.5}
-        dashed={dashed}
-        dashSize={0.6}
-        gapSize={0.4}
-        transparent
-        opacity={0.95}
+        opacity={dashed ? 0.72 : 0.95}
       />
       {head ? (
-        <Line points={head} color={color} lineWidth={3} transparent opacity={0.95} />
+        <LinePrimitive3D points={head} color={color} opacity={0.95} />
       ) : null}
     </group>
   )
