@@ -11,8 +11,6 @@ import { useScenarioSceneData } from '@/lib/scenario3d/useScenarioSceneData'
 import { createClient } from '@/lib/supabase/client'
 import { friendlyError } from '@/lib/errors'
 
-const SHOW_3D = process.env.NEXT_PUBLIC_DISABLE_3D !== '1'
-
 type SessionScenario = {
   id: string
   difficulty: number
@@ -320,26 +318,22 @@ function TrainPageInner() {
 
         {/* Court */}
         <div className="relative overflow-hidden rounded-2xl border border-hairline-2 bg-bg-1">
-          {SHOW_3D ? (
-            <Scenario3DView
-              height={280}
-              scene={scene}
-              replayMode={replayMode}
-              resetCounter={replayCounter}
-              showPaths={replayMode === 'answer'}
-              onCaption={setSceneCaption}
-              fallback={
-                <Court
-                  width={360}
-                  height={280}
-                  courtState={current.court_state}
-                  you="you"
-                />
-              }
-            />
-          ) : (
-            <Court width={360} height={280} courtState={current.court_state} you="you" />
-          )}
+          <Scenario3DView
+            height={280}
+            scene={scene}
+            replayMode={replayMode}
+            resetCounter={replayCounter}
+            showPaths={replayMode === 'answer'}
+            onCaption={setSceneCaption}
+            fallback={
+              <Court
+                width={360}
+                height={280}
+                courtState={current.court_state}
+                you="you"
+              />
+            }
+          />
           {sceneCaption && replayMode === 'answer' ? (
             <div className="pointer-events-none absolute inset-x-0 bottom-2 mx-auto w-fit max-w-[90%] rounded-full bg-bg-0/85 px-3 py-1 text-center text-[12px] font-semibold text-brand">
               {sceneCaption}
@@ -416,7 +410,7 @@ function TrainPageInner() {
                   🏅 New badge unlocked!
                 </div>
               )}
-              {SHOW_3D && scene && scene.answerDemo.length > 0 ? (
+              {scene && scene.answerDemo.length > 0 ? (
                 <button
                   onClick={() => setReplayCounter((n) => n + 1)}
                   className="w-full rounded-xl border border-hairline-2 bg-bg-2 py-2.5 font-display text-[12px] font-bold uppercase tracking-[1px] text-text-dim active:scale-[0.99]"

@@ -1,5 +1,9 @@
 /**
  * Feature-detection helpers for the 3D scenario engine.
+ *
+ * 3D is the default training experience — there is no kill switch. We only
+ * fall back to the 2D court when WebGL is genuinely unavailable on the
+ * device (e.g. very old browsers, hardware acceleration disabled).
  */
 
 export function hasWebGL(): boolean {
@@ -14,8 +18,4 @@ export function hasWebGL(): boolean {
   } catch {
     return false
   }
-}
-
-export function is3DDisabled(): boolean {
-  return process.env.NEXT_PUBLIC_DISABLE_3D === '1'
 }
