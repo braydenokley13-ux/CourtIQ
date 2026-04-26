@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     const valid = await listValidConcepts()
     if (!valid.has(concept)) {
       return NextResponse.json(
-        { error: 'INVALID_CONCEPT', message: `Unknown concept: ${concept}` },
+        { error: 'INVALID_CONCEPT', message: 'That lesson was not found.' },
         { status: 400 },
       )
     }
@@ -47,9 +47,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error: 'CONTENT_NOT_LOADED',
-        message: concept
-          ? `No scenarios available yet for concept "${concept}".`
-          : 'Scenario content has not been loaded yet. Please run the scenario seed.',
+        message: 'Training is loading. Try again in a few seconds.',
       },
       { status: 503 },
     )
