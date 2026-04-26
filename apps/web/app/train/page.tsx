@@ -84,9 +84,12 @@ function TrainPageInner() {
   const [loadError, setLoadError] = useState<{ code?: string; message?: string } | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [reward, setReward] = useState<{ xp: number; iq: number; correct: boolean; key: number } | null>(null)
+  const [sceneCaption, setSceneCaption] = useState<string | undefined>(undefined)
+  const [replayCounter, setReplayCounter] = useState(0)
 
   const current = scenarios[idx]
   const phase = feedback ? 'feedback' : 'prompt'
+  const replayMode: 'intro' | 'answer' | 'static' = feedback ? 'answer' : 'intro'
 
   useEffect(() => {
     void (async () => {
@@ -141,6 +144,8 @@ function TrainPageInner() {
     setTimeLeft(8)
     setSelected(null)
     setFeedback(null)
+    setSceneCaption(undefined)
+    setReplayCounter(0)
   }, [idx])
 
   const orderedChoices = useMemo(() => [...(current?.choices ?? [])].sort((a, b) => a.order - b.order), [current])
@@ -314,11 +319,15 @@ function TrainPageInner() {
         </div>
 
         {/* Court */}
-        <div className="overflow-hidden rounded-2xl border border-hairline-2 bg-bg-1">
+        <div className="relative overflow-hidden rounded-2xl border border-hairline-2 bg-bg-1">
           {SHOW_3D ? (
             <Scenario3DView
               height={280}
               scene={scene}
+              replayMode={replayMode}
+              resetCounter={replayCounter}
+              showPaths={replayMode === 'answer'}
+              onCaption={setSceneCaption}
               fallback={
                 <Court
                   width={360}
@@ -331,6 +340,11 @@ function TrainPageInner() {
           ) : (
             <Court width={360} height={280} courtState={current.court_state} you="you" />
           )}
+          {sceneCaption && replayMode === 'answer' ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-2 mx-auto w-fit max-w-[90%] rounded-full bg-bg-0/85 px-3 py-1 text-center text-[12px] font-semibold text-brand">
+              {sceneCaption}
+            </div>
+          ) : null}
         </div>
 
         {/* Prompt */}
@@ -402,6 +416,15 @@ function TrainPageInner() {
                   🏅 New badge unlocked!
                 </div>
               )}
+              {SHOW_3D && scene && scene.answerDemo.length > 0 ? (
+                <button
+                  onClick={() => setReplayCounter((n) => n + 1)}
+                  className="w-full rounded-xl border border-hairline-2 bg-bg-2 py-2.5 font-display text-[12px] font-bold uppercase tracking-[1px] text-text-dim active:scale-[0.99]"
+                  type="button"
+                >
+                  ▶ Show me again
+                </button>
+              ) : null}
               <button
                 onClick={() => void next()}
                 className="w-full rounded-xl bg-brand py-3.5 font-display text-[14px] font-bold uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm active:scale-[0.99]"
