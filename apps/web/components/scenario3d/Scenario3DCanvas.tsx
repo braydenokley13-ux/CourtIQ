@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { Canvas, advance, useFrame, useThree } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Court3D } from './Court3D'
 import { SceneDebug3D } from './SceneDebug3D'
 import { ScenarioScene3D } from './ScenarioScene3D'
@@ -65,6 +65,7 @@ function isDebug3D(): boolean {
  */
 export function Scenario3DCanvas({
   fallback,
+  children,
   className,
   height = 280,
   scene,
@@ -250,6 +251,7 @@ export function Scenario3DCanvas({
                 showPaths={showPaths}
               />
             ) : null}
+            {children}
           </Suspense>
           <SceneDebug3D scene={scene ?? null} />
         </SceneMotionProvider>
@@ -447,20 +449,37 @@ function FirstFrameProbe({ onFirstFrame }: { onFirstFrame: () => void }) {
  * Next-15 production builds, leaving the canvas dark forever even though
  * `onCreated` ran successfully.
  *
- * Instead, we drive frames ourselves with `requestAnimationFrame`, calling
- * R3F's exported `advance()` once per tick. That function does exactly
- * what the auto-scheduler would have done: invoke every useFrame
- * subscriber and re-render the scene. The render loop is now the same
- * one the browser uses for every other animation, so it cannot be
- * silently disabled by an R3F lifecycle bug.
+ * Instead, we drive frames ourselves with `requestAnimationFrame` and
+ * inline the three steps R3F's internal `update()` would have run:
+ *   1. advance the THREE.Clock
+ *   2. invoke every useFrame subscriber registered against THIS root
+ *   3. call `gl.render(scene, camera)`
+ *
+ * We deliberately do NOT call R3F's exported `advance()` because that
+ * function walks the package-level `_roots` Set — and Next's chunking can
+ * end up with two instances of `@react-three/fiber` (one in the page
+ * chunk, one in the dynamic import). Imported `advance()` then walks an
+ * empty `_roots` from the wrong instance. Reading state from the live
+ * `useThree` context is instance-agnostic.
  *
  * Renders nothing.
  */
+type R3FInternalState = {
+  clock: { getDelta: () => number; oldTime: number; elapsedTime: number }
+  internal: {
+    subscribers: Array<{
+      ref: { current: (state: unknown, delta: number) => void }
+      store: { getState: () => unknown }
+    }>
+    priority: number
+  }
+  gl: { render: (scene: unknown, camera: unknown) => void }
+  scene: unknown
+  camera: unknown
+}
+
 function ManualLoop() {
-  // We need a state-bound proof that this component mounted inside the
-  // canvas tree (so useThree below succeeds), but we don't actually use
-  // the value — `advance()` walks all roots automatically.
-  useThree((s) => s.invalidate)
+  const state = useThree() as unknown as R3FInternalState
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -469,9 +488,34 @@ function ManualLoop() {
     const tick = (timestamp: number) => {
       if (!running) return
       try {
-        advance(timestamp)
+        // 1. Clock tick. R3F's update() updates `oldTime` then `elapsedTime`
+        //    when frameloop is 'never'.
+        const tSec = timestamp / 1000
+        const delta = Math.max(0, tSec - state.clock.elapsedTime)
+        state.clock.oldTime = state.clock.elapsedTime
+        state.clock.elapsedTime = tSec
+
+        // 2. Fire every useFrame subscriber. Iterating by index because
+        //    new subscribers can be added/removed mid-iteration on
+        //    suspense boundaries.
+        const subs = state.internal.subscribers
+        for (let i = 0; i < subs.length; i++) {
+          const s = subs[i]
+          if (!s) continue
+          try {
+            s.ref.current(s.store.getState(), delta)
+          } catch {
+            // one bad subscriber must not break the rest of the frame
+          }
+        }
+
+        // 3. Render the scene. Skip when an effect-composer has taken
+         //   render priority (priority > 0).
+        if (!state.internal.priority && state.gl.render) {
+          state.gl.render(state.scene, state.camera)
+        }
       } catch {
-        // A single-frame error must not stop the loop — keep re-queuing.
+        // never let a single-frame error kill the loop
       }
       rafId = window.requestAnimationFrame(tick)
     }
@@ -480,7 +524,7 @@ function ManualLoop() {
       running = false
       window.cancelAnimationFrame(rafId)
     }
-  }, [])
+  }, [state])
   return null
 }
 

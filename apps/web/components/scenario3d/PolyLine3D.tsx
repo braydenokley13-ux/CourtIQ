@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 
 interface PolyLine3DProps {
@@ -20,6 +20,11 @@ interface PolyLine3DProps {
  * history of breaking under aggressive bundlers (tree-shaking can drop the
  * shader chunks, leaving the line invisible). The native primitive renders
  * via gl.LINE_STRIP and is stable across every browser that supports WebGL.
+ *
+ * The geometry, material, and the wrapping THREE.Line itself are all
+ * memoised so unchanged lines are not removed and re-added to the scene
+ * graph on every parent rerender. We dispose the GPU resources when the
+ * component unmounts.
  */
 export function PolyLine3D({
   points,
@@ -28,7 +33,7 @@ export function PolyLine3D({
   transparent = false,
   loop = false,
 }: PolyLine3DProps) {
-  const geometry = useMemo(() => {
+  const line = useMemo(() => {
     const verts: number[] = []
     for (const p of points) {
       verts.push(p[0], p[1], p[2])
@@ -39,20 +44,25 @@ export function PolyLine3D({
     }
     const geo = new THREE.BufferGeometry()
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3))
-    return geo
-  }, [points, loop])
+    const mat = new THREE.LineBasicMaterial({
+      color,
+      transparent,
+      opacity,
+      toneMapped: false,
+    })
+    return new THREE.Line(geo, mat)
+  }, [points, loop, color, transparent, opacity])
 
-  const material = useMemo(
-    () =>
-      new THREE.LineBasicMaterial({
-        color,
-        transparent,
-        opacity,
-        toneMapped: false,
-      }),
-    [color, transparent, opacity],
-  )
+  // Free the GPU buffers and shader program when the line unmounts or the
+  // memoised instance changes (e.g. point list or color updated).
+  useEffect(() => {
+    return () => {
+      line.geometry.dispose()
+      const m = line.material
+      if (Array.isArray(m)) m.forEach((mm) => mm.dispose())
+      else (m as THREE.Material).dispose()
+    }
+  }, [line])
 
-  // R3F's `<line>` primitive accepts a geometry + material as args.
-  return <primitive object={new THREE.Line(geometry, material)} />
+  return <primitive object={line} />
 }
