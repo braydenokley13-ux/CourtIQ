@@ -1,13 +1,14 @@
 'use client'
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Canvas, useThree } from '@react-three/fiber'
 import { Court3D } from './Court3D'
+import { Debug3DScene } from './Debug3DScene'
 import { SceneDebug3D } from './SceneDebug3D'
 import { ScenarioScene3D } from './ScenarioScene3D'
 import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
 import { SceneMotionProvider } from './SceneMotionContext'
-import { hasWebGL } from '@/lib/scenario3d/feature'
+import { hasWebGL, isDebug3D } from '@/lib/scenario3d/feature'
 import { useReducedMotion } from '@/lib/scenario3d/useReducedMotion'
 import { COURT } from '@/lib/scenario3d/coords'
 import { createDefaultScene, type Scene3D } from '@/lib/scenario3d/scene'
@@ -18,9 +19,9 @@ interface Scenario3DCanvasProps {
   children?: React.ReactNode
   /** Optional className passed to the outer wrapper. */
   className?: string
-  /** Optional explicit pixel height. Defaults to 280px. */
+  /** Optional explicit pixel height. Defaults to 320px. */
   height?: number
-  /** Normalised scene to render. If omitted, only the empty court shows. */
+  /** Normalised scene to render. If omitted, the built-in default is used. */
   scene?: Scene3D | null
   /** Human-readable concept tag(s), shown in dev-only canvas diagnostics. */
   concept?: string
@@ -33,28 +34,36 @@ interface Scenario3DCanvasProps {
   showPaths?: boolean
 }
 
-// Background of the canvas. Slightly lifted off pure-black so the dark
-// outer floor frame is still visible against it.
-const CANVAS_BG = '#101521'
+const CANVAS_BG = '#0E1626'
 
-// Camera defaults — broadcast-style elevated angle that frames the entire
-// half-court at typical mobile aspect ratios.
-const CAMERA_POSITION: [number, number, number] = [0, 30, 60]
-const CAMERA_LOOKAT: [number, number, number] = [0, 0, 16]
-const CAMERA_FOV = 42
-const SCENE_LOAD_TIMEOUT_MS = 3_000
+// Production camera. Broadcast-style angle that frames the half-court.
+const CAMERA_POSITION: [number, number, number] = [0, 32, 56]
+const CAMERA_LOOKAT: [number, number, number] = [0, 0, 18]
+const CAMERA_FOV = 44
+
+// Debug self-test camera. Aimed straight at the origin with a wide FOV
+// so any object placed near (0, 0, 0) is guaranteed to be visible.
+const DEBUG_CAMERA_POSITION: [number, number, number] = [0, 24, 30]
+const DEBUG_CAMERA_LOOKAT: [number, number, number] = [0, 0, 0]
+const DEBUG_CAMERA_FOV = 45
 
 /**
- * Top-level wrapper that mounts the R3F <Canvas> for a scenario scene. Falls
- * back to the supplied 2D node only when WebGL is genuinely unavailable on
- * the device, or when the WebGL context is lost. 3D is the default — we do
- * not gate behind any feature flag.
+ * Top-level wrapper that mounts the R3F <Canvas> for a scenario scene. The
+ * 3D scene IS the product — the real scene renders as the primary path
+ * and we only fall back to the supplied 2D node when WebGL is genuinely
+ * unavailable on the device, or the GL context is lost. Errors thrown
+ * inside the canvas are caught by Scenario3DErrorBoundary further up.
+ *
+ * `?debug3d=1` short-circuits the entire scenario pipeline and renders a
+ * dependency-free debug scene with a guaranteed-visible camera. If the
+ * debug scene paints in production but the regular scene does not, the
+ * problem is in scenario data / scene composition, not the renderer.
  */
 export function Scenario3DCanvas({
   fallback,
   children,
   className,
-  height = 280,
+  height = 320,
   scene,
   concept,
   replayMode = 'intro',
@@ -67,50 +76,41 @@ export function Scenario3DCanvas({
   const [mode, setMode] = useState<'probing' | '3d' | 'fallback'>('probing')
   const [webglSupported, setWebglSupported] = useState<boolean | null>(null)
   const [canvasMounted, setCanvasMounted] = useState(false)
-  const [sceneLoaded, setSceneLoaded] = useState(false)
-  const [useEmergencyScene, setUseEmergencyScene] = useState(false)
-  const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const [rendererCreated, setRendererCreated] = useState(false)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
-  const reducedMotion = useReducedMotion()
-  const sceneLoadedRef = useRef(false)
+  const [debugMode, setDebugMode] = useState(false)
 
-  const visibleScene = useMemo(() => {
-    if (useEmergencyScene) return createDefaultScene('emergency_3d_scene')
-    return scene ?? createDefaultScene('default_3d_scene')
-  }, [scene, useEmergencyScene])
+  const reducedMotion = useReducedMotion()
+
+  const visibleScene = useMemo(
+    () => scene ?? createDefaultScene('default_3d_scene'),
+    [scene],
+  )
 
   const sceneValidationStatus = useMemo(
-    () => getSceneValidationStatus(visibleScene, scene, useEmergencyScene),
-    [scene, useEmergencyScene, visibleScene],
+    () => getSceneValidationStatus(visibleScene, scene, debugMode),
+    [scene, visibleScene, debugMode],
   )
 
   useEffect(() => {
+    const debug = isDebug3D()
+    setDebugMode(debug)
     const supported = hasWebGL()
     setWebglSupported(supported)
     setMode(supported ? '3d' : 'fallback')
-  }, [])
-
-  useEffect(() => {
-    sceneLoadedRef.current = sceneLoaded
-  }, [sceneLoaded])
-
-  useEffect(() => {
-    sceneLoadedRef.current = false
-    setSceneLoaded(false)
-    setUseEmergencyScene(false)
-    setStatusMessage(null)
-    setRuntimeError(null)
-
-    const timeout = window.setTimeout(() => {
-      if (sceneLoadedRef.current) return
-      setUseEmergencyScene(true)
-      setStatusMessage('Loaded simple 3D view')
-    }, SCENE_LOAD_TIMEOUT_MS)
-
-    return () => {
-      window.clearTimeout(timeout)
+    if (typeof console !== 'undefined') {
+      // eslint-disable-next-line no-console
+      console.info('[scenario3d] mount probe', {
+        webglSupported: supported,
+        debugMode: debug,
+        sceneId: scene?.id ?? null,
+        playerCount: visibleScene.players.length,
+      })
     }
-  }, [scene?.id])
+    // visibleScene/scene intentionally omitted — we only want the probe to
+    // run once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   if (mode === 'probing') {
     return (
@@ -122,22 +122,43 @@ export function Scenario3DCanvas({
         <div className="flex h-full items-center justify-center text-[11px] uppercase tracking-[1.5px] text-text-dim">
           Loading court…
         </div>
-        <CanvasDebugOverlay
+        <CanvasDiagnostics
           canvasMounted={canvasMounted}
-          sceneLoaded={sceneLoaded}
+          rendererCreated={rendererCreated}
           webglSupported={webglSupported}
           scenarioId={scene?.id}
           concept={concept}
           validationStatus={sceneValidationStatus}
           errorMessage={runtimeError}
+          debugMode={debugMode}
+          playerCount={visibleScene.players.length}
         />
       </div>
     )
   }
 
   if (mode === 'fallback') {
-    return <div className={className}>{fallback}</div>
+    return (
+      <div className={className} style={{ position: 'relative' }}>
+        {fallback}
+        <CanvasDiagnostics
+          canvasMounted={canvasMounted}
+          rendererCreated={rendererCreated}
+          webglSupported={webglSupported}
+          scenarioId={scene?.id}
+          concept={concept}
+          validationStatus={sceneValidationStatus}
+          errorMessage={runtimeError}
+          debugMode={debugMode}
+          playerCount={visibleScene.players.length}
+        />
+      </div>
+    )
   }
+
+  const cameraPosition = debugMode ? DEBUG_CAMERA_POSITION : CAMERA_POSITION
+  const cameraLookAt = debugMode ? DEBUG_CAMERA_LOOKAT : CAMERA_LOOKAT
+  const cameraFov = debugMode ? DEBUG_CAMERA_FOV : CAMERA_FOV
 
   return (
     <div
@@ -150,134 +171,130 @@ export function Scenario3DCanvas({
         position: 'relative',
         background: CANVAS_BG,
         display: 'block',
+        overflow: 'hidden',
       }}
     >
       <Canvas
-        // `flat` disables ACES Filmic tone mapping, which by default
-        // crushes mid-tones in our dark UI to near-black. With NoToneMapping
-        // the wood floor renders as the literal sRGB color we set.
+        // `flat` disables ACES Filmic tone mapping so unlit basic materials
+        // render at the literal sRGB color we set, not crushed to black.
         flat
         dpr={[1, 2]}
-        camera={{ position: CAMERA_POSITION, fov: CAMERA_FOV, near: 0.1, far: 260 }}
+        camera={{ position: cameraPosition, fov: cameraFov, near: 0.1, far: 1000 }}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
         style={{ width: '100%', height: '100%', display: 'block' }}
-        onCreated={({ gl }) => {
+        onCreated={({ gl, size }) => {
           try {
-            setCanvasMounted(true)
             gl.setClearColor(CANVAS_BG, 1)
             const dom = gl.domElement
-            if (!dom) return
-            dom.addEventListener(
-              'webglcontextlost',
-              (event) => {
-                event.preventDefault()
-                setRuntimeError('WebGL context was lost')
-                setMode('fallback')
-              },
-              { once: true },
-            )
+            if (dom) {
+              dom.addEventListener(
+                'webglcontextlost',
+                (event) => {
+                  event.preventDefault()
+                  setRuntimeError('WebGL context was lost')
+                  setMode('fallback')
+                },
+                { once: true },
+              )
+            }
+            setRendererCreated(true)
+            setCanvasMounted(true)
+            if (typeof console !== 'undefined') {
+              // eslint-disable-next-line no-console
+              console.info('[scenario3d] canvas onCreated', {
+                width: size.width,
+                height: size.height,
+                debugMode,
+              })
+            }
           } catch (error) {
             setRuntimeError(error instanceof Error ? error.message : 'Unknown WebGL error')
-            setUseEmergencyScene(true)
-            setStatusMessage('Loaded simple 3D view')
+            setMode('fallback')
           }
         }}
       >
-        {/* Explicit scene background ensures the canvas paints even before
-            the first lighting pass completes on slow devices. */}
         <color attach="background" args={[CANVAS_BG]} />
-        <SceneMotionProvider reduced={reducedMotion}>
-          <SceneLighting />
-          <CameraTarget />
-          <Court3D />
-          <ScenarioScene3D
-            key={visibleScene.id}
-            scene={visibleScene}
-            mode={useEmergencyScene ? 'static' : replayMode}
-            resetCounter={resetCounter}
-            onCaption={useEmergencyScene ? undefined : onCaption}
-            onPhase={useEmergencyScene ? undefined : onPhase}
-            showPaths={useEmergencyScene ? false : showPaths}
-          />
-          <SceneReadySignal
-            sceneId={visibleScene.id}
-            onReady={() => {
-              sceneLoadedRef.current = true
-              setSceneLoaded(true)
-            }}
-          />
-          <Suspense fallback={null}>
-            {useEmergencyScene ? null : children}
-          </Suspense>
-          <SceneDebug3D scene={visibleScene} />
-        </SceneMotionProvider>
+        <CameraTarget position={cameraPosition} lookAt={cameraLookAt} />
+
+        {debugMode ? (
+          <Debug3DScene />
+        ) : (
+          <SceneMotionProvider reduced={reducedMotion}>
+            <SceneLighting />
+            <Court3D />
+            <ScenarioScene3D
+              key={visibleScene.id}
+              scene={visibleScene}
+              mode={replayMode}
+              resetCounter={resetCounter}
+              onCaption={onCaption}
+              onPhase={onPhase}
+              showPaths={showPaths}
+            />
+            <Suspense fallback={null}>{children}</Suspense>
+            <SceneDebug3D scene={visibleScene} />
+          </SceneMotionProvider>
+        )}
       </Canvas>
-      {statusMessage ? (
-        <div className="pointer-events-none absolute bottom-2 right-2 rounded-full bg-bg-0/80 px-2 py-1 text-[10px] font-semibold text-text-dim">
-          {statusMessage}
-        </div>
-      ) : null}
-      <CanvasDebugOverlay
+
+      <CanvasDiagnostics
         canvasMounted={canvasMounted}
-        sceneLoaded={sceneLoaded}
+        rendererCreated={rendererCreated}
         webglSupported={webglSupported}
         scenarioId={scene?.id}
         concept={concept}
         validationStatus={sceneValidationStatus}
         errorMessage={runtimeError}
+        debugMode={debugMode}
+        playerCount={visibleScene.players.length}
       />
+
+      {debugMode ? (
+        <div className="pointer-events-none absolute right-2 top-2 rounded-full bg-brand/15 px-2 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-brand">
+          debug3d self-test
+        </div>
+      ) : null}
     </div>
   )
 }
 
-function SceneReadySignal({
-  sceneId,
-  onReady,
-}: {
-  sceneId: string
-  onReady: () => void
-}) {
-  const reportedRef = useRef(false)
-
-  useEffect(() => {
-    reportedRef.current = false
-  }, [sceneId])
-
-  useFrame(() => {
-    if (reportedRef.current) return
-    reportedRef.current = true
-    onReady()
-  })
-
-  return null
-}
-
-interface CanvasDebugOverlayProps {
+interface CanvasDiagnosticsProps {
   canvasMounted: boolean
-  sceneLoaded: boolean
+  rendererCreated: boolean
   webglSupported: boolean | null
   scenarioId?: string
   concept?: string
   validationStatus: string
   errorMessage: string | null
+  debugMode: boolean
+  playerCount: number
 }
 
-function CanvasDebugOverlay({
+/**
+ * Small HTML overlay that surfaces canvas/renderer/WebGL state. Shown in
+ * development on every mount, and in production whenever `?debug3d=1` is
+ * set so we can diagnose deployed rendering issues without DevTools.
+ */
+function CanvasDiagnostics({
   canvasMounted,
-  sceneLoaded,
+  rendererCreated,
   webglSupported,
   scenarioId,
   concept,
   validationStatus,
   errorMessage,
-}: CanvasDebugOverlayProps) {
-  if (process.env.NODE_ENV === 'production') return null
+  debugMode,
+  playerCount,
+}: CanvasDiagnosticsProps) {
+  if (process.env.NODE_ENV === 'production' && !debugMode) return null
 
   return (
     <div className="pointer-events-none absolute left-2 top-2 max-w-[92%] rounded-lg bg-bg-0/85 px-2 py-1 text-[10px] leading-snug text-text-dim">
       <div>canvas mounted: {canvasMounted ? 'yes' : 'no'}</div>
-      <div>scene loaded: {sceneLoaded ? 'yes' : 'no'}</div>
+      <div>renderer created: {rendererCreated ? 'yes' : 'no'}</div>
       <div>webgl supported: {webglSupported === null ? 'checking' : webglSupported ? 'yes' : 'no'}</div>
+      <div>mode: {debugMode ? 'debug self-test' : 'scenario'}</div>
+      <div>players: {playerCount}</div>
       <div>scenario: {scenarioId ?? 'none'}</div>
       <div>concept: {concept ?? 'none'}</div>
       <div>scene: {validationStatus}</div>
@@ -289,9 +306,9 @@ function CanvasDebugOverlay({
 function getSceneValidationStatus(
   visibleScene: Scene3D,
   inputScene: Scene3D | null | undefined,
-  emergency: boolean,
+  debugMode: boolean,
 ): string {
-  if (emergency) return 'emergency default'
+  if (debugMode) return 'debug self-test'
   if (!inputScene) return 'missing input, using default'
 
   const hasPlayers = visibleScene.players.length > 0
@@ -308,42 +325,38 @@ function getSceneValidationStatus(
 function SceneLighting() {
   return (
     <>
-      {/* Hemisphere fills shadows with a touch of arena cool light. */}
-      <hemisphereLight args={['#D7E2F4', '#1A1408', 0.55]} />
-      {/* Ambient lift so the warm hardwood reads on every device. */}
-      <ambientLight intensity={0.95} color="#FFF1E0" />
-      {/* Key light — warm spotlight over the rim, like an arena. */}
-      <directionalLight
-        intensity={1.4}
-        color="#FFE4B5"
-        position={[14, 32, 18]}
-      />
-      {/* Cool rim light from the half-court side keeps depth readable. */}
-      <directionalLight intensity={0.5} color="#7EB6FF" position={[-22, 22, 36]} />
-      {/* Tight rim glow under the hoop. */}
+      <hemisphereLight args={['#D7E2F4', '#1A1408', 0.6]} />
+      <ambientLight intensity={1.05} color="#FFF1E0" />
+      <directionalLight intensity={1.5} color="#FFE4B5" position={[14, 32, 18]} />
+      <directionalLight intensity={0.6} color="#7EB6FF" position={[-22, 22, 36]} />
       <pointLight
         position={[0, COURT.rimHeightFt + 4, 0]}
-        intensity={9}
-        distance={20}
+        intensity={12}
+        distance={22}
         color="#FF8A3D"
       />
     </>
   )
 }
 
+interface CameraTargetProps {
+  position: [number, number, number]
+  lookAt: [number, number, number]
+}
+
 /**
- * Aims the default camera at a teaching-friendly point near the free throw
- * line so the rim sits at the back of the frame and the back-court action
- * stays comfortably in view.
+ * Forces the camera position and lookAt every render. Without this the
+ * camera defaults to looking at (0, 0, 0), which can hide the scene at
+ * unusual aspect ratios.
  */
-function CameraTarget() {
+function CameraTarget({ position, lookAt }: CameraTargetProps) {
   const camera = useThree((state) => state.camera)
   useEffect(() => {
-    camera.position.set(...CAMERA_POSITION)
-    camera.lookAt(...CAMERA_LOOKAT)
+    camera.position.set(position[0], position[1], position[2])
+    camera.lookAt(lookAt[0], lookAt[1], lookAt[2])
     camera.updateMatrixWorld()
     camera.updateProjectionMatrix()
-  }, [camera])
+  }, [camera, position, lookAt])
   return null
 }
 
