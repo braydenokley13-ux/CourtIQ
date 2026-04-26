@@ -79,6 +79,7 @@ model Scenario {
   sub_concepts   String[]
   difficulty     Int
   court_state    Json
+  scene          Json?
   user_role      String
   prompt         String
   explanation_md String

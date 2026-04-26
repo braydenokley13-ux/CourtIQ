@@ -6,6 +6,7 @@
 
 import type { CourtState } from '@/components/court'
 import { projectLegacyPoint, type CourtPoint } from './coords'
+import { sceneSchema } from './schema'
 
 export type SceneTeam = 'offense' | 'defense'
 
@@ -80,18 +81,26 @@ interface AuthoredScene {
 interface SourceScenario {
   id: string
   court_state: CourtState
-  scene?: AuthoredScene | null
+  scene?: unknown
   /** The id of the player marked as the user (defaults to "you"). */
   user_role?: string
 }
 
 /**
  * Returns a normalised Scene3D for a scenario, backed by an authored scene
- * if present and synthesised from legacy court_state otherwise.
+ * if present and synthesised from legacy court_state otherwise. If an
+ * authored scene fails validation, falls back to the synthetic scene rather
+ * than crashing the render.
  */
 export function buildScene(scenario: SourceScenario): Scene3D {
-  if (scenario.scene && scenario.scene.players && scenario.scene.players.length > 0) {
-    return normaliseAuthoredScene(scenario.id, scenario.scene)
+  if (scenario.scene != null) {
+    const parsed = sceneSchema.safeParse(scenario.scene)
+    if (parsed.success) {
+      return normaliseAuthoredScene(scenario.id, parsed.data as AuthoredScene)
+    }
+    if (typeof console !== 'undefined') {
+      console.warn(`[scenario3d] invalid scene for "${scenario.id}":`, parsed.error.flatten())
+    }
   }
   return synthesiseSceneFromCourtState(scenario)
 }

@@ -24,7 +24,8 @@
     "posthog-js": "^1.205.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "three": "^0.184.0"
+    "three": "^0.184.0",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@courtiq/config": "workspace:*",

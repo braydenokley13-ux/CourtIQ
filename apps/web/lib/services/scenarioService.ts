@@ -12,6 +12,8 @@ export interface SessionScenario {
   difficulty: number
   prompt: string
   court_state: Scenario['court_state']
+  scene: Scenario['scene']
+  user_role: string
   concept_tags: string[]
   choices: SanitizedChoice[]
   render_tier: number
@@ -46,6 +48,8 @@ function sanitizeScenario(s: ScenarioWithChoices): SessionScenario {
     difficulty: s.difficulty,
     prompt: s.prompt,
     court_state: s.court_state,
+    scene: s.scene,
+    user_role: s.user_role,
     concept_tags: s.concept_tags,
     render_tier: s.render_tier,
     choices: [...s.choices]
