@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { PolyLine3D } from './PolyLine3D'
+import { LinePrimitive3D } from './LinePrimitive3D'
 
 interface MovementPath3DProps {
   from: [number, number]
@@ -11,6 +11,8 @@ interface MovementPath3DProps {
   progress?: number
   /** Render an arrowhead at the destination. */
   arrow?: boolean
+  /** If true, the body of the line is dimmed to imply a teaching dashed path. */
+  dashed?: boolean
 }
 
 const DEFAULT_COLOR = '#FFD60A'
@@ -29,6 +31,7 @@ export function MovementPath3D({
   color = DEFAULT_COLOR,
   progress = 1,
   arrow = true,
+  dashed,
 }: MovementPath3DProps) {
   const dx = to[0] - from[0]
   const dz = to[1] - from[1]
@@ -74,8 +77,14 @@ export function MovementPath3D({
 
   return (
     <group>
-      <PolyLine3D points={bodyPoints} color={color} opacity={0.95} transparent />
-      {head ? <PolyLine3D points={head} color={color} opacity={0.95} transparent /> : null}
+      <LinePrimitive3D
+        points={bodyPoints}
+        color={color}
+        opacity={dashed ? 0.72 : 0.95}
+      />
+      {head ? (
+        <LinePrimitive3D points={head} color={color} opacity={0.95} />
+      ) : null}
     </group>
   )
 }
