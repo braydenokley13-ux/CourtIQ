@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Court } from '@/components/court'
 import type { CourtState } from '@/components/court'
@@ -31,6 +31,23 @@ type AttemptFeedback = {
 }
 
 export default function TrainPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-dvh items-center justify-center bg-bg-0 text-text-dim">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-hairline-2 border-t-brand" />
+            <p className="text-sm">Loading session…</p>
+          </div>
+        </main>
+      }
+    >
+      <TrainPageInner />
+    </Suspense>
+  )
+}
+
+function TrainPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const conceptParam = searchParams.get('concept')
