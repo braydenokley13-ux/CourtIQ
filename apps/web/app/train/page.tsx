@@ -6,8 +6,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Court } from '@/components/court'
 import type { CourtState } from '@/components/court'
+import { Scenario3DView } from '@/components/scenario3d/Scenario3DView'
 import { createClient } from '@/lib/supabase/client'
 import { friendlyError } from '@/lib/errors'
+
+const SHOW_3D = process.env.NEXT_PUBLIC_DISABLE_3D !== '1'
 
 type SessionScenario = {
   id: string
@@ -308,7 +311,21 @@ function TrainPageInner() {
 
         {/* Court */}
         <div className="overflow-hidden rounded-2xl border border-hairline-2 bg-bg-1">
-          <Court width={360} height={280} courtState={current.court_state} you="you" />
+          {SHOW_3D ? (
+            <Scenario3DView
+              height={280}
+              fallback={
+                <Court
+                  width={360}
+                  height={280}
+                  courtState={current.court_state}
+                  you="you"
+                />
+              }
+            />
+          ) : (
+            <Court width={360} height={280} courtState={current.court_state} you="you" />
+          )}
         </div>
 
         {/* Prompt */}

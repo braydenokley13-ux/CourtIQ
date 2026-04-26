@@ -13,6 +13,8 @@
     "@courtiq/core": "workspace:*",
     "@courtiq/db": "workspace:*",
     "@prisma/client": "^5.22.0",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.6.0",
     "@sentry/nextjs": "^8.47.0",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.47.3",
@@ -21,7 +23,8 @@
     "nodemailer": "^8.0.5",
     "posthog-js": "^1.205.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "three": "^0.184.0"
   },
   "devDependencies": {
     "@courtiq/config": "workspace:*",
@@ -29,6 +32,7 @@
     "@types/nodemailer": "^8.0.0",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "@types/three": "^0.184.0",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
     "autoprefixer": "^10.4.20",
