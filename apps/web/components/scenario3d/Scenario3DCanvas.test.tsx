@@ -35,7 +35,28 @@ describe('Scenario3DCanvas rendering guarantees', () => {
   it('exposes a ?debug3d=1 self-test that always renders a hero scene', () => {
     const canvas = source('Scenario3DCanvas.tsx')
     expect(canvas).toContain('isDebug3D')
-    expect(canvas).toContain('createDebugSelfTestScene')
+    expect(canvas).toContain('Debug3DScene')
+  })
+
+  it('renders a dependency-free debug scene with bright primitives', () => {
+    const debug = source('Debug3DScene.tsx')
+    // Floor, players, ball, line all use bright unlit basic materials.
+    expect(debug).toContain('meshBasicMaterial')
+    expect(debug).toContain('planeGeometry')
+    expect(debug).toContain('sphereGeometry')
+    expect(debug).toContain('boxGeometry')
+    // No async loaders, suspense, or fonts.
+    expect(debug).not.toMatch(/<Suspense\b|useLoader\b|useGLTF\b|useTexture\b|useFont\b/)
+    expect(debug).not.toMatch(/from '@react-three\/drei'/)
+  })
+
+  it('uses a guaranteed-visible camera for the debug self-test', () => {
+    const canvas = source('Scenario3DCanvas.tsx')
+    // Camera aimed straight at origin with wide FOV, so any object near
+    // (0, 0, 0) is in the frustum.
+    expect(canvas).toMatch(/DEBUG_CAMERA_POSITION[^=]*=\s*\[0,\s*24,\s*30\]/)
+    expect(canvas).toMatch(/DEBUG_CAMERA_LOOKAT[^=]*=\s*\[0,\s*0,\s*0\]/)
+    expect(canvas).toMatch(/DEBUG_CAMERA_FOV[^=]*=\s*45/)
   })
 
   it('keeps the baseline 3D path free of async asset loaders', () => {

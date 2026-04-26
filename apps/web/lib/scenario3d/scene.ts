@@ -232,29 +232,6 @@ export function createDefaultScene(id = 'default_3d_scene'): Scene3D {
 }
 
 /**
- * "Self-test" scene used when /train is loaded with `?debug3d=1`. Mirrors
- * the hero default but with a movement + answer demo so the replay path is
- * also exercised.
- */
-export function createDebugSelfTestScene(): Scene3D {
-  return {
-    id: 'debug_self_test',
-    court: 'half',
-    camera: 'teaching_angle',
-    players: createDefaultPlayers(),
-    ball: { start: { x: 0, z: 22 }, holderId: 'you' },
-    movements: [
-      { id: 'drive', playerId: 'you', kind: 'drive', to: { x: 6, z: 10 }, durationMs: 700, caption: 'Attack middle' },
-    ],
-    answerDemo: [
-      { id: 'kickout', playerId: 'ball', kind: 'pass', to: { x: -22, z: 1 }, durationMs: 600, caption: 'Kickout to the corner' },
-      { id: 'cut', playerId: 'o_slot', kind: 'cut', to: { x: -3, z: 5 }, delayMs: 400, durationMs: 700, caption: 'Slot cuts to the rim' },
-    ],
-    synthetic: true,
-  }
-}
-
-/**
  * Final defensive pass: removes NaN/undefined coordinates, clamps player
  * starts to the half-court, dedupes player ids, drops movements that
  * reference unknown players, and guarantees at least one valid player.

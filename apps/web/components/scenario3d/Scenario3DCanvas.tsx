@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
 import { Court3D } from './Court3D'
+import { Debug3DScene } from './Debug3DScene'
 import { SceneDebug3D } from './SceneDebug3D'
 import { ScenarioScene3D } from './ScenarioScene3D'
 import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
@@ -10,11 +11,7 @@ import { SceneMotionProvider } from './SceneMotionContext'
 import { hasWebGL, isDebug3D } from '@/lib/scenario3d/feature'
 import { useReducedMotion } from '@/lib/scenario3d/useReducedMotion'
 import { COURT } from '@/lib/scenario3d/coords'
-import {
-  createDebugSelfTestScene,
-  createDefaultScene,
-  type Scene3D,
-} from '@/lib/scenario3d/scene'
+import { createDefaultScene, type Scene3D } from '@/lib/scenario3d/scene'
 
 interface Scenario3DCanvasProps {
   /** Mounted as the WebGL fallback when WebGL is unavailable. */
@@ -39,24 +36,28 @@ interface Scenario3DCanvasProps {
 
 const CANVAS_BG = '#0E1626'
 
-// Tighter, broadcast-style angle. The camera sits high behind the
-// half-court looking down at the free-throw line. Distance and FOV are
-// tuned so a 50ft × 47ft half-court fills the canvas with a touch of
-// margin even on narrow mobile aspect ratios.
+// Production camera. Broadcast-style angle that frames the half-court.
 const CAMERA_POSITION: [number, number, number] = [0, 32, 56]
 const CAMERA_LOOKAT: [number, number, number] = [0, 0, 18]
 const CAMERA_FOV = 44
 
+// Debug self-test camera. Aimed straight at the origin with a wide FOV
+// so any object placed near (0, 0, 0) is guaranteed to be visible.
+const DEBUG_CAMERA_POSITION: [number, number, number] = [0, 24, 30]
+const DEBUG_CAMERA_LOOKAT: [number, number, number] = [0, 0, 0]
+const DEBUG_CAMERA_FOV = 45
+
 /**
  * Top-level wrapper that mounts the R3F <Canvas> for a scenario scene. The
- * 3D scene IS the product — the real scene renders as the primary path and
- * we only fall back to the supplied 2D node when WebGL is genuinely
- * unavailable on the device or the WebGL context is lost. Errors thrown
+ * 3D scene IS the product — the real scene renders as the primary path
+ * and we only fall back to the supplied 2D node when WebGL is genuinely
+ * unavailable on the device, or the GL context is lost. Errors thrown
  * inside the canvas are caught by Scenario3DErrorBoundary further up.
  *
- * `?debug3d=1` swaps in a self-test scene (5+5 players, ball, replay)
- * regardless of the supplied scenario, so the rendering path can be
- * exercised without depending on scenario data.
+ * `?debug3d=1` short-circuits the entire scenario pipeline and renders a
+ * dependency-free debug scene with a guaranteed-visible camera. If the
+ * debug scene paints in production but the regular scene does not, the
+ * problem is in scenario data / scene composition, not the renderer.
  */
 export function Scenario3DCanvas({
   fallback,
@@ -75,15 +76,16 @@ export function Scenario3DCanvas({
   const [mode, setMode] = useState<'probing' | '3d' | 'fallback'>('probing')
   const [webglSupported, setWebglSupported] = useState<boolean | null>(null)
   const [canvasMounted, setCanvasMounted] = useState(false)
+  const [rendererCreated, setRendererCreated] = useState(false)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
   const [debugMode, setDebugMode] = useState(false)
 
   const reducedMotion = useReducedMotion()
 
-  const visibleScene = useMemo(() => {
-    if (debugMode) return createDebugSelfTestScene()
-    return scene ?? createDefaultScene('default_3d_scene')
-  }, [scene, debugMode])
+  const visibleScene = useMemo(
+    () => scene ?? createDefaultScene('default_3d_scene'),
+    [scene],
+  )
 
   const sceneValidationStatus = useMemo(
     () => getSceneValidationStatus(visibleScene, scene, debugMode),
@@ -91,10 +93,23 @@ export function Scenario3DCanvas({
   )
 
   useEffect(() => {
-    setDebugMode(isDebug3D())
+    const debug = isDebug3D()
+    setDebugMode(debug)
     const supported = hasWebGL()
     setWebglSupported(supported)
     setMode(supported ? '3d' : 'fallback')
+    if (typeof console !== 'undefined') {
+      // eslint-disable-next-line no-console
+      console.info('[scenario3d] mount probe', {
+        webglSupported: supported,
+        debugMode: debug,
+        sceneId: scene?.id ?? null,
+        playerCount: visibleScene.players.length,
+      })
+    }
+    // visibleScene/scene intentionally omitted — we only want the probe to
+    // run once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   if (mode === 'probing') {
@@ -107,22 +122,43 @@ export function Scenario3DCanvas({
         <div className="flex h-full items-center justify-center text-[11px] uppercase tracking-[1.5px] text-text-dim">
           Loading court…
         </div>
-        <CanvasDebugOverlay
+        <CanvasDiagnostics
           canvasMounted={canvasMounted}
+          rendererCreated={rendererCreated}
           webglSupported={webglSupported}
           scenarioId={scene?.id}
           concept={concept}
           validationStatus={sceneValidationStatus}
           errorMessage={runtimeError}
           debugMode={debugMode}
+          playerCount={visibleScene.players.length}
         />
       </div>
     )
   }
 
   if (mode === 'fallback') {
-    return <div className={className}>{fallback}</div>
+    return (
+      <div className={className} style={{ position: 'relative' }}>
+        {fallback}
+        <CanvasDiagnostics
+          canvasMounted={canvasMounted}
+          rendererCreated={rendererCreated}
+          webglSupported={webglSupported}
+          scenarioId={scene?.id}
+          concept={concept}
+          validationStatus={sceneValidationStatus}
+          errorMessage={runtimeError}
+          debugMode={debugMode}
+          playerCount={visibleScene.players.length}
+        />
+      </div>
+    )
   }
+
+  const cameraPosition = debugMode ? DEBUG_CAMERA_POSITION : CAMERA_POSITION
+  const cameraLookAt = debugMode ? DEBUG_CAMERA_LOOKAT : CAMERA_LOOKAT
+  const cameraFov = debugMode ? DEBUG_CAMERA_FOV : CAMERA_FOV
 
   return (
     <div
@@ -143,10 +179,10 @@ export function Scenario3DCanvas({
         // render at the literal sRGB color we set, not crushed to black.
         flat
         dpr={[1, 2]}
-        camera={{ position: CAMERA_POSITION, fov: CAMERA_FOV, near: 0.1, far: 260 }}
+        camera={{ position: cameraPosition, fov: cameraFov, near: 0.1, far: 1000 }}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
         style={{ width: '100%', height: '100%', display: 'block' }}
-        onCreated={({ gl }) => {
+        onCreated={({ gl, size }) => {
           try {
             gl.setClearColor(CANVAS_BG, 1)
             const dom = gl.domElement
@@ -161,42 +197,58 @@ export function Scenario3DCanvas({
                 { once: true },
               )
             }
+            setRendererCreated(true)
             setCanvasMounted(true)
+            if (typeof console !== 'undefined') {
+              // eslint-disable-next-line no-console
+              console.info('[scenario3d] canvas onCreated', {
+                width: size.width,
+                height: size.height,
+                debugMode,
+              })
+            }
           } catch (error) {
             setRuntimeError(error instanceof Error ? error.message : 'Unknown WebGL error')
             setMode('fallback')
           }
         }}
       >
-        {/* Scene background — slightly lighter than the page bg so the
-            canvas reads as a discrete arena floor and not a void. */}
         <color attach="background" args={[CANVAS_BG]} />
-        <SceneMotionProvider reduced={reducedMotion}>
-          <SceneLighting />
-          <CameraTarget />
-          <Court3D />
-          <ScenarioScene3D
-            key={visibleScene.id}
-            scene={visibleScene}
-            mode={replayMode}
-            resetCounter={resetCounter}
-            onCaption={onCaption}
-            onPhase={onPhase}
-            showPaths={showPaths || debugMode}
-          />
-          <Suspense fallback={null}>{children}</Suspense>
-          <SceneDebug3D scene={visibleScene} />
-        </SceneMotionProvider>
+        <CameraTarget position={cameraPosition} lookAt={cameraLookAt} />
+
+        {debugMode ? (
+          <Debug3DScene />
+        ) : (
+          <SceneMotionProvider reduced={reducedMotion}>
+            <SceneLighting />
+            <Court3D />
+            <ScenarioScene3D
+              key={visibleScene.id}
+              scene={visibleScene}
+              mode={replayMode}
+              resetCounter={resetCounter}
+              onCaption={onCaption}
+              onPhase={onPhase}
+              showPaths={showPaths}
+            />
+            <Suspense fallback={null}>{children}</Suspense>
+            <SceneDebug3D scene={visibleScene} />
+          </SceneMotionProvider>
+        )}
       </Canvas>
-      <CanvasDebugOverlay
+
+      <CanvasDiagnostics
         canvasMounted={canvasMounted}
+        rendererCreated={rendererCreated}
         webglSupported={webglSupported}
         scenarioId={scene?.id}
         concept={concept}
         validationStatus={sceneValidationStatus}
         errorMessage={runtimeError}
         debugMode={debugMode}
+        playerCount={visibleScene.players.length}
       />
+
       {debugMode ? (
         <div className="pointer-events-none absolute right-2 top-2 rounded-full bg-brand/15 px-2 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-brand">
           debug3d self-test
@@ -206,37 +258,47 @@ export function Scenario3DCanvas({
   )
 }
 
-interface CanvasDebugOverlayProps {
+interface CanvasDiagnosticsProps {
   canvasMounted: boolean
+  rendererCreated: boolean
   webglSupported: boolean | null
   scenarioId?: string
   concept?: string
   validationStatus: string
   errorMessage: string | null
   debugMode: boolean
+  playerCount: number
 }
 
-function CanvasDebugOverlay({
+/**
+ * Small HTML overlay that surfaces canvas/renderer/WebGL state. Shown in
+ * development on every mount, and in production whenever `?debug3d=1` is
+ * set so we can diagnose deployed rendering issues without DevTools.
+ */
+function CanvasDiagnostics({
   canvasMounted,
+  rendererCreated,
   webglSupported,
   scenarioId,
   concept,
   validationStatus,
   errorMessage,
   debugMode,
-}: CanvasDebugOverlayProps) {
-  // In production, the overlay is only shown when ?debug3d=1 is set.
+  playerCount,
+}: CanvasDiagnosticsProps) {
   if (process.env.NODE_ENV === 'production' && !debugMode) return null
 
   return (
     <div className="pointer-events-none absolute left-2 top-2 max-w-[92%] rounded-lg bg-bg-0/85 px-2 py-1 text-[10px] leading-snug text-text-dim">
       <div>canvas mounted: {canvasMounted ? 'yes' : 'no'}</div>
+      <div>renderer created: {rendererCreated ? 'yes' : 'no'}</div>
       <div>webgl supported: {webglSupported === null ? 'checking' : webglSupported ? 'yes' : 'no'}</div>
+      <div>mode: {debugMode ? 'debug self-test' : 'scenario'}</div>
+      <div>players: {playerCount}</div>
       <div>scenario: {scenarioId ?? 'none'}</div>
       <div>concept: {concept ?? 'none'}</div>
       <div>scene: {validationStatus}</div>
       <div>error: {errorMessage ?? 'none'}</div>
-      {debugMode ? <div>mode: debug3d self-test</div> : null}
     </div>
   )
 }
@@ -277,19 +339,24 @@ function SceneLighting() {
   )
 }
 
+interface CameraTargetProps {
+  position: [number, number, number]
+  lookAt: [number, number, number]
+}
+
 /**
- * Aims the default camera at a teaching-friendly point near the free throw
- * line so the rim sits at the back of the frame and the back-court action
- * stays comfortably in view.
+ * Forces the camera position and lookAt every render. Without this the
+ * camera defaults to looking at (0, 0, 0), which can hide the scene at
+ * unusual aspect ratios.
  */
-function CameraTarget() {
+function CameraTarget({ position, lookAt }: CameraTargetProps) {
   const camera = useThree((state) => state.camera)
   useEffect(() => {
-    camera.position.set(...CAMERA_POSITION)
-    camera.lookAt(...CAMERA_LOOKAT)
+    camera.position.set(position[0], position[1], position[2])
+    camera.lookAt(lookAt[0], lookAt[1], lookAt[2])
     camera.updateMatrixWorld()
     camera.updateProjectionMatrix()
-  }, [camera])
+  }, [camera, position, lookAt])
   return null
 }
 
