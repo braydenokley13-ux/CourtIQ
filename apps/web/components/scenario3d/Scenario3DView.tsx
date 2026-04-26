@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import type { ReactNode } from 'react'
+import type { Scene3D } from '@/lib/scenario3d/scene'
 
 const Scenario3DCanvasDynamic = dynamic(
   () => import('./Scenario3DCanvas').then((m) => m.Scenario3DCanvas),
@@ -23,6 +24,7 @@ interface Scenario3DViewProps {
   children?: ReactNode
   height?: number
   className?: string
+  scene?: Scene3D | null
 }
 
 /**

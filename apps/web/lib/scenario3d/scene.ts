@@ -1,0 +1,175 @@
+/**
+ * Normalised in-memory representation of a scenario scene that the 3D
+ * components consume. Sourced either from an authored `scene` block or
+ * synthesised from the legacy 2D `court_state`.
+ */
+
+import type { CourtState } from '@/components/court'
+import { projectLegacyPoint, type CourtPoint } from './coords'
+
+export type SceneTeam = 'offense' | 'defense'
+
+export interface ScenePlayer {
+  id: string
+  team: SceneTeam
+  role: string
+  /** Marker label, defaults to a shortened role/team. */
+  label?: string
+  start: CourtPoint
+  /** True for the player the user controls or reads from. */
+  isUser?: boolean
+  /** True for the offensive player who currently has the ball. */
+  hasBall?: boolean
+  /** Optional override color. */
+  color?: string
+}
+
+export interface SceneBall {
+  start: CourtPoint
+  /** Player id who is holding the ball at scene start. */
+  holderId?: string
+}
+
+export interface SceneMovement {
+  id: string
+  /** Player id, or "ball" for a pass. */
+  playerId: string
+  kind: 'cut' | 'closeout' | 'rotation' | 'lift' | 'drift' | 'pass' | 'drive' | 'stop_ball'
+  to: CourtPoint
+  /** ms before this movement starts after replay begins. */
+  delayMs?: number
+  /** ms the movement takes to play. */
+  durationMs?: number
+  /** Optional caption shown while playing. */
+  caption?: string
+}
+
+export interface Scene3D {
+  /** Stable identifier for memoising frames. */
+  id: string
+  type?: string
+  court: 'half' | 'full'
+  camera: 'teaching_angle' | 'defense' | 'top_down'
+  players: ScenePlayer[]
+  ball: SceneBall
+  movements: SceneMovement[]
+  answerDemo: SceneMovement[]
+  /** True if the scene was synthesised from legacy court_state. */
+  synthetic: boolean
+}
+
+interface AuthoredScene {
+  type?: string
+  court?: 'half' | 'full'
+  camera?: Scene3D['camera']
+  players?: Array<{
+    id: string
+    team: SceneTeam
+    role: string
+    label?: string
+    start: CourtPoint
+    isUser?: boolean
+    hasBall?: boolean
+    color?: string
+  }>
+  ball?: SceneBall
+  movements?: SceneMovement[]
+  answerDemo?: SceneMovement[]
+}
+
+interface SourceScenario {
+  id: string
+  court_state: CourtState
+  scene?: AuthoredScene | null
+  /** The id of the player marked as the user (defaults to "you"). */
+  user_role?: string
+}
+
+/**
+ * Returns a normalised Scene3D for a scenario, backed by an authored scene
+ * if present and synthesised from legacy court_state otherwise.
+ */
+export function buildScene(scenario: SourceScenario): Scene3D {
+  if (scenario.scene && scenario.scene.players && scenario.scene.players.length > 0) {
+    return normaliseAuthoredScene(scenario.id, scenario.scene)
+  }
+  return synthesiseSceneFromCourtState(scenario)
+}
+
+function normaliseAuthoredScene(id: string, scene: AuthoredScene): Scene3D {
+  const players: ScenePlayer[] =
+    scene.players?.map((p) => ({
+      id: p.id,
+      team: p.team,
+      role: p.role,
+      label: p.label,
+      start: p.start,
+      isUser: !!p.isUser,
+      hasBall: !!p.hasBall,
+      color: p.color,
+    })) ?? []
+  return {
+    id,
+    type: scene.type,
+    court: scene.court ?? 'half',
+    camera: scene.camera ?? 'teaching_angle',
+    players,
+    ball: scene.ball ?? { start: { x: 0, z: 0 } },
+    movements: scene.movements ?? [],
+    answerDemo: scene.answerDemo ?? [],
+    synthetic: false,
+  }
+}
+
+function synthesiseSceneFromCourtState(scenario: SourceScenario): Scene3D {
+  const { court_state } = scenario
+  const offense: ScenePlayer[] = court_state.offense.map((p) => {
+    const start = projectLegacyPoint(p.x, p.y)
+    const isUser = p.id === 'you' || scenario.user_role === p.role || p.id === scenario.user_role
+    return {
+      id: p.id,
+      team: 'offense',
+      role: p.role ?? 'offense',
+      label: p.label ?? (isUser ? 'You' : roleLabel(p.role)),
+      start,
+      isUser,
+      hasBall: !!p.hasBall,
+    }
+  })
+  const defense: ScenePlayer[] = court_state.defense.map((p) => {
+    const start = projectLegacyPoint(p.x, p.y)
+    const isUser = p.id === 'you' || scenario.user_role === p.role || p.id === scenario.user_role
+    return {
+      id: p.id,
+      team: 'defense',
+      role: p.role ?? 'defense',
+      label: p.label ?? (isUser ? 'You' : roleLabel(p.role)),
+      start,
+      isUser,
+      hasBall: false,
+    }
+  })
+
+  const ballPoint = projectLegacyPoint(court_state.ball_location.x, court_state.ball_location.y)
+  const holder = offense.find((o) => o.hasBall)
+
+  return {
+    id: scenario.id,
+    court: 'half',
+    camera: 'teaching_angle',
+    players: [...offense, ...defense],
+    ball: { start: ballPoint, holderId: holder?.id },
+    movements: [],
+    answerDemo: [],
+    synthetic: true,
+  }
+}
+
+function roleLabel(role?: string): string | undefined {
+  if (!role) return undefined
+  return role
+    .split('_')
+    .map((s) => s[0]?.toUpperCase() ?? '')
+    .join('')
+    .slice(0, 3)
+}

@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
 import { Court3D } from './Court3D'
+import { ScenarioScene3D } from './ScenarioScene3D'
 import { hasWebGL, is3DDisabled } from '@/lib/scenario3d/feature'
 import { COURT } from '@/lib/scenario3d/coords'
+import type { Scene3D } from '@/lib/scenario3d/scene'
 
 interface Scenario3DCanvasProps {
   /** Mounted as the WebGL fallback when WebGL is unavailable. */
@@ -14,6 +16,8 @@ interface Scenario3DCanvasProps {
   className?: string
   /** Optional explicit pixel height. Defaults to a 3:2 aspect of width. */
   height?: number
+  /** Normalised scene to render. If omitted, only the empty court shows. */
+  scene?: Scene3D | null
 }
 
 /**
@@ -26,6 +30,7 @@ export function Scenario3DCanvas({
   children,
   className,
   height = 280,
+  scene,
 }: Scenario3DCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [mode, setMode] = useState<'probing' | '3d' | 'fallback'>('probing')
@@ -73,6 +78,7 @@ export function Scenario3DCanvas({
         <SceneLighting />
         <CameraTarget />
         <Court3D />
+        {scene ? <ScenarioScene3D scene={scene} /> : null}
         {children}
       </Canvas>
     </div>

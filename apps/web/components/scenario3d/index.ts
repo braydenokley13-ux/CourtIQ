@@ -1,3 +1,6 @@
 export { Scenario3DCanvas } from './Scenario3DCanvas'
 export { Scenario3DView } from './Scenario3DView'
 export { Court3D } from './Court3D'
+export { PlayerMarker3D } from './PlayerMarker3D'
+export { BallMarker3D } from './BallMarker3D'
+export { ScenarioScene3D } from './ScenarioScene3D'

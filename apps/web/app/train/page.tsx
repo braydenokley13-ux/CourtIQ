@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Court } from '@/components/court'
 import type { CourtState } from '@/components/court'
 import { Scenario3DView } from '@/components/scenario3d/Scenario3DView'
+import { useScenarioSceneData } from '@/lib/scenario3d/useScenarioSceneData'
 import { createClient } from '@/lib/supabase/client'
 import { friendlyError } from '@/lib/errors'
 
@@ -20,6 +21,8 @@ type SessionScenario = {
   concept_tags: string[]
   render_tier: number
   choices: Array<{ id: string; label: string; order: number }>
+  scene?: unknown
+  user_role?: string
 }
 
 type AttemptFeedback = {
@@ -141,6 +144,7 @@ function TrainPageInner() {
   }, [idx])
 
   const orderedChoices = useMemo(() => [...(current?.choices ?? [])].sort((a, b) => a.order - b.order), [current])
+  const scene = useScenarioSceneData(current ?? null)
 
   if (loading) {
     return (
@@ -314,6 +318,7 @@ function TrainPageInner() {
           {SHOW_3D ? (
             <Scenario3DView
               height={280}
+              scene={scene}
               fallback={
                 <Court
                   width={360}
