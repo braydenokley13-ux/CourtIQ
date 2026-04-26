@@ -89,12 +89,24 @@ export function Scenario3DCanvas({
     <div
       ref={containerRef}
       className={className}
-      style={{ height, minHeight: height, position: 'relative', background: CANVAS_BG }}
+      style={{
+        height,
+        minHeight: height,
+        width: '100%',
+        position: 'relative',
+        background: CANVAS_BG,
+        display: 'block',
+      }}
     >
       <Canvas
+        // `flat` disables ACES Filmic tone mapping, which by default
+        // crushes mid-tones in our dark UI to near-black. With NoToneMapping
+        // the wood floor renders as the literal sRGB color we set.
+        flat
         dpr={[1, 2]}
         camera={{ position: CAMERA_POSITION, fov: CAMERA_FOV, near: 0.1, far: 260 }}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
+        style={{ width: '100%', height: '100%', display: 'block' }}
         onCreated={({ gl }) => {
           gl.setClearColor(CANVAS_BG, 1)
           const dom = gl.domElement
@@ -109,6 +121,9 @@ export function Scenario3DCanvas({
           )
         }}
       >
+        {/* Explicit scene background ensures the canvas paints even before
+            the first lighting pass completes on slow devices. */}
+        <color attach="background" args={[CANVAS_BG]} />
         <SceneMotionProvider reduced={reducedMotion}>
           <SceneLighting />
           <CameraTarget />
@@ -140,21 +155,20 @@ function SceneLighting() {
       {/* Hemisphere fills shadows with a touch of arena cool light. */}
       <hemisphereLight args={['#D7E2F4', '#1A1408', 0.55]} />
       {/* Ambient lift so the warm hardwood reads on every device. */}
-      <ambientLight intensity={0.85} color="#FFF1E0" />
+      <ambientLight intensity={0.95} color="#FFF1E0" />
       {/* Key light — warm spotlight over the rim, like an arena. */}
       <directionalLight
-        intensity={1.25}
+        intensity={1.4}
         color="#FFE4B5"
         position={[14, 32, 18]}
-        castShadow
       />
       {/* Cool rim light from the half-court side keeps depth readable. */}
-      <directionalLight intensity={0.4} color="#7EB6FF" position={[-22, 22, 36]} />
+      <directionalLight intensity={0.5} color="#7EB6FF" position={[-22, 22, 36]} />
       {/* Tight rim glow under the hoop. */}
       <pointLight
         position={[0, COURT.rimHeightFt + 4, 0]}
-        intensity={8}
-        distance={18}
+        intensity={9}
+        distance={20}
         color="#FF8A3D"
       />
     </>
@@ -171,6 +185,7 @@ function CameraTarget() {
   useEffect(() => {
     camera.position.set(...CAMERA_POSITION)
     camera.lookAt(...CAMERA_LOOKAT)
+    camera.updateMatrixWorld()
     camera.updateProjectionMatrix()
   }, [camera])
   return null

@@ -33,16 +33,11 @@ export function BallMarker3D({ position, idleBounce = true }: BallMarker3DProps)
         <sphereGeometry args={[0.85, 16, 16]} />
         <meshBasicMaterial color="#FF8A3D" transparent opacity={0.22} />
       </mesh>
-      {/* Ball — slightly oversized so it reads at mobile camera distance. */}
-      <mesh position={[0, 0.6, 0]} castShadow>
+      {/* Ball — slightly oversized so it reads at mobile camera distance.
+          Unlit basic material guarantees it pops in any lighting. */}
+      <mesh position={[0, 0.6, 0]}>
         <sphereGeometry args={[0.55, 24, 24]} />
-        <meshStandardMaterial
-          color="#FF8A3D"
-          roughness={0.45}
-          metalness={0.1}
-          emissive="#FF8A3D"
-          emissiveIntensity={0.35}
-        />
+        <meshBasicMaterial color="#FF8A3D" />
       </mesh>
       {/* Floor shadow */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.025, 0]}>

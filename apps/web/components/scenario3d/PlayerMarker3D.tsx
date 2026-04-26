@@ -91,16 +91,17 @@ export function PlayerMarker3D({
       {/* Possession ring */}
       {hasBall ? <PossessionRing color="#FF8A3D" /> : null}
 
-      {/* Body */}
-      <mesh position={[0, 1.6, 0]} castShadow>
+      {/* Body — unlit so jersey color is unmistakable on every device.
+          Lifted slightly off the floor to prevent z-fighting with the wood. */}
+      <mesh position={[0, 1.7, 0]}>
         <cylinderGeometry args={[0.7, 0.85, 3.2, 16]} />
-        <meshStandardMaterial color={fill} roughness={0.5} metalness={0.05} />
+        <meshBasicMaterial color={fill} />
       </mesh>
 
       {/* Head */}
-      <mesh position={[0, 3.55, 0]} castShadow>
+      <mesh position={[0, 3.65, 0]}>
         <sphereGeometry args={[0.55, 16, 16]} />
-        <meshStandardMaterial color={fill} roughness={0.45} metalness={0.05} />
+        <meshBasicMaterial color={fill} />
       </mesh>
 
       {/* Label — sprite is camera-facing by definition, so we don't need
