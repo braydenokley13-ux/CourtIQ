@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Canvas, advance, useFrame, useThree } from '@react-three/fiber'
 import { Court3D } from './Court3D'
 import { SceneDebug3D } from './SceneDebug3D'
 import { ScenarioScene3D } from './ScenarioScene3D'
@@ -182,9 +182,11 @@ export function Scenario3DCanvas({
         // crushes mid-tones in our dark UI to near-black. With NoToneMapping
         // the wood floor renders as the literal sRGB color we set.
         flat
-        // Always render every frame. Some R3F config paths default to
-        // "demand" which would skip frames if no event handlers attach.
-        frameloop="always"
+        // We drive frames manually via the ManualLoop component below so
+        // we never depend on R3F's internal scheduler. On affected
+        // device/build combinations the auto-scheduler simply never
+        // started, leaving the canvas dark forever.
+        frameloop="never"
         dpr={[1, 2]}
         camera={{ position: CAMERA_POSITION, fov: CAMERA_FOV, near: 0.1, far: 260 }}
         gl={{
@@ -201,18 +203,16 @@ export function Scenario3DCanvas({
           position: 'absolute',
           inset: 0,
         }}
-        onCreated={({ gl, size }) => {
-          gl.setClearColor(CANVAS_BG, 1)
-          gl.clear()
+        onCreated={({ gl }) => {
+          try {
+            gl.setClearColor(CANVAS_BG, 1)
+          } catch {
+            // ignore — we still render every frame regardless
+          }
           setGlReady(true)
           if (typeof console !== 'undefined') {
             // eslint-disable-next-line no-console
-            console.info('[scenario3d] gl created', {
-              size: `${size.width}x${size.height}`,
-              dpr: gl.getPixelRatio(),
-              isWebGL2:
-                'isWebGL2' in gl.capabilities ? gl.capabilities.isWebGL2 : undefined,
-            })
+            console.info('[scenario3d] gl created')
           }
           const dom = gl.domElement
           if (!dom) return
@@ -236,6 +236,7 @@ export function Scenario3DCanvas({
           <SceneLighting />
           <CameraTarget />
           <Court3D />
+          <ManualLoop />
           <FirstFrameProbe onFirstFrame={() => setFirstFrame(true)} />
           <Suspense fallback={null}>
             {scene ? (
@@ -436,6 +437,50 @@ function FirstFrameProbe({ onFirstFrame }: { onFirstFrame: () => void }) {
       console.info('[scenario3d] first frame rendered')
     }
   })
+  return null
+}
+
+/**
+ * Manual frame loop. We deliberately set `frameloop="never"` on the
+ * <Canvas> so R3F's internal auto-scheduler is bypassed — that scheduler
+ * has been observed to never start on certain R3F-9 + React-19 +
+ * Next-15 production builds, leaving the canvas dark forever even though
+ * `onCreated` ran successfully.
+ *
+ * Instead, we drive frames ourselves with `requestAnimationFrame`, calling
+ * R3F's exported `advance()` once per tick. That function does exactly
+ * what the auto-scheduler would have done: invoke every useFrame
+ * subscriber and re-render the scene. The render loop is now the same
+ * one the browser uses for every other animation, so it cannot be
+ * silently disabled by an R3F lifecycle bug.
+ *
+ * Renders nothing.
+ */
+function ManualLoop() {
+  // We need a state-bound proof that this component mounted inside the
+  // canvas tree (so useThree below succeeds), but we don't actually use
+  // the value — `advance()` walks all roots automatically.
+  useThree((s) => s.invalidate)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    let rafId = 0
+    let running = true
+    const tick = (timestamp: number) => {
+      if (!running) return
+      try {
+        advance(timestamp)
+      } catch {
+        // A single-frame error must not stop the loop — keep re-queuing.
+      }
+      rafId = window.requestAnimationFrame(tick)
+    }
+    rafId = window.requestAnimationFrame(tick)
+    return () => {
+      running = false
+      window.cancelAnimationFrame(rafId)
+    }
+  }, [])
   return null
 }
 
