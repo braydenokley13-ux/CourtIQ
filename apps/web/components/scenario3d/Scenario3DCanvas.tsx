@@ -3,13 +3,24 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
+import { AutoFitCamera } from './AutoFitCamera'
+import { BasketballScene3D } from './BasketballScene3D'
 import { Court3D } from './Court3D'
 import { Debug3DScene } from './Debug3DScene'
+import { EmergencyScene3D } from './EmergencyScene3D'
+import { OrbitDebugControls } from './OrbitDebugControls'
 import { SceneDebug3D } from './SceneDebug3D'
 import { ScenarioScene3D } from './ScenarioScene3D'
 import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
 import { SceneMotionProvider } from './SceneMotionContext'
-import { hasWebGL, isDebug3D } from '@/lib/scenario3d/feature'
+import {
+  hasWebGL,
+  isAutoFitCamera,
+  isDebug3D,
+  isEmergencyScene,
+  isOrbitDebug,
+  isSimpleScene,
+} from '@/lib/scenario3d/feature'
 import { useReducedMotion } from '@/lib/scenario3d/useReducedMotion'
 import { createDefaultScene, type Scene3D } from '@/lib/scenario3d/scene'
 
@@ -34,21 +45,37 @@ interface Scenario3DCanvasProps {
   showPaths?: boolean
 }
 
-const CANVAS_BG = '#04060C'
+// Mid-tone gray. While the rebuild is in flight we deliberately do NOT
+// use near-black: a black canvas + a black-rendered scene is
+// indistinguishable from "no scene at all". Gray makes invisibility
+// impossible to miss.
+const CANVAS_BG = '#3F4756'
+const EMERGENCY_BG = '#4A5568'
 
 // Production camera. Sits above and behind half-court, tilted down
 // toward the basket. Generous FOV so the entire half-court fits on
 // every aspect ratio (especially mobile portrait). The slight x-offset
 // gives the broadcast feel without sacrificing framing.
-const CAMERA_POSITION: [number, number, number] = [-3, 38, 55]
-const CAMERA_LOOKAT: [number, number, number] = [0, 0, 18]
-const CAMERA_FOV = 48
+//
+// Phase 3 widened this: camera moves further back and higher with a
+// wider FOV so a half-court (50ft x 47ft) full of 6ft player cylinders
+// is comfortably in frame even on a 280px-tall canvas.
+const CAMERA_POSITION: [number, number, number] = [0, 50, 70]
+const CAMERA_LOOKAT: [number, number, number] = [0, 5, 22]
+const CAMERA_FOV = 55
 
 // Debug self-test camera. Aimed straight at the origin with a wide FOV
 // so any object placed near (0, 0, 0) is guaranteed to be visible.
 const DEBUG_CAMERA_POSITION: [number, number, number] = [0, 24, 30]
 const DEBUG_CAMERA_LOOKAT: [number, number, number] = [0, 0, 0]
 const DEBUG_CAMERA_FOV = 45
+
+// Emergency camera. Hardcoded at (0, 30, 30) looking straight at origin
+// with a generous 60° FOV — guarantees any object placed near (0, *, 0)
+// is in frame regardless of coordinate scale.
+const EMERGENCY_CAMERA_POSITION: [number, number, number] = [0, 30, 30]
+const EMERGENCY_CAMERA_LOOKAT: [number, number, number] = [0, 0, 0]
+const EMERGENCY_CAMERA_FOV = 60
 
 /**
  * Top-level wrapper that mounts the R3F <Canvas> for a scenario scene. The
@@ -82,7 +109,13 @@ export function Scenario3DCanvas({
   const [rendererCreated, setRendererCreated] = useState(false)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
   const [debugMode, setDebugMode] = useState(false)
+  const [emergencyMode, setEmergencyMode] = useState(false)
+  const [orbitMode, setOrbitMode] = useState(false)
+  const [simpleMode, setSimpleMode] = useState(true)
+  const [autoFitMode, setAutoFitMode] = useState(true)
   const [canvasSize, setCanvasSize] = useState<{ width: number; height: number } | null>(null)
+  const [dpr, setDpr] = useState<number | null>(null)
+  const [cameraStats, setCameraStats] = useState<CameraStats | null>(null)
 
   const reducedMotion = useReducedMotion()
 
@@ -98,7 +131,15 @@ export function Scenario3DCanvas({
 
   useEffect(() => {
     const debug = isDebug3D()
+    const emergency = isEmergencyScene()
+    const orbit = isOrbitDebug()
+    const simple = isSimpleScene()
+    const autofit = isAutoFitCamera()
     setDebugMode(debug)
+    setEmergencyMode(emergency)
+    setOrbitMode(orbit)
+    setSimpleMode(simple)
+    setAutoFitMode(autofit)
     const supported = hasWebGL()
     setWebglSupported(supported)
     setMode(supported ? '3d' : 'fallback')
@@ -107,6 +148,7 @@ export function Scenario3DCanvas({
       console.info('[scenario3d] mount probe', {
         webglSupported: supported,
         debugMode: debug,
+        emergencyMode: emergency,
         sceneId: scene?.id ?? null,
         playerCount: visibleScene.players.length,
       })
@@ -118,7 +160,7 @@ export function Scenario3DCanvas({
     return (
       <div
         className={className}
-        style={{ height, background: CANVAS_BG, minHeight: height, position: 'relative' }}
+        style={{ height, background: '#3F4756', minHeight: height, position: 'relative' }}
         aria-busy="true"
       >
         <div className="flex h-full items-center justify-center text-[11px] uppercase tracking-[1.5px] text-text-dim">
@@ -162,9 +204,23 @@ export function Scenario3DCanvas({
     )
   }
 
-  const cameraPosition = debugMode ? DEBUG_CAMERA_POSITION : CAMERA_POSITION
-  const cameraLookAt = debugMode ? DEBUG_CAMERA_LOOKAT : CAMERA_LOOKAT
-  const cameraFov = debugMode ? DEBUG_CAMERA_FOV : CAMERA_FOV
+  // Emergency wins if active. Otherwise debug. Otherwise production.
+  const cameraPosition = emergencyMode
+    ? EMERGENCY_CAMERA_POSITION
+    : debugMode
+      ? DEBUG_CAMERA_POSITION
+      : CAMERA_POSITION
+  const cameraLookAt = emergencyMode
+    ? EMERGENCY_CAMERA_LOOKAT
+    : debugMode
+      ? DEBUG_CAMERA_LOOKAT
+      : CAMERA_LOOKAT
+  const cameraFov = emergencyMode
+    ? EMERGENCY_CAMERA_FOV
+    : debugMode
+      ? DEBUG_CAMERA_FOV
+      : CAMERA_FOV
+  const activeBg = emergencyMode ? EMERGENCY_BG : CANVAS_BG
 
   return (
     <div
@@ -175,7 +231,7 @@ export function Scenario3DCanvas({
         minHeight: height,
         width: '100%',
         position: 'relative',
-        background: CANVAS_BG,
+        background: activeBg,
         display: 'block',
         overflow: 'hidden',
       }}
@@ -195,7 +251,7 @@ export function Scenario3DCanvas({
         style={{ width: '100%', height: '100%', display: 'block' }}
         onCreated={({ gl, size }) => {
           try {
-            gl.setClearColor(CANVAS_BG, 1)
+            gl.setClearColor(activeBg, 1)
             const dom = gl.domElement
             if (dom) {
               dom.addEventListener(
@@ -211,12 +267,18 @@ export function Scenario3DCanvas({
             setRendererCreated(true)
             setCanvasMounted(true)
             setCanvasSize({ width: size.width, height: size.height })
+            try {
+              setDpr(gl.getPixelRatio())
+            } catch {
+              setDpr(null)
+            }
             if (typeof console !== 'undefined') {
               // eslint-disable-next-line no-console
               console.info('[scenario3d] canvas onCreated', {
                 width: size.width,
                 height: size.height,
                 debugMode,
+                emergencyMode,
               })
             }
           } catch (error) {
@@ -225,16 +287,29 @@ export function Scenario3DCanvas({
           }
         }}
       >
-        <color attach="background" args={[CANVAS_BG]} />
-        <CameraTarget
-          position={cameraPosition}
-          lookAt={cameraLookAt}
-          enableSway={!debugMode && !reducedMotion}
-        />
+        <color attach="background" args={[activeBg]} />
+        {orbitMode ? (
+          <OrbitDebugControls
+            target={[cameraLookAt[0], cameraLookAt[1], cameraLookAt[2]]}
+          />
+        ) : autoFitMode && !emergencyMode && !debugMode ? (
+          <AutoFitCamera scene={visibleScene} />
+        ) : (
+          <CameraTarget
+            position={cameraPosition}
+            lookAt={cameraLookAt}
+            enableSway={!debugMode && !emergencyMode && !reducedMotion}
+          />
+        )}
         <ManualLoop />
+        <CameraDiagnosticsProbe onChange={setCameraStats} />
 
-        {debugMode ? (
+        {emergencyMode ? (
+          <EmergencyScene3D />
+        ) : debugMode ? (
           <Debug3DScene />
+        ) : simpleMode ? (
+          <BasketballScene3D scene={visibleScene} />
         ) : (
           <SceneMotionProvider reduced={reducedMotion}>
             <SceneLighting />
@@ -263,7 +338,12 @@ export function Scenario3DCanvas({
         validationStatus={sceneValidationStatus}
         errorMessage={runtimeError}
         debugMode={debugMode}
+        emergencyMode={emergencyMode}
         playerCount={visibleScene.players.length}
+        width={canvasSize?.width}
+        height={canvasSize?.height}
+        dpr={dpr}
+        cameraStats={cameraStats}
       />
 
       {debugMode ? (
@@ -271,8 +351,21 @@ export function Scenario3DCanvas({
           debug3d self-test
         </div>
       ) : null}
+      {emergencyMode ? (
+        <div className="pointer-events-none absolute right-2 top-2 rounded-full bg-yellow-400/25 px-2 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-yellow-300">
+          emergency render
+        </div>
+      ) : null}
     </div>
   )
+}
+
+interface CameraStats {
+  position: [number, number, number]
+  fov: number
+  childCount: number
+  firstChildKind: string | null
+  firstChildPosition: [number, number, number] | null
 }
 
 interface CanvasDiagnosticsProps {
@@ -284,9 +377,12 @@ interface CanvasDiagnosticsProps {
   validationStatus: string
   errorMessage: string | null
   debugMode: boolean
+  emergencyMode?: boolean
   playerCount: number
   width?: number
   height?: number
+  dpr?: number | null
+  cameraStats?: CameraStats | null
 }
 
 function CanvasDiagnostics({
@@ -298,35 +394,75 @@ function CanvasDiagnostics({
   validationStatus,
   errorMessage,
   debugMode,
+  emergencyMode,
   playerCount,
   width,
   height,
+  dpr,
+  cameraStats,
 }: CanvasDiagnosticsProps) {
-  // Hidden when ?nodebug=1 is set OR after the user has confirmed the
-  // scene works and we want to drop the badge. Until then we show the
-  // overlay in production too — without it we have no way to tell from
-  // a Vercel deploy whether the canvas mounted, the renderer was created,
-  // or the scene has zero players.
+  // Diagnostics overlay is OPT-IN in production. Pass ?debug=1 (or use
+  // ?debug3d=1 / ?emergency=1, which auto-expand the overlay since the
+  // user is actively diagnosing) to see the full diagnostic panel. By
+  // default we render nothing so the overlay can never hide the scene.
+  let showFullOverlay = false
   if (typeof window !== 'undefined') {
     try {
-      if (new URLSearchParams(window.location.search).get('nodebug') === '1') return null
+      const params = new URLSearchParams(window.location.search)
+      showFullOverlay =
+        params.get('debug') === '1' ||
+        params.get('debug3d') === '1' ||
+        params.get('emergency') === '1'
     } catch {
-      // fall through and render
+      showFullOverlay = false
     }
   }
+
+  if (errorMessage) {
+    return (
+      <div className="pointer-events-none absolute bottom-2 left-2 max-w-[92%] rounded-lg bg-red-900/80 px-2 py-1 font-mono text-[10px] leading-snug text-white">
+        scene error: {errorMessage}
+      </div>
+    )
+  }
+
+  if (!showFullOverlay) return null
+
+  const fmt = (n: number) => (Number.isFinite(n) ? n.toFixed(1) : '–')
+  const renderMode = emergencyMode
+    ? 'emergency'
+    : debugMode
+      ? 'debug self-test'
+      : 'scenario'
 
   return (
     <div className="pointer-events-none absolute left-2 top-2 max-w-[92%] rounded-lg bg-black/75 px-2 py-1 font-mono text-[10px] leading-snug text-white/85">
       <div>canvas mounted: {canvasMounted ? 'yes' : 'no'}</div>
       <div>renderer created: {rendererCreated ? 'yes' : 'no'}</div>
       <div>webgl: {webglSupported === null ? 'checking' : webglSupported ? 'yes' : 'no'}</div>
-      <div>size: {width ?? '–'}×{height ?? '–'}</div>
-      <div>mode: {debugMode ? 'debug self-test' : 'scenario'}</div>
+      <div>size: {width ?? '–'}×{height ?? '–'} @ dpr {dpr ?? '–'}</div>
+      <div>mode: {renderMode}</div>
       <div>players: {playerCount}</div>
       <div>scene: {validationStatus}</div>
       <div>scenario: {scenarioId ?? 'none'}</div>
       {concept ? <div>concept: {concept}</div> : null}
-      {errorMessage ? <div>error: {errorMessage}</div> : null}
+      {cameraStats ? (
+        <>
+          <div>
+            cam: {fmt(cameraStats.position[0])}, {fmt(cameraStats.position[1])},{' '}
+            {fmt(cameraStats.position[2])} @ fov {fmt(cameraStats.fov)}
+          </div>
+          <div>
+            children: {cameraStats.childCount} / first:{' '}
+            {cameraStats.firstChildKind ?? '–'}
+            {cameraStats.firstChildPosition
+              ? ` (${fmt(cameraStats.firstChildPosition[0])}, ${fmt(
+                  cameraStats.firstChildPosition[1],
+                )}, ${fmt(cameraStats.firstChildPosition[2])})`
+              : ''}
+          </div>
+        </>
+      ) : null}
     </div>
   )
 }
@@ -376,6 +512,51 @@ interface CameraTargetProps {
  * extremely subtle horizontal sway inside the R3F render loop so the scene
  * doesn't feel statically posed.
  */
+/**
+ * Lives inside the <Canvas> and pushes camera + scene-graph snapshots back
+ * to the parent every ~250ms via a state-setter callback. Throttled so the
+ * React tree doesn't re-render every frame.
+ */
+function CameraDiagnosticsProbe({
+  onChange,
+}: {
+  onChange: (stats: CameraStats) => void
+}) {
+  const camera = useThree((s) => s.camera)
+  const scene = useThree((s) => s.scene)
+  const lastEmit = useRef(0)
+
+  useFrame(() => {
+    const now = performance.now()
+    if (now - lastEmit.current < 250) return
+    lastEmit.current = now
+
+    const cam = camera as THREE.PerspectiveCamera
+    const children = scene.children
+    let firstObjectKind: string | null = null
+    let firstObjectPos: [number, number, number] | null = null
+    for (const child of children) {
+      if (child.type === 'AmbientLight' || child.type === 'DirectionalLight' ||
+          child.type === 'HemisphereLight' || child.type === 'PerspectiveCamera') {
+        continue
+      }
+      firstObjectKind = child.type
+      firstObjectPos = [child.position.x, child.position.y, child.position.z]
+      break
+    }
+
+    onChange({
+      position: [cam.position.x, cam.position.y, cam.position.z],
+      fov: 'fov' in cam ? (cam.fov as number) : NaN,
+      childCount: children.length,
+      firstChildKind: firstObjectKind,
+      firstChildPosition: firstObjectPos,
+    })
+  })
+
+  return null
+}
+
 function CameraTarget({ position, lookAt, enableSway = false }: CameraTargetProps) {
   const camera = useThree((state) => state.camera)
   const target = useMemo(() => new THREE.Vector3(...lookAt), [lookAt])
