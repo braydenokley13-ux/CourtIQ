@@ -5,11 +5,12 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { Court3D } from './Court3D'
 import { Debug3DScene } from './Debug3DScene'
+import { EmergencyScene3D } from './EmergencyScene3D'
 import { SceneDebug3D } from './SceneDebug3D'
 import { ScenarioScene3D } from './ScenarioScene3D'
 import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
 import { SceneMotionProvider } from './SceneMotionContext'
-import { hasWebGL, isDebug3D } from '@/lib/scenario3d/feature'
+import { hasWebGL, isDebug3D, isEmergencyScene } from '@/lib/scenario3d/feature'
 import { useReducedMotion } from '@/lib/scenario3d/useReducedMotion'
 import { createDefaultScene, type Scene3D } from '@/lib/scenario3d/scene'
 
@@ -34,7 +35,12 @@ interface Scenario3DCanvasProps {
   showPaths?: boolean
 }
 
-const CANVAS_BG = '#04060C'
+// Mid-tone gray. While the rebuild is in flight we deliberately do NOT
+// use near-black: a black canvas + a black-rendered scene is
+// indistinguishable from "no scene at all". Gray makes invisibility
+// impossible to miss.
+const CANVAS_BG = '#3F4756'
+const EMERGENCY_BG = '#4A5568'
 
 // Production camera. Sits above and behind half-court, tilted down
 // toward the basket. Generous FOV so the entire half-court fits on
@@ -49,6 +55,13 @@ const CAMERA_FOV = 48
 const DEBUG_CAMERA_POSITION: [number, number, number] = [0, 24, 30]
 const DEBUG_CAMERA_LOOKAT: [number, number, number] = [0, 0, 0]
 const DEBUG_CAMERA_FOV = 45
+
+// Emergency camera. Hardcoded at (0, 30, 30) looking straight at origin
+// with a generous 60° FOV — guarantees any object placed near (0, *, 0)
+// is in frame regardless of coordinate scale.
+const EMERGENCY_CAMERA_POSITION: [number, number, number] = [0, 30, 30]
+const EMERGENCY_CAMERA_LOOKAT: [number, number, number] = [0, 0, 0]
+const EMERGENCY_CAMERA_FOV = 60
 
 /**
  * Top-level wrapper that mounts the R3F <Canvas> for a scenario scene. The
@@ -82,6 +95,7 @@ export function Scenario3DCanvas({
   const [rendererCreated, setRendererCreated] = useState(false)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
   const [debugMode, setDebugMode] = useState(false)
+  const [emergencyMode, setEmergencyMode] = useState(false)
   const [canvasSize, setCanvasSize] = useState<{ width: number; height: number } | null>(null)
 
   const reducedMotion = useReducedMotion()
@@ -98,7 +112,9 @@ export function Scenario3DCanvas({
 
   useEffect(() => {
     const debug = isDebug3D()
+    const emergency = isEmergencyScene()
     setDebugMode(debug)
+    setEmergencyMode(emergency)
     const supported = hasWebGL()
     setWebglSupported(supported)
     setMode(supported ? '3d' : 'fallback')
@@ -107,6 +123,7 @@ export function Scenario3DCanvas({
       console.info('[scenario3d] mount probe', {
         webglSupported: supported,
         debugMode: debug,
+        emergencyMode: emergency,
         sceneId: scene?.id ?? null,
         playerCount: visibleScene.players.length,
       })
@@ -118,7 +135,7 @@ export function Scenario3DCanvas({
     return (
       <div
         className={className}
-        style={{ height, background: CANVAS_BG, minHeight: height, position: 'relative' }}
+        style={{ height, background: '#3F4756', minHeight: height, position: 'relative' }}
         aria-busy="true"
       >
         <div className="flex h-full items-center justify-center text-[11px] uppercase tracking-[1.5px] text-text-dim">
@@ -162,9 +179,23 @@ export function Scenario3DCanvas({
     )
   }
 
-  const cameraPosition = debugMode ? DEBUG_CAMERA_POSITION : CAMERA_POSITION
-  const cameraLookAt = debugMode ? DEBUG_CAMERA_LOOKAT : CAMERA_LOOKAT
-  const cameraFov = debugMode ? DEBUG_CAMERA_FOV : CAMERA_FOV
+  // Emergency wins if active. Otherwise debug. Otherwise production.
+  const cameraPosition = emergencyMode
+    ? EMERGENCY_CAMERA_POSITION
+    : debugMode
+      ? DEBUG_CAMERA_POSITION
+      : CAMERA_POSITION
+  const cameraLookAt = emergencyMode
+    ? EMERGENCY_CAMERA_LOOKAT
+    : debugMode
+      ? DEBUG_CAMERA_LOOKAT
+      : CAMERA_LOOKAT
+  const cameraFov = emergencyMode
+    ? EMERGENCY_CAMERA_FOV
+    : debugMode
+      ? DEBUG_CAMERA_FOV
+      : CAMERA_FOV
+  const activeBg = emergencyMode ? EMERGENCY_BG : CANVAS_BG
 
   return (
     <div
@@ -175,7 +206,7 @@ export function Scenario3DCanvas({
         minHeight: height,
         width: '100%',
         position: 'relative',
-        background: CANVAS_BG,
+        background: activeBg,
         display: 'block',
         overflow: 'hidden',
       }}
@@ -195,7 +226,7 @@ export function Scenario3DCanvas({
         style={{ width: '100%', height: '100%', display: 'block' }}
         onCreated={({ gl, size }) => {
           try {
-            gl.setClearColor(CANVAS_BG, 1)
+            gl.setClearColor(activeBg, 1)
             const dom = gl.domElement
             if (dom) {
               dom.addEventListener(
@@ -225,15 +256,17 @@ export function Scenario3DCanvas({
           }
         }}
       >
-        <color attach="background" args={[CANVAS_BG]} />
+        <color attach="background" args={[activeBg]} />
         <CameraTarget
           position={cameraPosition}
           lookAt={cameraLookAt}
-          enableSway={!debugMode && !reducedMotion}
+          enableSway={!debugMode && !emergencyMode && !reducedMotion}
         />
         <ManualLoop />
 
-        {debugMode ? (
+        {emergencyMode ? (
+          <EmergencyScene3D />
+        ) : debugMode ? (
           <Debug3DScene />
         ) : (
           <SceneMotionProvider reduced={reducedMotion}>
@@ -269,6 +302,11 @@ export function Scenario3DCanvas({
       {debugMode ? (
         <div className="pointer-events-none absolute right-2 top-2 rounded-full bg-brand/15 px-2 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-brand">
           debug3d self-test
+        </div>
+      ) : null}
+      {emergencyMode ? (
+        <div className="pointer-events-none absolute right-2 top-2 rounded-full bg-yellow-400/25 px-2 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-yellow-300">
+          emergency render
         </div>
       ) : null}
     </div>
