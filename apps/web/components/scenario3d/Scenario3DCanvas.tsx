@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
+import * as THREE from 'three'
 import { Court3D } from './Court3D'
 import { Debug3DScene } from './Debug3DScene'
 import { SceneDebug3D } from './SceneDebug3D'
@@ -34,12 +35,13 @@ interface Scenario3DCanvasProps {
   showPaths?: boolean
 }
 
-const CANVAS_BG = '#0E1626'
+const CANVAS_BG = '#04060C'
 
-// Production camera. Broadcast-style angle that frames the half-court.
-const CAMERA_POSITION: [number, number, number] = [0, 32, 56]
-const CAMERA_LOOKAT: [number, number, number] = [0, 0, 18]
-const CAMERA_FOV = 44
+// Production camera. Broadcast-style angle that frames the half-court
+// with a slight side offset for cinematic depth.
+const CAMERA_POSITION: [number, number, number] = [-6, 24, 62]
+const CAMERA_LOOKAT: [number, number, number] = [0, 4, 14]
+const CAMERA_FOV = 40
 
 // Debug self-test camera. Aimed straight at the origin with a wide FOV
 // so any object placed near (0, 0, 0) is guaranteed to be visible.
@@ -107,8 +109,6 @@ export function Scenario3DCanvas({
         playerCount: visibleScene.players.length,
       })
     }
-    // visibleScene/scene intentionally omitted — we only want the probe to
-    // run once on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -214,7 +214,14 @@ export function Scenario3DCanvas({
         }}
       >
         <color attach="background" args={[CANVAS_BG]} />
-        <CameraTarget position={cameraPosition} lookAt={cameraLookAt} />
+        {!debugMode ? (
+          <fog attach="fog" args={['#070B16', 80, 160]} />
+        ) : null}
+        <CameraTarget
+          position={cameraPosition}
+          lookAt={cameraLookAt}
+          enableSway={!debugMode && !reducedMotion}
+        />
 
         {debugMode ? (
           <Debug3DScene />
@@ -270,11 +277,6 @@ interface CanvasDiagnosticsProps {
   playerCount: number
 }
 
-/**
- * Small HTML overlay that surfaces canvas/renderer/WebGL state. Shown in
- * development on every mount, and in production whenever `?debug3d=1` is
- * set so we can diagnose deployed rendering issues without DevTools.
- */
 function CanvasDiagnostics({
   canvasMounted,
   rendererCreated,
@@ -322,17 +324,34 @@ function getSceneValidationStatus(
   return 'invalid, using safe values'
 }
 
+/**
+ * Lighting rig for the broadcast arena look:
+ *   - hemisphere: cool sky / warm ground, soft ambient fill
+ *   - low ambient warm: keeps shadows from going pure black
+ *   - main warm spotlight overhead, shaped like a stadium fixture
+ *   - cool rim light from behind for player separation
+ *   - rim accent: small point light at the rim for the orange glow
+ */
 function SceneLighting() {
   return (
     <>
-      <hemisphereLight args={['#D7E2F4', '#1A1408', 0.6]} />
-      <ambientLight intensity={1.05} color="#FFF1E0" />
-      <directionalLight intensity={1.5} color="#FFE4B5" position={[14, 32, 18]} />
-      <directionalLight intensity={0.6} color="#7EB6FF" position={[-22, 22, 36]} />
+      <hemisphereLight args={['#9ABEEA', '#1A1208', 0.45]} />
+      <ambientLight intensity={0.35} color="#F5E0C2" />
+      <spotLight
+        position={[0, 60, 18]}
+        angle={Math.PI / 5}
+        penumbra={0.55}
+        intensity={2.2}
+        color="#FFE1B0"
+        target-position={[0, 0, 14]}
+        distance={120}
+      />
+      <directionalLight intensity={0.85} color="#FFD9A3" position={[14, 36, 24]} />
+      <directionalLight intensity={0.45} color="#7EB6FF" position={[-22, 22, 50]} />
       <pointLight
         position={[0, COURT.rimHeightFt + 4, 0]}
-        intensity={12}
-        distance={22}
+        intensity={10}
+        distance={20}
         color="#FF8A3D"
       />
     </>
@@ -342,21 +361,46 @@ function SceneLighting() {
 interface CameraTargetProps {
   position: [number, number, number]
   lookAt: [number, number, number]
+  enableSway?: boolean
 }
 
 /**
- * Forces the camera position and lookAt every render. Without this the
- * camera defaults to looking at (0, 0, 0), which can hide the scene at
- * unusual aspect ratios.
+ * Locks the camera to a broadcast frame. Optionally adds an extremely
+ * subtle horizontal sway so the scene doesn't feel statically posed.
  */
-function CameraTarget({ position, lookAt }: CameraTargetProps) {
+function CameraTarget({ position, lookAt, enableSway = false }: CameraTargetProps) {
   const camera = useThree((state) => state.camera)
+  const target = useMemo(() => new THREE.Vector3(...lookAt), [lookAt])
+  const startedAt = useRef<number | null>(null)
+  const baseX = position[0]
+
   useEffect(() => {
     camera.position.set(position[0], position[1], position[2])
-    camera.lookAt(lookAt[0], lookAt[1], lookAt[2])
+    camera.lookAt(target)
     camera.updateMatrixWorld()
     camera.updateProjectionMatrix()
-  }, [camera, position, lookAt])
+    startedAt.current = null
+  }, [camera, position, target])
+
+  // We hand-roll the sway via requestAnimationFrame inside an effect
+  // because pulling in useFrame here would force this component into the
+  // render tree's reconciliation in a way that conflicts with the camera
+  // prop reset above. RAF is cheap and decoupled.
+  useEffect(() => {
+    if (!enableSway) return
+    let raf = 0
+    const tick = (now: number) => {
+      if (startedAt.current === null) startedAt.current = now
+      const t = (now - startedAt.current) / 1000
+      const sway = Math.sin(t * 0.18) * 0.55
+      camera.position.x = baseX + sway
+      camera.lookAt(target)
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [camera, enableSway, baseX, target])
+
   return null
 }
 
