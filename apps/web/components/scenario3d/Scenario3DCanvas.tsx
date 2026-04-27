@@ -395,9 +395,13 @@ export function Scenario3DCanvas({
       }}
     >
       <Canvas
-        // `flat` disables ACES Filmic tone mapping so unlit basic materials
-        // render at the literal sRGB color we set, not crushed to black.
-        flat
+        // Renderer configuration (shadows / color space / tone mapping /
+        // pixel ratio) is applied IMPERATIVELY in onCreated below — not
+        // here. R3F's declarative props ride through the reconciler and
+        // can be silently ignored in this stack. Configuring renderer
+        // OUTPUT is intentionally kept separate from scene GEOMETRY:
+        // this packet only changes how pixels are written to the canvas;
+        // it does not touch court, hoop, players, ball, or lighting.
         // R3F's default 'always' scheduler. The previous fix used
         // `frameloop="never"` + a custom ManualLoop that pulled subscribers
         // out of `state.internal.subscribers` — but that internal shape
@@ -406,6 +410,9 @@ export function Scenario3DCanvas({
         // applied, but no geometry ever drew. Trusting the default
         // scheduler restores normal rendering on every device.
         frameloop="always"
+        // Pixel ratio is also clamped imperatively below; this prop is a
+        // hint to R3F's resize observer (which still drives renderer.setSize
+        // and camera.aspect on container resize).
         dpr={[1, 2]}
         camera={{ position: cameraPosition, fov: cameraFov, near: 0.1, far: 1000 }}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
@@ -413,6 +420,75 @@ export function Scenario3DCanvas({
         onCreated={({ gl, size, scene: createdScene, camera: createdCamera }) => {
           try {
             gl.setClearColor(activeBg, 1)
+
+            // -----------------------------------------------------------
+            // RENDERER OUTPUT CONFIGURATION (Packet 1).
+            // Applied imperatively so the contract holds even if the R3F
+            // reconciler ignores Canvas props. These settings shape how
+            // every subsequent frame is written to the canvas; geometry
+            // is not touched here. All lookups are guarded so older three
+            // builds (or future API churn) cannot blank the canvas.
+            // -----------------------------------------------------------
+
+            // Soft shadows. Builders that opt in (Packet 5+) will set
+            // castShadow / receiveShadow on their meshes; until then this
+            // is a harmless no-op because no light has shadow casting on.
+            try {
+              gl.shadowMap.enabled = true
+              const softShadow = (THREE as unknown as { PCFSoftShadowMap?: unknown })
+                .PCFSoftShadowMap
+              if (typeof softShadow === 'number') {
+                gl.shadowMap.type = softShadow as typeof gl.shadowMap.type
+              }
+              // Force a one-time shadow map refresh so the flag takes effect.
+              gl.shadowMap.needsUpdate = true
+            } catch {
+              // Renderer does not support shadow configuration; skip.
+            }
+
+            // sRGB output. Three.js renders in linear space and converts
+            // on output; setting outputColorSpace=SRGB matches the gamma
+            // assumed by every '#hex' color in our materials.
+            try {
+              const srgb =
+                (THREE as unknown as { SRGBColorSpace?: string }).SRGBColorSpace
+              if (typeof srgb === 'string') {
+                ;(gl as unknown as { outputColorSpace: string }).outputColorSpace = srgb
+              }
+            } catch {
+              // outputColorSpace not present on this three version; skip.
+            }
+
+            // ACES Filmic tone mapping for cinematic highlights on lit
+            // materials. Unlit MeshBasicMaterial in our scene already sets
+            // `toneMapped: false`, so floor / lines / paint / rim / ball
+            // remain at their literal sRGB color and only future
+            // MeshStandardMaterial surfaces (backboard, players, etc.)
+            // are tone-mapped.
+            try {
+              const aces = (THREE as unknown as { ACESFilmicToneMapping?: unknown })
+                .ACESFilmicToneMapping
+              if (typeof aces === 'number') {
+                gl.toneMapping = aces as typeof gl.toneMapping
+              }
+              gl.toneMappingExposure = 1.0
+            } catch {
+              // Tone mapping API unavailable; skip.
+            }
+
+            // Clamp device pixel ratio to a sensible max so retina /
+            // 3x mobile screens do not melt the GPU. R3F's `dpr={[1, 2]}`
+            // also enforces this on resize, but applying it here owns the
+            // first frame.
+            try {
+              const requested =
+                typeof window !== 'undefined' && Number.isFinite(window.devicePixelRatio)
+                  ? window.devicePixelRatio
+                  : 1
+              gl.setPixelRatio(Math.min(Math.max(requested, 1), 2))
+            } catch {
+              // setPixelRatio failed; default ratio remains in effect.
+            }
 
             const dom = gl.domElement
             if (dom) {
@@ -483,6 +559,15 @@ export function Scenario3DCanvas({
                 children: (createdScene as THREE.Scene).children.length,
                 camPos: cam.position.toArray(),
                 camLookAt: cameraLookAt,
+                // Surface the renderer config we just applied so a
+                // production session can confirm Packet 1 took effect.
+                shadowMapEnabled: gl.shadowMap.enabled,
+                shadowMapType: gl.shadowMap.type,
+                outputColorSpace: (gl as unknown as { outputColorSpace?: string })
+                  .outputColorSpace,
+                toneMapping: gl.toneMapping,
+                toneMappingExposure: gl.toneMappingExposure,
+                pixelRatio: gl.getPixelRatio(),
               })
             }
           } catch (error) {
