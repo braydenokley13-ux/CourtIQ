@@ -1,36 +1,10 @@
 'use client'
 
-import dynamic from 'next/dynamic'
 import type { ReactNode } from 'react'
+import { Scenario3DCanvas } from './Scenario3DCanvas'
 import { Scenario3DErrorBoundary } from './Scenario3DErrorBoundary'
 import type { Scene3D } from '@/lib/scenario3d/scene'
 import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
-
-const CANVAS_BG = '#101521'
-
-const Scenario3DCanvasDynamic = dynamic(
-  () => import('./Scenario3DCanvas').then((m) => m.Scenario3DCanvas),
-  {
-    ssr: false,
-    loading: () => (
-      <div
-        style={{
-          height: 280,
-          minHeight: 280,
-          width: '100%',
-          background: CANVAS_BG,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-        className="text-xs text-text-dim"
-        aria-busy="true"
-      >
-        Warming up the gym…
-      </div>
-    ),
-  },
-)
 
 interface Scenario3DViewProps {
   fallback: ReactNode
@@ -59,7 +33,7 @@ export function Scenario3DView(props: Scenario3DViewProps) {
   return (
     <Scenario3DErrorBoundary scenarioId={props.scene?.id}>
       <div className="relative h-full w-full">
-        <Scenario3DCanvasDynamic {...props} />
+        <Scenario3DCanvas {...props} />
         {/* Top-left scenario chip — quietly orients the user. */}
         {props.concept ? (
           <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 rounded-full border border-white/10 bg-black/55 px-3 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-white/85 backdrop-blur-sm">
@@ -77,8 +51,6 @@ export function Scenario3DView(props: Scenario3DViewProps) {
             Replay
           </div>
         ) : null}
-        {/* Bottom-left rail — broadcast lower-third frame */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/60 to-transparent" />
       </div>
     </Scenario3DErrorBoundary>
   )
