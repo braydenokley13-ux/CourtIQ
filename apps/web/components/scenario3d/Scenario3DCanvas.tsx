@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
+import { AutoFitCamera } from './AutoFitCamera'
 import { BasketballScene3D } from './BasketballScene3D'
 import { Court3D } from './Court3D'
 import { Debug3DScene } from './Debug3DScene'
@@ -14,6 +15,7 @@ import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
 import { SceneMotionProvider } from './SceneMotionContext'
 import {
   hasWebGL,
+  isAutoFitCamera,
   isDebug3D,
   isEmergencyScene,
   isOrbitDebug,
@@ -110,6 +112,7 @@ export function Scenario3DCanvas({
   const [emergencyMode, setEmergencyMode] = useState(false)
   const [orbitMode, setOrbitMode] = useState(false)
   const [simpleMode, setSimpleMode] = useState(true)
+  const [autoFitMode, setAutoFitMode] = useState(true)
   const [canvasSize, setCanvasSize] = useState<{ width: number; height: number } | null>(null)
   const [dpr, setDpr] = useState<number | null>(null)
   const [cameraStats, setCameraStats] = useState<CameraStats | null>(null)
@@ -131,10 +134,12 @@ export function Scenario3DCanvas({
     const emergency = isEmergencyScene()
     const orbit = isOrbitDebug()
     const simple = isSimpleScene()
+    const autofit = isAutoFitCamera()
     setDebugMode(debug)
     setEmergencyMode(emergency)
     setOrbitMode(orbit)
     setSimpleMode(simple)
+    setAutoFitMode(autofit)
     const supported = hasWebGL()
     setWebglSupported(supported)
     setMode(supported ? '3d' : 'fallback')
@@ -288,6 +293,8 @@ export function Scenario3DCanvas({
             enableDamping
             target={[cameraLookAt[0], cameraLookAt[1], cameraLookAt[2]]}
           />
+        ) : autoFitMode && !emergencyMode && !debugMode ? (
+          <AutoFitCamera scene={visibleScene} />
         ) : (
           <CameraTarget
             position={cameraPosition}

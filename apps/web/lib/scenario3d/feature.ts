@@ -79,3 +79,19 @@ export function isSimpleScene(): boolean {
     return true
   }
 }
+
+/**
+ * True unless the page is loaded with `?autofit=0`. When true, the canvas
+ * computes a Box3 over the scene's player + ball positions and aims the
+ * camera at the box, sized to fit the canvas. This makes the renderer
+ * coordinate-scale agnostic — whatever the scene authors used as units,
+ * the camera will frame it.
+ */
+export function isAutoFitCamera(): boolean {
+  if (typeof window === 'undefined') return true
+  try {
+    return new URLSearchParams(window.location.search).get('autofit') !== '0'
+  } catch {
+    return true
+  }
+}
