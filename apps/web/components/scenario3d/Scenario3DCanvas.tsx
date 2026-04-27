@@ -14,6 +14,11 @@ import { ScenarioScene3D } from './ScenarioScene3D'
 import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
 import { SceneMotionProvider } from './SceneMotionContext'
 import {
+  buildBasketballGroup,
+  disposeGroup,
+  fitCameraToScene,
+} from './imperativeScene'
+import {
   hasWebGL,
   isAutoFitCamera,
   isDebug3D,
@@ -213,6 +218,72 @@ export function Scenario3DCanvas({
     }
   }, [mode])
 
+  // IMPERATIVE SCENE BUILDER. Bypasses R3F's reconciler entirely. We
+  // discovered the reconciler silently dropped every <Canvas> child in
+  // production (THREE.Scene.children stayed at 0 even after 400+ frames
+  // of the parent rAF loop running). Building the scene with vanilla
+  // THREE primitives and adding it to threeSceneRef.current directly is
+  // immune to that failure mode.
+  //
+  // Polls for the THREE refs every animation frame until they're set,
+  // then builds the scene once and aims the camera. Rebuilds when the
+  // input scene changes.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (mode !== '3d') return
+
+    let cancelled = false
+    let mounted: THREE.Group | null = null
+    let pollId = 0
+
+    const tryMount = () => {
+      if (cancelled) return
+      const threeScene = threeSceneRef.current
+      const cam = threeCameraRef.current
+      if (!threeScene || !cam) {
+        pollId = window.requestAnimationFrame(tryMount)
+        return
+      }
+
+      // Build geometry imperatively for non-debug, non-emergency, simple-mode
+      // scenes — that's the production path we're trying to fix.
+      if (!emergencyMode && !debugMode && simpleMode) {
+        const group = buildBasketballGroup(visibleScene)
+        threeScene.add(group)
+        mounted = group
+
+        const sizeEl = glRef.current?.domElement
+        const aspect =
+          sizeEl && sizeEl.clientHeight > 0
+            ? sizeEl.clientWidth / sizeEl.clientHeight
+            : 1
+        if ('isPerspectiveCamera' in cam && (cam as THREE.PerspectiveCamera).isPerspectiveCamera) {
+          fitCameraToScene(cam as THREE.PerspectiveCamera, visibleScene, aspect)
+        }
+
+        if (typeof console !== 'undefined') {
+          // eslint-disable-next-line no-console
+          console.info('[scenario3d] imperative scene mounted', {
+            objects: group.children.length,
+            sceneId: visibleScene.id,
+          })
+        }
+      }
+    }
+
+    pollId = window.requestAnimationFrame(tryMount)
+    return () => {
+      cancelled = true
+      window.cancelAnimationFrame(pollId)
+      if (mounted) {
+        const threeScene = threeSceneRef.current
+        if (threeScene) threeScene.remove(mounted)
+        disposeGroup(mounted)
+        mounted = null
+      }
+    }
+  }, [mode, visibleScene, emergencyMode, debugMode, simpleMode])
+
   if (mode === 'probing') {
     return (
       <div
@@ -341,6 +412,11 @@ export function Scenario3DCanvas({
             glRef.current = gl as THREE.WebGLRenderer
             threeSceneRef.current = createdScene as THREE.Scene
             threeCameraRef.current = createdCamera as THREE.Camera
+
+            // Set scene.background imperatively — <color attach="background">
+            // is also a reconciler-dependent Canvas child, so we cannot rely
+            // on it.
+            ;(createdScene as THREE.Scene).background = new THREE.Color(activeBg)
 
             // CRITICAL: aim the camera before the first render. The
             // declarative `camera={{ position }}` prop only sets
