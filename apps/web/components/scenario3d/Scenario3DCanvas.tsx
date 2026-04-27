@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { Canvas, useThree } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { Court3D } from './Court3D'
 import { Debug3DScene } from './Debug3DScene'
@@ -337,14 +337,19 @@ function SceneLighting() {
     <>
       <hemisphereLight args={['#9ABEEA', '#1A1208', 0.45]} />
       <ambientLight intensity={0.35} color="#F5E0C2" />
+      {/*
+        SpotLight: positioned high above mid-court and left to aim at the
+        default target (world origin = basket), which is the exact look
+        we want. No target override needed; the default is correct.
+      */}
       <spotLight
         position={[0, 60, 18]}
         angle={Math.PI / 5}
         penumbra={0.55}
         intensity={2.2}
         color="#FFE1B0"
-        target-position={[0, 0, 14]}
-        distance={120}
+        distance={130}
+        decay={1.6}
       />
       <directionalLight intensity={0.85} color="#FFD9A3" position={[14, 36, 24]} />
       <directionalLight intensity={0.45} color="#7EB6FF" position={[-22, 22, 50]} />
@@ -365,13 +370,13 @@ interface CameraTargetProps {
 }
 
 /**
- * Locks the camera to a broadcast frame. Optionally adds an extremely
- * subtle horizontal sway so the scene doesn't feel statically posed.
+ * Locks the camera to a broadcast frame every render. Optionally adds an
+ * extremely subtle horizontal sway inside the R3F render loop so the scene
+ * doesn't feel statically posed.
  */
 function CameraTarget({ position, lookAt, enableSway = false }: CameraTargetProps) {
   const camera = useThree((state) => state.camera)
   const target = useMemo(() => new THREE.Vector3(...lookAt), [lookAt])
-  const startedAt = useRef<number | null>(null)
   const baseX = position[0]
 
   useEffect(() => {
@@ -379,27 +384,14 @@ function CameraTarget({ position, lookAt, enableSway = false }: CameraTargetProp
     camera.lookAt(target)
     camera.updateMatrixWorld()
     camera.updateProjectionMatrix()
-    startedAt.current = null
   }, [camera, position, target])
 
-  // We hand-roll the sway via requestAnimationFrame inside an effect
-  // because pulling in useFrame here would force this component into the
-  // render tree's reconciliation in a way that conflicts with the camera
-  // prop reset above. RAF is cheap and decoupled.
-  useEffect(() => {
+  useFrame((state) => {
     if (!enableSway) return
-    let raf = 0
-    const tick = (now: number) => {
-      if (startedAt.current === null) startedAt.current = now
-      const t = (now - startedAt.current) / 1000
-      const sway = Math.sin(t * 0.18) * 0.55
-      camera.position.x = baseX + sway
-      camera.lookAt(target)
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [camera, enableSway, baseX, target])
+    const sway = Math.sin(state.clock.getElapsedTime() * 0.18) * 0.55
+    camera.position.x = baseX + sway
+    camera.lookAt(target)
+  })
 
   return null
 }
