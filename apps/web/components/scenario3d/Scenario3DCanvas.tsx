@@ -21,7 +21,8 @@
  *     dev — it cannot be trusted in production.
  *   - Treat <Canvas> as a renderer host only. The scene graph is owned by us.
  *   - Manual dispose: every imperative geometry/material/texture must be
- *     released on unmount via `disposeGroup`.
+ *     released on unmount via the SceneHandle returned by
+ *     `buildBasketballScene` (each builder owns its own dispose path).
  *
  * Diagnostics confirm the contract is holding:
  *   - parentLoopStats.children = scene.children.length each frame.
@@ -44,9 +45,9 @@ import { ScenarioScene3D } from './ScenarioScene3D'
 import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
 import { SceneMotionProvider } from './SceneMotionContext'
 import {
-  buildBasketballGroup,
-  disposeGroup,
+  buildBasketballScene,
   fitCameraToScene,
+  type SceneHandle,
 } from './imperativeScene'
 import {
   hasWebGL,
@@ -263,7 +264,7 @@ export function Scenario3DCanvas({
     if (mode !== '3d') return
 
     let cancelled = false
-    let mounted: THREE.Group | null = null
+    let mounted: SceneHandle | null = null
     let pollId = 0
 
     const tryMount = () => {
@@ -278,9 +279,9 @@ export function Scenario3DCanvas({
       // Build geometry imperatively for non-debug, non-emergency, simple-mode
       // scenes — that's the production path we're trying to fix.
       if (!emergencyMode && !debugMode && simpleMode) {
-        const group = buildBasketballGroup(visibleScene)
-        threeScene.add(group)
-        mounted = group
+        const handle = buildBasketballScene(visibleScene)
+        threeScene.add(handle.root)
+        mounted = handle
 
         const sizeEl = glRef.current?.domElement
         const aspect =
@@ -294,7 +295,7 @@ export function Scenario3DCanvas({
         if (typeof console !== 'undefined') {
           // eslint-disable-next-line no-console
           console.info('[scenario3d] imperative scene mounted', {
-            objects: group.children.length,
+            objects: handle.root.children.length,
             sceneId: visibleScene.id,
           })
         }
@@ -307,8 +308,8 @@ export function Scenario3DCanvas({
       window.cancelAnimationFrame(pollId)
       if (mounted) {
         const threeScene = threeSceneRef.current
-        if (threeScene) threeScene.remove(mounted)
-        disposeGroup(mounted)
+        if (threeScene) threeScene.remove(mounted.root)
+        mounted.dispose()
         mounted = null
       }
     }
