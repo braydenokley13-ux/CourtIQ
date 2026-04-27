@@ -37,6 +37,8 @@ export function buildPlayers(scene: Scene3D): BuilderResult {
       new THREE.MeshStandardMaterial({ color }),
     )
     body.position.y = PLAYER_HEIGHT / 2
+    body.castShadow = true
+    body.receiveShadow = true
     playerGroup.add(body)
 
     const head = new THREE.Mesh(
@@ -44,6 +46,8 @@ export function buildPlayers(scene: Scene3D): BuilderResult {
       new THREE.MeshStandardMaterial({ color: HEAD_COLOR }),
     )
     head.position.y = PLAYER_HEIGHT + 0.7
+    head.castShadow = true
+    head.receiveShadow = true
     playerGroup.add(head)
 
     const ring = new THREE.Mesh(

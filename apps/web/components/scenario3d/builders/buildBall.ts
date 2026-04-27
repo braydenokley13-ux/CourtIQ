@@ -28,6 +28,8 @@ export function buildBall(scene: Scene3D): BuilderResult {
     new THREE.MeshStandardMaterial({ color: BALL_COLOR }),
   )
   ball.position.set(ballX, BALL_RADIUS + 0.2, ballZ)
+  ball.castShadow = true
+  ball.receiveShadow = true
   group.add(ball)
 
   return { object: group, dispose: () => disposeObject3D(group) }

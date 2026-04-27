@@ -80,25 +80,34 @@ export function buildCourt(): BuilderResult {
   )
   floor.rotation.x = -Math.PI / 2
   floor.position.set(0, FLOOR_LIFT, courtCenterZ)
+  // Hardwood is the primary shadow-catching surface — players, hoop,
+  // and ball shadows from Packet 5 land here.
+  floor.receiveShadow = true
   group.add(floor)
 
   // ---- Painted key + restricted-area fill ------------------------------
   // Solid lay-down so the lane reads as a painted area, not as four
-  // disconnected lane lines.
-  const paintMaterial = createFlatDecalMaterial({
+  // disconnected lane lines. Painted with a matte standard material so
+  // shadows from players in the lane render correctly on the paint;
+  // a MeshBasicMaterial would ignore the shadow pass entirely.
+  const paintMaterial = new THREE.MeshStandardMaterial({
     color: PAINT_COLOR,
+    roughness: 0.85,
+    metalness: 0.0,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
     polygonOffsetUnits: -1,
   })
-  group.add(
-    buildFilledRect(
-      COURT.paintWidthFt,
-      ftLineZ,
-      0,
-      PAINT_LIFT,
-      ftLineZ / 2,
-      paintMaterial,
-    ),
+  const paintMesh = buildFilledRect(
+    COURT.paintWidthFt,
+    ftLineZ,
+    0,
+    PAINT_LIFT,
+    ftLineZ / 2,
+    paintMaterial,
   )
+  paintMesh.receiveShadow = true
+  group.add(paintMesh)
 
   // Shared white-line material; reused across every line/arc so the
   // GPU only carries a single decal pipeline state for the markings.

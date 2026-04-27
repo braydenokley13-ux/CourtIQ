@@ -21,6 +21,8 @@ export function buildHoop(): BuilderResult {
     new THREE.MeshStandardMaterial({ color: BACKBOARD_COLOR }),
   )
   backboard.position.set(0, COURT.rimHeightFt + 1.4, -1.2)
+  backboard.castShadow = true
+  backboard.receiveShadow = true
   group.add(backboard)
 
   const pole = new THREE.Mesh(
@@ -28,6 +30,8 @@ export function buildHoop(): BuilderResult {
     new THREE.MeshStandardMaterial({ color: POLE_COLOR }),
   )
   pole.position.set(0, COURT.rimHeightFt / 2 + 1.2, -2.4)
+  pole.castShadow = true
+  pole.receiveShadow = true
   group.add(pole)
 
   const rim = new THREE.Mesh(
@@ -36,6 +40,10 @@ export function buildHoop(): BuilderResult {
   )
   rim.position.set(0, COURT.rimHeightFt, 0)
   rim.rotation.x = Math.PI / 2
+  // Rim's MeshBasicMaterial cannot be lit, but it can still cast a
+  // shadow onto the court below — useful for reading the rim position
+  // from the broadcast camera.
+  rim.castShadow = true
   group.add(rim)
 
   return { object: group, dispose: () => disposeObject3D(group) }
