@@ -252,9 +252,17 @@ export function Scenario3DCanvas({
         camera={{ position: cameraPosition, fov: cameraFov, near: 0.1, far: 1000 }}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
         style={{ width: '100%', height: '100%', display: 'block' }}
-        onCreated={({ gl, size }) => {
+        onCreated={({ gl, size, scene: createdScene, camera: createdCamera }) => {
           try {
             gl.setClearColor(activeBg, 1)
+            // Bright magenta clear to validate the canvas is reaching the
+            // page. If the canvas paints magenta even for a frame, we
+            // know GL → DOM compositing works. setClearColor below
+            // restores the gray afterwards.
+            gl.setClearColor('#FF00FF', 1)
+            gl.clear()
+            gl.setClearColor(activeBg, 1)
+
             const dom = gl.domElement
             if (dom) {
               dom.addEventListener(
@@ -275,6 +283,19 @@ export function Scenario3DCanvas({
             } catch {
               setDpr(null)
             }
+
+            // Force one explicit render now so the very first frame
+            // shows geometry, even if the scheduler is broken.
+            try {
+              ;(createdCamera as THREE.Camera).updateMatrixWorld()
+              gl.render(createdScene as THREE.Scene, createdCamera as THREE.Camera)
+            } catch (e) {
+              if (typeof console !== 'undefined') {
+                // eslint-disable-next-line no-console
+                console.error('[scenario3d] explicit first-frame render failed', e)
+              }
+            }
+
             if (typeof console !== 'undefined') {
               // eslint-disable-next-line no-console
               console.info('[scenario3d] canvas onCreated', {
@@ -282,6 +303,7 @@ export function Scenario3DCanvas({
                 height: size.height,
                 debugMode,
                 emergencyMode,
+                children: (createdScene as THREE.Scene).children.length,
               })
             }
           } catch (error) {
@@ -404,20 +426,16 @@ function CanvasDiagnostics({
   dpr,
   cameraStats,
 }: CanvasDiagnosticsProps) {
-  // Diagnostics overlay is OPT-IN in production. Pass ?debug=1 (or use
-  // ?debug3d=1 / ?emergency=1, which auto-expand the overlay since the
-  // user is actively diagnosing) to see the full diagnostic panel. By
-  // default we render nothing so the overlay can never hide the scene.
-  let showFullOverlay = false
+  // Diagnostics overlay: ALWAYS-ON in this build until the 3D scene is
+  // confirmed working in production. Pass ?nodebug=1 to hide (e.g.
+  // for screenshots). Without this overlay we have no way to tell
+  // from a Vercel deploy what's happening inside the canvas.
+  let hideOverlay = false
   if (typeof window !== 'undefined') {
     try {
-      const params = new URLSearchParams(window.location.search)
-      showFullOverlay =
-        params.get('debug') === '1' ||
-        params.get('debug3d') === '1' ||
-        params.get('emergency') === '1'
+      hideOverlay = new URLSearchParams(window.location.search).get('nodebug') === '1'
     } catch {
-      showFullOverlay = false
+      hideOverlay = false
     }
   }
 
@@ -429,7 +447,7 @@ function CanvasDiagnostics({
     )
   }
 
-  if (!showFullOverlay) return null
+  if (hideOverlay) return null
 
   const fmt = (n: number) => (Number.isFinite(n) ? n.toFixed(1) : '–')
   const renderMode = emergencyMode
@@ -439,7 +457,7 @@ function CanvasDiagnostics({
       : 'scenario'
 
   return (
-    <div className="pointer-events-none absolute left-2 top-2 max-w-[92%] rounded-lg bg-black/75 px-2 py-1 font-mono text-[10px] leading-snug text-white/85">
+    <div className="pointer-events-none absolute bottom-2 left-2 max-w-[60%] rounded-lg bg-black/75 px-2 py-1 font-mono text-[9px] leading-snug text-white/85">
       <div>canvas mounted: {canvasMounted ? 'yes' : 'no'}</div>
       <div>renderer created: {rendererCreated ? 'yes' : 'no'}</div>
       <div>webgl: {webglSupported === null ? 'checking' : webglSupported ? 'yes' : 'no'}</div>
