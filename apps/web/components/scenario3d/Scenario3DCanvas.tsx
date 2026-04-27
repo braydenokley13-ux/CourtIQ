@@ -2,13 +2,13 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { AutoFitCamera } from './AutoFitCamera'
 import { BasketballScene3D } from './BasketballScene3D'
 import { Court3D } from './Court3D'
 import { Debug3DScene } from './Debug3DScene'
 import { EmergencyScene3D } from './EmergencyScene3D'
+import { OrbitDebugControls } from './OrbitDebugControls'
 import { SceneDebug3D } from './SceneDebug3D'
 import { ScenarioScene3D } from './ScenarioScene3D'
 import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
@@ -289,8 +289,7 @@ export function Scenario3DCanvas({
       >
         <color attach="background" args={[activeBg]} />
         {orbitMode ? (
-          <OrbitControls
-            enableDamping
+          <OrbitDebugControls
             target={[cameraLookAt[0], cameraLookAt[1], cameraLookAt[2]]}
           />
         ) : autoFitMode && !emergencyMode && !debugMode ? (
@@ -402,18 +401,32 @@ function CanvasDiagnostics({
   dpr,
   cameraStats,
 }: CanvasDiagnosticsProps) {
-  // Hidden when ?nodebug=1 is set OR after the user has confirmed the
-  // scene works and we want to drop the badge. Until then we show the
-  // overlay in production too — without it we have no way to tell from
-  // a Vercel deploy whether the canvas mounted, the renderer was created,
-  // or the scene has zero players.
+  // Diagnostics overlay is OPT-IN in production. Pass ?debug=1 (or use
+  // ?debug3d=1 / ?emergency=1, which auto-expand the overlay since the
+  // user is actively diagnosing) to see the full diagnostic panel. By
+  // default we render nothing so the overlay can never hide the scene.
+  let showFullOverlay = false
   if (typeof window !== 'undefined') {
     try {
-      if (new URLSearchParams(window.location.search).get('nodebug') === '1') return null
+      const params = new URLSearchParams(window.location.search)
+      showFullOverlay =
+        params.get('debug') === '1' ||
+        params.get('debug3d') === '1' ||
+        params.get('emergency') === '1'
     } catch {
-      // fall through and render
+      showFullOverlay = false
     }
   }
+
+  if (errorMessage) {
+    return (
+      <div className="pointer-events-none absolute bottom-2 left-2 max-w-[92%] rounded-lg bg-red-900/80 px-2 py-1 font-mono text-[10px] leading-snug text-white">
+        scene error: {errorMessage}
+      </div>
+    )
+  }
+
+  if (!showFullOverlay) return null
 
   const fmt = (n: number) => (Number.isFinite(n) ? n.toFixed(1) : '–')
   const renderMode = emergencyMode
@@ -450,7 +463,6 @@ function CanvasDiagnostics({
           </div>
         </>
       ) : null}
-      {errorMessage ? <div>error: {errorMessage}</div> : null}
     </div>
   )
 }
