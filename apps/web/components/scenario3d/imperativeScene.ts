@@ -27,6 +27,11 @@ const NET_COLOR = '#F0F0F0'
 const OFFENSE_COLOR = '#5DB4FF'
 const DEFENSE_COLOR = '#FF5C72'
 const USER_COLOR = '#3BFF9D'
+const GYM_WALL_COLOR = '#2D2F36'
+const GYM_CEILING_COLOR = '#16181D'
+const GYM_FLOOR_EXT_COLOR = '#5C3A1A'
+const GYM_RAFTER_COLOR = '#0E0F12'
+const GYM_TRIM_COLOR = '#0B0C10'
 
 const PLAYER_HEIGHT = 6
 const PLAYER_RADIUS = 1.2
@@ -55,6 +60,11 @@ export function buildBasketballGroup(scene: Scene3D): THREE.Group {
   const halfW = COURT.halfWidthFt
   const halfL = COURT.halfLengthFt
   const courtCenterZ = halfL / 2 - 0.5
+
+  // Gym environment shell. Walls + ceiling + out-of-court floor so the
+  // court no longer floats in the canvas-clear void. Added before the
+  // court floor so the court paints over the OOB extension.
+  root.add(buildGymShell())
 
   // Floor plane.
   const floor = new THREE.Mesh(
@@ -620,6 +630,183 @@ function buildHoopNet(): THREE.LineSegments {
   const net = new THREE.LineSegments(geom, mat)
   net.name = 'hoop-net'
   return net
+}
+
+// Gym shell dimensions in feet. The half-court the renderer cares about
+// occupies x ∈ [-25, 25], z ∈ [0, 47]. The gym box surrounds it with a
+// few feet of buffer on the sides and behind the baseline, and is left
+// open toward +z so the default camera (which sits behind half-court)
+// is never inside-out relative to a wall.
+const GYM_HALF_WIDTH = 35
+const GYM_BACK_Z = -12
+const GYM_FRONT_Z = 55
+const GYM_HEIGHT = 32
+
+/**
+ * Builds the surrounding gym: out-of-court floor strip, three walls
+ * (back + two sides), a ceiling, and a small set of rafters spanning
+ * the ceiling. The +z (camera-facing) wall is intentionally omitted so
+ * the default broadcast camera always looks INTO the gym rather than at
+ * the back of a wall.
+ *
+ * Walls and ceiling render with BackSide so they are only drawn from
+ * inside the box; orbit views past the gym envelope simply see through
+ * them rather than slamming into a flat back face.
+ */
+function buildGymShell(): THREE.Group {
+  const gym = new THREE.Group()
+  gym.name = 'gym-shell'
+
+  const wallMat = new THREE.MeshStandardMaterial({
+    color: GYM_WALL_COLOR,
+    roughness: 0.85,
+    metalness: 0.05,
+    side: THREE.BackSide,
+  })
+  const ceilingMat = new THREE.MeshStandardMaterial({
+    color: GYM_CEILING_COLOR,
+    roughness: 0.95,
+    metalness: 0,
+    side: THREE.BackSide,
+  })
+  const floorExtMat = new THREE.MeshStandardMaterial({
+    color: GYM_FLOOR_EXT_COLOR,
+    roughness: 0.9,
+    metalness: 0,
+  })
+  const rafterMat = new THREE.MeshStandardMaterial({
+    color: GYM_RAFTER_COLOR,
+    roughness: 0.85,
+    metalness: 0.1,
+  })
+  const trimMat = new THREE.MeshStandardMaterial({
+    color: GYM_TRIM_COLOR,
+    roughness: 0.7,
+    metalness: 0.2,
+  })
+
+  const gymDepth = GYM_FRONT_Z - GYM_BACK_Z
+  const gymWidth = GYM_HALF_WIDTH * 2
+  const centerZ = (GYM_BACK_Z + GYM_FRONT_Z) / 2
+
+  // Out-of-court floor extension. Sits a hair below the court floor so
+  // the court paints cleanly on top with no z-fighting.
+  const floorExt = new THREE.Mesh(
+    new THREE.PlaneGeometry(gymWidth, gymDepth),
+    floorExtMat,
+  )
+  floorExt.rotation.x = -Math.PI / 2
+  floorExt.position.set(0, -0.02, centerZ)
+  floorExt.receiveShadow = true
+  gym.add(floorExt)
+
+  // Dark trim strip just outside the court rectangle to suggest a
+  // sideline border. Built from four thin boxes so it reads at any
+  // zoom without aliasing into the OOB plane.
+  const trimThickness = 0.4
+  const trimY = 0.01
+  const courtHalfW = COURT.halfWidthFt
+  const courtL = COURT.halfLengthFt
+
+  const trimBack = new THREE.Mesh(
+    new THREE.BoxGeometry(courtHalfW * 2 + trimThickness * 2, 0.05, trimThickness),
+    trimMat,
+  )
+  trimBack.position.set(0, trimY, -trimThickness / 2)
+  gym.add(trimBack)
+
+  const trimFront = new THREE.Mesh(
+    new THREE.BoxGeometry(courtHalfW * 2 + trimThickness * 2, 0.05, trimThickness),
+    trimMat,
+  )
+  trimFront.position.set(0, trimY, courtL + trimThickness / 2)
+  gym.add(trimFront)
+
+  const trimLeft = new THREE.Mesh(
+    new THREE.BoxGeometry(trimThickness, 0.05, courtL),
+    trimMat,
+  )
+  trimLeft.position.set(-courtHalfW - trimThickness / 2, trimY, courtL / 2)
+  gym.add(trimLeft)
+
+  const trimRight = new THREE.Mesh(
+    new THREE.BoxGeometry(trimThickness, 0.05, courtL),
+    trimMat,
+  )
+  trimRight.position.set(courtHalfW + trimThickness / 2, trimY, courtL / 2)
+  gym.add(trimRight)
+
+  // Back wall (behind baseline). PlaneGeometry rendered BackSide so it
+  // shows from inside the gym box.
+  const backWall = new THREE.Mesh(
+    new THREE.PlaneGeometry(gymWidth, GYM_HEIGHT),
+    wallMat,
+  )
+  backWall.position.set(0, GYM_HEIGHT / 2, GYM_BACK_Z)
+  // Plane default normal is +z; we want it facing +z (toward the court).
+  // BackSide means the side facing -z renders, so leave rotation at 0.
+  backWall.receiveShadow = true
+  gym.add(backWall)
+
+  // Left wall (-x).
+  const leftWall = new THREE.Mesh(
+    new THREE.PlaneGeometry(gymDepth, GYM_HEIGHT),
+    wallMat,
+  )
+  leftWall.position.set(-GYM_HALF_WIDTH, GYM_HEIGHT / 2, centerZ)
+  leftWall.rotation.y = Math.PI / 2
+  leftWall.receiveShadow = true
+  gym.add(leftWall)
+
+  // Right wall (+x).
+  const rightWall = new THREE.Mesh(
+    new THREE.PlaneGeometry(gymDepth, GYM_HEIGHT),
+    wallMat,
+  )
+  rightWall.position.set(GYM_HALF_WIDTH, GYM_HEIGHT / 2, centerZ)
+  rightWall.rotation.y = -Math.PI / 2
+  rightWall.receiveShadow = true
+  gym.add(rightWall)
+
+  // Ceiling.
+  const ceiling = new THREE.Mesh(
+    new THREE.PlaneGeometry(gymWidth, gymDepth),
+    ceilingMat,
+  )
+  ceiling.rotation.x = Math.PI / 2
+  ceiling.position.set(0, GYM_HEIGHT, centerZ)
+  gym.add(ceiling)
+
+  // Rafters — a few thin dark beams running across the ceiling. Cheap
+  // structural detail that breaks up the otherwise flat ceiling plane.
+  const rafterCount = 4
+  const rafterThickness = 0.5
+  const rafterSpacing = gymDepth / (rafterCount + 1)
+  for (let i = 1; i <= rafterCount; i++) {
+    const rafter = new THREE.Mesh(
+      new THREE.BoxGeometry(gymWidth - 1, rafterThickness, rafterThickness),
+      rafterMat,
+    )
+    rafter.position.set(
+      0,
+      GYM_HEIGHT - rafterThickness / 2 - 0.05,
+      GYM_BACK_Z + rafterSpacing * i,
+    )
+    gym.add(rafter)
+  }
+
+  // Two longitudinal rafters running depth-wise to suggest a truss
+  // grid. Kept thin so the ceiling still feels open.
+  for (const x of [-GYM_HALF_WIDTH * 0.55, GYM_HALF_WIDTH * 0.55]) {
+    const rafter = new THREE.Mesh(
+      new THREE.BoxGeometry(rafterThickness * 0.8, rafterThickness * 0.8, gymDepth - 1),
+      rafterMat,
+    )
+    rafter.position.set(x, GYM_HEIGHT - rafterThickness / 2 - 0.05, centerZ)
+    gym.add(rafter)
+  }
+
+  return gym
 }
 
 function buildTubeLine(
