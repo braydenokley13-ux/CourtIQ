@@ -11,7 +11,7 @@
 
 import * as THREE from 'three'
 import { COURT } from '@/lib/scenario3d/coords'
-import type { Scene3D } from '@/lib/scenario3d/scene'
+import type { Scene3D, SceneTeam } from '@/lib/scenario3d/scene'
 
 const FLOOR_COLOR = '#C2823F'
 const LINE_COLOR = '#FFFFFF'
@@ -39,6 +39,13 @@ const BALL_RADIUS = 0.8
 const FLOOR_LIFT = 0
 const LINE_LIFT = 0.05
 const PLAYER_LIFT = 0.05
+
+// Humanoid skin / footwear colors. Jersey color is per-team, supplied
+// to buildPlayerFigure().
+const SKIN_COLOR = '#D7A47A'
+const SHOE_COLOR = '#101216'
+const SHORTS_DARKEN = 0.55
+const ACCENT_COLOR = '#FFFFFF'
 
 /**
  * Builds the full basketball scene as a single THREE.Group. Caller is
@@ -126,43 +133,20 @@ export function buildBasketballGroup(scene: Scene3D): THREE.Group {
   // Hoop (backboard, rim, stanchion, padding, net).
   root.add(buildHoopAssembly())
 
-  // Players.
+  // Players. Each player is a lightweight humanoid figure rotated so
+  // offense faces the rim and defense faces back toward the offense.
   for (const p of scene.players) {
-    const color = p.isUser
-      ? USER_COLOR
-      : p.team === 'offense'
-        ? OFFENSE_COLOR
-        : DEFENSE_COLOR
+    const teamColor = p.color
+      ? p.color
+      : p.isUser
+        ? USER_COLOR
+        : p.team === 'offense'
+          ? OFFENSE_COLOR
+          : DEFENSE_COLOR
 
-    const playerGroup = new THREE.Group()
+    const playerGroup = buildPlayerFigure(teamColor, p.isUser ?? false)
     playerGroup.position.set(p.start.x, PLAYER_LIFT, p.start.z)
-
-    const body = new THREE.Mesh(
-      new THREE.CylinderGeometry(PLAYER_RADIUS, PLAYER_RADIUS, PLAYER_HEIGHT, 24),
-      new THREE.MeshStandardMaterial({ color }),
-    )
-    body.position.y = PLAYER_HEIGHT / 2
-    playerGroup.add(body)
-
-    const head = new THREE.Mesh(
-      new THREE.SphereGeometry(0.7, 24, 24),
-      new THREE.MeshStandardMaterial({ color: '#F4D9BC' }),
-    )
-    head.position.y = PLAYER_HEIGHT + 0.7
-    playerGroup.add(head)
-
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(PLAYER_RADIUS + 0.2, PLAYER_RADIUS + 0.5, 32),
-      new THREE.MeshBasicMaterial({
-        color,
-        toneMapped: false,
-        side: THREE.DoubleSide,
-      }),
-    )
-    ring.rotation.x = -Math.PI / 2
-    ring.position.y = 0.04
-    playerGroup.add(ring)
-
+    playerGroup.rotation.y = computePlayerYaw(p.team, p.start.x, p.start.z)
     root.add(playerGroup)
   }
 
@@ -807,6 +791,228 @@ function buildGymShell(): THREE.Group {
   }
 
   return gym
+}
+
+// Humanoid anatomy in feet. Hand-tuned so the figure reads as a 6 ft
+// athlete from the default broadcast camera.
+const SHOE_HEIGHT = 0.4
+const SHOE_WIDTH = 0.5
+const SHOE_DEPTH = 1.0
+const LEG_RADIUS = 0.22
+const LEG_HEIGHT = 2.1
+const HIP_GAP = 0.45
+const SHORTS_HEIGHT = 1.0
+const SHORTS_WIDTH = 1.5
+const SHORTS_DEPTH = 0.95
+const TORSO_HEIGHT = 1.4
+const TORSO_WIDTH = 1.55
+const TORSO_DEPTH = 0.9
+const ARM_RADIUS = 0.18
+const ARM_LENGTH = 1.4
+const ARM_OFFSET = TORSO_WIDTH / 2 + ARM_RADIUS - 0.04
+const NECK_RADIUS = 0.18
+const NECK_HEIGHT = 0.22
+const HEAD_RADIUS = 0.42
+
+const SHOE_Y = SHOE_HEIGHT / 2
+const LEG_Y = SHOE_HEIGHT + LEG_HEIGHT / 2
+const SHORTS_Y = SHOE_HEIGHT + LEG_HEIGHT + SHORTS_HEIGHT / 2
+const TORSO_Y = SHORTS_Y + SHORTS_HEIGHT / 2 + TORSO_HEIGHT / 2
+const ARM_Y = TORSO_Y
+const NECK_Y = TORSO_Y + TORSO_HEIGHT / 2 + NECK_HEIGHT / 2
+const HEAD_Y = NECK_Y + NECK_HEIGHT / 2 + HEAD_RADIUS
+
+/**
+ * Returns the yaw (rotation around y in radians) for a player at
+ * (x, z) on the given team. Offense is oriented to face the rim at
+ * the origin; defense is oriented to face outward toward the offense.
+ *
+ * Player local +z is the figure's "back" (default Three.js forward is
+ * -z), so we rotate so the chest points the way we want.
+ */
+function computePlayerYaw(team: SceneTeam, x: number, z: number): number {
+  // Direction toward the rim from the player's position.
+  const towardRim = Math.atan2(-x, -z)
+  // Same direction with PI flip → facing outward away from rim.
+  const awayFromRim = towardRim + Math.PI
+  return team === 'offense' ? towardRim : awayFromRim
+}
+
+/**
+ * Builds a single humanoid player figure as a THREE.Group. Local
+ * coordinate frame: origin at the floor between the feet, +y up,
+ * default facing toward -z. Caller is expected to set position and
+ * rotation.y on the returned group.
+ *
+ * Geometry budget: ~12 simple meshes per player. Materials are
+ * created per-figure so the existing disposeGroup() traversal cleans
+ * everything without aliasing.
+ */
+function buildPlayerFigure(teamColor: string, isUser: boolean): THREE.Group {
+  const figure = new THREE.Group()
+  figure.name = 'player-figure'
+
+  const jerseyMat = new THREE.MeshStandardMaterial({
+    color: teamColor,
+    roughness: 0.65,
+    metalness: 0.05,
+  })
+  const shortsMat = new THREE.MeshStandardMaterial({
+    color: darkenHex(teamColor, SHORTS_DARKEN),
+    roughness: 0.75,
+    metalness: 0,
+  })
+  const skinMat = new THREE.MeshStandardMaterial({
+    color: SKIN_COLOR,
+    roughness: 0.7,
+    metalness: 0,
+  })
+  const shoeMat = new THREE.MeshStandardMaterial({
+    color: SHOE_COLOR,
+    roughness: 0.5,
+    metalness: 0.15,
+  })
+  const accentMat = new THREE.MeshStandardMaterial({
+    color: ACCENT_COLOR,
+    roughness: 0.6,
+    metalness: 0,
+  })
+
+  // Shoes — slightly forward-biased (-z) so the silhouette reads as
+  // facing forward rather than as a featureless box.
+  for (const sx of [-HIP_GAP / 2, HIP_GAP / 2]) {
+    const shoe = new THREE.Mesh(
+      new THREE.BoxGeometry(SHOE_WIDTH, SHOE_HEIGHT, SHOE_DEPTH),
+      shoeMat,
+    )
+    shoe.position.set(sx, SHOE_Y, -0.05)
+    shoe.castShadow = true
+    shoe.receiveShadow = true
+    figure.add(shoe)
+  }
+
+  // Lower-body legs (calves + thighs as a single tapered cylinder per leg
+  // for cheapness; shorts hide the upper portion).
+  for (const lx of [-HIP_GAP / 2, HIP_GAP / 2]) {
+    const leg = new THREE.Mesh(
+      new THREE.CylinderGeometry(LEG_RADIUS, LEG_RADIUS * 1.15, LEG_HEIGHT, 12),
+      skinMat,
+    )
+    leg.position.set(lx, LEG_Y, 0)
+    leg.castShadow = true
+    figure.add(leg)
+  }
+
+  // Shorts — single block, rounded by softening the box's prominent
+  // edges through a slim accent stripe.
+  const shorts = new THREE.Mesh(
+    new THREE.BoxGeometry(SHORTS_WIDTH, SHORTS_HEIGHT, SHORTS_DEPTH),
+    shortsMat,
+  )
+  shorts.position.set(0, SHORTS_Y, 0)
+  shorts.castShadow = true
+  shorts.receiveShadow = true
+  figure.add(shorts)
+
+  const shortsStripe = new THREE.Mesh(
+    new THREE.BoxGeometry(0.05, SHORTS_HEIGHT * 0.85, SHORTS_DEPTH + 0.02),
+    accentMat,
+  )
+  shortsStripe.position.set(SHORTS_WIDTH / 2 + 0.001, SHORTS_Y, 0)
+  figure.add(shortsStripe)
+
+  // Torso — jersey-colored block. A small accent stripe across the
+  // chest hints at a uniform without being noisy.
+  const torso = new THREE.Mesh(
+    new THREE.BoxGeometry(TORSO_WIDTH, TORSO_HEIGHT, TORSO_DEPTH),
+    jerseyMat,
+  )
+  torso.position.set(0, TORSO_Y, 0)
+  torso.castShadow = true
+  torso.receiveShadow = true
+  figure.add(torso)
+
+  const chestStripe = new THREE.Mesh(
+    new THREE.BoxGeometry(TORSO_WIDTH + 0.02, 0.12, TORSO_DEPTH + 0.02),
+    accentMat,
+  )
+  chestStripe.position.set(0, TORSO_Y + TORSO_HEIGHT / 2 - 0.18, 0)
+  figure.add(chestStripe)
+
+  // Arms — slight outward tilt at the shoulders so the figure does not
+  // read as a stiff T-pose.
+  for (const ax of [-ARM_OFFSET, ARM_OFFSET]) {
+    const arm = new THREE.Mesh(
+      new THREE.CylinderGeometry(ARM_RADIUS, ARM_RADIUS * 0.9, ARM_LENGTH, 12),
+      skinMat,
+    )
+    arm.position.set(ax, ARM_Y, 0)
+    arm.rotation.z = ax < 0 ? 0.18 : -0.18
+    arm.castShadow = true
+    figure.add(arm)
+  }
+
+  // Neck.
+  const neck = new THREE.Mesh(
+    new THREE.CylinderGeometry(NECK_RADIUS, NECK_RADIUS, NECK_HEIGHT, 10),
+    skinMat,
+  )
+  neck.position.set(0, NECK_Y, 0)
+  figure.add(neck)
+
+  // Head.
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(HEAD_RADIUS, 18, 16),
+    skinMat,
+  )
+  head.position.set(0, HEAD_Y, 0)
+  head.castShadow = true
+  figure.add(head)
+
+  // Tiny "front" wedge on the head front (negative-z side) so the
+  // facing direction reads even at distance. Cheap nose stand-in.
+  const facingMarker = new THREE.Mesh(
+    new THREE.BoxGeometry(0.18, 0.12, 0.12),
+    skinMat,
+  )
+  facingMarker.position.set(0, HEAD_Y, -HEAD_RADIUS - 0.04)
+  figure.add(facingMarker)
+
+  // Floor disc — keeps the existing team-colored selection ring used
+  // upstream by the 2D motion overlay so the renderer reads the same.
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(PLAYER_RADIUS + 0.2, PLAYER_RADIUS + 0.5, 32),
+    new THREE.MeshBasicMaterial({
+      color: teamColor,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: isUser ? 0.95 : 0.7,
+    }),
+  )
+  ring.rotation.x = -Math.PI / 2
+  ring.position.y = 0.04
+  figure.add(ring)
+
+  return figure
+}
+
+/**
+ * Returns a hex string `#rrggbb` whose channels have been multiplied
+ * by `factor` (0..1 → darker, 1..2 → lighter). Used to derive shorts
+ * color from jersey color so the uniform reads as a coordinated set.
+ */
+function darkenHex(hex: string, factor: number): string {
+  const cleaned = hex.replace('#', '')
+  if (cleaned.length !== 6) return hex
+  const r = parseInt(cleaned.slice(0, 2), 16)
+  const g = parseInt(cleaned.slice(2, 4), 16)
+  const b = parseInt(cleaned.slice(4, 6), 16)
+  const clamp = (n: number) => Math.max(0, Math.min(255, Math.round(n)))
+  const rr = clamp(r * factor).toString(16).padStart(2, '0')
+  const gg = clamp(g * factor).toString(16).padStart(2, '0')
+  const bb = clamp(b * factor).toString(16).padStart(2, '0')
+  return `#${rr}${gg}${bb}`
 }
 
 function buildTubeLine(
