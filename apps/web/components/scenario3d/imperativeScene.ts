@@ -1,12 +1,33 @@
-/**
- * Imperative basketball scene builder. Builds the whole basketball scene
- * (court, lines, hoop, players, ball, lights) directly with vanilla THREE
- * primitives — no React, no R3F reconciler.
+/* =============================================================================
+ * RENDERER SAFETY BASELINE — imperative-only contract.
  *
- * We hit a failure mode where R3F v9 + React 19 + Next 15 silently
- * dropped every Canvas child (THREE.Scene.children stayed at 0 even
- * with the rAF loop running and the gl ready). This module bypasses
- * the reconciler entirely so the scene paints regardless.
+ * This module is the load-bearing safety net for the entire scenario
+ * renderer. Every critical visual (court, paint, lines, hoop, players,
+ * ball, lighting) is constructed here with vanilla THREE primitives and
+ * mounted by `Scenario3DCanvas` directly into THREE.Scene — bypassing
+ * the R3F reconciler entirely.
+ *
+ * Why imperative-only:
+ *   - R3F v9 + React 19 + Next 15 silently drops <Canvas> children in
+ *     production (THREE.Scene.children stays at 0).
+ *   - useFrame subscribers are not consistently invoked.
+ *   - The reconciler cannot be trusted to mount, update, or animate
+ *     scene geometry in this stack.
+ *
+ * Hard rules for every future packet (see docs/courtiq-realistic-renderer-plan.md):
+ *   - All visual upgrades MUST be added to a builder in this file (or a
+ *     sibling builder module under scene/builders/) and called from
+ *     `buildBasketballGroup`. Never declare critical visuals as JSX.
+ *   - NEVER use useFrame for playback, animation, camera, or any
+ *     per-frame logic. Animation runs from the parent-level
+ *     requestAnimationFrame loop in `Scenario3DCanvas.tsx`.
+ *   - Every geometry/material/texture allocated here must be disposed
+ *     in `disposeGroup` (or its callers) on unmount. Imperative scene
+ *     mutation makes GPU leaks easy.
+ *   - Builders must remain side-effect free apart from constructing and
+ *     returning THREE objects — no React, no global state, no scene-graph
+ *     mutation outside the returned group.
+ * =============================================================================
  */
 
 import * as THREE from 'three'

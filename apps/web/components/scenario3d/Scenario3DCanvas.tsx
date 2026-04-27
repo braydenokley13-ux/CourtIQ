@@ -1,5 +1,35 @@
 'use client'
 
+/* =============================================================================
+ * RENDERER SAFETY BASELINE — imperative-only contract.
+ *
+ * The R3F reconciler (R3F v9 + React 19 + Next 15) is UNRELIABLE in this
+ * stack. Symptoms observed in production:
+ *   - <Canvas> children silently dropped (THREE.Scene.children stays at 0).
+ *   - useFrame subscribers never fire even with frameloop="always".
+ *   - Mount/unmount can leave a black canvas with no geometry.
+ *
+ * Hard rules for every future packet (see docs/courtiq-realistic-renderer-plan.md):
+ *   - CRITICAL VISUALS (court, hoop, players, ball, lighting) MUST be built
+ *     imperatively against the underlying THREE.Scene. See `imperativeScene.ts`.
+ *   - DO NOT rely on JSX scene children inside <Canvas> for anything visible.
+ *     The JSX <BasketballScene3D> rendered below is a redundant duplicate; if
+ *     R3F drops it, the imperative builder still paints the same scene.
+ *   - DO NOT use useFrame for playback, physics, camera, or any per-frame
+ *     render logic. Drive frames from the parent-level requestAnimationFrame
+ *     loop in this file (see the rAF effect below). useFrame may run in
+ *     dev — it cannot be trusted in production.
+ *   - Treat <Canvas> as a renderer host only. The scene graph is owned by us.
+ *   - Manual dispose: every imperative geometry/material/texture must be
+ *     released on unmount via `disposeGroup`.
+ *
+ * Diagnostics confirm the contract is holding:
+ *   - parentLoopStats.children = scene.children.length each frame.
+ *   - Console logs "[scenario3d] parent loop frame N" every 120 frames.
+ *   - Console logs "[scenario3d] imperative scene mounted" with object count.
+ * =============================================================================
+ */
+
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
