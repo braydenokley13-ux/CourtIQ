@@ -36,19 +36,19 @@ export function isDebug3D(): boolean {
 }
 
 /**
- * True unless the page is loaded with `?emergency=0`. The emergency scene
+ * True when the page is loaded with `?emergency=1`. The emergency scene
  * is a visibility-guaranteed primitive scene (giant gray floor, big red
- * cube, big blue sphere, hardcoded camera, bright lights, gray background)
- * used to prove the WebGL render pipeline is reaching the camera. While
- * the rebuild is in flight we default it ON so the user can never see a
- * black box; pass `?emergency=0` to disable.
+ * cube, big blue sphere, hardcoded camera, bright lights) used as a
+ * fallback diagnostic when the basketball scene is invisible. Phase 3
+ * switched this from default-on to opt-in: by default we now render the
+ * BasketballScene3D directly, since it has been proven visible.
  */
 export function isEmergencyScene(): boolean {
-  if (typeof window === 'undefined') return true
+  if (typeof window === 'undefined') return false
   try {
-    return new URLSearchParams(window.location.search).get('emergency') !== '0'
+    return new URLSearchParams(window.location.search).get('emergency') === '1'
   } catch {
-    return true
+    return false
   }
 }
 
@@ -62,5 +62,20 @@ export function isOrbitDebug(): boolean {
     return new URLSearchParams(window.location.search).get('orbit') === '1'
   } catch {
     return false
+  }
+}
+
+/**
+ * True unless the page is loaded with `?simple=0`. When true, the canvas
+ * uses the dependency-light BasketballScene3D (cylinders + sphere ball +
+ * tube court lines) instead of the layered Court3D + ScenarioScene3D
+ * stack. This keeps visibility guaranteed while we layer realism back on.
+ */
+export function isSimpleScene(): boolean {
+  if (typeof window === 'undefined') return true
+  try {
+    return new URLSearchParams(window.location.search).get('simple') !== '0'
+  } catch {
+    return true
   }
 }

@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
+import { BasketballScene3D } from './BasketballScene3D'
 import { Court3D } from './Court3D'
 import { Debug3DScene } from './Debug3DScene'
 import { EmergencyScene3D } from './EmergencyScene3D'
@@ -16,6 +17,7 @@ import {
   isDebug3D,
   isEmergencyScene,
   isOrbitDebug,
+  isSimpleScene,
 } from '@/lib/scenario3d/feature'
 import { useReducedMotion } from '@/lib/scenario3d/useReducedMotion'
 import { createDefaultScene, type Scene3D } from '@/lib/scenario3d/scene'
@@ -52,9 +54,13 @@ const EMERGENCY_BG = '#4A5568'
 // toward the basket. Generous FOV so the entire half-court fits on
 // every aspect ratio (especially mobile portrait). The slight x-offset
 // gives the broadcast feel without sacrificing framing.
-const CAMERA_POSITION: [number, number, number] = [-3, 38, 55]
-const CAMERA_LOOKAT: [number, number, number] = [0, 0, 18]
-const CAMERA_FOV = 48
+//
+// Phase 3 widened this: camera moves further back and higher with a
+// wider FOV so a half-court (50ft x 47ft) full of 6ft player cylinders
+// is comfortably in frame even on a 280px-tall canvas.
+const CAMERA_POSITION: [number, number, number] = [0, 50, 70]
+const CAMERA_LOOKAT: [number, number, number] = [0, 5, 22]
+const CAMERA_FOV = 55
 
 // Debug self-test camera. Aimed straight at the origin with a wide FOV
 // so any object placed near (0, 0, 0) is guaranteed to be visible.
@@ -103,6 +109,7 @@ export function Scenario3DCanvas({
   const [debugMode, setDebugMode] = useState(false)
   const [emergencyMode, setEmergencyMode] = useState(false)
   const [orbitMode, setOrbitMode] = useState(false)
+  const [simpleMode, setSimpleMode] = useState(true)
   const [canvasSize, setCanvasSize] = useState<{ width: number; height: number } | null>(null)
   const [dpr, setDpr] = useState<number | null>(null)
   const [cameraStats, setCameraStats] = useState<CameraStats | null>(null)
@@ -123,9 +130,11 @@ export function Scenario3DCanvas({
     const debug = isDebug3D()
     const emergency = isEmergencyScene()
     const orbit = isOrbitDebug()
+    const simple = isSimpleScene()
     setDebugMode(debug)
     setEmergencyMode(emergency)
     setOrbitMode(orbit)
+    setSimpleMode(simple)
     const supported = hasWebGL()
     setWebglSupported(supported)
     setMode(supported ? '3d' : 'fallback')
@@ -293,6 +302,8 @@ export function Scenario3DCanvas({
           <EmergencyScene3D />
         ) : debugMode ? (
           <Debug3DScene />
+        ) : simpleMode ? (
+          <BasketballScene3D scene={visibleScene} />
         ) : (
           <SceneMotionProvider reduced={reducedMotion}>
             <SceneLighting />
