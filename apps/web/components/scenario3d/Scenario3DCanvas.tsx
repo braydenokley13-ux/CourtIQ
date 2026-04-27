@@ -240,11 +240,14 @@ export function Scenario3DCanvas({
         // `flat` disables ACES Filmic tone mapping so unlit basic materials
         // render at the literal sRGB color we set, not crushed to black.
         flat
-        // We drive frames manually via the ManualLoop component below so
-        // we never depend on R3F's internal scheduler. On affected
-        // device/build combinations the auto-scheduler simply never
-        // started, leaving the canvas dark forever.
-        frameloop="never"
+        // R3F's default 'always' scheduler. The previous fix used
+        // `frameloop="never"` + a custom ManualLoop that pulled subscribers
+        // out of `state.internal.subscribers` — but that internal shape
+        // changed in R3F v9, so subscribers never fired and gl.render()
+        // was never called. Result: the canvas mounted, the bg color
+        // applied, but no geometry ever drew. Trusting the default
+        // scheduler restores normal rendering on every device.
+        frameloop="always"
         dpr={[1, 2]}
         camera={{ position: cameraPosition, fov: cameraFov, near: 0.1, far: 1000 }}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
@@ -301,7 +304,6 @@ export function Scenario3DCanvas({
             enableSway={!debugMode && !emergencyMode && !reducedMotion}
           />
         )}
-        <ManualLoop />
         <CameraDiagnosticsProbe onChange={setCameraStats} />
 
         {emergencyMode ? (
@@ -579,90 +581,5 @@ function CameraTarget({ position, lookAt, enableSway = false }: CameraTargetProp
   return null
 }
 
-/**
- * Manual frame loop. We deliberately set `frameloop="never"` on the
- * <Canvas> so R3F's internal auto-scheduler is bypassed — that scheduler
- * has been observed to never start on certain R3F-9 + React-19 +
- * Next-15 production builds, leaving the canvas dark forever even though
- * `onCreated` ran successfully.
- *
- * Instead, we drive frames ourselves with `requestAnimationFrame` and
- * inline the three steps R3F's internal `update()` would have run:
- *   1. advance the THREE.Clock
- *   2. invoke every useFrame subscriber registered against THIS root
- *   3. call `gl.render(scene, camera)`
- *
- * We deliberately do NOT call R3F's exported `advance()` because that
- * function walks the package-level `_roots` Set — and Next's chunking can
- * end up with two instances of `@react-three/fiber` (one in the page
- * chunk, one in the dynamic import). Imported `advance()` then walks an
- * empty `_roots` from the wrong instance. Reading state from the live
- * `useThree` context is instance-agnostic.
- *
- * Renders nothing.
- */
-type R3FInternalState = {
-  clock: { getDelta: () => number; oldTime: number; elapsedTime: number }
-  internal: {
-    subscribers: Array<{
-      ref: { current: (state: unknown, delta: number) => void }
-      store: { getState: () => unknown }
-    }>
-    priority: number
-  }
-  gl: { render: (scene: unknown, camera: unknown) => void }
-  scene: unknown
-  camera: unknown
-}
-
-function ManualLoop() {
-  const state = useThree() as unknown as R3FInternalState
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    let rafId = 0
-    let running = true
-    const tick = (timestamp: number) => {
-      if (!running) return
-      try {
-        // 1. Clock tick. R3F's update() updates `oldTime` then `elapsedTime`
-        //    when frameloop is 'never'.
-        const tSec = timestamp / 1000
-        const delta = Math.max(0, tSec - state.clock.elapsedTime)
-        state.clock.oldTime = state.clock.elapsedTime
-        state.clock.elapsedTime = tSec
-
-        // 2. Fire every useFrame subscriber. Iterating by index because
-        //    new subscribers can be added/removed mid-iteration on
-        //    suspense boundaries.
-        const subs = state.internal.subscribers
-        for (let i = 0; i < subs.length; i++) {
-          const s = subs[i]
-          if (!s) continue
-          try {
-            s.ref.current(s.store.getState(), delta)
-          } catch {
-            // one bad subscriber must not break the rest of the frame
-          }
-        }
-
-        // 3. Render the scene. Skip when an effect-composer has taken
-        //    render priority (priority > 0).
-        if (!state.internal.priority && state.gl.render) {
-          state.gl.render(state.scene, state.camera)
-        }
-      } catch {
-        // never let a single-frame error kill the loop
-      }
-      rafId = window.requestAnimationFrame(tick)
-    }
-    rafId = window.requestAnimationFrame(tick)
-    return () => {
-      running = false
-      window.cancelAnimationFrame(rafId)
-    }
-  }, [state])
-  return null
-}
 
 export type { Scene3D, ReplayMode, ReplayPhase }
