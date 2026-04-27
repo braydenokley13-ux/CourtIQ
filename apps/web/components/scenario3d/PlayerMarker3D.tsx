@@ -9,9 +9,9 @@ import { useSceneMotion } from './SceneMotionContext'
 export type PlayerTeam = 'offense' | 'defense'
 export type PlayerRole = 'user' | 'teammate' | 'defender' | 'ball_handler' | 'help' | 'rotater'
 
-// Spec palette — same family as the standalone scene reference. Top is
-// brighter (jersey), bottom is darker (shorts) so capsules read as players,
-// not pills.
+// Spec palette. Top is brighter (jersey), bottom is darker (shorts) so
+// capsules read as players, not pills. ALL materials are basic/unlit so
+// player visibility is independent of lighting.
 const TEAM_COLOR_TOP: Record<PlayerTeam, string> = {
   offense: '#5DB4FF',
   defense: '#FF5C72',
@@ -22,11 +22,11 @@ const TEAM_COLOR_BOTTOM: Record<PlayerTeam, string> = {
 }
 const USER_COLOR_TOP = '#3BFF9D'
 const USER_COLOR_BOTTOM = '#0A8C4E'
-const HEAD_TONE = '#F4D9BC' // neutral skin tone so heads don't read as jerseys
+const HEAD_TONE = '#F4D9BC'
 
 // Player dimensions in feet.
 const BODY_RADIUS = 0.85
-const BODY_LENGTH = 3.6 // capsule cylinder length (between cap centres)
+const BODY_LENGTH = 3.6
 const SHORTS_HEIGHT = 1.6
 const HEAD_RADIUS = 0.6
 const HEAD_OFFSET = 0.7
@@ -54,9 +54,12 @@ export interface PlayerMarker3DProps {
  * Capsule-based player marker. Visually:
  *   - capsule "jersey" (top color) + cylinder "shorts" (darker bottom)
  *   - sphere head in a neutral skin tone
- *   - foot ring on the floor (yellow for ball handler, green for YOU)
- *   - YOU adds a slowly pulsing halo and a brighter footprint
+ *   - foot ring on the floor (green for YOU, team-color for others)
+ *   - YOU adds a slowly pulsing halo and a slightly larger body
  *   - label pill above the head (rendered via CanvasTexture sprite)
+ *
+ * All meshes use meshBasicMaterial so the player paints regardless of
+ * lighting state. Capsule geometry is supported in three.js 0.184+.
  */
 export function PlayerMarker3D({
   position,
@@ -97,7 +100,6 @@ export function PlayerMarker3D({
       ringRef.current.rotation.z += 0.012
     }
     if (isUser && groupRef.current) {
-      // Tiny vertical bob keeps the YOU player feeling alive.
       groupRef.current.position.y = Math.sin(t * 1.4) * 0.05
     }
   })
@@ -110,7 +112,7 @@ export function PlayerMarker3D({
         <meshBasicMaterial
           color={isUser ? USER_COLOR_TOP : top}
           transparent
-          opacity={isUser ? 1 : 0.55}
+          opacity={isUser ? 1 : 0.6}
           toneMapped={false}
         />
       </mesh>
@@ -123,25 +125,24 @@ export function PlayerMarker3D({
         </mesh>
       ) : null}
 
-      {/* Possession ring (for the player currently holding the ball) */}
+      {/* Possession arc */}
       {hasBall ? <PossessionRing color="#FFB070" radius={radius + 0.35} /> : null}
 
-      {/* Player body group — capsule jersey on top, cylinder shorts below. */}
+      {/* Player body group */}
       <group ref={groupRef}>
         {/* Shorts (lower cylinder) */}
         <mesh position={[0, radius + SHORTS_HEIGHT / 2, 0]}>
           <cylinderGeometry args={[radius * 0.95, radius * 1.05, SHORTS_HEIGHT, 24]} />
-          <meshLambertMaterial color={bottom} />
+          <meshBasicMaterial color={bottom} toneMapped={false} />
         </mesh>
 
         {/* Jersey (capsule body sitting on top of the shorts) */}
         <mesh position={[0, radius + SHORTS_HEIGHT + length / 2, 0]}>
           <capsuleGeometry args={[radius, length - SHORTS_HEIGHT, 6, 20]} />
-          <meshLambertMaterial color={top} />
+          <meshBasicMaterial color={top} toneMapped={false} />
         </mesh>
 
-        {/* Jersey highlight strip — a thin band at the chest so capsules
-            read as players from broadcast distance. */}
+        {/* Jersey highlight strip — a thin band at the chest. */}
         <mesh position={[0, radius + SHORTS_HEIGHT + length * 0.55, 0]}>
           <cylinderGeometry args={[radius * 1.04, radius * 1.04, 0.25, 24, 1, true]} />
           <meshBasicMaterial color="#FFFFFF" transparent opacity={0.18} toneMapped={false} side={THREE.DoubleSide} />
@@ -150,7 +151,7 @@ export function PlayerMarker3D({
         {/* Head */}
         <mesh position={[0, totalHeight + HEAD_OFFSET, 0]}>
           <sphereGeometry args={[HEAD_RADIUS, 24, 24]} />
-          <meshLambertMaterial color={HEAD_TONE} />
+          <meshBasicMaterial color={HEAD_TONE} toneMapped={false} />
         </mesh>
 
         {/* Label pill — anchored above the head. */}

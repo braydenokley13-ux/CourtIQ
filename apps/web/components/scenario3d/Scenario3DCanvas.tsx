@@ -11,7 +11,6 @@ import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
 import { SceneMotionProvider } from './SceneMotionContext'
 import { hasWebGL, isDebug3D } from '@/lib/scenario3d/feature'
 import { useReducedMotion } from '@/lib/scenario3d/useReducedMotion'
-import { COURT } from '@/lib/scenario3d/coords'
 import { createDefaultScene, type Scene3D } from '@/lib/scenario3d/scene'
 
 interface Scenario3DCanvasProps {
@@ -37,11 +36,13 @@ interface Scenario3DCanvasProps {
 
 const CANVAS_BG = '#04060C'
 
-// Production camera. Broadcast-style angle that frames the half-court
-// with a slight side offset for cinematic depth.
-const CAMERA_POSITION: [number, number, number] = [-6, 24, 62]
-const CAMERA_LOOKAT: [number, number, number] = [0, 4, 14]
-const CAMERA_FOV = 40
+// Production camera. Sits above and behind half-court, tilted down
+// toward the basket. Generous FOV so the entire half-court fits on
+// every aspect ratio (especially mobile portrait). The slight x-offset
+// gives the broadcast feel without sacrificing framing.
+const CAMERA_POSITION: [number, number, number] = [-3, 38, 55]
+const CAMERA_LOOKAT: [number, number, number] = [0, 0, 18]
+const CAMERA_FOV = 48
 
 // Debug self-test camera. Aimed straight at the origin with a wide FOV
 // so any object placed near (0, 0, 0) is guaranteed to be visible.
@@ -81,6 +82,7 @@ export function Scenario3DCanvas({
   const [rendererCreated, setRendererCreated] = useState(false)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
   const [debugMode, setDebugMode] = useState(false)
+  const [canvasSize, setCanvasSize] = useState<{ width: number; height: number } | null>(null)
 
   const reducedMotion = useReducedMotion()
 
@@ -132,6 +134,8 @@ export function Scenario3DCanvas({
           errorMessage={runtimeError}
           debugMode={debugMode}
           playerCount={visibleScene.players.length}
+          width={canvasSize?.width}
+          height={canvasSize?.height}
         />
       </div>
     )
@@ -151,6 +155,8 @@ export function Scenario3DCanvas({
           errorMessage={runtimeError}
           debugMode={debugMode}
           playerCount={visibleScene.players.length}
+          width={canvasSize?.width}
+          height={canvasSize?.height}
         />
       </div>
     )
@@ -204,6 +210,7 @@ export function Scenario3DCanvas({
             }
             setRendererCreated(true)
             setCanvasMounted(true)
+            setCanvasSize({ width: size.width, height: size.height })
             if (typeof console !== 'undefined') {
               // eslint-disable-next-line no-console
               console.info('[scenario3d] canvas onCreated', {
@@ -219,9 +226,6 @@ export function Scenario3DCanvas({
         }}
       >
         <color attach="background" args={[CANVAS_BG]} />
-        {!debugMode ? (
-          <fog attach="fog" args={['#070B16', 80, 160]} />
-        ) : null}
         <CameraTarget
           position={cameraPosition}
           lookAt={cameraLookAt}
@@ -281,6 +285,8 @@ interface CanvasDiagnosticsProps {
   errorMessage: string | null
   debugMode: boolean
   playerCount: number
+  width?: number
+  height?: number
 }
 
 function CanvasDiagnostics({
@@ -293,20 +299,34 @@ function CanvasDiagnostics({
   errorMessage,
   debugMode,
   playerCount,
+  width,
+  height,
 }: CanvasDiagnosticsProps) {
-  if (process.env.NODE_ENV === 'production' && !debugMode) return null
+  // Hidden when ?nodebug=1 is set OR after the user has confirmed the
+  // scene works and we want to drop the badge. Until then we show the
+  // overlay in production too — without it we have no way to tell from
+  // a Vercel deploy whether the canvas mounted, the renderer was created,
+  // or the scene has zero players.
+  if (typeof window !== 'undefined') {
+    try {
+      if (new URLSearchParams(window.location.search).get('nodebug') === '1') return null
+    } catch {
+      // fall through and render
+    }
+  }
 
   return (
-    <div className="pointer-events-none absolute left-2 top-2 max-w-[92%] rounded-lg bg-bg-0/85 px-2 py-1 text-[10px] leading-snug text-text-dim">
+    <div className="pointer-events-none absolute left-2 top-2 max-w-[92%] rounded-lg bg-black/75 px-2 py-1 font-mono text-[10px] leading-snug text-white/85">
       <div>canvas mounted: {canvasMounted ? 'yes' : 'no'}</div>
       <div>renderer created: {rendererCreated ? 'yes' : 'no'}</div>
-      <div>webgl supported: {webglSupported === null ? 'checking' : webglSupported ? 'yes' : 'no'}</div>
+      <div>webgl: {webglSupported === null ? 'checking' : webglSupported ? 'yes' : 'no'}</div>
+      <div>size: {width ?? '–'}×{height ?? '–'}</div>
       <div>mode: {debugMode ? 'debug self-test' : 'scenario'}</div>
       <div>players: {playerCount}</div>
-      <div>scenario: {scenarioId ?? 'none'}</div>
-      <div>concept: {concept ?? 'none'}</div>
       <div>scene: {validationStatus}</div>
-      <div>error: {errorMessage ?? 'none'}</div>
+      <div>scenario: {scenarioId ?? 'none'}</div>
+      {concept ? <div>concept: {concept}</div> : null}
+      {errorMessage ? <div>error: {errorMessage}</div> : null}
     </div>
   )
 }
@@ -331,40 +351,16 @@ function getSceneValidationStatus(
 }
 
 /**
- * Lighting rig for the broadcast arena look:
- *   - hemisphere: cool sky / warm ground, soft ambient fill
- *   - low ambient warm: keeps shadows from going pure black
- *   - main warm spotlight overhead, shaped like a stadium fixture
- *   - cool rim light from behind for player separation
- *   - rim accent: small point light at the rim for the orange glow
+ * Minimal lighting rig. Every visibility-critical surface uses
+ * meshBasicMaterial (unlit), so lighting here is purely decorative and
+ * cannot make the scene go black. We keep a bright ambient + hemisphere
+ * fill so any future lit material (e.g. backboard) still renders well.
  */
 function SceneLighting() {
   return (
     <>
-      <hemisphereLight args={['#9ABEEA', '#1A1208', 0.45]} />
-      <ambientLight intensity={0.35} color="#F5E0C2" />
-      {/*
-        SpotLight: positioned high above mid-court and left to aim at the
-        default target (world origin = basket), which is the exact look
-        we want. No target override needed; the default is correct.
-      */}
-      <spotLight
-        position={[0, 60, 18]}
-        angle={Math.PI / 5}
-        penumbra={0.55}
-        intensity={2.2}
-        color="#FFE1B0"
-        distance={130}
-        decay={1.6}
-      />
-      <directionalLight intensity={0.85} color="#FFD9A3" position={[14, 36, 24]} />
-      <directionalLight intensity={0.45} color="#7EB6FF" position={[-22, 22, 50]} />
-      <pointLight
-        position={[0, COURT.rimHeightFt + 4, 0]}
-        intensity={10}
-        distance={20}
-        color="#FF8A3D"
-      />
+      <ambientLight intensity={1.2} color="#FFF1E0" />
+      <hemisphereLight args={['#D7E2F4', '#1A1408', 0.6]} />
     </>
   )
 }

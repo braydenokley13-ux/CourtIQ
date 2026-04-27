@@ -17,9 +17,9 @@ const BALL_RADIUS = 0.85
 const BALL_BASE_Y = BALL_RADIUS + 0.3
 
 /**
- * Basketball marker. Glossy orange sphere with a soft halo and floor
- * shadow so the ball never gets visually lost on a busy court. Bounces
- * gently while idle.
+ * Basketball marker. Bright orange sphere with a soft halo, two seam
+ * lines and a floor shadow so the ball never gets visually lost on a
+ * busy court. Bounces gently while idle. Unlit basic materials only.
  */
 export function BallMarker3D({ position, idleBounce = true }: BallMarker3DProps) {
   const groupRef = useRef<THREE.Group | null>(null)
@@ -41,7 +41,7 @@ export function BallMarker3D({ position, idleBounce = true }: BallMarker3DProps)
 
   return (
     <group position={position}>
-      {/* Floor shadow — sits just above the floor decals. */}
+      {/* Floor shadow */}
       <mesh ref={shadowRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.13, 0]}>
         <circleGeometry args={[BALL_RADIUS * 1.1, 24]} />
         <meshBasicMaterial color="#000000" transparent opacity={0.5} toneMapped={false} />
@@ -53,22 +53,17 @@ export function BallMarker3D({ position, idleBounce = true }: BallMarker3DProps)
           <sphereGeometry args={[BALL_RADIUS * 1.7, 20, 20]} />
           <meshBasicMaterial color={BALL_COLOR} transparent opacity={0.18} toneMapped={false} />
         </mesh>
-        {/* Ball — gloss + warm rim emissive so it pops. */}
+        {/* Ball */}
         <mesh>
           <sphereGeometry args={[BALL_RADIUS, 32, 32]} />
-          <meshStandardMaterial
-            color={BALL_COLOR}
-            emissive={BALL_DEEP}
-            emissiveIntensity={0.18}
-            metalness={0.05}
-            roughness={0.4}
-          />
+          <meshBasicMaterial color={BALL_COLOR} toneMapped={false} />
         </mesh>
-        {/* Single seam line so the ball reads as a basketball, not a sphere. */}
+        {/* Seam line A (horizontal) */}
         <mesh rotation={[Math.PI / 2, 0, 0]}>
           <torusGeometry args={[BALL_RADIUS * 1.001, 0.025, 8, 36]} />
           <meshBasicMaterial color={BALL_DEEP} toneMapped={false} />
         </mesh>
+        {/* Seam line B (vertical) */}
         <mesh>
           <torusGeometry args={[BALL_RADIUS * 1.001, 0.025, 8, 36]} />
           <meshBasicMaterial color={BALL_DEEP} toneMapped={false} />
