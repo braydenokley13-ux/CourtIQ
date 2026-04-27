@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { LabelSprite } from './LabelSprite'
@@ -9,17 +9,31 @@ import { useSceneMotion } from './SceneMotionContext'
 export type PlayerTeam = 'offense' | 'defense'
 export type PlayerRole = 'user' | 'teammate' | 'defender' | 'ball_handler' | 'help' | 'rotater'
 
-const TEAM_COLOR: Record<PlayerTeam, string> = {
-  offense: '#3BFF8F',
-  defense: '#FF4D6D',
+// Spec palette — same family as the standalone scene reference. Top is
+// brighter (jersey), bottom is darker (shorts) so capsules read as players,
+// not pills.
+const TEAM_COLOR_TOP: Record<PlayerTeam, string> = {
+  offense: '#5DB4FF',
+  defense: '#FF5C72',
 }
+const TEAM_COLOR_BOTTOM: Record<PlayerTeam, string> = {
+  offense: '#1F5BB8',
+  defense: '#9C1830',
+}
+const USER_COLOR_TOP = '#3BFF9D'
+const USER_COLOR_BOTTOM = '#0A8C4E'
+const HEAD_TONE = '#F4D9BC' // neutral skin tone so heads don't read as jerseys
 
-const USER_COLOR = '#FFD60A'
+// Player dimensions in feet.
+const BODY_RADIUS = 0.85
+const BODY_LENGTH = 3.6 // capsule cylinder length (between cap centres)
+const SHORTS_HEIGHT = 1.6
+const HEAD_RADIUS = 0.6
+const HEAD_OFFSET = 0.7
+const FOOT_Y = 0.06
 
-const BODY_HEIGHT = 4.0
-const BODY_RADIUS_TOP = 0.85
-const BODY_RADIUS_BOTTOM = 1.0
-const HEAD_RADIUS = 0.7
+const USER_BODY_RADIUS = 0.95
+const USER_BODY_LENGTH = 4.0
 
 export interface PlayerMarker3DProps {
   position: [number, number, number]
@@ -37,10 +51,12 @@ export interface PlayerMarker3DProps {
 }
 
 /**
- * 3D marker for a player. Visually:
- *   - cylinder body (jersey color)
- *   - sprite label with a 2D-canvas texture (synchronous, no font load)
- *   - ground ring (yellow for "you", orange for ball handler, optional pulse)
+ * Capsule-based player marker. Visually:
+ *   - capsule "jersey" (top color) + cylinder "shorts" (darker bottom)
+ *   - sphere head in a neutral skin tone
+ *   - foot ring on the floor (yellow for ball handler, green for YOU)
+ *   - YOU adds a slowly pulsing halo and a brighter footprint
+ *   - label pill above the head (rendered via CanvasTexture sprite)
  */
 export function PlayerMarker3D({
   position,
@@ -51,93 +67,118 @@ export function PlayerMarker3D({
   active,
   color,
 }: PlayerMarker3DProps) {
-  const fill = color ?? (isUser ? USER_COLOR : TEAM_COLOR[team])
+  const top = color ?? (isUser ? USER_COLOR_TOP : TEAM_COLOR_TOP[team])
+  const bottom = isUser ? USER_COLOR_BOTTOM : TEAM_COLOR_BOTTOM[team]
+  const radius = isUser ? USER_BODY_RADIUS : BODY_RADIUS
+  const length = isUser ? USER_BODY_LENGTH : BODY_LENGTH
+  const totalHeight = length + radius * 2
+  const haloRef = useRef<THREE.Mesh | null>(null)
   const ringRef = useRef<THREE.Mesh | null>(null)
-  const pulseRef = useRef<THREE.Mesh | null>(null)
+  const groupRef = useRef<THREE.Group | null>(null)
   const { reduced } = useSceneMotion()
+
+  const labelBg = useMemo(() => {
+    if (isUser) return USER_COLOR_TOP
+    if (team === 'offense') return 'rgba(15,32,68,0.92)'
+    return 'rgba(56,12,22,0.92)'
+  }, [isUser, team])
+  const labelColor = isUser ? '#04221A' : '#FBFBFD'
 
   useFrame((state) => {
     if (reduced) return
-    if (active && pulseRef.current) {
-      const t = state.clock.getElapsedTime()
-      const s = 1 + Math.sin(t * 3) * 0.18
-      pulseRef.current.scale.set(s, s, 1)
-      const material = pulseRef.current.material as THREE.MeshBasicMaterial | undefined
-      if (material) {
-        material.opacity = 0.18 + Math.sin(t * 3) * 0.1
-      }
+    const t = state.clock.getElapsedTime()
+    if (isUser && haloRef.current) {
+      const s = 1 + Math.sin(t * 2.6) * 0.12
+      haloRef.current.scale.set(s, s, 1)
+      const material = haloRef.current.material as THREE.MeshBasicMaterial | undefined
+      if (material) material.opacity = 0.35 + Math.sin(t * 2.6) * 0.12
     }
-    if (isUser && ringRef.current) {
-      // gentle rotation on the "you" indicator
+    if ((isUser || active) && ringRef.current) {
       ringRef.current.rotation.z += 0.012
+    }
+    if (isUser && groupRef.current) {
+      // Tiny vertical bob keeps the YOU player feeling alive.
+      groupRef.current.position.y = Math.sin(t * 1.4) * 0.05
     }
   })
 
   return (
     <group position={position}>
-      {/* Footprint ring — well above the floor decals to avoid z-fighting. */}
-      <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.15, 0]}>
-        <ringGeometry args={[1.2, 1.55, 48]} />
+      {/* Foot footprint ring — sits on the floor decals. */}
+      <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, FOOT_Y, 0]}>
+        <ringGeometry args={[radius + 0.25, radius + 0.55, 48]} />
         <meshBasicMaterial
-          color={isUser ? USER_COLOR : fill}
+          color={isUser ? USER_COLOR_TOP : top}
           transparent
-          opacity={isUser ? 0.98 : 0.55}
+          opacity={isUser ? 1 : 0.55}
           toneMapped={false}
         />
       </mesh>
 
-      {/* Active pulse ring */}
-      {active ? (
-        <mesh ref={pulseRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.17, 0]}>
-          <ringGeometry args={[1.7, 2.7, 48]} />
-          <meshBasicMaterial color={fill} transparent opacity={0.3} toneMapped={false} />
+      {/* YOU pulsing halo */}
+      {isUser ? (
+        <mesh ref={haloRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, FOOT_Y + 0.01, 0]}>
+          <ringGeometry args={[radius + 0.7, radius + 1.7, 64]} />
+          <meshBasicMaterial color={USER_COLOR_TOP} transparent opacity={0.45} toneMapped={false} />
         </mesh>
       ) : null}
 
-      {/* Possession ring */}
-      {hasBall ? <PossessionRing color="#FF8A3D" /> : null}
+      {/* Possession ring (for the player currently holding the ball) */}
+      {hasBall ? <PossessionRing color="#FFB070" radius={radius + 0.35} /> : null}
 
-      {/* Body — taller cylinder, unlit so the jersey color is unmistakable. */}
-      <mesh position={[0, BODY_HEIGHT / 2 + 0.2, 0]}>
-        <cylinderGeometry
-          args={[BODY_RADIUS_TOP, BODY_RADIUS_BOTTOM, BODY_HEIGHT, 20]}
-        />
-        <meshBasicMaterial color={fill} toneMapped={false} />
-      </mesh>
+      {/* Player body group — capsule jersey on top, cylinder shorts below. */}
+      <group ref={groupRef}>
+        {/* Shorts (lower cylinder) */}
+        <mesh position={[0, radius + SHORTS_HEIGHT / 2, 0]}>
+          <cylinderGeometry args={[radius * 0.95, radius * 1.05, SHORTS_HEIGHT, 24]} />
+          <meshLambertMaterial color={bottom} />
+        </mesh>
 
-      {/* Head */}
-      <mesh position={[0, BODY_HEIGHT + 0.4, 0]}>
-        <sphereGeometry args={[HEAD_RADIUS, 20, 20]} />
-        <meshBasicMaterial color={fill} toneMapped={false} />
-      </mesh>
+        {/* Jersey (capsule body sitting on top of the shorts) */}
+        <mesh position={[0, radius + SHORTS_HEIGHT + length / 2, 0]}>
+          <capsuleGeometry args={[radius, length - SHORTS_HEIGHT, 6, 20]} />
+          <meshLambertMaterial color={top} />
+        </mesh>
 
-      {/* Label sprite (camera-facing). Uses a CanvasTexture, so it's
-          synchronous and never suspends. */}
-      {label ? (
-        <LabelSprite
-          text={label}
-          position={[0, BODY_HEIGHT + 1.6, 0]}
-          scale={1.1}
-          color={isUser ? '#1A1400' : '#FBFBFD'}
-          bg={isUser ? fill : 'rgba(10,11,14,0.85)'}
-        />
-      ) : null}
+        {/* Jersey highlight strip — a thin band at the chest so capsules
+            read as players from broadcast distance. */}
+        <mesh position={[0, radius + SHORTS_HEIGHT + length * 0.55, 0]}>
+          <cylinderGeometry args={[radius * 1.04, radius * 1.04, 0.25, 24, 1, true]} />
+          <meshBasicMaterial color="#FFFFFF" transparent opacity={0.18} toneMapped={false} side={THREE.DoubleSide} />
+        </mesh>
+
+        {/* Head */}
+        <mesh position={[0, totalHeight + HEAD_OFFSET, 0]}>
+          <sphereGeometry args={[HEAD_RADIUS, 24, 24]} />
+          <meshLambertMaterial color={HEAD_TONE} />
+        </mesh>
+
+        {/* Label pill — anchored above the head. */}
+        {label ? (
+          <LabelSprite
+            text={label}
+            position={[0, totalHeight + HEAD_OFFSET + 1.4, 0]}
+            scale={isUser ? 1.4 : 1.05}
+            color={labelColor}
+            bg={labelBg}
+          />
+        ) : null}
+      </group>
     </group>
   )
 }
 
-function PossessionRing({ color }: { color: string }) {
+function PossessionRing({ color, radius }: { color: string; radius: number }) {
   const ref = useRef<THREE.Mesh | null>(null)
   const { reduced } = useSceneMotion()
   useFrame((state) => {
     if (reduced || !ref.current) return
-    const t = state.clock.getElapsedTime()
-    ref.current.rotation.z = t * 0.4
+    ref.current.rotation.z = state.clock.getElapsedTime() * 0.45
   })
   return (
-    <mesh ref={ref} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.18, 0]}>
-      <ringGeometry args={[1.7, 1.95, 48]} />
-      <meshBasicMaterial color={color} transparent opacity={0.9} toneMapped={false} />
+    <mesh ref={ref} rotation={[-Math.PI / 2, 0, 0]} position={[0, FOOT_Y + 0.02, 0]}>
+      <ringGeometry args={[radius + 0.6, radius + 0.85, 48, 1, 0, Math.PI * 1.5]} />
+      <meshBasicMaterial color={color} transparent opacity={0.95} toneMapped={false} />
     </mesh>
   )
 }
