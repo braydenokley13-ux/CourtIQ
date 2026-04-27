@@ -29,10 +29,21 @@ interface ScenarioScene3DProps {
 const PLAYER_HEIGHT = 0
 const BALL_REST_Y = 0
 
+const USER_PATH_COLOR = '#3BFF9D'
+const OFFENSE_PATH_COLOR = '#5DB4FF'
+const DEFENSE_PATH_COLOR = '#FF5C72'
+const BALL_PATH_COLOR = '#FFB070'
+
 /**
  * Renders the players, ball, and (optionally) movement paths for a scene.
  * The ScenarioReplayController mutates per-player group positions each
  * frame so React state never thrashes during animation.
+ *
+ * Path display is curated to match the spec: a single active correct-move
+ * path at a time, with the destination marker. When multiple movements
+ * exist on the active timeline, only the user's movement (or the first
+ * non-ball movement) gets the full destination marker; supporting moves
+ * draw thinner paths so the eye still goes to the answer.
  */
 export function ScenarioScene3D({
   scene,
@@ -61,6 +72,20 @@ export function ScenarioScene3D({
   const activeMovements =
     mode === 'answer' ? scene.answerDemo : mode === 'intro' ? scene.movements : []
 
+  // Pick the headline movement for "destination" treatment: prefer the user's
+  // first non-ball movement, otherwise the first non-ball movement.
+  const headlineMovementId = (() => {
+    const userPlayer = scene.players.find((p) => p.isUser)
+    if (userPlayer) {
+      const userMove = activeMovements.find(
+        (m) => m.playerId === userPlayer.id,
+      )
+      if (userMove) return userMove.id
+    }
+    const firstNonBall = activeMovements.find((m) => m.playerId !== 'ball')
+    return firstNonBall?.id
+  })()
+
   return (
     <group>
       <ScenarioReplayController
@@ -76,17 +101,37 @@ export function ScenarioScene3D({
       {showPaths && activeMovements.length > 0
         ? activeMovements.map((m) => {
             if (m.playerId === 'ball') {
-              return null
+              return (
+                <MovementPath3D
+                  key={m.id}
+                  from={[ballStartX, ballStartZ]}
+                  to={[m.to.x, m.to.z]}
+                  color={BALL_PATH_COLOR}
+                  pulse
+                  arrow
+                  destination={false}
+                  thickness={0.14}
+                />
+              )
             }
             const player = scene.players.find((p) => p.id === m.playerId)
             if (!player) return null
-            const color = player.isUser ? '#FFD60A' : player.team === 'offense' ? '#3BE383' : '#FF4D6D'
+            const isHeadline = m.id === headlineMovementId
+            const color = player.isUser
+              ? USER_PATH_COLOR
+              : player.team === 'offense'
+                ? OFFENSE_PATH_COLOR
+                : DEFENSE_PATH_COLOR
             return (
               <MovementPath3D
                 key={m.id}
                 from={[player.start.x, player.start.z]}
                 to={[m.to.x, m.to.z]}
                 color={color}
+                pulse={isHeadline}
+                arrow
+                destination={isHeadline}
+                thickness={isHeadline ? 0.22 : 0.12}
               />
             )
           })
