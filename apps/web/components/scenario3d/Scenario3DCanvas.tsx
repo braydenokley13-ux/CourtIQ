@@ -305,6 +305,7 @@ export function Scenario3DCanvas({
           />
         )}
         <CameraDiagnosticsProbe onChange={setCameraStats} />
+        <RenderHeartbeat />
 
         {emergencyMode ? (
           <EmergencyScene3D />
@@ -555,6 +556,63 @@ function CameraDiagnosticsProbe({
       firstChildPosition: firstObjectPos,
     })
   })
+
+  return null
+}
+
+/**
+ * Belt-and-suspenders render driver. Even with `frameloop="always"`, on
+ * some environments (specific R3F + React 19 + Next 15 builds, or when
+ * Next's chunking ends up with two R3F instances after a dynamic import)
+ * the default scheduler does not actually paint, leaving the canvas
+ * black despite the renderer being created and the bg color set.
+ *
+ * This component sets up its own `requestAnimationFrame` loop in a
+ * `useEffect` and imperatively calls `gl.render(scene, camera)` plus
+ * `camera.updateMatrixWorld()` every frame. It is fully independent of
+ * `useFrame` subscribers, so it paints even when those are dead. If R3F
+ * is also painting, we render twice per frame — that is wasteful but
+ * not visually wrong, and is a strictly safer trade-off than a black
+ * canvas.
+ *
+ * Logs a heartbeat to the console every 60 frames so we can confirm
+ * from any browser session that frames are actually being driven.
+ */
+function RenderHeartbeat() {
+  const gl = useThree((s) => s.gl)
+  const scene = useThree((s) => s.scene)
+  const camera = useThree((s) => s.camera)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    let rafId = 0
+    let running = true
+    let frame = 0
+    const tick = () => {
+      if (!running) return
+      try {
+        camera.updateMatrixWorld()
+        gl.render(scene, camera)
+        frame++
+        if (frame === 1 || frame % 60 === 0) {
+          // eslint-disable-next-line no-console
+          console.info('[scenario3d] heartbeat frame', frame, {
+            children: scene.children.length,
+            camPos: camera.position.toArray(),
+          })
+        }
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('[scenario3d] heartbeat error', error)
+      }
+      rafId = window.requestAnimationFrame(tick)
+    }
+    rafId = window.requestAnimationFrame(tick)
+    return () => {
+      running = false
+      window.cancelAnimationFrame(rafId)
+    }
+  }, [gl, scene, camera])
 
   return null
 }
