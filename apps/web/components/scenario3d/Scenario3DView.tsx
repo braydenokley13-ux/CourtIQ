@@ -6,13 +6,24 @@ import { Scenario3DErrorBoundary } from './Scenario3DErrorBoundary'
 import type { Scene3D } from '@/lib/scenario3d/scene'
 import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
 
+const CANVAS_BG = '#101521'
+
 const Scenario3DCanvasDynamic = dynamic(
   () => import('./Scenario3DCanvas').then((m) => m.Scenario3DCanvas),
   {
     ssr: false,
     loading: () => (
       <div
-        className="flex h-[280px] w-full items-center justify-center bg-bg-1 text-xs text-text-dim"
+        style={{
+          height: 280,
+          minHeight: 280,
+          width: '100%',
+          background: CANVAS_BG,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+        className="text-xs text-text-dim"
         aria-busy="true"
       >
         Warming up the gym…

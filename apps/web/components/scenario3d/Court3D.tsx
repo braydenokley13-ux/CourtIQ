@@ -60,7 +60,7 @@ export function Court3D({ floorY = 0 }: Court3DProps) {
     [halfW, halfL],
   )
 
-  const paintOutline = useMemo<[number, number, number][]>(() => {
+  const paintOutline = useMemo<Array<[number, number, number]>>(() => {
     const px = COURT.paintWidthFt / 2
     const pz = COURT.freeThrowDistFt
     return [
