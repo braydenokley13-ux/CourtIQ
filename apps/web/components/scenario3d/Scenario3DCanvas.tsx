@@ -103,6 +103,13 @@ export function Scenario3DCanvas({
   showPaths,
 }: Scenario3DCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
+  // Refs into the THREE objects R3F creates. Captured in onCreated so a
+  // parent-level rAF loop can drive rendering even if R3F's reconciler
+  // never mounts any of the <Canvas> children (in which case no
+  // useFrame, no useEffect-from-Canvas-child, no animation at all).
+  const glRef = useRef<THREE.WebGLRenderer | null>(null)
+  const threeSceneRef = useRef<THREE.Scene | null>(null)
+  const threeCameraRef = useRef<THREE.Camera | null>(null)
   const [mode, setMode] = useState<'probing' | '3d' | 'fallback'>('probing')
   const [webglSupported, setWebglSupported] = useState<boolean | null>(null)
   const [canvasMounted, setCanvasMounted] = useState(false)
@@ -116,6 +123,10 @@ export function Scenario3DCanvas({
   const [canvasSize, setCanvasSize] = useState<{ width: number; height: number } | null>(null)
   const [dpr, setDpr] = useState<number | null>(null)
   const [cameraStats, setCameraStats] = useState<CameraStats | null>(null)
+  const [parentLoopStats, setParentLoopStats] = useState<{
+    frames: number
+    children: number
+  } | null>(null)
 
   const reducedMotion = useReducedMotion()
 
@@ -155,6 +166,52 @@ export function Scenario3DCanvas({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Parent-level rAF render driver. Polls glRef each frame and, once the
+  // canvas has been created, calls gl.render(scene, camera) directly.
+  // This loop is OWNED BY THE PARENT COMPONENT, not by a child of
+  // <Canvas>, so it fires even when R3F's reconciler fails to mount any
+  // Canvas children (the failure mode that produces a black canvas with
+  // a working bg color but no geometry).
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (mode !== '3d') return
+    let rafId = 0
+    let running = true
+    let frame = 0
+    const tick = () => {
+      if (!running) return
+      const gl = glRef.current
+      const threeScene = threeSceneRef.current
+      const cam = threeCameraRef.current
+      if (gl && threeScene && cam) {
+        try {
+          cam.updateMatrixWorld()
+          gl.render(threeScene, cam)
+          frame++
+          if (frame === 1 || frame % 60 === 0) {
+            setParentLoopStats({ frames: frame, children: threeScene.children.length })
+          }
+          if (frame === 1 || frame % 120 === 0) {
+            // eslint-disable-next-line no-console
+            console.info('[scenario3d] parent loop frame', frame, {
+              children: threeScene.children.length,
+              camPos: (cam as THREE.PerspectiveCamera).position.toArray(),
+            })
+          }
+        } catch (error) {
+          // eslint-disable-next-line no-console
+          console.error('[scenario3d] parent loop error', error)
+        }
+      }
+      rafId = window.requestAnimationFrame(tick)
+    }
+    rafId = window.requestAnimationFrame(tick)
+    return () => {
+      running = false
+      window.cancelAnimationFrame(rafId)
+    }
+  }, [mode])
 
   if (mode === 'probing') {
     return (
@@ -255,13 +312,6 @@ export function Scenario3DCanvas({
         onCreated={({ gl, size, scene: createdScene, camera: createdCamera }) => {
           try {
             gl.setClearColor(activeBg, 1)
-            // Bright magenta clear to validate the canvas is reaching the
-            // page. If the canvas paints magenta even for a frame, we
-            // know GL → DOM compositing works. setClearColor below
-            // restores the gray afterwards.
-            gl.setClearColor('#FF00FF', 1)
-            gl.clear()
-            gl.setClearColor(activeBg, 1)
 
             const dom = gl.domElement
             if (dom) {
@@ -284,11 +334,32 @@ export function Scenario3DCanvas({
               setDpr(null)
             }
 
+            // Capture refs so the parent-level rAF loop can drive
+            // gl.render even when R3F's reconciler never mounts the
+            // Canvas children (in which case the Canvas-child
+            // RenderHeartbeat component would never run either).
+            glRef.current = gl as THREE.WebGLRenderer
+            threeSceneRef.current = createdScene as THREE.Scene
+            threeCameraRef.current = createdCamera as THREE.Camera
+
+            // CRITICAL: aim the camera before the first render. The
+            // declarative `camera={{ position }}` prop only sets
+            // position — no lookAt — so the default camera stares flat
+            // toward -Z from y=50, missing all geometry which sits at
+            // y=0..8 below. <CameraTarget> / <AutoFitCamera> set lookAt
+            // via useEffect, but those effects fire AFTER the first
+            // RenderHeartbeat tick paints. Aiming here guarantees the
+            // very first frame is correct, independent of React.
+            const cam = createdCamera as THREE.PerspectiveCamera
+            cam.position.set(cameraPosition[0], cameraPosition[1], cameraPosition[2])
+            cam.lookAt(cameraLookAt[0], cameraLookAt[1], cameraLookAt[2])
+            cam.updateMatrixWorld()
+            cam.updateProjectionMatrix()
+
             // Force one explicit render now so the very first frame
             // shows geometry, even if the scheduler is broken.
             try {
-              ;(createdCamera as THREE.Camera).updateMatrixWorld()
-              gl.render(createdScene as THREE.Scene, createdCamera as THREE.Camera)
+              gl.render(createdScene as THREE.Scene, cam)
             } catch (e) {
               if (typeof console !== 'undefined') {
                 // eslint-disable-next-line no-console
@@ -304,6 +375,8 @@ export function Scenario3DCanvas({
                 debugMode,
                 emergencyMode,
                 children: (createdScene as THREE.Scene).children.length,
+                camPos: cam.position.toArray(),
+                camLookAt: cameraLookAt,
               })
             }
           } catch (error) {
@@ -369,6 +442,7 @@ export function Scenario3DCanvas({
         height={canvasSize?.height}
         dpr={dpr}
         cameraStats={cameraStats}
+        parentLoopStats={parentLoopStats}
       />
 
       {debugMode ? (
@@ -408,6 +482,7 @@ interface CanvasDiagnosticsProps {
   height?: number
   dpr?: number | null
   cameraStats?: CameraStats | null
+  parentLoopStats?: { frames: number; children: number } | null
 }
 
 function CanvasDiagnostics({
@@ -425,6 +500,7 @@ function CanvasDiagnostics({
   height,
   dpr,
   cameraStats,
+  parentLoopStats,
 }: CanvasDiagnosticsProps) {
   // Diagnostics overlay: ALWAYS-ON in this build until the 3D scene is
   // confirmed working in production. Pass ?nodebug=1 to hide (e.g.
@@ -467,6 +543,10 @@ function CanvasDiagnostics({
       <div>scene: {validationStatus}</div>
       <div>scenario: {scenarioId ?? 'none'}</div>
       {concept ? <div>concept: {concept}</div> : null}
+      <div>
+        parent loop: {parentLoopStats ? `${parentLoopStats.frames}f` : 'idle'} /
+        children: {parentLoopStats ? parentLoopStats.children : '–'}
+      </div>
       {cameraStats ? (
         <>
           <div>
