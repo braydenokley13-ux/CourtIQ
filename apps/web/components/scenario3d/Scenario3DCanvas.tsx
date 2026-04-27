@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { Court3D } from './Court3D'
 import { Debug3DScene } from './Debug3DScene'
@@ -10,7 +11,12 @@ import { SceneDebug3D } from './SceneDebug3D'
 import { ScenarioScene3D } from './ScenarioScene3D'
 import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
 import { SceneMotionProvider } from './SceneMotionContext'
-import { hasWebGL, isDebug3D, isEmergencyScene } from '@/lib/scenario3d/feature'
+import {
+  hasWebGL,
+  isDebug3D,
+  isEmergencyScene,
+  isOrbitDebug,
+} from '@/lib/scenario3d/feature'
 import { useReducedMotion } from '@/lib/scenario3d/useReducedMotion'
 import { createDefaultScene, type Scene3D } from '@/lib/scenario3d/scene'
 
@@ -96,7 +102,10 @@ export function Scenario3DCanvas({
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
   const [debugMode, setDebugMode] = useState(false)
   const [emergencyMode, setEmergencyMode] = useState(false)
+  const [orbitMode, setOrbitMode] = useState(false)
   const [canvasSize, setCanvasSize] = useState<{ width: number; height: number } | null>(null)
+  const [dpr, setDpr] = useState<number | null>(null)
+  const [cameraStats, setCameraStats] = useState<CameraStats | null>(null)
 
   const reducedMotion = useReducedMotion()
 
@@ -113,8 +122,10 @@ export function Scenario3DCanvas({
   useEffect(() => {
     const debug = isDebug3D()
     const emergency = isEmergencyScene()
+    const orbit = isOrbitDebug()
     setDebugMode(debug)
     setEmergencyMode(emergency)
+    setOrbitMode(orbit)
     const supported = hasWebGL()
     setWebglSupported(supported)
     setMode(supported ? '3d' : 'fallback')
@@ -242,12 +253,18 @@ export function Scenario3DCanvas({
             setRendererCreated(true)
             setCanvasMounted(true)
             setCanvasSize({ width: size.width, height: size.height })
+            try {
+              setDpr(gl.getPixelRatio())
+            } catch {
+              setDpr(null)
+            }
             if (typeof console !== 'undefined') {
               // eslint-disable-next-line no-console
               console.info('[scenario3d] canvas onCreated', {
                 width: size.width,
                 height: size.height,
                 debugMode,
+                emergencyMode,
               })
             }
           } catch (error) {
@@ -257,12 +274,20 @@ export function Scenario3DCanvas({
         }}
       >
         <color attach="background" args={[activeBg]} />
-        <CameraTarget
-          position={cameraPosition}
-          lookAt={cameraLookAt}
-          enableSway={!debugMode && !emergencyMode && !reducedMotion}
-        />
+        {orbitMode ? (
+          <OrbitControls
+            enableDamping
+            target={[cameraLookAt[0], cameraLookAt[1], cameraLookAt[2]]}
+          />
+        ) : (
+          <CameraTarget
+            position={cameraPosition}
+            lookAt={cameraLookAt}
+            enableSway={!debugMode && !emergencyMode && !reducedMotion}
+          />
+        )}
         <ManualLoop />
+        <CameraDiagnosticsProbe onChange={setCameraStats} />
 
         {emergencyMode ? (
           <EmergencyScene3D />
@@ -296,7 +321,12 @@ export function Scenario3DCanvas({
         validationStatus={sceneValidationStatus}
         errorMessage={runtimeError}
         debugMode={debugMode}
+        emergencyMode={emergencyMode}
         playerCount={visibleScene.players.length}
+        width={canvasSize?.width}
+        height={canvasSize?.height}
+        dpr={dpr}
+        cameraStats={cameraStats}
       />
 
       {debugMode ? (
@@ -313,6 +343,14 @@ export function Scenario3DCanvas({
   )
 }
 
+interface CameraStats {
+  position: [number, number, number]
+  fov: number
+  childCount: number
+  firstChildKind: string | null
+  firstChildPosition: [number, number, number] | null
+}
+
 interface CanvasDiagnosticsProps {
   canvasMounted: boolean
   rendererCreated: boolean
@@ -322,9 +360,12 @@ interface CanvasDiagnosticsProps {
   validationStatus: string
   errorMessage: string | null
   debugMode: boolean
+  emergencyMode?: boolean
   playerCount: number
   width?: number
   height?: number
+  dpr?: number | null
+  cameraStats?: CameraStats | null
 }
 
 function CanvasDiagnostics({
@@ -336,9 +377,12 @@ function CanvasDiagnostics({
   validationStatus,
   errorMessage,
   debugMode,
+  emergencyMode,
   playerCount,
   width,
   height,
+  dpr,
+  cameraStats,
 }: CanvasDiagnosticsProps) {
   // Hidden when ?nodebug=1 is set OR after the user has confirmed the
   // scene works and we want to drop the badge. Until then we show the
@@ -353,17 +397,41 @@ function CanvasDiagnostics({
     }
   }
 
+  const fmt = (n: number) => (Number.isFinite(n) ? n.toFixed(1) : '–')
+  const renderMode = emergencyMode
+    ? 'emergency'
+    : debugMode
+      ? 'debug self-test'
+      : 'scenario'
+
   return (
     <div className="pointer-events-none absolute left-2 top-2 max-w-[92%] rounded-lg bg-black/75 px-2 py-1 font-mono text-[10px] leading-snug text-white/85">
       <div>canvas mounted: {canvasMounted ? 'yes' : 'no'}</div>
       <div>renderer created: {rendererCreated ? 'yes' : 'no'}</div>
       <div>webgl: {webglSupported === null ? 'checking' : webglSupported ? 'yes' : 'no'}</div>
-      <div>size: {width ?? '–'}×{height ?? '–'}</div>
-      <div>mode: {debugMode ? 'debug self-test' : 'scenario'}</div>
+      <div>size: {width ?? '–'}×{height ?? '–'} @ dpr {dpr ?? '–'}</div>
+      <div>mode: {renderMode}</div>
       <div>players: {playerCount}</div>
       <div>scene: {validationStatus}</div>
       <div>scenario: {scenarioId ?? 'none'}</div>
       {concept ? <div>concept: {concept}</div> : null}
+      {cameraStats ? (
+        <>
+          <div>
+            cam: {fmt(cameraStats.position[0])}, {fmt(cameraStats.position[1])},{' '}
+            {fmt(cameraStats.position[2])} @ fov {fmt(cameraStats.fov)}
+          </div>
+          <div>
+            children: {cameraStats.childCount} / first:{' '}
+            {cameraStats.firstChildKind ?? '–'}
+            {cameraStats.firstChildPosition
+              ? ` (${fmt(cameraStats.firstChildPosition[0])}, ${fmt(
+                  cameraStats.firstChildPosition[1],
+                )}, ${fmt(cameraStats.firstChildPosition[2])})`
+              : ''}
+          </div>
+        </>
+      ) : null}
       {errorMessage ? <div>error: {errorMessage}</div> : null}
     </div>
   )
@@ -414,6 +482,51 @@ interface CameraTargetProps {
  * extremely subtle horizontal sway inside the R3F render loop so the scene
  * doesn't feel statically posed.
  */
+/**
+ * Lives inside the <Canvas> and pushes camera + scene-graph snapshots back
+ * to the parent every ~250ms via a state-setter callback. Throttled so the
+ * React tree doesn't re-render every frame.
+ */
+function CameraDiagnosticsProbe({
+  onChange,
+}: {
+  onChange: (stats: CameraStats) => void
+}) {
+  const camera = useThree((s) => s.camera)
+  const scene = useThree((s) => s.scene)
+  const lastEmit = useRef(0)
+
+  useFrame(() => {
+    const now = performance.now()
+    if (now - lastEmit.current < 250) return
+    lastEmit.current = now
+
+    const cam = camera as THREE.PerspectiveCamera
+    const children = scene.children
+    let firstObjectKind: string | null = null
+    let firstObjectPos: [number, number, number] | null = null
+    for (const child of children) {
+      if (child.type === 'AmbientLight' || child.type === 'DirectionalLight' ||
+          child.type === 'HemisphereLight' || child.type === 'PerspectiveCamera') {
+        continue
+      }
+      firstObjectKind = child.type
+      firstObjectPos = [child.position.x, child.position.y, child.position.z]
+      break
+    }
+
+    onChange({
+      position: [cam.position.x, cam.position.y, cam.position.z],
+      fov: 'fov' in cam ? (cam.fov as number) : NaN,
+      childCount: children.length,
+      firstChildKind: firstObjectKind,
+      firstChildPosition: firstObjectPos,
+    })
+  })
+
+  return null
+}
+
 function CameraTarget({ position, lookAt, enableSway = false }: CameraTargetProps) {
   const camera = useThree((state) => state.camera)
   const target = useMemo(() => new THREE.Vector3(...lookAt), [lookAt])
