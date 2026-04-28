@@ -6,7 +6,118 @@
 > **Branch:** `claude/courtiq-phased-planning-aISkN`.
 > **Goal:** turn the existing CourtIQ scenario engine into a decoder-driven, 3D playable film-room. Ship one gold-standard scenario (`BDW-01`) end-to-end, then reuse the template for `ESC-01` / `AOR-01` / `SKR-01` / optional `SKR-02`.
 >
-> Sections 1–4 (Executive Summary, Current-State Assessment, Product Architecture, Scenario Data Architecture) were drafted in chat (PR-1 / PR-2). They are not yet persisted here; backfill is its own micro-milestone when requested. This file currently captures Section 5 onward.
+> **Persisted:** Sections 1, 2, and Section 5.1. **Pending:** Sections 3, 4, the rest of Section 5, and Sections 6–11. Each remaining section is added in its own small-commit chunk.
+
+---
+
+## Section 1 — Executive Summary
+
+### What we are building
+
+CourtIQ is becoming a **decoder-driven, 3D playable film-room scenario system** for middle-school and early-high-school basketball players. The core loop is one possession at a time:
+
+1. Watch a short 3D possession.
+2. The play freezes on the decision cue.
+3. Choose a read from a small set of choices.
+4. Watch the consequence of the chosen read play out.
+5. Watch the best read replayed with teaching overlays.
+6. Learn the decoder — the named, transferable IQ framework — behind the read.
+
+The decoder framework introduces four cross-cutting reads as the headline learning vocabulary:
+
+- **The Backdoor Window** — read denial, cut behind.
+- **The Empty-Space Cut** — read help that left, cut into the gap.
+- **Skip the Rotation** — read overhelp, punish with the extra pass.
+- **Advantage or Reset** — read the closeout, decide on first touch.
+
+This phase extends the existing scenario engine to support those decoders, ships one gold-standard scenario (`BDW-01`) end-to-end, and reuses its template across `ESC-01` / `AOR-01` / `SKR-01` (and optional `SKR-02`) to form **Pack 1: Founder v0 / Decoder Foundations**.
+
+### Why this phase matters
+
+The scenario system, the 3D rendering, and the decoder framework together are the **core product**. Academy markdown lessons, the IQ score, the XP/streak/badge stack, and the leaderboard are support systems that motivate or recap the scenario loop. If the scenario loop is generic, every other surface compounds the genericness. If the loop is decoder-shaped and visually concrete, the rest of the product compounds the strength of the decoders.
+
+This phase also produces the **template scenario**. Every later content pack — passing reads, screening, transition defense, advanced rotations — reuses the data shape, scene-authoring conventions, overlay primitives, freeze-frame mechanics, and consequence-replay wiring established here.
+
+### Why 3D differentiates CourtIQ from a quiz
+
+A quiz collapses everything between question and feedback into text. A 3D scene can do three things text cannot:
+
+- Show the **cue spatially** before the user chooses (defender hips, hand in the lane, head turned to the ball, the seam help just opened).
+- Play the **consequence** of the user's wrong choice (defender deflects, defense resets, layup window closes).
+- Re-play the same possession with **post-answer overlays** that name the read (open lane, blocked lane, vision cone, open space, drive/cut path).
+
+These are spatial reads. They cannot be taught with words alone. The existing renderer (Next.js + `@react-three/fiber` + an imperative THREE overlay group animated in a parent rAF loop) is already capable of this; this phase gives it the missing primitives — explicit freeze-frame, defender body-language overlays, open-space region highlights, named help pulses, and per-choice consequence playback.
+
+### Why this phase extends existing infrastructure, not a rewrite
+
+The audit (PR-1) established that the existing system has:
+
+- A tested 3D engine: `Scenario3DCanvas`, `Court3D`, `PlayerMarker3D`, `BallMarker3D`, `AutoFitCamera`, `imperativeScene.ts`, `lib/scenario3d/{scene,presets,timeline,coords,quality,atmosphere,schema,feature}.ts`, plus the WebGL/reduced-motion/3-second emergency-scene fallback chain.
+- A Zod-validated, idempotent JSON seed pipeline (`scripts/seed-scenarios.ts`, `scripts/seed-lessons.ts`).
+- An atomic attempt transaction (IQ + XP + Mastery + Streak + Badge in one Prisma `$transaction`).
+- An Academy / lesson markdown system with the `tip / mistake / takeaway / coach / quiz / reveal` block grammar already perfect for decoder teaching.
+- A polished design system, render polish recently merged through PR #51, and a 2D fallback in `components/court/`.
+
+Rebuilding any of this would burn the phase budget on parity with no user-visible gain. The plan is **additive at every layer** — new scenario fields, new movement kinds, new overlay primitives, new replay states, new decoder mastery dimension — leaving the working pieces alone.
+
+### Why BDW-01 is the right first template scenario
+
+Product reasons:
+- Universally taught, low coach-validation risk.
+- Fast payoff loop: read denial → cut behind → layup.
+- Teaches CourtIQ's headline idea — read the defender, not the spot.
+
+Engineering reasons (this is what makes BDW-01 the *template*):
+- Exercises every new mechanic exactly once: decoder taxonomy, freeze-frame, three-quality choices, defender body-language overlays, open-space region, named help pulse, per-choice consequence replay, decoder lesson hand-off, self-review checklist.
+- 4-on-4 half-court geometry — small, readable, fast to author and visually QA.
+- One camera preset, one open lane, one cut. Visual QA is decisive.
+- Once it ships, the next three scenarios in Pack 1 are mostly data work.
+
+---
+
+## Section 2 — Current-State Assessment
+
+### Stack
+
+| Concern | Reality |
+|---|---|
+| Repo shape | pnpm 9 + turbo monorepo. Workspaces: `apps/web`, `packages/core`, `packages/db`, `packages/config` |
+| App framework | Next.js 15 + React 19 in `apps/web` |
+| 3D stack | `three` 0.184, `@react-three/fiber` 9, `@react-three/drei` 10, plus an imperative THREE API alongside R3F |
+| Animation | Framer Motion (DOM); `useFrame` lerps and a parent rAF loop (3D) |
+| Validation | Zod (in seed scripts and runtime scene parsing) |
+| DB / ORM | Prisma 5.22 + PostgreSQL (Supabase-hosted) |
+| Auth / data | Supabase |
+| Observability | Sentry + PostHog |
+| Styling | Tailwind with shared preset in `packages/config/tailwind` |
+| Tests | Vitest in `apps/web`; existing tests for `coords`, `schema`, `timeline`, `scene` |
+| Scripts | `dev`, `build`, `lint`, `typecheck`, `test`, `prisma:validate`, `seed:scenarios`, `seed:lessons`, `seed:content`, `format` |
+
+### Keep (touch nothing)
+
+- **3D engine core** — `Scenario3DCanvas`, `Court3D`, `PlayerMarker3D`, `BallMarker3D`, `AutoFitCamera`, `imperativeScene.ts`, and all of `apps/web/lib/scenario3d/*.ts`. Including the reduced-motion / WebGL / 3-second emergency fallback chain.
+- **Seed pipeline** — `scripts/seed-scenarios.ts`, `scripts/seed-lessons.ts`, Zod validation, idempotency, prerequisite enforcement.
+- **Attempt transaction** — `POST /api/session/[id]/attempt` and the IQ/XP/Mastery/Streak/Badge bundle in one Prisma transaction.
+- **Progression services** — `iqService`, `xpService`, `masteryService`, `streakService`, `badgeService`, plus `@courtiq/core` math.
+- **Academy / lesson markdown** — `Module`, `Lesson`, `Concept` Prisma models; `InteractiveLesson.tsx`; the `tip / mistake / takeaway / coach / quiz / reveal` block grammar.
+- **Design system** — `apps/web/components/ui/`, `packages/config/tailwind/preset.js`.
+- **2D `<Court />` fallback** in `apps/web/components/court/` — the WebGL-unavailable path. Do not delete.
+- **Existing seven seed scenarios** (`closeouts`, `cutting_relocation`, `help_defense_basics`, `low_man_rotation`, `spacing_fundamentals`, `transition_stop_ball`, plus the README) — leave `LIVE` and coexisting with new decoder content.
+
+### Key gaps (what this phase must close)
+
+1. **No decoder taxonomy.** The four decoder families have no representation in the data model. Concepts are not the same axis as decoders.
+2. **Binary choice correctness.** `ScenarioChoice.is_correct: boolean` cannot express "best vs acceptable vs wrong." BDW-01's V-cut acceptable read is impossible to teach today.
+3. **No explicit freeze-frame primitive.** The renderer plays through movements without a precise stop point at the cue; the question UI and pre-answer overlays cannot land at a guaranteed moment.
+4. **Missing defender body-language overlays.** Hip arrow, foot arrow, chest line, hand-in-lane indicator are not primitives. The decoder framework requires reading defender body, not just position.
+5. **Missing open-space region highlight.** Pulses and cones exist; a shaded *region* (the lane behind the defender, the empty corner, the seam) does not.
+6. **Missing per-choice consequence replay.** `answerDemo[]` only encodes the correct timeline. Wrong/acceptable reads have no consequence playback.
+7. **Two scene paths and two overlay paths coexist.** `BasketballScene3D` (simple) vs. `Court3D + ScenarioScene3D` (full); `PremiumOverlay.tsx` (legacy JSX) vs. `imperativeTeachingOverlay.ts` (production). Without an explicit policy, authored decoder content drifts.
+8. **No coach-validation gating.** Some scenarios in the broader roadmap (`ESC-02`, `SKR-03`, `AOR-03`, `BDW-03`) need expert review before public launch; the seeder cannot enforce this today.
+
+### Do-not-rebuild principle
+
+Every change in this phase is **additive**. New fields on the scenario record. New movement kinds in the existing typed union. New overlay primitive types in the existing typed union. New states on the existing replay state machine. New decoder mastery dimension on top of the existing transaction. New camera preset alongside the existing presets. No file in `apps/web/components/scenario3d/` or `apps/web/lib/scenario3d/` is replaced; each is extended in place. No parallel "decoder train" route is created — `/train` handles all scenarios, legacy and decoder.
 
 ---
 
