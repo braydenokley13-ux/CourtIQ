@@ -972,3 +972,140 @@ What the next three Pack 1 scenarios add, **strictly as data + new primitives, n
 - **SKR-01 — Paint Touch Opposite Corner.** First use of the `skip_pass` movement kind. First scenario where the user is the **ball-handler driving** (paint touch from a slot drive). Leans on `passing_lane_blocked` + `tag` and `low_man` help pulses + `passing_lane_open` to the opposite corner.
 
 Each delta is a one-line schema addition (one movement kind) plus authored data. **No new player components, no new camera components, no new overlay primitives, no new replay states.** That is the test BDW-01 is built to pass.
+
+---
+
+## Section 8 — First 4-Scenario Pack Plan
+
+Pack name: **Founder v0 / Decoder Foundations.** Pack folder: `packages/db/seed/scenarios/packs/founder-v0/`. Order is teaching-driven, not engineering-driven — the engineering deltas per scenario are listed only to confirm each addition stays small.
+
+### `BDW-01` — Denied Wing Backdoor
+
+(a) **Why it's first / what it teaches.** The Backdoor Window is CourtIQ's headline decoder, taught with the cleanest possible cue: defender hand and foot in the passing lane. The user practises reading denial and punishing it with a plant-and-go cut behind the defender. Universally taught at the youth level; no system-dependent caveats. (b) **What it tests technically.** Every new mechanic exactly once — decoder taxonomy, three-quality choices, freeze-frame, defender body-language overlays, named help pulse, open-space region, per-choice consequence replay, decoder lesson hand-off, self-review checklist. (c) **What is reused.** Nothing yet — BDW-01 establishes the template. (d) **Coach validation.** `level: 'low'`. Open question: default youth pass type for the cutter — bounce vs lead vs chest-fake-to-bounce. Captured in `coachValidation.notes`; can ship `LIVE` without a review pass.
+
+### `ESC-01` — Empty Corner Baseline Sneak
+
+(a) **Why next / what it teaches.** The Empty-Space Cut decoder. Strong-side drive pulls weak-side help; the user (in the weak-side corner) sneaks behind the abandoned helper for a baseline drop-off. Teaches "cut into the space your teammate just created" — the off-ball read that turns drives into layups. Visually strong: empty corner is a clear geometric prompt. (b) **What it tests technically beyond BDW-01.** First use of the `baseline_sneak` movement kind. First weak-side `camera.anchor` override (the cue lives on the *opposite* side from the ball, so the default `passer_side_three_quarter` mis-frames; an explicit anchor pulls the camera toward the empty corner). Leans on `open_space_region` and `low_man` `help_pulse`. (c) **What is reused unchanged from BDW-01.** Scenario schema shape, replay state machine, freeze-frame state, choice quality system, overlay reveal discipline (sparse pre-answer, layered post-answer), consequence-demo cadence, decoder lesson panel UI, self-review checklist UI, progression hooks. (d) **Coach validation.** `level: 'low'` → `medium`. Open question: whether the youth default is the baseline drop-off vs a corner skip — varies slightly by program.
+
+### `AOR-01` — No Gap Go Now
+
+(a) **Why next / what it teaches.** Advantage or Reset — the closeout read on the catch. Tight closeout, no cushion, empty baseline lane = rip baseline immediately. Teaches the 0.5-second first-touch decision that every kickout in basketball requires. The lowest-friction example of the decoder family. (b) **What it tests technically beyond BDW-01 / ESC-01.** First use of the `rip` movement kind. First scenario where the **user is the ball-handler at catch time** (the closeout decision sits on the receiver's first touch, not on an off-ball cutter). Leans on `defender_chest_line` and `defender_foot_arrow` for closeout posture readability. Forces the train page's "user just caught" framing path. (c) **What is reused unchanged.** Same as ESC-01 plus the weak-side `camera.anchor` pattern (here used to keep the closeout body line readable). (d) **Coach validation.** `level: 'low'`. No open content questions; rip-baseline-on-tight-closeout is universally taught.
+
+### `SKR-01` — Paint Touch Opposite Corner
+
+(a) **Why next / what it teaches.** Skip the Rotation. The user drives middle from a slot and reaches the paint; weak-side help shrinks; the opposite corner opens behind the help. Teaches "if two defenders shrink to the ball, somebody behind them got free" — the headline passing decoder. First scenario that introduces a true cross-court geometric read. (b) **What it tests technically beyond the prior three.** First use of the `skip_pass` movement kind. First scenario where the **user is the ball-handler driving** (paint touch from a slot drive, not a catch). Exercises both `tag` and `low_man` `help_pulse` roles in the same scene. Heavier post-answer overlay layering (`passing_lane_blocked` for the dump-off lane, `passing_lane_open` to the corner, `open_space_region` on the opposite corner). (c) **What is reused unchanged.** Schema shape, state machine, freeze-frame, choice quality, overlay discipline, consequence-demo cadence, lesson panel, self-review UI, progression. (d) **Coach validation.** `level: 'medium'`. Open content questions: is the opposite corner the default vs the wing one-more, and does the user attempt a layup if the lane is genuinely open? Both belong in `coachValidation.notes`.
+
+### `SKR-02` — First Kick Then One More *(optional)*
+
+(a) **Why optional / what it teaches.** The "good shot vs better shot" extension of Skip the Rotation. The user catches a first kickout at the 45 with a workable but contested look; the corner is more open because x3 is late closing out. Teaches the second-pass habit that separates good IQ from great IQ. Strong content; medium-to-high coach validation cost. (b) **What it tests technically beyond SKR-01.** Same `skip_pass` kind. New nuance: the user's choice between "shoot the workable look" and "extra pass to the better look" requires two `quality: 'acceptable'` reads in tension — exercises the partial-XP path more thoroughly than any other scenario in the pack. May surface a need for a `timing_pulse` overlay on the late closeout if visual QA finds the cue too subtle without it. (c) **What is reused unchanged.** Everything that the first four scenarios use. (d) **Coach validation.** `level: 'medium'` → `high`. Ships only after a coach review. Open content questions: shooter-range threshold (when does the workable shot become "better than one more"), and whether to score the workable shot as `acceptable` or `wrong` for under-13 players. Captured in `coachValidation.notes`. Default ship status: `DRAFT` until reviewed.
+
+---
+
+## Section 9 — Engineering Phases
+
+Phase 1 (Decoder Foundations) is broken into twelve commit-sized sub-phases, A through L. Each phase below describes **future** implementation work — none of it is done yet. Each phase ends with a stop/checkpoint instruction so a fresh Claude Code session can pick up the next phase from this document alone.
+
+Common validation commands referenced below:
+
+- `pnpm typecheck`
+- `pnpm lint`
+- `pnpm test`
+- `pnpm prisma:validate`
+- `pnpm seed:scenarios` (seed dry-run against fixtures, where relevant)
+- Manual visual QA in `/train` (where the deliverable changes a rendered surface)
+
+### Phase A — Audit current scenario / 3D code
+
+- **Goal.** Sanity-check the assumptions in PR-1's audit before any code edits land. Confirm exact file paths, exported names, and Zod schema shape so Phase B does not collide with reality.
+- **Why it matters.** PR-1 was an inventory pass, not a line-by-line read. Phase B writes against `apps/web/lib/scenario3d/schema.ts`; if the actual export structure differs, every later phase shifts.
+- **Files likely involved (read-only).** `apps/web/lib/scenario3d/schema.ts`, `apps/web/lib/scenario3d/scene.ts`, `apps/web/lib/scenario3d/timeline.ts`, `apps/web/lib/scenario3d/presets.ts`, `apps/web/components/scenario3d/Scenario3DCanvas.tsx`, `apps/web/components/scenario3d/ScenarioReplayController.tsx`, `apps/web/components/scenario3d/imperativeTeachingOverlay.ts`, `scripts/seed-scenarios.ts`, `packages/db/prisma/schema.prisma`, `packages/db/seed/scenarios/*.json`, `apps/web/app/train/page.tsx`.
+- **Deliverable.** A short `docs/audit-confirmation.md` (~80–150 lines): for each subsystem, the current export surface, the smallest extension point Phase B will use, and any deltas from PR-1's audit. No code changes.
+- **Validation.** `pnpm typecheck` (sanity); read-only review.
+- **Commit message.** `docs: confirm scenario/3D audit assumptions before schema work`.
+- **Risks.** Audit may reveal a refactor since PR-1 (renderer polish work continues to merge). If so, capture the delta and adjust later phases before starting B.
+- **Stop / checkpoint.** Land the audit-confirmation doc, run typecheck, commit, push. Do not start B in the same session.
+- **Next prompt.** "Proceed with Phase B. Implement schema additions in `apps/web/lib/scenario3d/schema.ts` and the seed validator mirror per Section 4 of the planning doc. Do not touch Prisma or runtime components yet."
+
+### Phase B — Define scenario TypeScript / Zod schema additions
+
+- **Goal.** Land the additive schema in TypeScript and Zod: `DecoderTag`, `ChoiceQuality`, `freezeMarker` discriminated union, `wrongDemos[]`, `OverlayPrimitive` discriminated union, `CoachValidation`, plus the new movement kinds (`back_cut`, `baseline_sneak`, `skip_pass`, `rip`, `jab`) and the `passer_side_three_quarter` camera preset. Mirror the schema in `scripts/seed-scenarios.ts`.
+- **Why it matters.** Every later phase reads against this schema. Type drift here is contagious.
+- **Files likely involved.** `apps/web/lib/scenario3d/schema.ts` (extend), `scripts/seed-scenarios.ts` (mirror), `apps/web/lib/scenario3d/scene.ts` (resolve `freezeBeforeMovementId` → `freezeAtMs` at scene load), `apps/web/lib/scenario3d/timeline.ts` (read freeze marker; no behaviour change yet).
+- **Deliverable.** Schema extensions land additively. Existing scenes parse unchanged. New optional fields default sanely. Unit tests in `apps/web/lib/scenario3d/schema.test.ts` (extend) cover: `DecoderTag` enum acceptance, `ChoiceQuality` enum, `freezeMarker` both forms (`atMs` and `beforeMovementId` resolution), `wrongDemos[].choiceId` referential integrity, overlay primitive discriminated-union exhaustiveness, coach-validation gating rules.
+- **Validation.** `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm prisma:validate` (no Prisma changes yet but confirms baseline). Plus `pnpm seed:scenarios` dry-run against the seven legacy fixtures — they must continue to pass with no JSON edits.
+- **Commit message.** `feat(schema): add decoder, choice quality, freeze, overlays to scenario zod schema`.
+- **Risks.** Discriminated-union additions can break existing seed JSON if a field name collides. Mitigation: every new field is optional or has a default; legacy JSONs that ship `is_correct: true | false` are translated by the seeder, not by the schema.
+- **Stop / checkpoint.** Schema lands, tests pass, legacy seed dry-run is green. Commit, push, stop.
+- **Next prompt.** "Proceed with Phase C. Add Prisma-layer decoder taxonomy and choice-quality columns; decide and implement the `Mastery.dimension` discriminator path."
+
+### Phase C — Add decoder taxonomy and choice quality at the Prisma layer
+
+- **Goal.** Add `decoder_tag` enum on `Scenario`, `quality` column on `ScenarioChoice` (with backwards-compat `is_correct` derivation in the seeder), and `dimension` discriminator on `Mastery` for decoder mastery. Recommendation: reuse the existing `Mastery` table with a `dimension: 'concept' | 'decoder'` discriminator rather than introducing a parallel `DecoderMastery` table — the attempt transaction already writes one row per concept tag; adding a decoder dimension keeps it atomic, single-table, and one query shape for the home screen and Academy.
+- **Why it matters.** This is the load-bearing data-model change that lets every later phase (especially F, J, K) read or write decoder-tagged data without per-call workarounds.
+- **Files likely involved.** `packages/db/prisma/schema.prisma`, `packages/db/seed/scenarios/README.md` (note new fields), `scripts/seed-scenarios.ts` (translate legacy `is_correct` → `quality`; populate `decoder_tag` only when present in JSON), `apps/web/lib/services/masteryService.ts` (write decoder-dimension row alongside concept-dimension rows), `apps/web/app/api/session/[id]/attempt/route.ts` (no contract change; pass through new mastery rows).
+- **Deliverable.** A Prisma migration (`pnpm prisma migrate dev --name add_decoder_and_quality`) that adds: `Scenario.decoder_tag DecoderTag?`, `ScenarioChoice.quality ChoiceQuality NOT NULL DEFAULT 'wrong'` (then back-fill from `is_correct`), `Mastery.dimension MasteryDimension NOT NULL DEFAULT 'concept'`. Seeder translates legacy `is_correct` → `quality` on every run. Existing API responses include both `is_correct` and `quality` during the transition.
+- **Validation.** `pnpm prisma:validate`, `pnpm prisma migrate dev` (locally), `pnpm typecheck`, `pnpm lint`, `pnpm test`. Run `pnpm seed:scenarios` and confirm the seven legacy scenarios upsert with `quality` filled in and `decoder_tag` null. Manually inspect one `ScenarioChoice` row.
+- **Commit message.** `feat(db): add decoder_tag, choice quality, mastery dimension to schema`.
+- **Risks.** Migrations against a Supabase-hosted DB require care; ship with `--create-only` first if production needs review. Backfill of `quality` from `is_correct` must run in the same migration to avoid a window where rows have neither.
+- **Stop / checkpoint.** Migration applied locally, seed dry-run green, all checks pass. Commit, push, stop. Do not start D until the migration plan for staging is captured.
+- **Next prompt.** "Proceed with Phase D. Wire freeze-frame and the new replay state machine in `lib/scenario3d/timeline.ts` and `ScenarioReplayController.tsx`. No UI behaviour change yet."
+
+### Phase D — Add freeze-frame and replay state machine
+
+- **Goal.** Resolve `freezeMarker` (both `atMs` and `beforeMovementId` forms) into a single `freezeAtMs` at scene load; add the `frozen` event from `MotionController`; replace `ScenarioReplayController`'s state machine with `idle → setup → playing → frozen → consequence(choiceId) → replaying → done` (per Section 5.4). No question UI hand-off yet — that lands in Phase G.
+- **Why it matters.** The freeze and the consequence/replay distinction are the load-bearing runtime mechanics for every authored decoder scenario. Wiring them once keeps F / G / H / K cheap.
+- **Files likely involved.** `apps/web/lib/scenario3d/timeline.ts`, `apps/web/lib/scenario3d/scene.ts` (freeze resolution), `apps/web/components/scenario3d/ScenarioReplayController.tsx`, `apps/web/components/scenario3d/imperativeScene.ts` (`MotionController.advance` becomes a no-op while `frozen`), `apps/web/lib/scenario3d/timeline.test.ts` (extend — sampling at freeze, snapshot/reset between consequence and replay).
+- **Deliverable.** Replay state machine landed end-to-end behind a feature flag (or simply gated by presence of `freezeMarker` in the scene). `frozen` event fires reliably; "Show me again" cycles `done → replaying → done`. Existing scenarios without a freeze marker keep their current behaviour.
+- **Validation.** `pnpm typecheck`, `pnpm lint`, `pnpm test`. Manual QA: open a placeholder scenario with a hand-edited `freezeMarker`, confirm the play visibly pauses at the cue and resumes via the controller's `play()` API.
+- **Commit message.** `feat(scenario3d): add freeze-frame and consequence replay state machine`.
+- **Risks.** State-machine drift is the #1 source of replay bugs in 3D engines. Add exhaustive tests for transitions (idle→setup, setup→playing, playing→frozen, frozen→consequence, consequence→replaying, replaying→done, done→replaying). Best-quality short-circuit (`frozen → replaying` directly) needs its own test.
+- **Stop / checkpoint.** All transitions tested, manual QA green for one hand-edited scene. Commit, push, stop.
+- **Next prompt.** "Proceed with Phase E. Add the new overlay primitives in `imperativeTeachingOverlay.ts`. No new scenarios yet."
+
+### Phase E — Add overlay primitives
+
+- **Goal.** Extend `imperativeTeachingOverlay.ts` with the v0 must-have primitives from Section 6.6: `defender_hip_arrow`, `defender_foot_arrow`, `defender_chest_line`, `defender_hand_in_lane`, `open_space_region`, `drive_cut_preview`, plus the named `help_pulse` roles (`tag`, `low_man`, `nail`, `overhelp`). Confirm `passing_lane_open`, `passing_lane_blocked`, and `defender_vision_cone` work for both endpoints and `'ball'` source semantics.
+- **Why it matters.** Every authored decoder scenario draws on this primitive set. Phase F and beyond cannot author overlays that don't render.
+- **Files likely involved.** `apps/web/components/scenario3d/imperativeTeachingOverlay.ts` (extend the controller and primitive registry), `apps/web/lib/scenario3d/atmosphere.ts` (color tokens / intensity if needed), tests under `apps/web/components/scenario3d/__tests__/` (new — primitive build/visibility/animation timing).
+- **Deliverable.** Each new primitive renders correctly in a stand-alone Storybook-style harness or a temporary `/dev/overlay-preview` route. Animation timing matches the table in Section 6.5 (fade-in 200–500 ms depending on primitive; layered post-answer fade-in over 600–900 ms total). Visibility-flip toggle (pre-answer ↔ post-answer) is O(1) — no teardown.
+- **Validation.** `pnpm typecheck`, `pnpm lint`, `pnpm test`. Manual visual QA in the dev harness for each primitive at both `frozen` and `replaying` states. Performance check: total scene draw calls and triangle count remain within the existing render-tier budget.
+- **Commit message.** `feat(overlays): add defender body-language, open-space, drive/cut preview primitives`.
+- **Risks.** Primitive proliferation can blow the per-frame budget. Mitigation: share geometry via module-level memoisation (already the pattern for player markers); avoid per-primitive materials; cap simultaneous animated primitives pre-answer at two.
+- **Stop / checkpoint.** All primitives render in the harness, animations match spec, performance budget green. Commit, push, stop.
+- **Next prompt.** "Proceed with Phase F. Convert BDW-01 into structured data under `packages/db/seed/scenarios/packs/founder-v0/BDW-01.json` and the pack manifest. Run `pnpm seed:scenarios` against it."
+
+### Phase F — Convert BDW-01 into structured data
+
+- **Goal.** Turn Section 7 of this planning document into a real seeded scenario: `packages/db/seed/scenarios/packs/founder-v0/BDW-01.json` plus the pack manifest `pack.json`. No runtime-engine work.
+- **Why it matters.** This is the moment the schema, primitives, and freeze-frame become content. Authoring discipline established here is the template every later scenario follows.
+- **Files likely involved.** `packages/db/seed/scenarios/packs/founder-v0/BDW-01.json` (new), `packages/db/seed/scenarios/packs/founder-v0/pack.json` (new — manifest with `id`, `slug: 'founder-v0'`, `title: 'Founder v0 / Decoder Foundations'`, ordered scenario list, prerequisite chain), `scripts/seed-scenarios.ts` (extend to discover `packs/<slug>/` directories and seed them with the manifest's order respected).
+- **Deliverable.** BDW-01 JSON contains every field from Section 7: identity, decoder, choices with `quality`, scene with court-feet coords (offense, defense, ball), pre-freeze movements, `answerDemo`, three `wrongDemos` keyed by `c2` / `c3` / `c4`, pre-answer overlays, post-answer overlays, lesson connection, decoder teaching point, feedback strings, self-review checklist, coach validation `level: 'low'`. `pnpm seed:scenarios` upserts the row and returns no validation errors.
+- **Validation.** `pnpm prisma:validate`, `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm seed:scenarios`. Manual DB inspection: `Scenario` row with `decoder_tag = 'BACKDOOR_WINDOW'`, four `ScenarioChoice` rows with the right `quality` values.
+- **Commit message.** `content(scenarios): seed BDW-01 — Denied Wing Backdoor (Pack 1)`.
+- **Risks.** Coordinate misjudgement at seed time — the camera framing rule (passer + cue defender + user + rim on screen at freeze) is not visible without rendering. Mitigation: defer visual tuning to Phase L; ship Phase F with the planning-doc coordinates verbatim.
+- **Stop / checkpoint.** BDW-01 seeds clean against the new schema. Commit, push, stop.
+- **Next prompt.** "Proceed with Phase G. Wire the train page to dispatch on `decoderTag`, default `?simple=0` for the decoder pack, and mount the question UI on `frozen`."
+
+### Phase G — Connect BDW-01 to scenario runtime
+
+- **Goal.** Make the `/train` flow recognise decoder scenarios: pick the full `Court3D + ScenarioScene3D` path (default `?simple=0`) for any scenario carrying `decoder_tag`, subscribe to the `frozen` event from Phase D, and mount the question prompt + four choice buttons at that exact moment. No consequence playback yet.
+- **Why it matters.** This is the first end-to-end render of an authored decoder scenario. After Phase G, BDW-01 is playable through the freeze; everything past freeze is Phase H.
+- **Files likely involved.** `apps/web/app/train/page.tsx` (decoder-aware orchestration; `?simple=0` default for decoder scenarios; subscribe to `frozen`), `apps/web/components/scenario3d/Scenario3DView.tsx` (raise the `frozen` event up; expose `replayMode` props per state), `apps/web/components/scenario3d/Scenario3DCanvas.tsx` (pick the full path when `decoder_tag` is present), possibly new UI components under `apps/web/app/train/` (e.g., `DecoderChip.tsx`, `ChoiceButtons.tsx`) — keep small and reuse `components/ui/`.
+- **Deliverable.** A user clicking BDW-01 in `/train` sees: intro card → 3D scene plays for ~1.4 s → freeze → question + four choice buttons. Tapping a choice records the choice and freezes the UI in a "consequence pending" state (Phase H wires the playback). Pre-answer overlays are visible.
+- **Validation.** `pnpm typecheck`, `pnpm lint`, `pnpm test`. Manual visual QA: framing rule satisfied at freeze (passer + x2 + user + rim visible); pre-answer overlays read; no answer-revealing primitives. Phone-width emulation (≤390 px) sanity check.
+- **Commit message.** `feat(train): dispatch decoder scenarios to full 3D path and freeze-frame question UI`.
+- **Risks.** `?simple=0` default may regress legacy concept scenarios that currently rely on the simple path. Mitigation: gate the default switch on `scenario.decoder_tag != null`, leave non-decoder scenarios unchanged.
+- **Stop / checkpoint.** BDW-01 playable through freeze, manual QA green. Commit, push, stop.
+- **Next prompt.** "Proceed with Phase H. Wire `wrongDemos[choiceId]` dispatch and the post-answer overlay visibility flip in `ScenarioReplayController` and `Scenario3DView`."
+
+### Phase H — Add consequence replay and best-read reveal
+
+- **Goal.** Wire the post-decision playback: dispatch `wrongDemos[choiceId]` (or skip for `quality: 'best'`), reset to snapshotted freeze positions, then play `answerDemo` with the post-answer overlay set faded in over the layered timing in Section 6.5. "Show me again" cycles `done → replaying → done`.
+- **Why it matters.** Consequence + best-read reveal is what turns the loop from quiz-shaped into film-room-shaped. After Phase H, BDW-01 is end-to-end playable through state 6 of the 10-state loop (lesson + feedback are I).
+- **Files likely involved.** `apps/web/components/scenario3d/ScenarioReplayController.tsx` (dispatch on choice id; manage snapshot + reset; layered post-answer fade-in), `apps/web/components/scenario3d/Scenario3DView.tsx` (visibility-flip the overlay group), `apps/web/components/scenario3d/imperativeTeachingOverlay.ts` (expose `setPhase('preAnswer' | 'postAnswer')`), `apps/web/components/scenario3d/__tests__/replayController.test.tsx` (extend — full state-machine integration).
+- **Deliverable.** A user picking each of c1–c4 sees the correct consequence, the reset to freeze, the best-read replay, and the post-answer overlays in the correct layered order. Validator timing budgets (consequence ≤ 2.5 s, replay ≤ 3.0 s) honoured. Best-quality short-circuit (`frozen → replaying`) verified.
+- **Validation.** `pnpm typecheck`, `pnpm lint`, `pnpm test`. Manual QA: each of the four choices plays cleanly; "Show me again" works after `done`; no per-frame `setState` regressions (check React profiler).
+- **Commit message.** `feat(replay): wire consequence playback and best-read reveal with post-answer overlays`.
+- **Risks.** Snapshot/reset between consequence and replay is the most likely place for visual jitter. Mitigation: snapshot at the resolved `freezeAtMs` exactly, reset by snapping (not interpolating) before `replaying` begins.
+- **Stop / checkpoint.** All four choices in BDW-01 produce clean consequence + replay; "Show me again" works. Commit, push, stop.
+- **Next prompt.** "Proceed with Phase I. Add the decoder lesson panel and self-review checklist UI; author the four decoder lesson modules under `packages/db/seed/lessons/`."
