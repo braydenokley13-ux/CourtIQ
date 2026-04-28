@@ -21,6 +21,7 @@ import {
   MotionController,
   type CameraMode,
 } from './imperativeScene'
+import { TeachingOverlayController } from './imperativeTeachingOverlay'
 import {
   getCameraMode,
   hasWebGL,
@@ -168,6 +169,11 @@ export function Scenario3DCanvas({
   // Same lifetime as the imperative scene group: rebuilt on scene/mode
   // change, ticked from the parent rAF loop, cleared on unmount.
   const motionControllerRef = useRef<MotionController | null>(null)
+  // Packet E (renderer-polish, learning overlays). Owns the imperative
+  // teaching overlay group (paths, defender cues, spacing labels). Same
+  // lifetime as the imperative scene group: built when the scene mounts,
+  // ticked from the parent rAF loop, disposed on unmount.
+  const teachingOverlayRef = useRef<TeachingOverlayController | null>(null)
   // Polish pass: subtle dust-mote field added to the scene on the high
   // tier only. Owns its own GPU resources, disposed alongside the
   // imperative scene group. Null on medium/low tiers.
@@ -346,6 +352,13 @@ export function Scenario3DCanvas({
           const motion = motionControllerRef.current
           const nowMs = performance.now()
           if (motion) motion.tick(nowMs)
+
+          // Packet E — animate teaching overlay (dash pulse, denial
+          // pulse rings, pressure halo). tick() returns immediately when
+          // the group is hidden so toggling Paths off also stops the
+          // animation cost.
+          const overlay = teachingOverlayRef.current
+          if (overlay) overlay.tick(nowMs)
 
           // Polish pass — sub-pixel camera shake on pass arrival.
           // Trigger only when the controller drove the camera this
@@ -549,6 +562,26 @@ export function Scenario3DCanvas({
         }
         motionControllerRef.current = motion
 
+        // Packet E — imperative teaching overlay. Owns its own GPU
+        // resources and attaches itself to the scene root. We honor the
+        // current showPaths prop on first mount so a scene that arrives
+        // with paths-on does not flicker. The toggle effect below
+        // handles subsequent prop flips without rebuilding the scene.
+        try {
+          const overlay = new TeachingOverlayController(
+            visibleScene,
+            replayMode,
+            result.root,
+            { reduced: reducedMotion },
+          )
+          overlay.setVisible(!!showPaths)
+          teachingOverlayRef.current = overlay
+        } catch (error) {
+          // eslint-disable-next-line no-console
+          console.warn('[scenario3d] teaching overlay build failed', error)
+          teachingOverlayRef.current = null
+        }
+
         // Polish: add a subtle dust-mote field on the high tier only.
         // Built once per scene mount and animated by mutating the
         // existing position buffer in-place — no per-frame mesh
@@ -595,6 +628,17 @@ export function Scenario3DCanvas({
         if (dust.points.parent) dust.points.parent.remove(dust.points)
         dust.dispose()
         dustMotesRef.current = null
+      }
+      // Packet E — dispose the teaching overlay BEFORE disposeGroup
+      // walks the scene root. disposeGroup() would still free the
+      // overlay meshes (they are descendants of root) but the controller
+      // also owns canvas-generated label textures that are not reached
+      // by Material.dispose() alone, so we must release them via the
+      // controller's dispose() to avoid leaking.
+      const overlay = teachingOverlayRef.current
+      if (overlay) {
+        overlay.dispose()
+        teachingOverlayRef.current = null
       }
       if (mounted) {
         const threeScene = threeSceneRef.current
@@ -653,6 +697,13 @@ export function Scenario3DCanvas({
   useEffect(() => {
     motionControllerRef.current?.setPaused(paused ?? false)
   }, [paused])
+
+  // Packet E — flip teaching overlay visibility on showPaths changes
+  // without rebuilding the overlay group. The controller toggles
+  // group.visible internally, so this is O(1).
+  useEffect(() => {
+    teachingOverlayRef.current?.setVisible(!!showPaths)
+  }, [showPaths])
 
   if (mode === 'probing') {
     return (

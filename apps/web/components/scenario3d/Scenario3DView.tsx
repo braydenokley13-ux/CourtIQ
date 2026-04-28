@@ -84,8 +84,20 @@ export function Scenario3DView(props: Scenario3DViewProps) {
   }, [replayMode, resetCounterProp])
   const showPaths = pathOverride ?? showPathsProp ?? false
 
+  // Packet E (renderer-polish, learning overlays). The toggle now
+  // surfaces whenever the active replay mode has movements OR the scene
+  // has at least one defender — the imperative teaching overlay can
+  // build defender pressure cues and spacing labels even when there are
+  // no movements, so showing the toggle is genuinely useful in static
+  // scenes too. We still hide it for empty scenes so the chrome stays
+  // clean when there is nothing to teach.
   const hasAnswerPaths = (props.scene?.answerDemo?.length ?? 0) > 0
-  const pathsAvailable = replayMode === 'answer' && hasAnswerPaths
+  const hasIntroPaths = (props.scene?.movements?.length ?? 0) > 0
+  const hasDefenders = !!props.scene?.players?.some((p) => p.team === 'defense')
+  const pathsAvailable =
+    (replayMode === 'answer' && hasAnswerPaths) ||
+    (replayMode === 'intro' && (hasIntroPaths || hasDefenders)) ||
+    hasAnswerPaths
 
   return (
     <Scenario3DErrorBoundary scenarioId={props.scene?.id}>
