@@ -237,6 +237,181 @@ export function fitCameraToScene(
   pitchDeg = 32,
   padding = 1.4,
 ): void {
+  const target = computeAutoTarget(scene, aspect, camera.fov, pitchDeg, padding)
+  if (!target) return
+  camera.position.copy(target.position)
+  camera.lookAt(target.lookAt)
+  camera.near = target.near
+  camera.far = target.far
+  camera.updateProjectionMatrix()
+  camera.updateMatrixWorld()
+}
+
+// ---------- camera modes ----------
+
+/** All supported camera mode presets, plus "auto" for fit-to-scene. */
+export type CameraMode = 'auto' | 'broadcast' | 'tactical' | 'follow' | 'replay'
+
+/** Static set of every selectable camera mode (used for prop validation). */
+export const CAMERA_MODES: readonly CameraMode[] = [
+  'auto',
+  'broadcast',
+  'tactical',
+  'follow',
+  'replay',
+] as const
+
+/**
+ * A precomputed camera placement: where the camera should be, what it
+ * should look at, the FOV it should use, and the near/far clip planes
+ * it needs so geometry is never clipped at the bounds. Returned by
+ * `computeCameraTarget` for each mode and consumed by CameraController.
+ */
+export interface CameraTarget {
+  position: THREE.Vector3
+  lookAt: THREE.Vector3
+  fov: number
+  near: number
+  far: number
+}
+
+// Default broadcast/replay/tactical target geometry, all in feet.
+// Court spans x ∈ [-25, 25], z ∈ [0, 47], rim sits at the origin (0,
+// y≈10, 0). Half-court is at z = 47.
+const SCENE_FOCUS = new THREE.Vector3(0, 4, 22)
+const BROADCAST_POSITION = new THREE.Vector3(3, 28, 70)
+const BROADCAST_LOOKAT = new THREE.Vector3(0, 4, 22)
+const BROADCAST_FOV = 50
+const TACTICAL_POSITION = new THREE.Vector3(0, 70, 32)
+const TACTICAL_LOOKAT = new THREE.Vector3(0, 0, 24)
+const TACTICAL_FOV = 45
+const REPLAY_POSITION = new THREE.Vector3(-30, 9, 38)
+const REPLAY_LOOKAT = new THREE.Vector3(3, 5, 12)
+const REPLAY_FOV = 38
+const FOLLOW_LIFT_Y = 9
+const FOLLOW_TRAIL_DIST = 14
+const FOLLOW_LOOK_HEIGHT = 4
+
+/**
+ * Computes a camera target for the given mode. Returns null only if the
+ * scene has no usable framing data (auto mode with no finite players or
+ * ball). Follow falls back to broadcast when no holder/ball-target can
+ * be located.
+ */
+export function computeCameraTarget(
+  mode: CameraMode,
+  scene: Scene3D,
+  aspect: number,
+  baseFov = 55,
+): CameraTarget | null {
+  switch (mode) {
+    case 'broadcast':
+      return broadcastTarget()
+    case 'tactical':
+      return tacticalTarget()
+    case 'replay':
+      return replayTarget()
+    case 'follow':
+      return followTarget(scene) ?? broadcastTarget()
+    case 'auto':
+    default:
+      return computeAutoTarget(scene, aspect, baseFov)
+  }
+}
+
+function broadcastTarget(): CameraTarget {
+  return {
+    position: BROADCAST_POSITION.clone(),
+    lookAt: BROADCAST_LOOKAT.clone(),
+    fov: BROADCAST_FOV,
+    near: 0.5,
+    far: 400,
+  }
+}
+
+function tacticalTarget(): CameraTarget {
+  return {
+    position: TACTICAL_POSITION.clone(),
+    lookAt: TACTICAL_LOOKAT.clone(),
+    fov: TACTICAL_FOV,
+    near: 0.5,
+    far: 400,
+  }
+}
+
+function replayTarget(): CameraTarget {
+  return {
+    position: REPLAY_POSITION.clone(),
+    lookAt: REPLAY_LOOKAT.clone(),
+    fov: REPLAY_FOV,
+    near: 0.5,
+    far: 400,
+  }
+}
+
+/**
+ * Locates a follow target — the explicit ball-holder, then the first
+ * `hasBall` player, then the user player, then the static ball coords.
+ * Returns null if nothing finite is available so the caller can fall
+ * back to a non-follow preset.
+ */
+function followTarget(scene: Scene3D): CameraTarget | null {
+  const candidate =
+    (scene.ball.holderId
+      ? scene.players.find((p) => p.id === scene.ball.holderId)
+      : undefined) ??
+    scene.players.find((p) => p.hasBall) ??
+    scene.players.find((p) => p.isUser)
+
+  let tx: number | null = null
+  let tz: number | null = null
+  if (candidate && Number.isFinite(candidate.start.x) && Number.isFinite(candidate.start.z)) {
+    tx = candidate.start.x
+    tz = candidate.start.z
+  } else if (
+    Number.isFinite(scene.ball.start.x) &&
+    Number.isFinite(scene.ball.start.z)
+  ) {
+    tx = scene.ball.start.x
+    tz = scene.ball.start.z
+  }
+  if (tx === null || tz === null) return null
+
+  // Trail behind the target along the rim→player axis. If the player
+  // sits exactly on the rim line, fall back to a straight back-court
+  // pull so we never produce a zero-length direction.
+  const dx = tx
+  const dz = tz
+  const len = Math.hypot(dx, dz)
+  const ux = len > 0.001 ? dx / len : 0
+  const uz = len > 0.001 ? dz / len : 1
+
+  return {
+    position: new THREE.Vector3(
+      tx + ux * FOLLOW_TRAIL_DIST,
+      FOLLOW_LIFT_Y,
+      tz + uz * FOLLOW_TRAIL_DIST,
+    ),
+    lookAt: new THREE.Vector3(tx, FOLLOW_LOOK_HEIGHT, tz),
+    fov: 50,
+    near: 0.5,
+    far: 400,
+  }
+}
+
+/**
+ * Auto-fit target. Builds a Box3 over players + ball, then computes a
+ * camera position that frames it given FOV/aspect. Mirrors the original
+ * `fitCameraToScene` math so 'auto' camera mode preserves prior framing
+ * exactly.
+ */
+function computeAutoTarget(
+  scene: Scene3D,
+  aspect: number,
+  fov: number,
+  pitchDeg = 32,
+  padding = 1.4,
+): CameraTarget | null {
   const points: THREE.Vector3[] = []
   for (const p of scene.players) {
     if (Number.isFinite(p.start.x) && Number.isFinite(p.start.z)) {
@@ -247,7 +422,7 @@ export function fitCameraToScene(
   if (Number.isFinite(scene.ball.start.x) && Number.isFinite(scene.ball.start.z)) {
     points.push(new THREE.Vector3(scene.ball.start.x, 1, scene.ball.start.z))
   }
-  if (points.length === 0) return
+  if (points.length === 0) return null
 
   const box = new THREE.Box3().setFromPoints(points)
   const center = new THREE.Vector3()
@@ -255,24 +430,149 @@ export function fitCameraToScene(
   box.getCenter(center)
   box.getSize(sizeVec)
 
-  const fovRad = (camera.fov * Math.PI) / 180
+  const fovRad = (fov * Math.PI) / 180
   const verticalFit = (sizeVec.y * 0.5 + sizeVec.z * 0.5) / Math.tan(fovRad / 2)
   const horizontalFit = (sizeVec.x * 0.5) / (Math.tan(fovRad / 2) * Math.max(aspect, 0.1))
   const distance = Math.max(verticalFit, horizontalFit) * padding
 
   const pitch = (pitchDeg * Math.PI) / 180
-  camera.position.set(
+  const position = new THREE.Vector3(
     center.x,
     center.y + Math.sin(pitch) * distance,
     center.z + Math.cos(pitch) * distance,
   )
-  camera.lookAt(center)
-
   const diag = sizeVec.length()
-  camera.near = Math.max(0.1, distance * 0.05)
-  camera.far = Math.max(1000, distance + diag * 4)
-  camera.updateProjectionMatrix()
-  camera.updateMatrixWorld()
+
+  return {
+    position,
+    lookAt: center,
+    fov,
+    near: Math.max(0.1, distance * 0.05),
+    far: Math.max(1000, distance + diag * 4),
+  }
+}
+
+/**
+ * Drives the camera between modes with eased position/target/FOV
+ * interpolation. Owns no THREE objects directly; mutates the camera the
+ * caller passes in and never schedules its own rAF — the parent
+ * imperative loop calls `tick()` once per frame.
+ *
+ * On first `tick()` after construction or a `snapNext()` call the
+ * camera jumps directly to the target. Every other tick eases toward
+ * the current target with a small per-frame lerp factor, so mode/scene
+ * changes appear as smooth sweeps rather than cuts.
+ */
+export class CameraController {
+  private mode: CameraMode = 'auto'
+  private scene: Scene3D
+  private aspect: number
+  private baseFov: number
+  private targetPosition = new THREE.Vector3()
+  private targetLookAt = new THREE.Vector3(SCENE_FOCUS.x, SCENE_FOCUS.y, SCENE_FOCUS.z)
+  private targetFov: number
+  private targetNear = 0.5
+  private targetFar = 400
+  private currentLookAt = new THREE.Vector3(SCENE_FOCUS.x, SCENE_FOCUS.y, SCENE_FOCUS.z)
+  private hasTarget = false
+  private snap = true
+  private easing = 0.10
+
+  constructor(scene: Scene3D, aspect: number, baseFov: number) {
+    this.scene = scene
+    this.aspect = aspect
+    this.baseFov = baseFov
+    this.targetFov = baseFov
+    this.recomputeTarget()
+  }
+
+  /**
+   * Updates the active mode. Mode changes trigger a target recompute
+   * and are eased in unless the caller follows up with snapNext().
+   */
+  setMode(mode: CameraMode): void {
+    if (mode === this.mode) return
+    this.mode = mode
+    this.recomputeTarget()
+  }
+
+  /** Replaces the underlying scene (e.g. on scenario change). */
+  setScene(scene: Scene3D): void {
+    this.scene = scene
+    this.recomputeTarget()
+  }
+
+  /**
+   * Keeps the camera aspect-aware. Called once per parent rAF tick
+   * with the current canvas aspect; only triggers a recompute when
+   * the aspect actually changes meaningfully.
+   */
+  setAspect(aspect: number): void {
+    if (!Number.isFinite(aspect) || aspect <= 0) return
+    if (Math.abs(this.aspect - aspect) < 0.001) return
+    this.aspect = aspect
+    this.recomputeTarget()
+  }
+
+  /** Forces the next tick to snap rather than ease. */
+  snapNext(): void {
+    this.snap = true
+  }
+
+  /** Returns the current mode (for diagnostics). */
+  getMode(): CameraMode {
+    return this.mode
+  }
+
+  /**
+   * Mutates the camera one step toward the current target. Safe to
+   * call every frame even when the target hasn't changed — the lerp
+   * resolves to a no-op once the camera has settled.
+   */
+  tick(camera: THREE.PerspectiveCamera): void {
+    if (!this.hasTarget) return
+    const t = this.snap ? 1 : this.easing
+    camera.position.lerp(this.targetPosition, t)
+    this.currentLookAt.lerp(this.targetLookAt, t)
+    camera.lookAt(this.currentLookAt)
+
+    const fovDelta = this.targetFov - camera.fov
+    if (Math.abs(fovDelta) > 0.01) {
+      camera.fov = camera.fov + fovDelta * t
+      camera.updateProjectionMatrix()
+    } else if (this.snap) {
+      camera.fov = this.targetFov
+      camera.updateProjectionMatrix()
+    }
+
+    if (this.snap) {
+      camera.near = this.targetNear
+      camera.far = this.targetFar
+      camera.updateProjectionMatrix()
+    }
+
+    camera.updateMatrixWorld()
+    this.snap = false
+  }
+
+  private recomputeTarget(): void {
+    const target = computeCameraTarget(
+      this.mode,
+      this.scene,
+      this.aspect,
+      this.baseFov,
+    )
+    if (!target) return
+    this.targetPosition.copy(target.position)
+    this.targetLookAt.copy(target.lookAt)
+    this.targetFov = target.fov
+    this.targetNear = target.near
+    this.targetFar = target.far
+    if (!this.hasTarget) {
+      this.currentLookAt.copy(target.lookAt)
+      this.hasTarget = true
+    }
+  }
 }
 
 // ---------- internals ----------
