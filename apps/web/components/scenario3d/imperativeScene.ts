@@ -662,6 +662,15 @@ export class MotionController {
   private startedAt: number | null = null
   private phases: BallPhase[] = []
   private initialHolderId: string | null
+  // Playback rate multiplier applied on top of real elapsed time.
+  // Defaults to 1, so the existing deterministic 1x playback math is
+  // unchanged. setPlaybackRate() rebases startedAt so the visible t
+  // does not jump when speed changes mid-playback.
+  private playbackRate = 1
+  // When non-null the controller is paused: ticks freeze the timeline
+  // at this t (in ms) and the rendered transforms stop advancing. A
+  // resume() rebases startedAt so play continues from the paused t.
+  private pausedAtT: number | null = null
 
   constructor(
     scene: Scene3D,
@@ -687,10 +696,53 @@ export class MotionController {
 
   /** Drops the playback anchor so the next tick starts the timeline at
    *  t=0 from the current real time. Called when the parent bumps
-   *  resetCounter or replays the scene.
+   *  resetCounter or replays the scene. The user's selected speed is
+   *  intentionally preserved across a reset so a "Show me again" press
+   *  honors the speed they picked.
    */
   reset(): void {
     this.startedAt = null
+    this.pausedAtT = null
+  }
+
+  /** Sets the playback rate (clamped to 0.25x..4x). Rebases startedAt
+   *  so the currently visible t does not jump when speed changes. At
+   *  rate=1 the math collapses to the original `nowMs - startedAt`
+   *  formulation, so default playback is bit-identical to before.
+   */
+  setPlaybackRate(rate: number, nowMs: number = performance.now()): void {
+    const safe = Math.max(0.25, Math.min(4, rate))
+    if (safe === this.playbackRate) return
+    if (this.startedAt !== null && this.pausedAtT === null) {
+      const t = this.getElapsedMs(nowMs)
+      this.startedAt = nowMs - MOTION_PRE_DELAY_MS - t / safe
+    }
+    this.playbackRate = safe
+  }
+
+  getPlaybackRate(): number {
+    return this.playbackRate
+  }
+
+  /** Freezes playback at the current t. Subsequent ticks still run
+   *  (the parent rAF loop calls them every frame) but the rendered
+   *  transforms hold steady at the paused t.
+   */
+  setPaused(paused: boolean, nowMs: number = performance.now()): void {
+    if (paused) {
+      if (this.pausedAtT !== null) return
+      this.pausedAtT = this.getElapsedMs(nowMs)
+    } else {
+      if (this.pausedAtT === null) return
+      const t = this.pausedAtT
+      this.startedAt =
+        nowMs - MOTION_PRE_DELAY_MS - t / Math.max(0.0001, this.playbackRate)
+      this.pausedAtT = null
+    }
+  }
+
+  isPaused(): boolean {
+    return this.pausedAtT !== null
   }
 
   /** Returns the current playback elapsed time in ms (clamped to the
@@ -698,8 +750,9 @@ export class MotionController {
    *  used by the renderer itself.
    */
   getElapsedMs(nowMs: number): number {
+    if (this.pausedAtT !== null) return this.pausedAtT
     if (this.startedAt === null) return 0
-    const raw = nowMs - this.startedAt - MOTION_PRE_DELAY_MS
+    const raw = (nowMs - this.startedAt - MOTION_PRE_DELAY_MS) * this.playbackRate
     return Math.max(0, Math.min(raw, this.timeline.totalMs))
   }
 
@@ -709,7 +762,9 @@ export class MotionController {
    *  for `samplePlayer`.
    */
   tick(nowMs: number): void {
-    if (this.startedAt === null) this.startedAt = nowMs
+    if (this.startedAt === null && this.pausedAtT === null) {
+      this.startedAt = nowMs
+    }
     const t =
       this.timeline.totalMs > 0
         ? this.getElapsedMs(nowMs)

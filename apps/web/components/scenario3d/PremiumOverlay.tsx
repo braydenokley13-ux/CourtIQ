@@ -1,0 +1,370 @@
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import type { CameraMode } from './imperativeScene'
+import type { ReplayMode } from './ScenarioReplayController'
+
+export interface PremiumOverlayProps {
+  /** Scenario concept tag(s) — rendered in the top-left chip. */
+  concept?: string
+  /** Current replay mode. The REPLAY badge pulses when 'answer'. */
+  replayMode: ReplayMode
+  /** Active camera mode. */
+  cameraMode: CameraMode
+  onCameraModeChange: (mode: CameraMode) => void
+  /** Active playback rate. */
+  playbackRate: PlaybackRate
+  onPlaybackRateChange: (rate: PlaybackRate) => void
+  /** Paused flag. */
+  paused: boolean
+  onPausedChange: (paused: boolean) => void
+  /** Restart the current replay. */
+  onRestart: () => void
+  /** Path toggle. When `pathsAvailable` is false the toggle is hidden. */
+  showPaths: boolean
+  onShowPathsChange: (show: boolean) => void
+  pathsAvailable: boolean
+}
+
+export type PlaybackRate = 0.5 | 1 | 2
+
+const CAMERA_MODES: { id: CameraMode; label: string }[] = [
+  { id: 'auto', label: 'Auto' },
+  { id: 'broadcast', label: 'Broadcast' },
+  { id: 'tactical', label: 'Tactical' },
+  { id: 'follow', label: 'Follow' },
+  { id: 'replay', label: 'Replay' },
+]
+
+const SPEED_OPTIONS: PlaybackRate[] = [0.5, 1, 2]
+
+/**
+ * User-facing chrome rendered around (not inside) the WebGL canvas. All
+ * controls operate on existing imperative-renderer state — camera mode,
+ * playback rate, pause, restart counter, path toggle. No 3D objects are
+ * created here, so the imperative-only renderer constraints are
+ * preserved.
+ *
+ * Layout is corner-anchored so the controls never intrude on the court
+ * action: scenario chip top-left, camera selector top-right, transport
+ * + speed bottom-center.
+ */
+export function PremiumOverlay({
+  concept,
+  replayMode,
+  cameraMode,
+  onCameraModeChange,
+  playbackRate,
+  onPlaybackRateChange,
+  paused,
+  onPausedChange,
+  onRestart,
+  showPaths,
+  onShowPathsChange,
+  pathsAvailable,
+}: PremiumOverlayProps) {
+  const isReplay = replayMode === 'answer'
+
+  return (
+    <>
+      {/* Top-left: scenario chip — quietly orients the user. */}
+      {concept ? (
+        <div className="pointer-events-none absolute left-3 top-3 flex max-w-[55%] items-center gap-2 rounded-full border border-white/10 bg-black/55 px-3 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-white/85 shadow-[0_2px_8px_rgba(0,0,0,0.35)] backdrop-blur-md">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#3BFF9D] shadow-[0_0_6px_#3BFF9D]" />
+          <span className="truncate">{concept}</span>
+        </div>
+      ) : null}
+
+      {/* Top-right: replay badge + camera selector */}
+      <div className="pointer-events-none absolute right-3 top-3 flex items-center gap-2">
+        {isReplay ? (
+          <div className="flex items-center gap-1.5 rounded-full border border-[#3BFF9D]/50 bg-[#062118]/85 px-3 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-[#3BFF9D] shadow-[0_2px_8px_rgba(0,0,0,0.35)] backdrop-blur-md">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#3BFF9D]/70" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-[#3BFF9D]" />
+            </span>
+            Replay
+          </div>
+        ) : null}
+        <CameraSelector
+          value={cameraMode}
+          onChange={onCameraModeChange}
+        />
+      </div>
+
+      {/* Bottom-center: transport row (restart / play-pause / speed),
+          plus a path toggle when meaningful. Pointer-events scoped to
+          the inner row so the rest of the canvas stays draggable for
+          orbit debug. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-3 flex flex-col items-center gap-2 px-3">
+        <div
+          role="toolbar"
+          aria-label="Replay controls"
+          className="pointer-events-auto flex items-center gap-1 rounded-full border border-white/10 bg-black/65 px-1.5 py-1 text-white shadow-[0_4px_16px_rgba(0,0,0,0.45)] backdrop-blur-md"
+        >
+          <IconButton
+            label="Restart replay"
+            onClick={onRestart}
+            kind="ghost"
+          >
+            <RestartIcon />
+          </IconButton>
+          <IconButton
+            label={paused ? 'Play' : 'Pause'}
+            onClick={() => onPausedChange(!paused)}
+            kind="primary"
+          >
+            {paused ? <PlayIcon /> : <PauseIcon />}
+          </IconButton>
+          <span className="mx-0.5 h-5 w-px bg-white/10" aria-hidden />
+          <SpeedSelector value={playbackRate} onChange={onPlaybackRateChange} />
+        </div>
+
+        {pathsAvailable ? (
+          <button
+            type="button"
+            onClick={() => onShowPathsChange(!showPaths)}
+            aria-pressed={showPaths}
+            className={`pointer-events-auto inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] backdrop-blur-md transition-colors ${
+              showPaths
+                ? 'border-[#3BFF9D]/50 bg-[#062118]/80 text-[#3BFF9D]'
+                : 'border-white/10 bg-black/55 text-white/75 hover:text-white'
+            }`}
+          >
+            <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />
+            {showPaths ? 'Paths on' : 'Paths off'}
+          </button>
+        ) : null}
+      </div>
+    </>
+  )
+}
+
+interface IconButtonProps {
+  label: string
+  onClick: () => void
+  children: React.ReactNode
+  kind?: 'primary' | 'ghost'
+}
+
+function IconButton({ label, onClick, children, kind = 'ghost' }: IconButtonProps) {
+  const base =
+    'inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70'
+  const styles =
+    kind === 'primary'
+      ? 'bg-[#3BFF9D] text-[#062118] hover:bg-[#5cffae] active:scale-[0.96]'
+      : 'text-white/85 hover:bg-white/10 hover:text-white active:scale-[0.96]'
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={`${base} ${styles}`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function SpeedSelector({
+  value,
+  onChange,
+}: {
+  value: PlaybackRate
+  onChange: (rate: PlaybackRate) => void
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Playback speed"
+      className="flex items-center rounded-full bg-white/5 p-0.5"
+    >
+      {SPEED_OPTIONS.map((opt) => {
+        const active = opt === value
+        return (
+          <button
+            key={opt}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(opt)}
+            className={`min-w-[32px] rounded-full px-2 py-0.5 text-[10px] font-bold tracking-[0.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70 ${
+              active
+                ? 'bg-white text-[#0a0d12] shadow-sm'
+                : 'text-white/70 hover:text-white'
+            }`}
+          >
+            {opt === 1 ? '1x' : `${opt}x`}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function CameraSelector({
+  value,
+  onChange,
+}: {
+  value: CameraMode
+  onChange: (mode: CameraMode) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const active = CAMERA_MODES.find((m) => m.id === value) ?? CAMERA_MODES[0]
+
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (event: MouseEvent) => {
+      if (!containerRef.current) return
+      if (!containerRef.current.contains(event.target as Node)) setOpen(false)
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  return (
+    <div ref={containerRef} className="pointer-events-auto relative">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`Camera: ${active.label}`}
+        className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/65 px-3 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-white/85 shadow-[0_2px_8px_rgba(0,0,0,0.35)] backdrop-blur-md transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70"
+      >
+        <CameraIcon />
+        <span>{active.label}</span>
+        <ChevronIcon open={open} />
+      </button>
+      {open ? (
+        <ul
+          role="listbox"
+          aria-label="Camera mode"
+          className="absolute right-0 top-[calc(100%+6px)] z-10 min-w-[140px] overflow-hidden rounded-xl border border-white/10 bg-black/85 py-1 text-[11px] font-semibold text-white/85 shadow-[0_8px_24px_rgba(0,0,0,0.55)] backdrop-blur-md"
+        >
+          {CAMERA_MODES.map((mode) => {
+            const isActive = mode.id === value
+            return (
+              <li key={mode.id}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={isActive}
+                  onClick={() => {
+                    onChange(mode.id)
+                    setOpen(false)
+                  }}
+                  className={`flex w-full items-center justify-between px-3 py-1.5 text-left transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none ${
+                    isActive ? 'text-[#3BFF9D]' : 'text-white/85'
+                  }`}
+                >
+                  <span>{mode.label}</span>
+                  {isActive ? (
+                    <span aria-hidden className="text-[#3BFF9D]">
+                      ●
+                    </span>
+                  ) : null}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      ) : null}
+    </div>
+  )
+}
+
+function PlayIcon() {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      fill="currentColor"
+    >
+      <path d="M4.5 3.2v9.6c0 .55.6.88 1.06.6l8.04-4.8a.7.7 0 0 0 0-1.2L5.56 2.6a.7.7 0 0 0-1.06.6Z" />
+    </svg>
+  )
+}
+
+function PauseIcon() {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      fill="currentColor"
+    >
+      <rect x="3.5" y="2.5" width="3.2" height="11" rx="1.1" />
+      <rect x="9.3" y="2.5" width="3.2" height="11" rx="1.1" />
+    </svg>
+  )
+}
+
+function RestartIcon() {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3.2 8a4.8 4.8 0 1 0 1.5-3.46" />
+      <path d="M3.2 2.5v3h3" />
+    </svg>
+  )
+}
+
+function CameraIcon() {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 16 16"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M2.4 4.8h2.2l1-1.4h4.8l1 1.4h2.2c.55 0 1 .45 1 1V12c0 .55-.45 1-1 1H2.4c-.55 0-1-.45-1-1V5.8c0-.55.45-1 1-1Z" />
+      <circle cx="8" cy="9" r="2.4" />
+    </svg>
+  )
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 16 16"
+      width="10"
+      height="10"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 120ms ease' }}
+    >
+      <path d="M3.6 6.2l4.4 4 4.4-4" />
+    </svg>
+  )
+}

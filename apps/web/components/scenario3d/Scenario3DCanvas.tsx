@@ -58,6 +58,10 @@ interface Scenario3DCanvasProps {
    * fit-to-scene framing keeps working without any caller change.
    */
   cameraMode?: CameraMode
+  /** Optional playback rate (0.25x..4x). Defaults to 1. */
+  playbackRate?: number
+  /** Optional pause flag. Defaults to false (playing). */
+  paused?: boolean
 }
 
 // Mid-tone gray. While the rebuild is in flight we deliberately do NOT
@@ -117,6 +121,8 @@ export function Scenario3DCanvas({
   onPhase,
   showPaths,
   cameraMode: cameraModeProp,
+  playbackRate,
+  paused,
 }: Scenario3DCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   // Refs into the THREE objects R3F creates. Captured in onCreated so a
@@ -321,13 +327,24 @@ export function Scenario3DCanvas({
         // already rides on. Anchors itself on the next tick so motion
         // begins from the moment the scene appears, not from canvas
         // creation.
-        motionControllerRef.current = new MotionController(
+        const motion = new MotionController(
           visibleScene,
           replayMode,
           result.players,
           result.ball,
           result.ballBaseY,
         )
+        // Replay any non-default playback prop so a scene that mounts
+        // with the user already at e.g. 2x or paused honors that state
+        // from frame zero. The dedicated effects below handle later
+        // changes; this just covers the initial mount race.
+        if (playbackRate !== undefined && playbackRate !== 1) {
+          motion.setPlaybackRate(playbackRate)
+        }
+        if (paused) {
+          motion.setPaused(true)
+        }
+        motionControllerRef.current = motion
 
         if (typeof console !== 'undefined') {
           // eslint-disable-next-line no-console
@@ -388,6 +405,18 @@ export function Scenario3DCanvas({
   useEffect(() => {
     motionControllerRef.current?.reset()
   }, [resetCounter])
+
+  // Push playback-rate / pause changes into the existing motion
+  // controller. No scene rebuild — setPlaybackRate rebases startedAt
+  // so the currently visible t does not jump. Defaults preserve the
+  // pre-Packet-12 behavior when callers omit the new props.
+  useEffect(() => {
+    motionControllerRef.current?.setPlaybackRate(playbackRate ?? 1)
+  }, [playbackRate])
+
+  useEffect(() => {
+    motionControllerRef.current?.setPaused(paused ?? false)
+  }, [paused])
 
   if (mode === 'probing') {
     return (
@@ -691,16 +720,18 @@ function CanvasDiagnostics({
   cameraStats,
   parentLoopStats,
 }: CanvasDiagnosticsProps) {
-  // Diagnostics overlay: ALWAYS-ON in this build until the 3D scene is
-  // confirmed working in production. Pass ?nodebug=1 to hide (e.g.
-  // for screenshots). Without this overlay we have no way to tell
-  // from a Vercel deploy what's happening inside the canvas.
-  let hideOverlay = false
+  // Diagnostics overlay: HIDDEN BY DEFAULT now that the imperative
+  // scene has been confirmed reliable in production. Pass ?debug=1
+  // to surface the renderer telemetry when investigating an issue.
+  // Errors still render unconditionally below so users see actual
+  // failures even when the panel is hidden.
+  let hideOverlay = true
   if (typeof window !== 'undefined') {
     try {
-      hideOverlay = new URLSearchParams(window.location.search).get('nodebug') === '1'
+      const params = new URLSearchParams(window.location.search)
+      hideOverlay = params.get('debug') !== '1' && params.get('nodebug') !== '0'
     } catch {
-      hideOverlay = false
+      hideOverlay = true
     }
   }
 
