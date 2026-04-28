@@ -671,6 +671,15 @@ export class MotionController {
   // at this t (in ms) and the rendered transforms stop advancing. A
   // resume() rebases startedAt so play continues from the paused t.
   private pausedAtT: number | null = null
+  // Index into `phases` for the most recent tick. Used purely to spot
+  // transitions for the polish layer (pass-arrival camera shake) — not
+  // consulted for transform sampling, so the existing deterministic
+  // motion math is unchanged.
+  private lastPhaseIndex: number = -1
+  // One-shot flag set when a pass phase ends and a held phase begins.
+  // Cleared by `consumePassArrival()` so the parent rAF loop can read
+  // it once per arrival without re-triggering on subsequent frames.
+  private pendingPassArrival = false
 
   constructor(
     scene: Scene3D,
@@ -703,6 +712,19 @@ export class MotionController {
   reset(): void {
     this.startedAt = null
     this.pausedAtT = null
+    this.lastPhaseIndex = -1
+    this.pendingPassArrival = false
+  }
+
+  /** Returns true (and clears the flag) once after a pass phase ends
+   *  and the ball returns to a holder. Used by the polish layer for a
+   *  tiny camera shake on pass arrival; safe to ignore. */
+  consumePassArrival(): boolean {
+    if (this.pendingPassArrival) {
+      this.pendingPassArrival = false
+      return true
+    }
+    return false
   }
 
   /** Sets the playback rate (clamped to 0.25x..4x). Rebases startedAt
@@ -778,6 +800,26 @@ export class MotionController {
       const pos = samplePlayer(this.scene, this.timeline, player.id, t)
       g.position.x = pos.x
       g.position.z = pos.z
+    }
+
+    // Phase-transition detection for polish hooks. We compute the
+    // current phase index here (the same lookup applyBall does
+    // immediately after) and compare to the previous tick. A
+    // pass-phase → non-pass-phase transition flips pendingPassArrival
+    // so the parent rAF loop can trigger a tiny camera shake. Skipped
+    // entirely while paused, so freezing the timeline does not
+    // re-fire arrivals on every frame.
+    if (this.pausedAtT === null) {
+      const curIdx = this.findPhaseIndex(t)
+      if (
+        curIdx !== this.lastPhaseIndex &&
+        this.lastPhaseIndex !== -1 &&
+        this.phases[this.lastPhaseIndex]?.pass &&
+        !this.phases[curIdx]?.pass
+      ) {
+        this.pendingPassArrival = true
+      }
+      this.lastPhaseIndex = curIdx
     }
 
     this.applyBall(t)
@@ -904,6 +946,18 @@ export class MotionController {
     // Past end of timeline — return the last phase so the ball settles
     // with the final holder rather than snapping back to the start.
     return this.phases[this.phases.length - 1] ?? null
+  }
+
+  /** Same lookup as findPhase but returns the index instead of the
+   *  phase. Lets the polish layer detect phase transitions across
+   *  ticks via simple integer comparison. */
+  private findPhaseIndex(t: number): number {
+    if (this.phases.length === 0) return -1
+    for (let i = 0; i < this.phases.length; i++) {
+      const phase = this.phases[i]!
+      if (t >= phase.startMs && t <= phase.endMs) return i
+    }
+    return this.phases.length - 1
   }
 }
 

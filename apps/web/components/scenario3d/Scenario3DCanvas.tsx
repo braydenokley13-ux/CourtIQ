@@ -40,6 +40,7 @@ import {
   type QualitySettings,
   type QualityTier,
 } from '@/lib/scenario3d/quality'
+import { buildDustMotes, type DustMotes } from '@/lib/scenario3d/atmosphere'
 
 interface Scenario3DCanvasProps {
   /** Mounted as the WebGL fallback when WebGL is unavailable. */
@@ -162,6 +163,20 @@ export function Scenario3DCanvas({
   // Same lifetime as the imperative scene group: rebuilt on scene/mode
   // change, ticked from the parent rAF loop, cleared on unmount.
   const motionControllerRef = useRef<MotionController | null>(null)
+  // Polish pass: subtle dust-mote field added to the scene on the high
+  // tier only. Owns its own GPU resources, disposed alongside the
+  // imperative scene group. Null on medium/low tiers.
+  const dustMotesRef = useRef<DustMotes | null>(null)
+  // Polish pass: tiny decaying camera shake triggered on pass-arrival
+  // events. Applied to camera.position AFTER CameraController.tick so
+  // it offsets the controller's resolved framing for a few frames and
+  // then naturally decays as the controller writes a fresh position
+  // next tick.
+  const shakeRef = useRef<{
+    amplitude: number
+    duration: number
+    startedAt: number
+  } | null>(null)
   const [mode, setMode] = useState<'probing' | '3d' | 'fallback'>('probing')
   const [webglSupported, setWebglSupported] = useState<boolean | null>(null)
   const [canvasMounted, setCanvasMounted] = useState(false)
@@ -324,7 +339,48 @@ export function Scenario3DCanvas({
           // transforms at the same instant the camera evaluates them.
           // Uses the same rAF loop — no extra timer, no useFrame.
           const motion = motionControllerRef.current
-          if (motion) motion.tick(performance.now())
+          const nowMs = performance.now()
+          if (motion) motion.tick(nowMs)
+
+          // Polish pass — sub-pixel camera shake on pass arrival.
+          // Trigger only when the controller drove the camera this
+          // frame (skip when the user is orbiting). The offset is
+          // applied AFTER ctrl.tick so the next frame's controller
+          // write naturally overwrites it, producing a brief decay
+          // without any controller modification.
+          if (motion && motion.consumePassArrival() &&
+              ctrl && !orbitMode &&
+              qualityRef.current.tier !== 'low') {
+            shakeRef.current = {
+              amplitude: 0.45,
+              duration: 220,
+              startedAt: nowMs,
+            }
+          }
+          const shake = shakeRef.current
+          if (
+            shake &&
+            ctrl && !orbitMode &&
+            (cam as THREE.PerspectiveCamera).isPerspectiveCamera
+          ) {
+            const elapsed = nowMs - shake.startedAt
+            if (elapsed >= shake.duration) {
+              shakeRef.current = null
+            } else {
+              const remaining = 1 - elapsed / shake.duration
+              const amp = shake.amplitude * remaining * remaining
+              cam.position.x += (Math.random() - 0.5) * 2 * amp
+              cam.position.y += (Math.random() - 0.5) * 2 * amp * 0.4
+              cam.updateMatrixWorld()
+            }
+          }
+
+          // Polish pass — drift the dust motes one step. Cheap O(N)
+          // buffer mutation; only present on the high tier so
+          // medium/low devices skip the cost entirely.
+          const dust = dustMotesRef.current
+          if (dust) dust.tick(nowMs)
+
           gl.render(threeScene, cam)
           frame++
 
@@ -488,6 +544,23 @@ export function Scenario3DCanvas({
         }
         motionControllerRef.current = motion
 
+        // Polish: add a subtle dust-mote field on the high tier only.
+        // Built once per scene mount and animated by mutating the
+        // existing position buffer in-place — no per-frame mesh
+        // recreation, no extra rAF loop. The medium/low tiers skip
+        // this entirely so guardrail-throttled devices stay clean.
+        if (qualityRef.current.tier === 'high') {
+          try {
+            const dust = buildDustMotes()
+            result.root.add(dust.points)
+            dustMotesRef.current = dust
+          } catch (error) {
+            // eslint-disable-next-line no-console
+            console.warn('[scenario3d] dust motes build failed', error)
+            dustMotesRef.current = null
+          }
+        }
+
         if (typeof console !== 'undefined') {
           // eslint-disable-next-line no-console
           console.info('[scenario3d] imperative scene mounted', {
@@ -496,6 +569,8 @@ export function Scenario3DCanvas({
             sceneId: visibleScene.id,
             cameraMode: activeCameraMode,
             replayMode,
+            tier: qualityRef.current.tier,
+            dust: dustMotesRef.current !== null,
           })
         }
       }
@@ -505,6 +580,17 @@ export function Scenario3DCanvas({
     return () => {
       cancelled = true
       window.cancelAnimationFrame(pollId)
+      // Dispose the dust-mote GPU resources before the parent group is
+      // disposed. disposeGroup() walks the descendants and frees the
+      // points geometry+material, but the canvas-generated alpha map
+      // is owned by the DustMotes handle, not by Material.dispose() —
+      // so we must call dust.dispose() explicitly to avoid leaking it.
+      const dust = dustMotesRef.current
+      if (dust) {
+        if (dust.points.parent) dust.points.parent.remove(dust.points)
+        dust.dispose()
+        dustMotesRef.current = null
+      }
       if (mounted) {
         const threeScene = threeSceneRef.current
         if (threeScene) threeScene.remove(mounted)
@@ -515,6 +601,9 @@ export function Scenario3DCanvas({
       // at a stale camera/scene/group.
       cameraControllerRef.current = null
       motionControllerRef.current = null
+      // Clear any pending shake so a re-mount does not start with a
+      // stale offset from the previous scene's last pass arrival.
+      shakeRef.current = null
     }
     // activeCameraMode is intentionally NOT in the dep array — pushing
     // mode changes through a separate effect avoids tearing down and
