@@ -748,9 +748,13 @@ export function Scenario3DCanvas({
       }}
     >
       <Canvas
-        // `flat` disables ACES Filmic tone mapping so unlit basic materials
-        // render at the literal sRGB color we set, not crushed to black.
-        flat
+        // Tone mapping is set explicitly in onCreated (ACES Filmic +
+        // tuned exposure) so the lit gym shell, hoop, and players get
+        // proper PBR rolloff. Every MeshBasicMaterial in the scenario3d
+        // tree opts out of tone mapping via `toneMapped={false}`, so
+        // the floor, paint, lines, and motion paths still render at
+        // the literal sRGB color we set — they are unaffected by the
+        // ACES curve.
         // R3F's default 'always' scheduler. The previous fix used
         // `frameloop="never"` + a custom ManualLoop that pulled subscribers
         // out of `state.internal.subscribers` — but that internal shape
@@ -771,6 +775,19 @@ export function Scenario3DCanvas({
         onCreated={({ gl, size, scene: createdScene, camera: createdCamera }) => {
           try {
             gl.setClearColor(activeBg, 1)
+
+            // Packet C — exposure / lighting / brightness.
+            // ACES Filmic tone mapping gives the lit MeshStandard
+            // materials (gym shell, hoop, players) film-like highlight
+            // rolloff and lifted midtones, instead of the flat clipped
+            // look the previous `flat` Canvas prop produced. Exposure
+            // is tuned a hair above 1 so the mid-gray gym walls read
+            // as a real lit room rather than crushed shadow.
+            gl.toneMapping = THREE.ACESFilmicToneMapping
+            gl.toneMappingExposure = 1.18
+            // Output color space — explicit to survive future Three.js
+            // default changes. SRGB matches the textures + DOM.
+            gl.outputColorSpace = THREE.SRGBColorSpace
 
             const dom = gl.domElement
             if (dom) {

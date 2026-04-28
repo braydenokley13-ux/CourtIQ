@@ -20,9 +20,9 @@ import {
   type Timeline,
 } from '@/lib/scenario3d/timeline'
 
-const FLOOR_COLOR = '#C2823F'
+const FLOOR_COLOR = '#D69453'
 const LINE_COLOR = '#FFFFFF'
-const PAINT_COLOR = '#0050B4'
+const PAINT_COLOR = '#0E5DC5'
 // Authentic basketball orange/brown leather (not the neon orange of the
 // previous sphere). The pebble texture darkens this further so the
 // rendered ball reads richer than the flat hex would suggest.
@@ -38,11 +38,16 @@ const NET_COLOR = '#F0F0F0'
 const OFFENSE_COLOR = '#5DB4FF'
 const DEFENSE_COLOR = '#FF5C72'
 const USER_COLOR = '#3BFF9D'
-const GYM_WALL_COLOR = '#2D2F36'
-const GYM_CEILING_COLOR = '#16181D'
-const GYM_FLOOR_EXT_COLOR = '#5C3A1A'
-const GYM_RAFTER_COLOR = '#0E0F12'
-const GYM_TRIM_COLOR = '#0B0C10'
+// Packet C (renderer-polish) lifted these from near-black to warm
+// mid-grays so the upper portion of the canvas no longer reads as a
+// black void. Walls + ceiling stay desaturated and dim enough to keep
+// the lit hardwood as the visual subject, but bright enough that a
+// player on a default monitor can see them as a real gym.
+const GYM_WALL_COLOR = '#54606E'
+const GYM_CEILING_COLOR = '#3A4150'
+const GYM_FLOOR_EXT_COLOR = '#7A4D24'
+const GYM_RAFTER_COLOR = '#1F232B'
+const GYM_TRIM_COLOR = '#181B22'
 
 const PLAYER_HEIGHT = 6
 const PLAYER_RADIUS = 1.2
@@ -87,14 +92,36 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   root.name = 'imperative-basketball'
   const playerGroups = new Map<string, THREE.Group>()
 
-  // Lights — ambient + two directionals so meshStandardMaterial reads.
-  root.add(new THREE.AmbientLight(0xffffff, 1.4))
-  const dir1 = new THREE.DirectionalLight(0xffffff, 1.1)
-  dir1.position.set(30, 60, 30)
-  root.add(dir1)
-  const dir2 = new THREE.DirectionalLight(0xcfe2ff, 0.6)
-  dir2.position.set(-20, 40, 10)
-  root.add(dir2)
+  // Lighting rig — Packet C (renderer-polish).
+  //
+  // The MeshBasic floor/lines/ball use `toneMapped: false` and ignore
+  // these lights entirely; the rig exists for the lit
+  // MeshStandardMaterial gym shell, hoop, and player figures. With
+  // ACES Filmic tone mapping enabled at the renderer level (see
+  // Scenario3DCanvas.tsx) the rig now follows a standard 3-point setup:
+  //   - Hemisphere: warm sky bounce + cool ground bounce, replaces a
+  //     flat AmbientLight so PBR materials get directional ambient.
+  //   - Key (warm overhead): primary illumination from the main gym
+  //     lights, slightly warm so wood reads inviting.
+  //   - Fill (cool side): softens shadows on player faces / the off
+  //     side of the hoop.
+  //   - Rim (back-overhead, slightly cool): separates players and the
+  //     hoop from the back wall so they don't melt into the gym.
+  // A small AmbientLight is kept at low intensity to lift extreme
+  // shadow valleys without washing the scene.
+  root.add(new THREE.AmbientLight(0xffffff, 0.35))
+  const hemi = new THREE.HemisphereLight(0xfff1d6, 0x2a3140, 0.95)
+  hemi.position.set(0, 40, 0)
+  root.add(hemi)
+  const key = new THREE.DirectionalLight(0xfff0d4, 1.35)
+  key.position.set(28, 55, 32)
+  root.add(key)
+  const fill = new THREE.DirectionalLight(0xc6dcff, 0.55)
+  fill.position.set(-26, 38, 14)
+  root.add(fill)
+  const rim = new THREE.DirectionalLight(0xdfe6ff, 0.45)
+  rim.position.set(0, 45, -18)
+  root.add(rim)
 
   const halfW = COURT.halfWidthFt
   const halfL = COURT.halfLengthFt
