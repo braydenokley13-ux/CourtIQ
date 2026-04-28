@@ -754,3 +754,221 @@ Three load-bearing rules for the authoring team:
 1. **Do not overload the scene before the answer.** The pre-answer view should pass an "if a coach paused the film here, could a 12-year-old name the cue?" test. If the user can name the *answer* instead of the *cue*, there are too many overlays.
 2. **The user should read the cue, not follow an answer arrow.** No overlay primitive that points *at* the destination of the best read appears pre-answer. The validator enforces this for `passing_lane_open` and `drive_cut_preview`; authors enforce it manually for `open_space_region` and `label`.
 3. **Richer overlays belong in the feedback replay.** The post-answer view is where teaching happens. Layer it deliberately — defender cues first, then lanes, then open space, then the path. The user should feel taught, not buried.
+
+---
+
+## Section 7 — BDW-01 First Scenario Build Plan
+
+| Field | Value |
+|---|---|
+| Scenario id | `BDW-01` |
+| Title | Denied Wing Backdoor |
+| Decoder | `BACKDOOR_WINDOW` |
+| Difficulty | `beginner` |
+| Player role | `off_ball_wing` |
+| Game context | 4-on-4 half-court shell, ball reversal from the left slot, 14 on the shot clock |
+
+### 7.1 Why BDW-01 first
+
+**Product:**
+- Universally taught — backdoor against denial is unambiguous across systems and ages. Coach-validation risk is low.
+- Cue is sharp: hand and foot in the passing lane, hips opened toward the sideline, chest between ball and receiver.
+- Best read is a single sharp action (plant-and-go) with one clean acceptable fallback (V-cut).
+- 4-on-4 geometry is small, readable, and fast to author and visually QA.
+- Teaches CourtIQ's headline idea — read the defender, not the spot.
+
+**Engineering (this is what makes BDW-01 the *template*):**
+- Exercises every new mechanic exactly once: decoder taxonomy, three-quality choices, freeze-frame, defender body-language overlays (hip / foot / chest / hand-in-lane), open-space region, named help pulse, per-choice consequence replay, decoder lesson hand-off, self-review checklist.
+- One camera preset (`passer_side_three_quarter`), one open lane, one cut. Visual QA is decisive.
+- No new movement kinds beyond the additions already needed across Pack 1; uses existing kinds plus `back_cut` and `jab`.
+- Once it ships, ESC-01 / AOR-01 / SKR-01 reuse 100% of the runtime — their differences are entirely data + scene authoring.
+
+### 7.2 User experience mapped to the 10-state loop
+
+| State | What the BDW-01 user sees |
+|---|---|
+| **1. Intro / setup** | Decoder chip "The Backdoor Window." Title "Denied Wing Backdoor." Role assignment "You are the right wing." One-line context: "The ball is at the left slot. The defense is denying your reversal." |
+| **2. Possession begins** | The 3D scene plays for ~1.4 s. Player 2 (the user) lifts and shows hands toward the ball; defender x2 steps into the passing lane and squares chest between ball and receiver. |
+| **3. Freeze on the cue** | Play pauses. Pre-answer overlays mount (vision cone on x2 toward pg, hip/foot/chest/hand cues on x2, gentle `low_man` pulse on x4). Question: "Your defender is sitting on the reversal. What is the smartest move right now?" Four choice buttons appear. |
+| **4. User decision** | User taps `c1` / `c2` / `c3` / `c4`. |
+| **5. Consequence playback** | The chosen choice plays out (1.5–2.0 s). Skipped if `c1`. |
+| **6. Best-read reveal** | Possession resets to freeze positions and replays with the best read (~2.5–3.0 s). Post-answer overlays fade in layered: red blocked top→wing, green pg→rim front, vision cone pulses, open-space region behind x2 glows, x4 `low_man` pulse strengthens with label, drive/cut preview builds out. |
+| **7. Decoder lesson hand-off** | Panel slides in: *The Backdoor Window* — teaching point + "Open lesson" CTA. |
+| **8. Feedback** | Quality-aware feedback string + IQ delta + XP delta + streak flame + any badge animations. |
+| **9. Self-review** | Four checkboxes; user can self-rate. |
+| **10. Progression / unlocks** | Concept and decoder mastery both updated atomically; "Next" button advances to the next Pack 1 scenario. |
+
+### 7.3 3D setup (court-feet coordinates)
+
+First-pass anchors using the landmarks documented in `docs/scene-authoring.md`. Visual QA may tune any value ±2 ft.
+
+**Offense:**
+- `pg` (1) — left slot — `start: { x: -9, z: 14 }` — `hasBall: true`
+- `user` (2) — right wing — `start: { x: 18, z: 8 }` — `isUser: true`
+- `o3` (3) — high left wing — `start: { x: -18, z: 9 }`
+- `o4` (4) — deep right corner — `start: { x: 22, z: 1 }`
+
+**Defense:**
+- `x1` — on ball at left slot — `start: { x: -9, z: 16 }`
+- `x2` — denying the user — `start: { x: 15, z: 10 }` — between ball and receiver, with hand and foot in the lane
+- `x3` — matched on `o3`, one step inside help — `start: { x: -15, z: 10 }`
+- `x4` — matched on `o4`, one step inside as late low helper — `start: { x: 19, z: 3 }`
+
+**Ball:** `start: { x: -9, z: 14 }`, `holderId: 'pg'`.
+
+**Camera:** `preset: 'passer_side_three_quarter'`. No `anchor` override expected. Visual QA at freeze confirms passer (`pg`), denying defender (`x2`), user marker (`user`), and rim line are all on screen.
+
+### 7.4 Freeze-frame timing
+
+Pre-freeze movements (`scene.movements[]`):
+
+1. `id: 'user_show_hands'`, `playerId: 'user'`, `kind: 'lift'`, `to: { x: 18, z: 9 }`, `delayMs: 0`, `durationMs: 600` — the user steps toward the ball and presents target hands.
+2. `id: 'x2_step_to_denial'`, `playerId: 'x2'`, `kind: 'rotation'`, `to: { x: 14, z: 11 }`, `delayMs: 200`, `durationMs: 600` — x2 jumps into the passing lane.
+
+Total pre-freeze playthrough: **~1.4 s**. `freezeMarker` is **unset**; the implicit "freeze at end of `movements[]`" behaviour is sufficient. The freeze hits the moment x2 has visibly committed (hand and foot in the lane, chest between ball and receiver) and the user has finished showing target hands without starting the cut.
+
+Optional later refinement: if visual QA wants a small jab to begin before freeze without playing the full backdoor cut, add a third movement `id: 'user_jab_outside_foot'` and set `freezeMarker: { kind: 'beforeMovementId', movementId: 'user_jab_outside_foot' }` so the jab does not play during setup.
+
+### 7.5 Decision choices with quality
+
+| id | label | quality |
+|---|---|---|
+| `c1` | "Cut backdoor behind the defender." | `best` |
+| `c2` | "V-cut out to a deeper catch point." | `acceptable` |
+| `c3` | "Stay on the wing and call for the ball." | `wrong` |
+| `c4` | "Slowly cut in front of the defender." | `wrong` |
+
+Order presented to the user is the order above.
+
+### 7.6 Correct timeline (`answerDemo`)
+
+Total ~2.5–3.0 s.
+
+1. `user_jab` — `playerId: 'user'`, `kind: 'jab'`, `to: { x: 19, z: 9 }`, `durationMs: 250` — user jabs toward the ball to commit x2's hips outward.
+2. `user_plant_and_go` — `playerId: 'user'`, `kind: 'back_cut'`, `to: { x: 4, z: 2 }`, `delayMs: 100`, `durationMs: 750` — user plants the outside foot and explodes behind x2 toward the front of the rim.
+3. `pg_lead_pass` — `playerId: 'ball'`, `kind: 'pass'`, `to: { x: 4, z: 2 }`, `delayMs: 350`, `durationMs: 500` — passer leads the cutter to the front of the rim.
+4. `user_finish` — `playerId: 'user'`, `kind: 'cut'`, `to: { x: 0, z: 0.5 }`, `delayMs: 100`, `durationMs: 350` — user catches and finishes at the rim before x4 can rotate.
+
+### 7.7 Wrong / acceptable demos (`wrongDemos`)
+
+Each entry ≤ 2.0 s.
+
+**`c2` (acceptable — V-cut to deeper catch, ~1.5 s):**
+- `user_v_cut` — `playerId: 'user'`, `kind: 'cut'`, `to: { x: 21, z: 10 }`, `durationMs: 600`.
+- `pg_late_pass` — `playerId: 'ball'`, `kind: 'pass'`, `to: { x: 21, z: 10 }`, `delayMs: 200`, `durationMs: 500`.
+- `caption: 'Possession kept, layup window missed.'`
+
+**`c3` (wrong — stay on the wing, ~1.5 s):**
+- `pg_force_pass` — `playerId: 'ball'`, `kind: 'pass'`, `to: { x: 18, z: 8 }`, `durationMs: 450`.
+- `x2_deflect` — `playerId: 'x2'`, `kind: 'rotation'`, `to: { x: 16, z: 9 }`, `delayMs: 100`, `durationMs: 350`.
+- `ball_loose` — `playerId: 'ball'`, `kind: 'pass'`, `to: { x: 18, z: 12 }`, `delayMs: 300`, `durationMs: 350`.
+- `caption: 'Defender deflects the reversal.'`
+
+**`c4` (wrong — slow front cut, ~1.7 s):**
+- `user_front_cut` — `playerId: 'user'`, `kind: 'cut'`, `to: { x: 8, z: 6 }`, `durationMs: 800`.
+- `x2_ride` — `playerId: 'x2'`, `kind: 'rotation'`, `to: { x: 9, z: 7 }`, `delayMs: 100`, `durationMs: 700`.
+- `caption: 'Defender rides the cut. Window closes.'`
+
+### 7.8 Pre-answer overlay spec
+
+```ts
+preAnswerOverlays: [
+  { kind: 'defender_vision_cone',  playerId: 'x2', targetId: 'pg' },
+  { kind: 'defender_hip_arrow',    playerId: 'x2' },
+  { kind: 'defender_foot_arrow',   playerId: 'x2' },
+  { kind: 'defender_chest_line',   playerId: 'x2' },
+  { kind: 'defender_hand_in_lane', playerId: 'x2' },
+  { kind: 'help_pulse',            playerId: 'x4', role: 'low_man' }, // gentle
+]
+```
+
+What the user sees: x2 reads as a fully committed denying defender. x4 pulses subtly as the help that will arrive late if the user does cut. **No green lane. No backdoor preview. No "answer is here" arrow.**
+
+### 7.9 Post-answer overlay spec
+
+```ts
+postAnswerOverlays: [
+  { kind: 'passing_lane_blocked',  from: 'pg',   to: 'user' },                       // top → wing
+  { kind: 'passing_lane_open',     from: 'pg',   to: 'user' },                       // green pg → cutter destination near rim front; renderer interprets as pg → cutter end-of-cut
+  { kind: 'defender_vision_cone',  playerId: 'x2', targetId: 'pg' },                 // pulses now
+  { kind: 'defender_hip_arrow',    playerId: 'x2' },
+  { kind: 'defender_foot_arrow',   playerId: 'x2' },
+  { kind: 'defender_chest_line',   playerId: 'x2' },
+  { kind: 'defender_hand_in_lane', playerId: 'x2' },
+  { kind: 'help_pulse',            playerId: 'x4', role: 'low_man' },                // strengthens; role label fades in
+  { kind: 'open_space_region',     anchor: { x: 5, z: 4 }, radiusFt: 4 },            // shaded space behind x2
+  { kind: 'drive_cut_preview',     playerId: 'user',
+    path: [{ x: 18, z: 8 }, { x: 19, z: 9 }, { x: 4, z: 2 }, { x: 0, z: 0.5 }] },     // jab → plant → cut → finish
+]
+```
+
+Note on `passing_lane_open`: the runtime semantics for "ball lane to the cutter" (rather than to the cutter's start) are pinned in the engineering phases (Section 9). The planning intent is clear: the green lane connects the passer's hand to the cut's destination, not to the wing.
+
+Sequencing during `replaying` (fade-in over ~700 ms): defender cues intensify → red blocked lane → open-space region → green open lane → drive/cut preview builds out → x4 pulse strengthens with `low_man` label.
+
+### 7.10 Lesson panel hand-off
+
+- **Decoder name:** The Backdoor Window
+- **Lesson connection:** Read the defender, not the spot
+- **Teaching point:** "When your defender sits in the passing lane, the basket is open behind them."
+- **Why it works (one line):** "The defender is guarding the pass, not the basket. The denial removes the wing catch but opens the layup window behind it."
+- **CTA:** "Open lesson" → links to Academy module `backdoor-window`.
+
+### 7.11 Feedback strings
+
+```ts
+feedback: {
+  correct: "Good read. You punished the denial instead of fighting for the catch.",
+  partial: "Re-spacing can keep the play alive, but the cleaner answer was the layup window behind the defender.",
+  wrong:   "You stayed loyal to the spot instead of the cue. If they deny the pass, cut behind them.",
+}
+```
+
+`scenario.feedback.{correct, partial, wrong}` is the source of truth. Per-choice `feedbackText` may add a one-line specific clarification (e.g., for `c4`: "Cutting in front lets the defender ride your route — go behind them.").
+
+### 7.12 Self-review checklist
+
+```ts
+selfReviewChecklist: [
+  "Did I see the hand-and-foot denial?",
+  "Did I plant and go behind, not in front?",
+  "Did I cut hard enough to make it a scoring cut?",
+  "Did I show target hands at the rim?",
+]
+```
+
+Stored locally for v0; a later phase may weight mastery from these answers.
+
+### 7.13 Coach-validation note
+
+```ts
+coachValidation: {
+  level: 'low',
+  status: 'reviewed',  // or 'not_needed' depending on team policy at seed time
+  notes: "Backdoor against denial is universally taught. Later confirm whether the default youth pass should be bounce, lead, or chest-fake-to-bounce.",
+}
+```
+
+Because `level === 'low'`, this scenario can ship `LIVE` without an external review pass. The notes carry the open question for later content tuning.
+
+### 7.14 How BDW-01 becomes the template
+
+Once BDW-01 ships clean, the following are reused **without engine code changes** for ESC-01, AOR-01, SKR-01:
+
+1. **Scenario schema shape** — same fields; only values differ.
+2. **Replay state machine** — `idle → setup → playing → frozen → consequence(choiceId) → replaying → done` is universal.
+3. **Freeze-frame state** — `freezeMarker` (or implicit end-of-`movements[]`) works for any cue moment.
+4. **Choice quality system** — `best | acceptable | wrong` is a content choice per scenario; engine and feedback panel are unchanged.
+5. **Overlay reveal discipline** — pre-answer cues (defender body language + named help) and post-answer teaching (lanes, regions, previews) follow the same cadence; only the primitives chosen differ.
+6. **Consequence demos** — every scenario authors a `wrongDemos` entry per non-best choice; the 1.5–2.5 s budget per demo is the same.
+7. **Decoder lesson panel UI** — shared component; only `decoderTag`, teaching point, and lesson connection change.
+8. **Self-review checklist UI** — shared component; copy is scenario-specific.
+9. **Progression hooks** — same attempt transaction; decoder mastery dimension updates for whichever decoder the scenario carries.
+
+What the next three Pack 1 scenarios add, **strictly as data + new primitives, not new engine components:**
+
+- **ESC-01 — Empty Corner Baseline Sneak.** First use of the `baseline_sneak` movement kind. First weak-side `camera.anchor` override (the empty driving corner is on the *opposite* side from the ball). Leans on `open_space_region` and `low_man` `help_pulse`.
+- **AOR-01 — No Gap Go Now.** First use of the `rip` movement kind. First scenario where the user is the **ball-handler at catch time** (the closeout decision sits on the receiver's first touch). Leans on `defender_chest_line` and `defender_foot_arrow` for closeout posture.
+- **SKR-01 — Paint Touch Opposite Corner.** First use of the `skip_pass` movement kind. First scenario where the user is the **ball-handler driving** (paint touch from a slot drive). Leans on `passing_lane_blocked` + `tag` and `low_man` help pulses + `passing_lane_open` to the opposite corner.
+
+Each delta is a one-line schema addition (one movement kind) plus authored data. **No new player components, no new camera components, no new overlay primitives, no new replay states.** That is the test BDW-01 is built to pass.
