@@ -254,15 +254,18 @@ function disposeMaterialTextures(mat: THREE.Material): void {
 }
 
 /**
- * Computes a Box3 over the players + ball, then aims the camera so the
- * whole box is in frame at the given pitch.
+ * Computes a Box3 over the players + ball + movement endpoints, then
+ * aims the camera so the whole play (start AND end positions) is in
+ * frame at the given pitch. Defaults are tuned for a coaching-film feel:
+ * a moderate down-angle that keeps the half-court the subject and
+ * leaves only a small margin around the action.
  */
 export function fitCameraToScene(
   camera: THREE.PerspectiveCamera,
   scene: Scene3D,
   aspect: number,
-  pitchDeg = 32,
-  padding = 1.4,
+  pitchDeg = 28,
+  padding = 1.18,
 ): void {
   const target = computeAutoTarget(scene, aspect, camera.fov, pitchDeg, padding)
   if (!target) return
@@ -305,19 +308,25 @@ export interface CameraTarget {
 // Default broadcast/replay/tactical target geometry, all in feet.
 // Court spans x ∈ [-25, 25], z ∈ [0, 47], rim sits at the origin (0,
 // y≈10, 0). Half-court is at z = 47.
-const SCENE_FOCUS = new THREE.Vector3(0, 4, 22)
-const BROADCAST_POSITION = new THREE.Vector3(3, 28, 70)
-const BROADCAST_LOOKAT = new THREE.Vector3(0, 4, 22)
-const BROADCAST_FOV = 50
-const TACTICAL_POSITION = new THREE.Vector3(0, 70, 32)
-const TACTICAL_LOOKAT = new THREE.Vector3(0, 0, 24)
-const TACTICAL_FOV = 45
-const REPLAY_POSITION = new THREE.Vector3(-30, 9, 38)
-const REPLAY_LOOKAT = new THREE.Vector3(3, 5, 12)
-const REPLAY_FOV = 38
-const FOLLOW_LIFT_Y = 9
-const FOLLOW_TRAIL_DIST = 14
-const FOLLOW_LOOK_HEIGHT = 4
+//
+// All presets were re-tuned in Packet B (renderer-polish) to push the
+// court toward the centre of the frame and shrink the empty black
+// space that previously dominated the canvas. Lower height, closer
+// distance, and a slightly tighter FOV move from "stadium upper deck"
+// to "coaching film".
+const SCENE_FOCUS = new THREE.Vector3(0, 3, 20)
+const BROADCAST_POSITION = new THREE.Vector3(2, 18, 48)
+const BROADCAST_LOOKAT = new THREE.Vector3(0, 3, 20)
+const BROADCAST_FOV = 42
+const TACTICAL_POSITION = new THREE.Vector3(0, 52, 26)
+const TACTICAL_LOOKAT = new THREE.Vector3(0, 0, 22)
+const TACTICAL_FOV = 38
+const REPLAY_POSITION = new THREE.Vector3(-22, 8, 30)
+const REPLAY_LOOKAT = new THREE.Vector3(2, 4, 12)
+const REPLAY_FOV = 34
+const FOLLOW_LIFT_Y = 8
+const FOLLOW_TRAIL_DIST = 12
+const FOLLOW_LOOK_HEIGHT = 3.5
 
 /**
  * Computes a camera target for the given mode. Returns null only if the
@@ -427,17 +436,27 @@ function followTarget(scene: Scene3D): CameraTarget | null {
 }
 
 /**
- * Auto-fit target. Builds a Box3 over players + ball, then computes a
- * camera position that frames it given FOV/aspect. Mirrors the original
- * `fitCameraToScene` math so 'auto' camera mode preserves prior framing
- * exactly.
+ * Auto-fit target. Builds a Box3 over players + ball + every movement
+ * endpoint (so the WHOLE play, start to finish, is in frame, not just
+ * t=0 positions), then computes a camera position that frames it given
+ * FOV/aspect.
+ *
+ * Two corrections vs. the previous implementation:
+ *  1. The vertical extent on screen is `sizeY*cos(pitch) +
+ *     sizeZ*sin(pitch)`, not `sizeY/2 + sizeZ/2`. The old formula was
+ *     ~67% conservative on a typical half-court box, which combined
+ *     with a 1.4 padding meant the camera sat ~2.3× too far back —
+ *     the headline "court is a sliver, canvas is mostly black" symptom.
+ *  2. A minimum half-court extent floor (≈ x ∈ [-25, 25], z ∈ [0, 28])
+ *     is folded in so that scenes with players bunched in one zone
+ *     still show enough of the floor for spacing reads.
  */
 function computeAutoTarget(
   scene: Scene3D,
   aspect: number,
   fov: number,
-  pitchDeg = 32,
-  padding = 1.4,
+  pitchDeg = 28,
+  padding = 1.18,
 ): CameraTarget | null {
   const points: THREE.Vector3[] = []
   for (const p of scene.players) {
@@ -449,7 +468,29 @@ function computeAutoTarget(
   if (Number.isFinite(scene.ball.start.x) && Number.isFinite(scene.ball.start.z)) {
     points.push(new THREE.Vector3(scene.ball.start.x, 1, scene.ball.start.z))
   }
+  // Fold every movement endpoint into the box too, so the camera frames
+  // where players GO, not only where they start. Without this, cuts and
+  // relocations off-screen push the user to the edge of the visible
+  // area mid-play, exactly the kind of framing failure that hides the
+  // very read the scenario is teaching.
+  for (const list of [scene.movements, scene.answerDemo]) {
+    for (const m of list) {
+      if (Number.isFinite(m.to.x) && Number.isFinite(m.to.z)) {
+        points.push(new THREE.Vector3(m.to.x, 0, m.to.z))
+        points.push(new THREE.Vector3(m.to.x, PLAYER_HEIGHT + 1, m.to.z))
+      }
+    }
+  }
   if (points.length === 0) return null
+
+  // Floor: always include a minimal "half-court visible" envelope so we
+  // never frame so tightly that the user loses sense of where the rim,
+  // wings, and elbows sit relative to the action.
+  const HALF_COURT_FLOOR_X = 22
+  const HALF_COURT_FLOOR_Z_MIN = 0
+  const HALF_COURT_FLOOR_Z_MAX = 28
+  points.push(new THREE.Vector3(-HALF_COURT_FLOOR_X, 0, HALF_COURT_FLOOR_Z_MIN))
+  points.push(new THREE.Vector3(HALF_COURT_FLOOR_X, 0, HALF_COURT_FLOOR_Z_MAX))
 
   const box = new THREE.Box3().setFromPoints(points)
   const center = new THREE.Vector3()
@@ -458,11 +499,18 @@ function computeAutoTarget(
   box.getSize(sizeVec)
 
   const fovRad = (fov * Math.PI) / 180
-  const verticalFit = (sizeVec.y * 0.5 + sizeVec.z * 0.5) / Math.tan(fovRad / 2)
-  const horizontalFit = (sizeVec.x * 0.5) / (Math.tan(fovRad / 2) * Math.max(aspect, 0.1))
+  const pitch = (pitchDeg * Math.PI) / 180
+  // Projected vertical extent of an axis-aligned box viewed at `pitch`
+  // below horizontal: world-y maps to screen-y by cos(pitch), world-z
+  // maps to screen-y by sin(pitch). Combined extent fits in
+  // 2*distance*tan(fov/2).
+  const projectedV =
+    sizeVec.y * Math.cos(pitch) + sizeVec.z * Math.sin(pitch)
+  const verticalFit = projectedV / (2 * Math.tan(fovRad / 2))
+  const horizontalFit =
+    sizeVec.x / (2 * Math.tan(fovRad / 2) * Math.max(aspect, 0.1))
   const distance = Math.max(verticalFit, horizontalFit) * padding
 
-  const pitch = (pitchDeg * Math.PI) / 180
   const position = new THREE.Vector3(
     center.x,
     center.y + Math.sin(pitch) * distance,

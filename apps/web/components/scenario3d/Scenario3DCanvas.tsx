@@ -92,17 +92,22 @@ interface Scenario3DCanvasProps {
 const CANVAS_BG = '#3F4756'
 const EMERGENCY_BG = '#4A5568'
 
-// Production camera. Sits above and behind half-court, tilted down
-// toward the basket. Generous FOV so the entire half-court fits on
-// every aspect ratio (especially mobile portrait). The slight x-offset
-// gives the broadcast feel without sacrificing framing.
+// Production "first paint" camera. Used only for the literal first
+// rendered frame — the imperative CameraController takes over on the
+// next parent rAF tick and snaps to its own `auto` target (see
+// computeAutoTarget in imperativeScene.ts). These constants are kept
+// close to the auto-fit broadcast pose so users do not see a jarring
+// camera jump between frame 0 and frame 1.
 //
-// Phase 3 widened this: camera moves further back and higher with a
-// wider FOV so a half-court (50ft x 47ft) full of 6ft player cylinders
-// is comfortably in frame even on a 280px-tall canvas.
-const CAMERA_POSITION: [number, number, number] = [0, 50, 70]
-const CAMERA_LOOKAT: [number, number, number] = [0, 5, 22]
-const CAMERA_FOV = 55
+// Packet B (renderer-polish) re-tuned this from (0, 50, 70) → (0, 18, 48)
+// because the old pose sat the camera so high and far back that the
+// half-court rendered as a thin sliver at the bottom of the canvas
+// while ~80% of the frame stayed black. The new pose matches the
+// re-tuned broadcast preset and matches what the auto-fit controller
+// produces a tick later.
+const CAMERA_POSITION: [number, number, number] = [0, 18, 48]
+const CAMERA_LOOKAT: [number, number, number] = [0, 3, 20]
+const CAMERA_FOV = 42
 
 // Debug self-test camera. Aimed straight at the origin with a wide FOV
 // so any object placed near (0, 0, 0) is guaranteed to be visible.
