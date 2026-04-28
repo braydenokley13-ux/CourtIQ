@@ -65,20 +65,38 @@ export function PremiumOverlay({
 }: PremiumOverlayProps) {
   const isReplay = replayMode === 'answer'
 
+  // Packet G — controls fade to a quiet idle weight while the play is
+  // visible, then come back to full strength when the user hovers,
+  // focuses inside the canvas surface, or has the replay paused. Wrapping
+  // every cluster in a single group/canvas-overlay container lets the
+  // hover/focus state cascade with one declarative rule per cluster
+  // instead of per-button JS state.
+  const idleAttention = paused
+
   return (
-    <>
-      {/* Top-left: scenario chip — quietly orients the user. */}
+    <div
+      className="group/overlay pointer-events-none absolute inset-0"
+      data-attention={idleAttention ? 'on' : 'off'}
+    >
+      {/* Top-left: scenario chip — quietly orients the user. Idle dims to
+          ~55% so the chip never competes with the court; comes back to
+          full when the overlay is engaged. */}
       {concept ? (
-        <div className="pointer-events-none absolute left-3 top-3 flex max-w-[55%] items-center gap-2 rounded-full border border-white/10 bg-black/55 px-3 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-white/85 shadow-[0_2px_8px_rgba(0,0,0,0.35)] backdrop-blur-md">
+        <div className="pointer-events-none absolute left-3 top-3 flex max-w-[55%] items-center gap-2 rounded-full border border-white/10 bg-black/50 px-3 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-white/80 shadow-[0_2px_8px_rgba(0,0,0,0.35)] backdrop-blur-md transition-opacity duration-200 [opacity:0.6] group-hover/overlay:[opacity:1] group-focus-within/overlay:[opacity:1] group-data-[attention=on]/overlay:[opacity:1]">
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#3BFF9D] shadow-[0_0_6px_#3BFF9D]" />
           <span className="truncate">{concept}</span>
         </div>
       ) : null}
 
-      {/* Top-right: replay badge + camera selector */}
-      <div className="pointer-events-none absolute right-3 top-3 flex items-center gap-2">
+      {/* Top-right cluster: replay badge + paths toggle + camera selector.
+          The paths toggle was previously bottom-anchored where it
+          competed with the answer caption rendered by the page; moving
+          it next to the camera selector groups all "what am I looking
+          at" controls in one zone and frees the bottom edge for the
+          caption + transport. */}
+      <div className="pointer-events-none absolute right-3 top-3 flex items-center gap-1.5 transition-opacity duration-200 [opacity:0.7] group-hover/overlay:[opacity:1] group-focus-within/overlay:[opacity:1] group-data-[attention=on]/overlay:[opacity:1]">
         {isReplay ? (
-          <div className="flex items-center gap-1.5 rounded-full border border-[#3BFF9D]/50 bg-[#062118]/85 px-3 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-[#3BFF9D] shadow-[0_2px_8px_rgba(0,0,0,0.35)] backdrop-blur-md">
+          <div className="flex items-center gap-1.5 rounded-full border border-[#3BFF9D]/50 bg-[#062118]/85 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-[#3BFF9D] shadow-[0_2px_8px_rgba(0,0,0,0.35)] backdrop-blur-md">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#3BFF9D]/70" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-[#3BFF9D]" />
@@ -86,21 +104,40 @@ export function PremiumOverlay({
             Replay
           </div>
         ) : null}
+        {pathsAvailable ? (
+          <button
+            type="button"
+            onClick={() => onShowPathsChange(!showPaths)}
+            aria-pressed={showPaths}
+            title={showPaths ? 'Hide teaching paths' : 'Show teaching paths'}
+            className={`pointer-events-auto inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] backdrop-blur-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70 ${
+              showPaths
+                ? 'border-[#3BFF9D]/50 bg-[#062118]/85 text-[#3BFF9D]'
+                : 'border-white/10 bg-black/55 text-white/80 hover:text-white'
+            }`}
+          >
+            <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />
+            <span className="hidden sm:inline">{showPaths ? 'Paths on' : 'Paths off'}</span>
+            <span className="sm:hidden">Paths</span>
+          </button>
+        ) : null}
         <CameraSelector
           value={cameraMode}
           onChange={onCameraModeChange}
         />
       </div>
 
-      {/* Bottom-center: transport row (restart / play-pause / speed),
-          plus a path toggle when meaningful. Pointer-events scoped to
-          the inner row so the rest of the canvas stays draggable for
-          orbit debug. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-3 flex flex-col items-center gap-2 px-3">
+      {/* Bottom-center: compact transport pill. Single anchored row, no
+          longer stacks a second pill below it (the paths toggle moved
+          to the top-right cluster). The transport is always visible
+          but quietly dims to ~70% while playing so the eye lands on
+          the action; pause flips it back to full strength because the
+          user is now thinking about controls. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center px-3">
         <div
           role="toolbar"
           aria-label="Replay controls"
-          className="pointer-events-auto flex items-center gap-1 rounded-full border border-white/10 bg-black/65 px-1.5 py-1 text-white shadow-[0_4px_16px_rgba(0,0,0,0.45)] backdrop-blur-md"
+          className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-white/10 bg-black/60 px-1.5 py-1 text-white shadow-[0_4px_16px_rgba(0,0,0,0.45)] backdrop-blur-md transition-opacity duration-200 [opacity:0.7] hover:[opacity:1] focus-within:[opacity:1] group-data-[attention=on]/overlay:[opacity:1]"
         >
           <IconButton
             label="Restart replay"
@@ -119,24 +156,8 @@ export function PremiumOverlay({
           <span className="mx-0.5 h-5 w-px bg-white/10" aria-hidden />
           <SpeedSelector value={playbackRate} onChange={onPlaybackRateChange} />
         </div>
-
-        {pathsAvailable ? (
-          <button
-            type="button"
-            onClick={() => onShowPathsChange(!showPaths)}
-            aria-pressed={showPaths}
-            className={`pointer-events-auto inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] backdrop-blur-md transition-colors ${
-              showPaths
-                ? 'border-[#3BFF9D]/50 bg-[#062118]/80 text-[#3BFF9D]'
-                : 'border-white/10 bg-black/55 text-white/75 hover:text-white'
-            }`}
-          >
-            <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />
-            {showPaths ? 'Paths on' : 'Paths off'}
-          </button>
-        ) : null}
       </div>
-    </>
+    </div>
   )
 }
 
@@ -148,8 +169,11 @@ interface IconButtonProps {
 }
 
 function IconButton({ label, onClick, children, kind = 'ghost' }: IconButtonProps) {
+  // Touch-friendly target (h-9/w-9 = 36px hit area) with the visual
+  // glyph kept small via the inner SVG. Maintains a comfortable tap
+  // target on mobile while the pill itself stays compact.
   const base =
-    'inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70'
+    'inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70'
   const styles =
     kind === 'primary'
       ? 'bg-[#3BFF9D] text-[#062118] hover:bg-[#5cffae] active:scale-[0.96]'
@@ -239,10 +263,11 @@ function CameraSelector({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`Camera: ${active.label}`}
-        className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/65 px-3 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-white/85 shadow-[0_2px_8px_rgba(0,0,0,0.35)] backdrop-blur-md transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70"
+        title={`Camera: ${active.label}`}
+        className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/55 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-white/80 shadow-[0_2px_8px_rgba(0,0,0,0.35)] backdrop-blur-md transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70"
       >
         <CameraIcon />
-        <span>{active.label}</span>
+        <span className="hidden sm:inline">{active.label}</span>
         <ChevronIcon open={open} />
       </button>
       {open ? (
