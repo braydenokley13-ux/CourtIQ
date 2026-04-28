@@ -20,9 +20,9 @@ import {
   type Timeline,
 } from '@/lib/scenario3d/timeline'
 
-const FLOOR_COLOR = '#C2823F'
+const FLOOR_COLOR = '#D69453'
 const LINE_COLOR = '#FFFFFF'
-const PAINT_COLOR = '#0050B4'
+const PAINT_COLOR = '#0E5DC5'
 // Authentic basketball orange/brown leather (not the neon orange of the
 // previous sphere). The pebble texture darkens this further so the
 // rendered ball reads richer than the flat hex would suggest.
@@ -35,14 +35,30 @@ const BACKBOARD_TARGET_COLOR = '#FFFFFF'
 const POLE_COLOR = '#2A3344'
 const PADDING_COLOR = '#1A1A1A'
 const NET_COLOR = '#F0F0F0'
-const OFFENSE_COLOR = '#5DB4FF'
-const DEFENSE_COLOR = '#FF5C72'
-const USER_COLOR = '#3BFF9D'
-const GYM_WALL_COLOR = '#2D2F36'
-const GYM_CEILING_COLOR = '#16181D'
-const GYM_FLOOR_EXT_COLOR = '#5C3A1A'
-const GYM_RAFTER_COLOR = '#0E0F12'
-const GYM_TRIM_COLOR = '#0B0C10'
+// Packet D (renderer-polish) deepened offense/defense and lifted the
+// user color so all three jerseys hold contrast against both the warm
+// hardwood and the new mid-gray gym walls. The user's mint stays the
+// brightest of the three so the eye lands on it first.
+const OFFENSE_COLOR = '#3D9CFF'
+const DEFENSE_COLOR = '#FF3F58'
+const USER_COLOR = '#46FFA8'
+// Possession ring — warm gold so it reads as "ball" without competing
+// with any of the team colors. Used on the floor under whichever
+// player held the ball when the scene was built.
+const POSSESSION_RING_COLOR = '#FFCB44'
+// Soft contact shadow beneath every player. Pure dark, semi-transparent
+// so it reads as grounding rather than a paint dot.
+const CONTACT_SHADOW_COLOR = '#05070A'
+// Packet C (renderer-polish) lifted these from near-black to warm
+// mid-grays so the upper portion of the canvas no longer reads as a
+// black void. Walls + ceiling stay desaturated and dim enough to keep
+// the lit hardwood as the visual subject, but bright enough that a
+// player on a default monitor can see them as a real gym.
+const GYM_WALL_COLOR = '#54606E'
+const GYM_CEILING_COLOR = '#3A4150'
+const GYM_FLOOR_EXT_COLOR = '#7A4D24'
+const GYM_RAFTER_COLOR = '#1F232B'
+const GYM_TRIM_COLOR = '#181B22'
 
 const PLAYER_HEIGHT = 6
 const PLAYER_RADIUS = 1.2
@@ -87,14 +103,36 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   root.name = 'imperative-basketball'
   const playerGroups = new Map<string, THREE.Group>()
 
-  // Lights — ambient + two directionals so meshStandardMaterial reads.
-  root.add(new THREE.AmbientLight(0xffffff, 1.4))
-  const dir1 = new THREE.DirectionalLight(0xffffff, 1.1)
-  dir1.position.set(30, 60, 30)
-  root.add(dir1)
-  const dir2 = new THREE.DirectionalLight(0xcfe2ff, 0.6)
-  dir2.position.set(-20, 40, 10)
-  root.add(dir2)
+  // Lighting rig — Packet C (renderer-polish).
+  //
+  // The MeshBasic floor/lines/ball use `toneMapped: false` and ignore
+  // these lights entirely; the rig exists for the lit
+  // MeshStandardMaterial gym shell, hoop, and player figures. With
+  // ACES Filmic tone mapping enabled at the renderer level (see
+  // Scenario3DCanvas.tsx) the rig now follows a standard 3-point setup:
+  //   - Hemisphere: warm sky bounce + cool ground bounce, replaces a
+  //     flat AmbientLight so PBR materials get directional ambient.
+  //   - Key (warm overhead): primary illumination from the main gym
+  //     lights, slightly warm so wood reads inviting.
+  //   - Fill (cool side): softens shadows on player faces / the off
+  //     side of the hoop.
+  //   - Rim (back-overhead, slightly cool): separates players and the
+  //     hoop from the back wall so they don't melt into the gym.
+  // A small AmbientLight is kept at low intensity to lift extreme
+  // shadow valleys without washing the scene.
+  root.add(new THREE.AmbientLight(0xffffff, 0.35))
+  const hemi = new THREE.HemisphereLight(0xfff1d6, 0x2a3140, 0.95)
+  hemi.position.set(0, 40, 0)
+  root.add(hemi)
+  const key = new THREE.DirectionalLight(0xfff0d4, 1.35)
+  key.position.set(28, 55, 32)
+  root.add(key)
+  const fill = new THREE.DirectionalLight(0xc6dcff, 0.55)
+  fill.position.set(-26, 38, 14)
+  root.add(fill)
+  const rim = new THREE.DirectionalLight(0xdfe6ff, 0.45)
+  rim.position.set(0, 45, -18)
+  root.add(rim)
 
   const halfW = COURT.halfWidthFt
   const halfL = COURT.halfLengthFt
@@ -165,6 +203,14 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   // Hoop (backboard, rim, stanchion, padding, net).
   root.add(buildHoopAssembly())
 
+  // Resolve the initial ball-handler once, before walking the players.
+  // Mirrors the holder lookup used for ball placement below so the
+  // possession ring and the rendered ball end up on the same player.
+  const initialHolderId =
+    scene.ball.holderId ??
+    scene.players.find((p) => p.hasBall)?.id ??
+    null
+
   // Players. Each player is a lightweight humanoid figure rotated so
   // offense faces the rim and defense faces back toward the offense.
   for (const p of scene.players) {
@@ -176,7 +222,11 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
           ? OFFENSE_COLOR
           : DEFENSE_COLOR
 
-    const playerGroup = buildPlayerFigure(teamColor, p.isUser ?? false)
+    const playerGroup = buildPlayerFigure(
+      teamColor,
+      p.isUser ?? false,
+      p.id === initialHolderId,
+    )
     playerGroup.position.set(p.start.x, PLAYER_LIFT, p.start.z)
     playerGroup.rotation.y = computePlayerYaw(p.team, p.start.x, p.start.z)
     root.add(playerGroup)
@@ -254,15 +304,18 @@ function disposeMaterialTextures(mat: THREE.Material): void {
 }
 
 /**
- * Computes a Box3 over the players + ball, then aims the camera so the
- * whole box is in frame at the given pitch.
+ * Computes a Box3 over the players + ball + movement endpoints, then
+ * aims the camera so the whole play (start AND end positions) is in
+ * frame at the given pitch. Defaults are tuned for a coaching-film feel:
+ * a moderate down-angle that keeps the half-court the subject and
+ * leaves only a small margin around the action.
  */
 export function fitCameraToScene(
   camera: THREE.PerspectiveCamera,
   scene: Scene3D,
   aspect: number,
-  pitchDeg = 32,
-  padding = 1.4,
+  pitchDeg = 28,
+  padding = 1.18,
 ): void {
   const target = computeAutoTarget(scene, aspect, camera.fov, pitchDeg, padding)
   if (!target) return
@@ -305,19 +358,25 @@ export interface CameraTarget {
 // Default broadcast/replay/tactical target geometry, all in feet.
 // Court spans x ∈ [-25, 25], z ∈ [0, 47], rim sits at the origin (0,
 // y≈10, 0). Half-court is at z = 47.
-const SCENE_FOCUS = new THREE.Vector3(0, 4, 22)
-const BROADCAST_POSITION = new THREE.Vector3(3, 28, 70)
-const BROADCAST_LOOKAT = new THREE.Vector3(0, 4, 22)
-const BROADCAST_FOV = 50
-const TACTICAL_POSITION = new THREE.Vector3(0, 70, 32)
-const TACTICAL_LOOKAT = new THREE.Vector3(0, 0, 24)
-const TACTICAL_FOV = 45
-const REPLAY_POSITION = new THREE.Vector3(-30, 9, 38)
-const REPLAY_LOOKAT = new THREE.Vector3(3, 5, 12)
-const REPLAY_FOV = 38
-const FOLLOW_LIFT_Y = 9
-const FOLLOW_TRAIL_DIST = 14
-const FOLLOW_LOOK_HEIGHT = 4
+//
+// All presets were re-tuned in Packet B (renderer-polish) to push the
+// court toward the centre of the frame and shrink the empty black
+// space that previously dominated the canvas. Lower height, closer
+// distance, and a slightly tighter FOV move from "stadium upper deck"
+// to "coaching film".
+const SCENE_FOCUS = new THREE.Vector3(0, 3, 20)
+const BROADCAST_POSITION = new THREE.Vector3(2, 18, 48)
+const BROADCAST_LOOKAT = new THREE.Vector3(0, 3, 20)
+const BROADCAST_FOV = 42
+const TACTICAL_POSITION = new THREE.Vector3(0, 52, 26)
+const TACTICAL_LOOKAT = new THREE.Vector3(0, 0, 22)
+const TACTICAL_FOV = 38
+const REPLAY_POSITION = new THREE.Vector3(-22, 8, 30)
+const REPLAY_LOOKAT = new THREE.Vector3(2, 4, 12)
+const REPLAY_FOV = 34
+const FOLLOW_LIFT_Y = 8
+const FOLLOW_TRAIL_DIST = 12
+const FOLLOW_LOOK_HEIGHT = 3.5
 
 /**
  * Computes a camera target for the given mode. Returns null only if the
@@ -427,17 +486,27 @@ function followTarget(scene: Scene3D): CameraTarget | null {
 }
 
 /**
- * Auto-fit target. Builds a Box3 over players + ball, then computes a
- * camera position that frames it given FOV/aspect. Mirrors the original
- * `fitCameraToScene` math so 'auto' camera mode preserves prior framing
- * exactly.
+ * Auto-fit target. Builds a Box3 over players + ball + every movement
+ * endpoint (so the WHOLE play, start to finish, is in frame, not just
+ * t=0 positions), then computes a camera position that frames it given
+ * FOV/aspect.
+ *
+ * Two corrections vs. the previous implementation:
+ *  1. The vertical extent on screen is `sizeY*cos(pitch) +
+ *     sizeZ*sin(pitch)`, not `sizeY/2 + sizeZ/2`. The old formula was
+ *     ~67% conservative on a typical half-court box, which combined
+ *     with a 1.4 padding meant the camera sat ~2.3× too far back —
+ *     the headline "court is a sliver, canvas is mostly black" symptom.
+ *  2. A minimum half-court extent floor (≈ x ∈ [-25, 25], z ∈ [0, 28])
+ *     is folded in so that scenes with players bunched in one zone
+ *     still show enough of the floor for spacing reads.
  */
 function computeAutoTarget(
   scene: Scene3D,
   aspect: number,
   fov: number,
-  pitchDeg = 32,
-  padding = 1.4,
+  pitchDeg = 28,
+  padding = 1.18,
 ): CameraTarget | null {
   const points: THREE.Vector3[] = []
   for (const p of scene.players) {
@@ -449,7 +518,29 @@ function computeAutoTarget(
   if (Number.isFinite(scene.ball.start.x) && Number.isFinite(scene.ball.start.z)) {
     points.push(new THREE.Vector3(scene.ball.start.x, 1, scene.ball.start.z))
   }
+  // Fold every movement endpoint into the box too, so the camera frames
+  // where players GO, not only where they start. Without this, cuts and
+  // relocations off-screen push the user to the edge of the visible
+  // area mid-play, exactly the kind of framing failure that hides the
+  // very read the scenario is teaching.
+  for (const list of [scene.movements, scene.answerDemo]) {
+    for (const m of list) {
+      if (Number.isFinite(m.to.x) && Number.isFinite(m.to.z)) {
+        points.push(new THREE.Vector3(m.to.x, 0, m.to.z))
+        points.push(new THREE.Vector3(m.to.x, PLAYER_HEIGHT + 1, m.to.z))
+      }
+    }
+  }
   if (points.length === 0) return null
+
+  // Floor: always include a minimal "half-court visible" envelope so we
+  // never frame so tightly that the user loses sense of where the rim,
+  // wings, and elbows sit relative to the action.
+  const HALF_COURT_FLOOR_X = 22
+  const HALF_COURT_FLOOR_Z_MIN = 0
+  const HALF_COURT_FLOOR_Z_MAX = 28
+  points.push(new THREE.Vector3(-HALF_COURT_FLOOR_X, 0, HALF_COURT_FLOOR_Z_MIN))
+  points.push(new THREE.Vector3(HALF_COURT_FLOOR_X, 0, HALF_COURT_FLOOR_Z_MAX))
 
   const box = new THREE.Box3().setFromPoints(points)
   const center = new THREE.Vector3()
@@ -458,11 +549,18 @@ function computeAutoTarget(
   box.getSize(sizeVec)
 
   const fovRad = (fov * Math.PI) / 180
-  const verticalFit = (sizeVec.y * 0.5 + sizeVec.z * 0.5) / Math.tan(fovRad / 2)
-  const horizontalFit = (sizeVec.x * 0.5) / (Math.tan(fovRad / 2) * Math.max(aspect, 0.1))
+  const pitch = (pitchDeg * Math.PI) / 180
+  // Projected vertical extent of an axis-aligned box viewed at `pitch`
+  // below horizontal: world-y maps to screen-y by cos(pitch), world-z
+  // maps to screen-y by sin(pitch). Combined extent fits in
+  // 2*distance*tan(fov/2).
+  const projectedV =
+    sizeVec.y * Math.cos(pitch) + sizeVec.z * Math.sin(pitch)
+  const verticalFit = projectedV / (2 * Math.tan(fovRad / 2))
+  const horizontalFit =
+    sizeVec.x / (2 * Math.tan(fovRad / 2) * Math.max(aspect, 0.1))
   const distance = Math.max(verticalFit, horizontalFit) * padding
 
-  const pitch = (pitchDeg * Math.PI) / 180
   const position = new THREE.Vector3(
     center.x,
     center.y + Math.sin(pitch) * distance,
@@ -1607,7 +1705,11 @@ function computePlayerYaw(team: SceneTeam, x: number, z: number): number {
  * created per-figure so the existing disposeGroup() traversal cleans
  * everything without aliasing.
  */
-function buildPlayerFigure(teamColor: string, isUser: boolean): THREE.Group {
+function buildPlayerFigure(
+  teamColor: string,
+  isUser: boolean,
+  hasBall: boolean,
+): THREE.Group {
   const figure = new THREE.Group()
   figure.name = 'player-figure'
 
@@ -1737,21 +1839,96 @@ function buildPlayerFigure(teamColor: string, isUser: boolean): THREE.Group {
   facingMarker.position.set(0, HEAD_Y, -HEAD_RADIUS - 0.04)
   figure.add(facingMarker)
 
+  // Soft contact shadow — anchors the figure to the hardwood so it
+  // doesn't read as floating. Sits beneath every other floor mark.
+  // Cheap: a single dark CircleGeometry with low opacity, drawn before
+  // depth-write so the ring stack above paints cleanly on top.
+  const contactShadow = new THREE.Mesh(
+    new THREE.CircleGeometry(PLAYER_RADIUS + 0.55, 32),
+    new THREE.MeshBasicMaterial({
+      color: CONTACT_SHADOW_COLOR,
+      toneMapped: false,
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+    }),
+  )
+  contactShadow.rotation.x = -Math.PI / 2
+  contactShadow.position.y = 0.02
+  contactShadow.renderOrder = -1
+  figure.add(contactShadow)
+
+  // Possession ring — a warm-gold outer band only present on the
+  // initial ball-handler. Sits OUTSIDE the team ring so both can be
+  // read at a glance without one occluding the other.
+  if (hasBall) {
+    const possession = new THREE.Mesh(
+      new THREE.RingGeometry(PLAYER_RADIUS + 0.55, PLAYER_RADIUS + 0.85, 48),
+      new THREE.MeshBasicMaterial({
+        color: POSSESSION_RING_COLOR,
+        toneMapped: false,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.95,
+      }),
+    )
+    possession.rotation.x = -Math.PI / 2
+    possession.position.y = 0.045
+    figure.add(possession)
+  }
+
   // Floor disc — keeps the existing team-colored selection ring used
   // upstream by the 2D motion overlay so the renderer reads the same.
+  // The user's ring is wider and brighter, with a faint outer halo for
+  // an additional "this is YOU" cue from broadcast distance.
+  const ringInner = PLAYER_RADIUS + 0.2
+  const ringOuter = isUser ? PLAYER_RADIUS + 0.6 : PLAYER_RADIUS + 0.5
   const ring = new THREE.Mesh(
-    new THREE.RingGeometry(PLAYER_RADIUS + 0.2, PLAYER_RADIUS + 0.5, 32),
+    new THREE.RingGeometry(ringInner, ringOuter, 48),
     new THREE.MeshBasicMaterial({
       color: teamColor,
       toneMapped: false,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: isUser ? 0.95 : 0.7,
+      opacity: isUser ? 1 : 0.78,
     }),
   )
   ring.rotation.x = -Math.PI / 2
-  ring.position.y = 0.04
+  ring.position.y = 0.05
   figure.add(ring)
+
+  if (isUser) {
+    // Outer halo — a wider, faint mint band around the team ring so
+    // the user's player reads even when the camera is pulled out.
+    const halo = new THREE.Mesh(
+      new THREE.RingGeometry(ringOuter + 0.05, ringOuter + 0.45, 48),
+      new THREE.MeshBasicMaterial({
+        color: USER_COLOR,
+        toneMapped: false,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.32,
+      }),
+    )
+    halo.rotation.x = -Math.PI / 2
+    halo.position.y = 0.046
+    figure.add(halo)
+
+    // Floating "YOU" chevron — a small downward-pointing cone in mint
+    // that hovers above the head. Uses ConeGeometry rotated so the
+    // tip points down at the player; toneMapped: false so it stays
+    // bright independent of lighting.
+    const chevron = new THREE.Mesh(
+      new THREE.ConeGeometry(0.32, 0.65, 16),
+      new THREE.MeshBasicMaterial({
+        color: USER_COLOR,
+        toneMapped: false,
+      }),
+    )
+    chevron.rotation.x = Math.PI
+    chevron.position.set(0, HEAD_Y + HEAD_RADIUS + 0.95, 0)
+    figure.add(chevron)
+  }
 
   return figure
 }
