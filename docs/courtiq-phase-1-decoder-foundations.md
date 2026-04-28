@@ -641,3 +641,116 @@ Supporting rules:
 - **2D `<Court />` stays as the WebGL-unavailable fallback only.** It does not need to render decoder overlays. WebGL-unavailable users see the legacy 2D experience for that attempt; decoder framing in surrounding UI still applies.
 - **No parallel "decoder train" route.** `/train` handles all scenarios — legacy and decoder. Differences are data-driven, not route-driven.
 - **PR-4 (engineering phases) schedules `?simple=0` as the default for the decoder pack.** The train page picks the full path automatically for any scenario that carries a `decoderTag` or that ships under a Pack 1 manifest entry. The flag remains as a manual override for QA.
+
+---
+
+## Section 6 — Overlay System Plan
+
+### 6.1 Overlay codepath decision
+
+- **Imperative overlay system (`apps/web/components/scenario3d/imperativeTeachingOverlay.ts`) is the single authoring target** for new decoder scenarios. New primitive types (Section 4.5) extend this controller. The rAF-driven group, dash-offset animation, and pulse loop continue to live there.
+- **`PremiumOverlay.tsx` is deprecated for new authoring.** It remains in the tree only to serve the legacy concept scenarios that currently depend on it. No new scenario references it. PR-4 will list its formal removal as a follow-up cleanup phase.
+- **JSX `MovementPath3D` is deprecated for new authoring.** The imperative path replaces it for production runtime overlays. `MovementPath3D` may remain as an authoring/preview helper inside scene-authoring tooling, but it does not appear in the production scenario render path for decoder content.
+- **One controller, one rAF loop, one visibility-flip toggle** between pre-answer and post-answer states. Mounting and unmounting overlay groups during scene playback is forbidden — primitives are constructed once during `setup` and toggled thereafter.
+
+### 6.2 Pre-answer vs post-answer rule
+
+**Pre-answer:**
+- Make the cue **readable**, not the answer **discoverable**.
+- Sparse: a typical pre-answer overlay set is 2–4 primitives, not 8.
+- Focused on defender body language, vision direction, and named help position.
+- No green lanes, no cut/drive previews, no answer-revealing region shading.
+
+**Post-answer:**
+- Rich teaching is allowed.
+- All primitives permitted.
+- Fade-in is layered over ~600–900 ms total — defender cues first, then lanes, then open space, then the cut/drive preview as the climax. The user should read the explanation in order, not all at once.
+
+### 6.3 Allowed pre-answer primitives
+
+Allow:
+- `defender_vision_cone`
+- `defender_hip_arrow`
+- `defender_foot_arrow`
+- `defender_chest_line`
+- `defender_hand_in_lane`
+- `help_pulse`
+- `label` — only if subtle and not answer-revealing (e.g., "you" on the user marker is fine; "empty corner" is not).
+
+**Validator rejects pre-answer:**
+- `passing_lane_open`
+- `drive_cut_preview`
+- `open_space_region` whose anchor falls within a configurable threshold of any `answerDemo` movement endpoint (the answer-line region check). The validator measures distance from the region's `anchor` to each `answerDemo[i].to` and rejects below threshold.
+
+### 6.4 Post-answer primitives
+
+All primitives are allowed. The same `help_pulse` or `defender_vision_cone` may appear in both pre-answer and post-answer arrays; the post-answer set is the **complete teaching annotation**, not a delta over pre-answer. Repeating a primitive is the rule, not a smell — it lets the controller treat post-answer as a full mount, with visibility-flipped continuation of the cues already on screen.
+
+### 6.5 Visual language
+
+Color semantics at the meaning level (the design system owns the exact tokens):
+- **Green** = playable / correct lane or path.
+- **Red / orange** = blocked / capped / dangerous lane.
+- **Brand accent at low alpha** = open space, helper highlight.
+- **Neutral / white** = defender body-language indicators (so they read across uniform colors).
+- **Translucent cool tone** = vision cone (so it does not compete with body-language white).
+
+Per-primitive table:
+
+| Primitive | Purpose | Anchor | Animation / fade timing | Visual intensity | V0 status |
+|---|---|---|---|---|---|
+| `passing_lane_open` | Show the lane the ball/cut may take | Two endpoints (player ids or `'ball'`) | Fade-in 250–400 ms; optional dash flow | Bright green, medium weight, slight glow | **Must-have** (post-answer only) |
+| `passing_lane_blocked` | Show a capped/dangerous lane | Two endpoints | Fade-in 250 ms; no flow | Red/orange, medium weight, slight noise | **Must-have** (post-answer only) |
+| `defender_vision_cone` | Where the defender is looking | `playerId`; optional `targetId` for direction | Static during `frozen`; subtle pulse during `replaying` | Translucent wedge, ~30° spread | **Must-have** (both phases) |
+| `defender_hip_arrow` | Direction of defender hips | `playerId` (rendered at hip height) | Fade-in 200 ms | Short, thick, white-amber | **Must-have** (both phases) |
+| `defender_foot_arrow` | Lead-foot direction | `playerId` (foot anchor) | Fade-in 200 ms | Small, white | **Must-have** (both phases) |
+| `defender_chest_line` | Chest plane between passer and receiver | `playerId` (segment between defender and capped line) | Static; subtle pulse | Thin line | **Must-have** (pre-answer especially) |
+| `defender_hand_in_lane` | Hand intruding into a passing lane | `playerId` (hand anchor) | Fade-in 200 ms | Small bracket/marker | **Must-have** (pre-answer) |
+| `open_space_region` | Shaded shape of the empty seam/corner/lane | `anchor` + `radiusFt` | Fade-in 300–500 ms post-answer | Subtle radial glow at brand-accent low alpha | **Must-have** (post-answer; pre-answer only if non-revealing) |
+| `help_pulse` | Named help defender called out | `playerId` + `role` (`tag`, `low_man`, `nail`, `stunter`, `overhelp`) | ~1 Hz pulse; gentle pre-answer, stronger post-answer | Halo around marker; role label fades in post-answer only | **Must-have** (`tag`, `low_man`, `nail`, `overhelp`); `stunter` deferred |
+| `drive_cut_preview` | The right cut/drive path | `playerId` + `path[]` | Dashed line builds out 400–700 ms; arrowhead on completion | Bright accent, dashed | **Must-have** (post-answer only) |
+| `label` | Small text at a court spot | `anchor` + `text` | Fade-in 200 ms; pre-answer dimmer | Small caps, neutral | **Defer** unless `text` is non-revealing (role tags, "You") |
+| `timing_pulse` | Show how short the window was | `anchor` + `durationMs` | One-shot pulse at window close | Bright outward ripple | **Defer** for v0 unless implementation is trivial |
+
+**Animation discipline:**
+- **Pre-answer:** max **two** animated primitives at once (e.g., a gentle vision cone and a slow help pulse). More creates motion noise that hurts the read.
+- **Post-answer:** layered fade-ins sequenced over **600–900 ms** total. Recommended layer order:
+  1. Defender cues already on screen — intensify (no fade in, just visibility-flip).
+  2. `passing_lane_blocked` — fade in.
+  3. `open_space_region` — fade in.
+  4. `passing_lane_open` — fade in.
+  5. `drive_cut_preview` — build out as the user marker travels.
+  6. `help_pulse` — strengthen, role label fades in.
+
+### 6.6 V0 must-have overlays
+
+The shipping minimum for Pack 1. Each must be authorable, render correctly, and respect the pre/post phase rule:
+
+1. `passing_lane_open` (post-answer)
+2. `passing_lane_blocked` (post-answer)
+3. `defender_vision_cone`
+4. `help_pulse` with at least the `tag`, `low_man`, `nail`, `overhelp` roles wired
+5. `defender_hip_arrow`
+6. `defender_foot_arrow`
+7. `defender_chest_line`
+8. `defender_hand_in_lane`
+9. `open_space_region`
+10. `drive_cut_preview` (post-answer)
+
+### 6.7 Deferred overlays
+
+Defer to a later phase:
+
+- **Rotation ghost trails** — full ghost motion of would-be defenders. Useful for advanced rotation teaching (SKR-03 territory); not needed for Pack 1.
+- **"One-more" prompt line** — a tactile UI hint nudging the user to a next pass. Belongs to a future SKR-focused pack.
+- **Automatic freeze labels** ("nail," "low man," "tag," "help side," "empty corner") as auto-generated captions. The seed-time `label` primitive already covers this manually; an auto-label system can come later.
+- **`timing_pulse`** unless its implementation is trivial within v0 budget. Schema-valid but optional.
+- **`stunter` help role** — the `help_pulse` primitive accepts the value, but Pack 1 does not exercise it. Visual treatment can be tuned in a later pack.
+
+### 6.8 Overlay discipline
+
+Three load-bearing rules for the authoring team:
+
+1. **Do not overload the scene before the answer.** The pre-answer view should pass an "if a coach paused the film here, could a 12-year-old name the cue?" test. If the user can name the *answer* instead of the *cue*, there are too many overlays.
+2. **The user should read the cue, not follow an answer arrow.** No overlay primitive that points *at* the destination of the best read appears pre-answer. The validator enforces this for `passing_lane_open` and `drive_cut_preview`; authors enforce it manually for `open_space_region` and `label`.
+3. **Richer overlays belong in the feedback replay.** The post-answer view is where teaching happens. Layer it deliberately — defender cues first, then lanes, then open space, then the path. The user should feel taught, not buried.
