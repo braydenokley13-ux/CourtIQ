@@ -35,9 +35,20 @@ const BACKBOARD_TARGET_COLOR = '#FFFFFF'
 const POLE_COLOR = '#2A3344'
 const PADDING_COLOR = '#1A1A1A'
 const NET_COLOR = '#F0F0F0'
-const OFFENSE_COLOR = '#5DB4FF'
-const DEFENSE_COLOR = '#FF5C72'
-const USER_COLOR = '#3BFF9D'
+// Packet D (renderer-polish) deepened offense/defense and lifted the
+// user color so all three jerseys hold contrast against both the warm
+// hardwood and the new mid-gray gym walls. The user's mint stays the
+// brightest of the three so the eye lands on it first.
+const OFFENSE_COLOR = '#3D9CFF'
+const DEFENSE_COLOR = '#FF3F58'
+const USER_COLOR = '#46FFA8'
+// Possession ring — warm gold so it reads as "ball" without competing
+// with any of the team colors. Used on the floor under whichever
+// player held the ball when the scene was built.
+const POSSESSION_RING_COLOR = '#FFCB44'
+// Soft contact shadow beneath every player. Pure dark, semi-transparent
+// so it reads as grounding rather than a paint dot.
+const CONTACT_SHADOW_COLOR = '#05070A'
 // Packet C (renderer-polish) lifted these from near-black to warm
 // mid-grays so the upper portion of the canvas no longer reads as a
 // black void. Walls + ceiling stay desaturated and dim enough to keep
@@ -192,6 +203,14 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   // Hoop (backboard, rim, stanchion, padding, net).
   root.add(buildHoopAssembly())
 
+  // Resolve the initial ball-handler once, before walking the players.
+  // Mirrors the holder lookup used for ball placement below so the
+  // possession ring and the rendered ball end up on the same player.
+  const initialHolderId =
+    scene.ball.holderId ??
+    scene.players.find((p) => p.hasBall)?.id ??
+    null
+
   // Players. Each player is a lightweight humanoid figure rotated so
   // offense faces the rim and defense faces back toward the offense.
   for (const p of scene.players) {
@@ -203,7 +222,11 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
           ? OFFENSE_COLOR
           : DEFENSE_COLOR
 
-    const playerGroup = buildPlayerFigure(teamColor, p.isUser ?? false)
+    const playerGroup = buildPlayerFigure(
+      teamColor,
+      p.isUser ?? false,
+      p.id === initialHolderId,
+    )
     playerGroup.position.set(p.start.x, PLAYER_LIFT, p.start.z)
     playerGroup.rotation.y = computePlayerYaw(p.team, p.start.x, p.start.z)
     root.add(playerGroup)
@@ -1682,7 +1705,11 @@ function computePlayerYaw(team: SceneTeam, x: number, z: number): number {
  * created per-figure so the existing disposeGroup() traversal cleans
  * everything without aliasing.
  */
-function buildPlayerFigure(teamColor: string, isUser: boolean): THREE.Group {
+function buildPlayerFigure(
+  teamColor: string,
+  isUser: boolean,
+  hasBall: boolean,
+): THREE.Group {
   const figure = new THREE.Group()
   figure.name = 'player-figure'
 
@@ -1812,21 +1839,96 @@ function buildPlayerFigure(teamColor: string, isUser: boolean): THREE.Group {
   facingMarker.position.set(0, HEAD_Y, -HEAD_RADIUS - 0.04)
   figure.add(facingMarker)
 
+  // Soft contact shadow — anchors the figure to the hardwood so it
+  // doesn't read as floating. Sits beneath every other floor mark.
+  // Cheap: a single dark CircleGeometry with low opacity, drawn before
+  // depth-write so the ring stack above paints cleanly on top.
+  const contactShadow = new THREE.Mesh(
+    new THREE.CircleGeometry(PLAYER_RADIUS + 0.55, 32),
+    new THREE.MeshBasicMaterial({
+      color: CONTACT_SHADOW_COLOR,
+      toneMapped: false,
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+    }),
+  )
+  contactShadow.rotation.x = -Math.PI / 2
+  contactShadow.position.y = 0.02
+  contactShadow.renderOrder = -1
+  figure.add(contactShadow)
+
+  // Possession ring — a warm-gold outer band only present on the
+  // initial ball-handler. Sits OUTSIDE the team ring so both can be
+  // read at a glance without one occluding the other.
+  if (hasBall) {
+    const possession = new THREE.Mesh(
+      new THREE.RingGeometry(PLAYER_RADIUS + 0.55, PLAYER_RADIUS + 0.85, 48),
+      new THREE.MeshBasicMaterial({
+        color: POSSESSION_RING_COLOR,
+        toneMapped: false,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.95,
+      }),
+    )
+    possession.rotation.x = -Math.PI / 2
+    possession.position.y = 0.045
+    figure.add(possession)
+  }
+
   // Floor disc — keeps the existing team-colored selection ring used
   // upstream by the 2D motion overlay so the renderer reads the same.
+  // The user's ring is wider and brighter, with a faint outer halo for
+  // an additional "this is YOU" cue from broadcast distance.
+  const ringInner = PLAYER_RADIUS + 0.2
+  const ringOuter = isUser ? PLAYER_RADIUS + 0.6 : PLAYER_RADIUS + 0.5
   const ring = new THREE.Mesh(
-    new THREE.RingGeometry(PLAYER_RADIUS + 0.2, PLAYER_RADIUS + 0.5, 32),
+    new THREE.RingGeometry(ringInner, ringOuter, 48),
     new THREE.MeshBasicMaterial({
       color: teamColor,
       toneMapped: false,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: isUser ? 0.95 : 0.7,
+      opacity: isUser ? 1 : 0.78,
     }),
   )
   ring.rotation.x = -Math.PI / 2
-  ring.position.y = 0.04
+  ring.position.y = 0.05
   figure.add(ring)
+
+  if (isUser) {
+    // Outer halo — a wider, faint mint band around the team ring so
+    // the user's player reads even when the camera is pulled out.
+    const halo = new THREE.Mesh(
+      new THREE.RingGeometry(ringOuter + 0.05, ringOuter + 0.45, 48),
+      new THREE.MeshBasicMaterial({
+        color: USER_COLOR,
+        toneMapped: false,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.32,
+      }),
+    )
+    halo.rotation.x = -Math.PI / 2
+    halo.position.y = 0.046
+    figure.add(halo)
+
+    // Floating "YOU" chevron — a small downward-pointing cone in mint
+    // that hovers above the head. Uses ConeGeometry rotated so the
+    // tip points down at the player; toneMapped: false so it stays
+    // bright independent of lighting.
+    const chevron = new THREE.Mesh(
+      new THREE.ConeGeometry(0.32, 0.65, 16),
+      new THREE.MeshBasicMaterial({
+        color: USER_COLOR,
+        toneMapped: false,
+      }),
+    )
+    chevron.rotation.x = Math.PI
+    chevron.position.set(0, HEAD_Y + HEAD_RADIUS + 0.95, 0)
+    figure.add(chevron)
+  }
 
   return figure
 }
