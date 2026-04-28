@@ -520,47 +520,75 @@ export function Scenario3DCanvas({
         threeScene.add(result.root)
         mounted = result.root
 
-        const sizeEl = glRef.current?.domElement
-        const aspect =
-          sizeEl && sizeEl.clientHeight > 0
-            ? sizeEl.clientWidth / sizeEl.clientHeight
-            : 1
-        if ('isPerspectiveCamera' in cam && (cam as THREE.PerspectiveCamera).isPerspectiveCamera) {
-          // Initial fit-to-scene so frame zero is correct even if the
-          // controller's first tick hasn't run yet.
-          fitCameraToScene(cam as THREE.PerspectiveCamera, visibleScene, aspect)
-          // Hand the camera over to the controller. It snaps to its
-          // current mode's target on the next parent rAF tick, so any
-          // delta from fitCameraToScene above is invisible.
-          const controller = new CameraController(visibleScene, aspect, CAMERA_FOV)
-          controller.setMode(activeCameraMode)
-          controller.snapNext()
-          cameraControllerRef.current = controller
-        }
+        // Packet I — broaden the safety net around camera + motion
+        // controller setup. buildBasketballGroup is already guarded
+        // (failure flips to fallback before anything reaches the scene
+        // graph), but a throw inside fitCameraToScene, the
+        // CameraController constructor, or the MotionController
+        // constructor would previously leave the user staring at a
+        // partially-initialized scene with no framing or animation.
+        // Catch it, tear the partial mount back down, surface the error
+        // to the operator badge, and route to the 2D fallback so the
+        // training session keeps progressing.
+        try {
+          const sizeEl = glRef.current?.domElement
+          const aspect =
+            sizeEl && sizeEl.clientHeight > 0
+              ? sizeEl.clientWidth / sizeEl.clientHeight
+              : 1
+          if (
+            'isPerspectiveCamera' in cam &&
+            (cam as THREE.PerspectiveCamera).isPerspectiveCamera
+          ) {
+            // Initial fit-to-scene so frame zero is correct even if the
+            // controller's first tick hasn't run yet.
+            fitCameraToScene(cam as THREE.PerspectiveCamera, visibleScene, aspect)
+            // Hand the camera over to the controller. It snaps to its
+            // current mode's target on the next parent rAF tick, so any
+            // delta from fitCameraToScene above is invisible.
+            const controller = new CameraController(visibleScene, aspect, CAMERA_FOV)
+            controller.setMode(activeCameraMode)
+            controller.snapNext()
+            cameraControllerRef.current = controller
+          }
 
-        // Imperative motion controller — deterministic player + ball
-        // playback driven from the same parent rAF loop the camera
-        // already rides on. Anchors itself on the next tick so motion
-        // begins from the moment the scene appears, not from canvas
-        // creation.
-        const motion = new MotionController(
-          visibleScene,
-          replayMode,
-          result.players,
-          result.ball,
-          result.ballBaseY,
-        )
-        // Replay any non-default playback prop so a scene that mounts
-        // with the user already at e.g. 2x or paused honors that state
-        // from frame zero. The dedicated effects below handle later
-        // changes; this just covers the initial mount race.
-        if (playbackRate !== undefined && playbackRate !== 1) {
-          motion.setPlaybackRate(playbackRate)
+          // Imperative motion controller — deterministic player + ball
+          // playback driven from the same parent rAF loop the camera
+          // already rides on. Anchors itself on the next tick so motion
+          // begins from the moment the scene appears, not from canvas
+          // creation.
+          const motion = new MotionController(
+            visibleScene,
+            replayMode,
+            result.players,
+            result.ball,
+            result.ballBaseY,
+          )
+          // Replay any non-default playback prop so a scene that mounts
+          // with the user already at e.g. 2x or paused honors that state
+          // from frame zero. The dedicated effects below handle later
+          // changes; this just covers the initial mount race.
+          if (playbackRate !== undefined && playbackRate !== 1) {
+            motion.setPlaybackRate(playbackRate)
+          }
+          if (paused) {
+            motion.setPaused(true)
+          }
+          motionControllerRef.current = motion
+        } catch (error) {
+          // eslint-disable-next-line no-console
+          console.error('[scenario3d] camera/motion init failed', error)
+          threeScene.remove(result.root)
+          disposeGroup(result.root)
+          mounted = null
+          cameraControllerRef.current = null
+          motionControllerRef.current = null
+          setRuntimeError(
+            error instanceof Error ? error.message : 'Scene init failed',
+          )
+          setMode('fallback')
+          return
         }
-        if (paused) {
-          motion.setPaused(true)
-        }
-        motionControllerRef.current = motion
 
         // Packet E — imperative teaching overlay. Owns its own GPU
         // resources and attaches itself to the scene root. We honor the
