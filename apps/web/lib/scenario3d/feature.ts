@@ -95,3 +95,33 @@ export function isAutoFitCamera(): boolean {
     return true
   }
 }
+
+/**
+ * Reads the `?camera=` query param and returns it as a CameraMode if it
+ * matches one of the supported presets, otherwise null. Used by the
+ * Scenario3DCanvas to opt into broadcast/tactical/follow/replay framing
+ * without yet building the full Packet 12 user-facing selector.
+ *
+ * Returning null (rather than 'auto') lets callers distinguish "no
+ * explicit override" from "explicitly auto", so a parent prop can win
+ * over the URL when both are set.
+ */
+export function getCameraMode():
+  | 'auto'
+  | 'broadcast'
+  | 'tactical'
+  | 'follow'
+  | 'replay'
+  | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = new URLSearchParams(window.location.search).get('camera')
+    if (raw === 'auto' || raw === 'broadcast' || raw === 'tactical' ||
+        raw === 'follow' || raw === 'replay') {
+      return raw
+    }
+    return null
+  } catch {
+    return null
+  }
+}

@@ -11,12 +11,23 @@
 
 import * as THREE from 'three'
 import { COURT } from '@/lib/scenario3d/coords'
-import type { Scene3D, SceneTeam } from '@/lib/scenario3d/scene'
+import type { Scene3D, SceneMovement, SceneTeam } from '@/lib/scenario3d/scene'
+import {
+  buildTimeline,
+  resolveBallStart,
+  samplePlayer,
+  type ResolvedMovement,
+  type Timeline,
+} from '@/lib/scenario3d/timeline'
 
 const FLOOR_COLOR = '#C2823F'
 const LINE_COLOR = '#FFFFFF'
 const PAINT_COLOR = '#0050B4'
-const BALL_COLOR = '#FF8A3D'
+// Authentic basketball orange/brown leather (not the neon orange of the
+// previous sphere). The pebble texture darkens this further so the
+// rendered ball reads richer than the flat hex would suggest.
+const BALL_COLOR = '#D26B26'
+const BALL_SEAM_COLOR = '#0E0F10'
 const RIM_COLOR = '#F26B1F'
 const BACKBOARD_GLASS_TINT = '#9FD8FF'
 const BACKBOARD_FRAME_COLOR = '#1B1F2A'
@@ -35,7 +46,10 @@ const GYM_TRIM_COLOR = '#0B0C10'
 
 const PLAYER_HEIGHT = 6
 const PLAYER_RADIUS = 1.2
-const BALL_RADIUS = 0.8
+// NBA regulation ball radius is ~0.39 ft (9.4" diameter). Bumped slightly
+// so the ball still reads from the default broadcast camera which sits
+// ~70 ft from the action.
+const BALL_RADIUS = 0.45
 const FLOOR_LIFT = 0
 const LINE_LIFT = 0.05
 const PLAYER_LIFT = 0.05
@@ -48,12 +62,30 @@ const SHORTS_DARKEN = 0.55
 const ACCENT_COLOR = '#FFFFFF'
 
 /**
- * Builds the full basketball scene as a single THREE.Group. Caller is
- * responsible for adding/removing it from the scene graph.
+ * Bundles the imperative scene root with the per-player and ball
+ * groups the MotionController needs to mutate each frame. The root
+ * remains the only object the caller adds/removes from the scene
+ * graph; the player/ball references are non-owning views into root's
+ * descendants.
  */
-export function buildBasketballGroup(scene: Scene3D): THREE.Group {
+export interface SceneBuildResult {
+  root: THREE.Group
+  players: Map<string, THREE.Group>
+  ball: THREE.Group
+  /** Y position the held ball should sit at — preserves the prior y math. */
+  ballBaseY: number
+}
+
+/**
+ * Builds the full basketball scene as a single THREE.Group plus a
+ * sidecar map of per-player groups and the ball group. Caller is
+ * responsible for adding/removing `result.root` from the scene graph
+ * and for disposing it via disposeGroup() on unmount.
+ */
+export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   const root = new THREE.Group()
   root.name = 'imperative-basketball'
+  const playerGroups = new Map<string, THREE.Group>()
 
   // Lights — ambient + two directionals so meshStandardMaterial reads.
   root.add(new THREE.AmbientLight(0xffffff, 1.4))
@@ -148,29 +180,34 @@ export function buildBasketballGroup(scene: Scene3D): THREE.Group {
     playerGroup.position.set(p.start.x, PLAYER_LIFT, p.start.z)
     playerGroup.rotation.y = computePlayerYaw(p.team, p.start.x, p.start.z)
     root.add(playerGroup)
+    playerGroups.set(p.id, playerGroup)
   }
 
-  // Ball.
+  // Ball. Holder lookup is unchanged from prior packets — ball follows
+  // either the explicit holderId or the first player with hasBall, and
+  // falls back to the scene's static ball coords if neither resolves.
   const ballHolder = scene.ball.holderId
     ? scene.players.find((p) => p.id === scene.ball.holderId)
     : scene.players.find((p) => p.hasBall)
   const ballX = ballHolder?.start.x ?? scene.ball.start.x
   const ballZ = ballHolder?.start.z ?? scene.ball.start.z
 
-  const ball = new THREE.Mesh(
-    new THREE.SphereGeometry(BALL_RADIUS, 24, 24),
-    new THREE.MeshStandardMaterial({ color: BALL_COLOR }),
-  )
-  ball.position.set(ballX, BALL_RADIUS + 0.2, ballZ)
+  const ball = buildBasketball()
+  const ballBaseY = BALL_RADIUS + 0.2
+  ball.position.set(ballX, ballBaseY, ballZ)
   root.add(ball)
 
-  return root
+  return { root, players: playerGroups, ball, ballBaseY }
 }
 
 /**
- * Disposes every geometry/material under the given object and its
- * descendants. Call before removing an imperative group from the scene
- * to prevent GPU memory leaks.
+ * Disposes every geometry/material/texture under the given object and
+ * its descendants. Call before removing an imperative group from the
+ * scene to prevent GPU memory leaks.
+ *
+ * Textures are disposed alongside materials because Material.dispose()
+ * does NOT cascade to attached maps — a leaked CanvasTexture (e.g. the
+ * basketball surface map) would otherwise hang around forever.
  */
 export function disposeGroup(group: THREE.Object3D): void {
   group.traverse((child) => {
@@ -178,11 +215,42 @@ export function disposeGroup(group: THREE.Object3D): void {
     if (mesh.geometry) mesh.geometry.dispose()
     const mat = mesh.material as THREE.Material | THREE.Material[] | undefined
     if (Array.isArray(mat)) {
-      for (const m of mat) m.dispose()
+      for (const m of mat) {
+        disposeMaterialTextures(m)
+        m.dispose()
+      }
     } else if (mat) {
+      disposeMaterialTextures(mat)
       mat.dispose()
     }
   })
+}
+
+/**
+ * Disposes every THREE.Texture currently attached to the material. The
+ * lookup walks a known set of standard map slots — anything the
+ * imperative scene builders actually use today (map, bumpMap, normalMap,
+ * roughnessMap, metalnessMap, alphaMap, emissiveMap, aoMap, envMap).
+ */
+function disposeMaterialTextures(mat: THREE.Material): void {
+  const slots = [
+    'map',
+    'bumpMap',
+    'normalMap',
+    'roughnessMap',
+    'metalnessMap',
+    'alphaMap',
+    'emissiveMap',
+    'aoMap',
+    'envMap',
+  ] as const
+  const record = mat as unknown as Record<string, unknown>
+  for (const slot of slots) {
+    const tex = record[slot]
+    if (tex && typeof (tex as THREE.Texture).dispose === 'function') {
+      ;(tex as THREE.Texture).dispose()
+    }
+  }
 }
 
 /**
@@ -196,6 +264,181 @@ export function fitCameraToScene(
   pitchDeg = 32,
   padding = 1.4,
 ): void {
+  const target = computeAutoTarget(scene, aspect, camera.fov, pitchDeg, padding)
+  if (!target) return
+  camera.position.copy(target.position)
+  camera.lookAt(target.lookAt)
+  camera.near = target.near
+  camera.far = target.far
+  camera.updateProjectionMatrix()
+  camera.updateMatrixWorld()
+}
+
+// ---------- camera modes ----------
+
+/** All supported camera mode presets, plus "auto" for fit-to-scene. */
+export type CameraMode = 'auto' | 'broadcast' | 'tactical' | 'follow' | 'replay'
+
+/** Static set of every selectable camera mode (used for prop validation). */
+export const CAMERA_MODES: readonly CameraMode[] = [
+  'auto',
+  'broadcast',
+  'tactical',
+  'follow',
+  'replay',
+] as const
+
+/**
+ * A precomputed camera placement: where the camera should be, what it
+ * should look at, the FOV it should use, and the near/far clip planes
+ * it needs so geometry is never clipped at the bounds. Returned by
+ * `computeCameraTarget` for each mode and consumed by CameraController.
+ */
+export interface CameraTarget {
+  position: THREE.Vector3
+  lookAt: THREE.Vector3
+  fov: number
+  near: number
+  far: number
+}
+
+// Default broadcast/replay/tactical target geometry, all in feet.
+// Court spans x ∈ [-25, 25], z ∈ [0, 47], rim sits at the origin (0,
+// y≈10, 0). Half-court is at z = 47.
+const SCENE_FOCUS = new THREE.Vector3(0, 4, 22)
+const BROADCAST_POSITION = new THREE.Vector3(3, 28, 70)
+const BROADCAST_LOOKAT = new THREE.Vector3(0, 4, 22)
+const BROADCAST_FOV = 50
+const TACTICAL_POSITION = new THREE.Vector3(0, 70, 32)
+const TACTICAL_LOOKAT = new THREE.Vector3(0, 0, 24)
+const TACTICAL_FOV = 45
+const REPLAY_POSITION = new THREE.Vector3(-30, 9, 38)
+const REPLAY_LOOKAT = new THREE.Vector3(3, 5, 12)
+const REPLAY_FOV = 38
+const FOLLOW_LIFT_Y = 9
+const FOLLOW_TRAIL_DIST = 14
+const FOLLOW_LOOK_HEIGHT = 4
+
+/**
+ * Computes a camera target for the given mode. Returns null only if the
+ * scene has no usable framing data (auto mode with no finite players or
+ * ball). Follow falls back to broadcast when no holder/ball-target can
+ * be located.
+ */
+export function computeCameraTarget(
+  mode: CameraMode,
+  scene: Scene3D,
+  aspect: number,
+  baseFov = 55,
+): CameraTarget | null {
+  switch (mode) {
+    case 'broadcast':
+      return broadcastTarget()
+    case 'tactical':
+      return tacticalTarget()
+    case 'replay':
+      return replayTarget()
+    case 'follow':
+      return followTarget(scene) ?? broadcastTarget()
+    case 'auto':
+    default:
+      return computeAutoTarget(scene, aspect, baseFov)
+  }
+}
+
+function broadcastTarget(): CameraTarget {
+  return {
+    position: BROADCAST_POSITION.clone(),
+    lookAt: BROADCAST_LOOKAT.clone(),
+    fov: BROADCAST_FOV,
+    near: 0.5,
+    far: 400,
+  }
+}
+
+function tacticalTarget(): CameraTarget {
+  return {
+    position: TACTICAL_POSITION.clone(),
+    lookAt: TACTICAL_LOOKAT.clone(),
+    fov: TACTICAL_FOV,
+    near: 0.5,
+    far: 400,
+  }
+}
+
+function replayTarget(): CameraTarget {
+  return {
+    position: REPLAY_POSITION.clone(),
+    lookAt: REPLAY_LOOKAT.clone(),
+    fov: REPLAY_FOV,
+    near: 0.5,
+    far: 400,
+  }
+}
+
+/**
+ * Locates a follow target — the explicit ball-holder, then the first
+ * `hasBall` player, then the user player, then the static ball coords.
+ * Returns null if nothing finite is available so the caller can fall
+ * back to a non-follow preset.
+ */
+function followTarget(scene: Scene3D): CameraTarget | null {
+  const candidate =
+    (scene.ball.holderId
+      ? scene.players.find((p) => p.id === scene.ball.holderId)
+      : undefined) ??
+    scene.players.find((p) => p.hasBall) ??
+    scene.players.find((p) => p.isUser)
+
+  let tx: number | null = null
+  let tz: number | null = null
+  if (candidate && Number.isFinite(candidate.start.x) && Number.isFinite(candidate.start.z)) {
+    tx = candidate.start.x
+    tz = candidate.start.z
+  } else if (
+    Number.isFinite(scene.ball.start.x) &&
+    Number.isFinite(scene.ball.start.z)
+  ) {
+    tx = scene.ball.start.x
+    tz = scene.ball.start.z
+  }
+  if (tx === null || tz === null) return null
+
+  // Trail behind the target along the rim→player axis. If the player
+  // sits exactly on the rim line, fall back to a straight back-court
+  // pull so we never produce a zero-length direction.
+  const dx = tx
+  const dz = tz
+  const len = Math.hypot(dx, dz)
+  const ux = len > 0.001 ? dx / len : 0
+  const uz = len > 0.001 ? dz / len : 1
+
+  return {
+    position: new THREE.Vector3(
+      tx + ux * FOLLOW_TRAIL_DIST,
+      FOLLOW_LIFT_Y,
+      tz + uz * FOLLOW_TRAIL_DIST,
+    ),
+    lookAt: new THREE.Vector3(tx, FOLLOW_LOOK_HEIGHT, tz),
+    fov: 50,
+    near: 0.5,
+    far: 400,
+  }
+}
+
+/**
+ * Auto-fit target. Builds a Box3 over players + ball, then computes a
+ * camera position that frames it given FOV/aspect. Mirrors the original
+ * `fitCameraToScene` math so 'auto' camera mode preserves prior framing
+ * exactly.
+ */
+function computeAutoTarget(
+  scene: Scene3D,
+  aspect: number,
+  fov: number,
+  pitchDeg = 32,
+  padding = 1.4,
+): CameraTarget | null {
   const points: THREE.Vector3[] = []
   for (const p of scene.players) {
     if (Number.isFinite(p.start.x) && Number.isFinite(p.start.z)) {
@@ -206,7 +449,7 @@ export function fitCameraToScene(
   if (Number.isFinite(scene.ball.start.x) && Number.isFinite(scene.ball.start.z)) {
     points.push(new THREE.Vector3(scene.ball.start.x, 1, scene.ball.start.z))
   }
-  if (points.length === 0) return
+  if (points.length === 0) return null
 
   const box = new THREE.Box3().setFromPoints(points)
   const center = new THREE.Vector3()
@@ -214,24 +457,431 @@ export function fitCameraToScene(
   box.getCenter(center)
   box.getSize(sizeVec)
 
-  const fovRad = (camera.fov * Math.PI) / 180
+  const fovRad = (fov * Math.PI) / 180
   const verticalFit = (sizeVec.y * 0.5 + sizeVec.z * 0.5) / Math.tan(fovRad / 2)
   const horizontalFit = (sizeVec.x * 0.5) / (Math.tan(fovRad / 2) * Math.max(aspect, 0.1))
   const distance = Math.max(verticalFit, horizontalFit) * padding
 
   const pitch = (pitchDeg * Math.PI) / 180
-  camera.position.set(
+  const position = new THREE.Vector3(
     center.x,
     center.y + Math.sin(pitch) * distance,
     center.z + Math.cos(pitch) * distance,
   )
-  camera.lookAt(center)
-
   const diag = sizeVec.length()
-  camera.near = Math.max(0.1, distance * 0.05)
-  camera.far = Math.max(1000, distance + diag * 4)
-  camera.updateProjectionMatrix()
-  camera.updateMatrixWorld()
+
+  return {
+    position,
+    lookAt: center,
+    fov,
+    near: Math.max(0.1, distance * 0.05),
+    far: Math.max(1000, distance + diag * 4),
+  }
+}
+
+/**
+ * Drives the camera between modes with eased position/target/FOV
+ * interpolation. Owns no THREE objects directly; mutates the camera the
+ * caller passes in and never schedules its own rAF — the parent
+ * imperative loop calls `tick()` once per frame.
+ *
+ * On first `tick()` after construction or a `snapNext()` call the
+ * camera jumps directly to the target. Every other tick eases toward
+ * the current target with a small per-frame lerp factor, so mode/scene
+ * changes appear as smooth sweeps rather than cuts.
+ */
+export class CameraController {
+  private mode: CameraMode = 'auto'
+  private scene: Scene3D
+  private aspect: number
+  private baseFov: number
+  private targetPosition = new THREE.Vector3()
+  private targetLookAt = new THREE.Vector3(SCENE_FOCUS.x, SCENE_FOCUS.y, SCENE_FOCUS.z)
+  private targetFov: number
+  private targetNear = 0.5
+  private targetFar = 400
+  private currentLookAt = new THREE.Vector3(SCENE_FOCUS.x, SCENE_FOCUS.y, SCENE_FOCUS.z)
+  private hasTarget = false
+  private snap = true
+  private easing = 0.10
+
+  constructor(scene: Scene3D, aspect: number, baseFov: number) {
+    this.scene = scene
+    this.aspect = aspect
+    this.baseFov = baseFov
+    this.targetFov = baseFov
+    this.recomputeTarget()
+  }
+
+  /**
+   * Updates the active mode. Mode changes trigger a target recompute
+   * and are eased in unless the caller follows up with snapNext().
+   */
+  setMode(mode: CameraMode): void {
+    if (mode === this.mode) return
+    this.mode = mode
+    this.recomputeTarget()
+  }
+
+  /** Replaces the underlying scene (e.g. on scenario change). */
+  setScene(scene: Scene3D): void {
+    this.scene = scene
+    this.recomputeTarget()
+  }
+
+  /**
+   * Keeps the camera aspect-aware. Called once per parent rAF tick
+   * with the current canvas aspect; only triggers a recompute when
+   * the aspect actually changes meaningfully.
+   */
+  setAspect(aspect: number): void {
+    if (!Number.isFinite(aspect) || aspect <= 0) return
+    if (Math.abs(this.aspect - aspect) < 0.001) return
+    this.aspect = aspect
+    this.recomputeTarget()
+  }
+
+  /** Forces the next tick to snap rather than ease. */
+  snapNext(): void {
+    this.snap = true
+  }
+
+  /** Returns the current mode (for diagnostics). */
+  getMode(): CameraMode {
+    return this.mode
+  }
+
+  /**
+   * Mutates the camera one step toward the current target. Safe to
+   * call every frame even when the target hasn't changed — the lerp
+   * resolves to a no-op once the camera has settled.
+   */
+  tick(camera: THREE.PerspectiveCamera): void {
+    if (!this.hasTarget) return
+    const t = this.snap ? 1 : this.easing
+    camera.position.lerp(this.targetPosition, t)
+    this.currentLookAt.lerp(this.targetLookAt, t)
+    camera.lookAt(this.currentLookAt)
+
+    const fovDelta = this.targetFov - camera.fov
+    if (Math.abs(fovDelta) > 0.01) {
+      camera.fov = camera.fov + fovDelta * t
+      camera.updateProjectionMatrix()
+    } else if (this.snap) {
+      camera.fov = this.targetFov
+      camera.updateProjectionMatrix()
+    }
+
+    if (this.snap) {
+      camera.near = this.targetNear
+      camera.far = this.targetFar
+      camera.updateProjectionMatrix()
+    }
+
+    camera.updateMatrixWorld()
+    this.snap = false
+  }
+
+  private recomputeTarget(): void {
+    const target = computeCameraTarget(
+      this.mode,
+      this.scene,
+      this.aspect,
+      this.baseFov,
+    )
+    if (!target) return
+    this.targetPosition.copy(target.position)
+    this.targetLookAt.copy(target.lookAt)
+    this.targetFov = target.fov
+    this.targetNear = target.near
+    this.targetFar = target.far
+    if (!this.hasTarget) {
+      this.currentLookAt.copy(target.lookAt)
+      this.hasTarget = true
+    }
+  }
+}
+
+// ---------- imperative motion ----------
+
+/** Replay modes the MotionController understands. Mirrors ReplayMode in
+ * ScenarioReplayController so callers can pass the same prop through.
+ */
+export type MotionMode = 'static' | 'intro' | 'answer'
+
+/**
+ * Pre-roll pause before motion starts. Matches the JSX
+ * ScenarioReplayController so the imperative path feels identical when
+ * a scene is loaded — viewers see the start pose for ~250ms before any
+ * player begins to move.
+ */
+const MOTION_PRE_DELAY_MS = 250
+
+/**
+ * Resolves the movement list for a given mode. Centralised here so the
+ * imperative MotionController and the older JSX ScenarioReplayController
+ * agree on which list to play even though they live in separate files.
+ */
+export function resolveMovementsForMode(
+  scene: Scene3D,
+  mode: MotionMode,
+): readonly SceneMovement[] {
+  if (mode === 'answer') return scene.answerDemo
+  if (mode === 'intro') return scene.movements
+  return []
+}
+
+/** Internal: a [startMs, endMs) span describing the ball's current owner.
+ * `holderId` is the player who currently holds the ball; `pass` is set
+ * for in-flight phases (between two holders) and unsets `holderId`.
+ */
+interface BallPhase {
+  startMs: number
+  endMs: number
+  holderId: string | null
+  pass: ResolvedMovement | null
+}
+
+/**
+ * Drives per-frame transform updates for player and ball groups based
+ * on the scene's movement list. Pure function of (scene, movements,
+ * elapsed time) — same inputs always produce the same transforms, so
+ * replays are byte-identical.
+ *
+ * Created once per scene mount alongside the imperative scene group.
+ * Owns no Three.js resources directly: the player and ball groups it
+ * mutates are still owned by the scene root and disposed via the same
+ * disposeGroup() traversal as everything else.
+ */
+export class MotionController {
+  private scene: Scene3D
+  private timeline: Timeline
+  private playerGroups: Map<string, THREE.Group>
+  private ballGroup: THREE.Group
+  private baseBallY: number
+  private startedAt: number | null = null
+  private phases: BallPhase[] = []
+  private initialHolderId: string | null
+
+  constructor(
+    scene: Scene3D,
+    mode: MotionMode,
+    playerGroups: Map<string, THREE.Group>,
+    ballGroup: THREE.Group,
+    baseBallY: number,
+  ) {
+    this.scene = scene
+    this.playerGroups = playerGroups
+    this.ballGroup = ballGroup
+    this.baseBallY = baseBallY
+    // Mode is consumed at construction time only — the resolved list
+    // is captured into the timeline, after which mode isn't needed
+    // again. A scene/mode change rebuilds the controller wholesale.
+    this.timeline = buildTimeline(
+      scene,
+      [...resolveMovementsForMode(scene, mode)],
+    )
+    this.initialHolderId = resolveInitialHolder(scene)
+    this.phases = this.computeBallPhases()
+  }
+
+  /** Drops the playback anchor so the next tick starts the timeline at
+   *  t=0 from the current real time. Called when the parent bumps
+   *  resetCounter or replays the scene.
+   */
+  reset(): void {
+    this.startedAt = null
+  }
+
+  /** Returns the current playback elapsed time in ms (clamped to the
+   *  timeline length). Useful for tests / diagnostics; not currently
+   *  used by the renderer itself.
+   */
+  getElapsedMs(nowMs: number): number {
+    if (this.startedAt === null) return 0
+    const raw = nowMs - this.startedAt - MOTION_PRE_DELAY_MS
+    return Math.max(0, Math.min(raw, this.timeline.totalMs))
+  }
+
+  /** Mutates player + ball positions for the current playback time.
+   *  Idempotent — calling tick(now) twice in a row yields identical
+   *  transforms. Allocates nothing per frame beyond the stack frames
+   *  for `samplePlayer`.
+   */
+  tick(nowMs: number): void {
+    if (this.startedAt === null) this.startedAt = nowMs
+    const t =
+      this.timeline.totalMs > 0
+        ? this.getElapsedMs(nowMs)
+        : 0
+
+    // Players first so the ball's holder-follow logic sees the
+    // up-to-date sampled position when it reads samplePlayer().
+    for (const player of this.scene.players) {
+      const g = this.playerGroups.get(player.id)
+      if (!g) continue
+      const pos = samplePlayer(this.scene, this.timeline, player.id, t)
+      g.position.x = pos.x
+      g.position.z = pos.z
+    }
+
+    this.applyBall(t)
+  }
+
+  // --- internals ---
+
+  /** Walks the resolved ball-pass timeline and produces a contiguous
+   *  list of held / in-flight phases covering [0, totalMs]. Built once
+   *  in the constructor so per-frame ticks just do an O(passes) lookup.
+   */
+  private computeBallPhases(): BallPhase[] {
+    const ballMoves = (this.timeline.byPlayer.get('ball') ?? [])
+      .filter((m) => m.kind === 'pass')
+      .slice()
+      .sort((a, b) => a.startMs - b.startMs)
+
+    const phases: BallPhase[] = []
+    let currentHolder: string | null = this.initialHolderId
+    let cursor = 0
+
+    for (const pass of ballMoves) {
+      if (pass.startMs > cursor) {
+        phases.push({
+          startMs: cursor,
+          endMs: pass.startMs,
+          holderId: currentHolder,
+          pass: null,
+        })
+      }
+      phases.push({
+        startMs: pass.startMs,
+        endMs: pass.endMs,
+        holderId: null,
+        pass,
+      })
+      currentHolder = this.resolveCatcher(pass.to, pass.endMs)
+      cursor = pass.endMs
+    }
+
+    const tail = Math.max(this.timeline.totalMs, 1)
+    if (cursor < tail) {
+      phases.push({
+        startMs: cursor,
+        endMs: tail,
+        holderId: currentHolder,
+        pass: null,
+      })
+    }
+    return phases
+  }
+
+  /** Returns the player whose sampled position at `atMs` is closest to
+   *  the pass's `target` point. Falls back to null if the scene has no
+   *  finite players (defensive — buildScene already guarantees finite
+   *  starts, but this keeps the controller from crashing on bad data).
+   */
+  private resolveCatcher(
+    target: { x: number; z: number },
+    atMs: number,
+  ): string | null {
+    let bestId: string | null = null
+    let bestDist = Number.POSITIVE_INFINITY
+    for (const p of this.scene.players) {
+      const pos = samplePlayer(this.scene, this.timeline, p.id, atMs)
+      const dx = pos.x - target.x
+      const dz = pos.z - target.z
+      const d = dx * dx + dz * dz
+      if (d < bestDist) {
+        bestDist = d
+        bestId = p.id
+      }
+    }
+    return bestId
+  }
+
+  /** Computes and applies the ball's position for time t, picking
+   *  between in-flight (lerp + parabolic Y arc) and held (follow the
+   *  current holder's sampled x/z, keep base Y).
+   */
+  private applyBall(t: number): void {
+    const phase = this.findPhase(t)
+    if (!phase) {
+      const start = resolveBallStart(this.scene)
+      this.ballGroup.position.set(start.x, this.baseBallY, start.z)
+      return
+    }
+
+    if (phase.pass) {
+      const span = Math.max(1, phase.endMs - phase.startMs)
+      const u = clamp01((t - phase.startMs) / span)
+      const eased = easeInOutCubic(u)
+      const fromX = phase.pass.from.x
+      const fromZ = phase.pass.from.z
+      const toX = phase.pass.to.x
+      const toZ = phase.pass.to.z
+      const x = fromX + (toX - fromX) * eased
+      const z = fromZ + (toZ - fromZ) * eased
+      // Symmetric parabolic arc with peak height proportional to pass
+      // distance, capped so cross-court bombs do not visibly clip the
+      // gym ceiling.
+      const dist = Math.hypot(toX - fromX, toZ - fromZ)
+      const peak = Math.min(7, Math.max(2, dist * 0.25))
+      const y = this.baseBallY + peak * 4 * u * (1 - u)
+      this.ballGroup.position.set(x, y, z)
+      return
+    }
+
+    if (phase.holderId) {
+      const pos = samplePlayer(this.scene, this.timeline, phase.holderId, t)
+      this.ballGroup.position.set(pos.x, this.baseBallY, pos.z)
+      return
+    }
+
+    const start = resolveBallStart(this.scene)
+    this.ballGroup.position.set(start.x, this.baseBallY, start.z)
+  }
+
+  private findPhase(t: number): BallPhase | null {
+    if (this.phases.length === 0) return null
+    for (const phase of this.phases) {
+      if (t >= phase.startMs && t <= phase.endMs) return phase
+    }
+    // Past end of timeline — return the last phase so the ball settles
+    // with the final holder rather than snapping back to the start.
+    return this.phases[this.phases.length - 1] ?? null
+  }
+}
+
+/** Resolves the player who starts the play with the ball: explicit
+ *  holderId wins, then the first hasBall flag, then null. Validated
+ *  against the player list so a stale id never escapes this function.
+ */
+function resolveInitialHolder(scene: Scene3D): string | null {
+  const candidate =
+    scene.ball.holderId ??
+    scene.players.find((p) => p.hasBall)?.id ??
+    null
+  if (candidate && scene.players.some((p) => p.id === candidate)) {
+    return candidate
+  }
+  return null
+}
+
+function clamp01(v: number): number {
+  if (v <= 0) return 0
+  if (v >= 1) return 1
+  return v
+}
+
+/** Same eased curve the existing timeline.ts uses for player motion.
+ *  Duplicated here (rather than re-exported) so the imperative motion
+ *  controller and the legacy JSX controller can evolve independently
+ *  without breaking each other.
+ */
+function easeInOutCubic(u: number): number {
+  if (u <= 0) return 0
+  if (u >= 1) return 1
+  return u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2
 }
 
 // ---------- internals ----------
@@ -1057,4 +1707,150 @@ function addArcLines(
     const endV = new THREE.Vector3(b[0], y, b[1] + z)
     parent.add(buildTubeLine(startV, endV, 0.14))
   }
+}
+
+// Basketball seam geometry. Three thin black tori form the canonical
+// "8-panel" basketball pattern (one equator + two perpendicular
+// pole-to-pole great circles). Each torus is nudged just outside the
+// sphere surface to avoid z-fighting with the ball body.
+const BALL_SEAM_RADIAL_SEGMENTS = 8
+const BALL_SEAM_TUBULAR_SEGMENTS = 56
+const BALL_SEAM_THICKNESS = 0.014
+
+/**
+ * Builds the basketball as a small Group: a sphere body with a
+ * procedural pebble surface texture, three black seam rings forming
+ * the classic 8-panel basketball pattern, and shadow flags on so the
+ * existing lighting rig casts a believable contact shadow.
+ *
+ * Geometry/material/texture lifetimes follow the existing imperative
+ * convention — every owned resource is reachable via the returned
+ * group's descendants so disposeGroup() cleans it up automatically.
+ */
+function buildBasketball(): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'basketball'
+
+  const surfaceTex = generateBasketballSurfaceTexture(256)
+
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(BALL_RADIUS, 32, 32),
+    new THREE.MeshStandardMaterial({
+      color: '#FFFFFF',
+      map: surfaceTex,
+      roughness: 0.78,
+      metalness: 0,
+    }),
+  )
+  body.castShadow = true
+  body.receiveShadow = true
+  group.add(body)
+
+  const seamMat = new THREE.MeshStandardMaterial({
+    color: BALL_SEAM_COLOR,
+    roughness: 0.85,
+    metalness: 0,
+  })
+  const seamRingRadius = BALL_RADIUS + 0.001
+
+  // Equator. Default TorusGeometry lies in the local XY plane; rotating
+  // it 90° about X drops the ring into the XZ plane (around the ball's
+  // waist).
+  const equator = new THREE.Mesh(
+    new THREE.TorusGeometry(
+      seamRingRadius,
+      BALL_SEAM_THICKNESS,
+      BALL_SEAM_RADIAL_SEGMENTS,
+      BALL_SEAM_TUBULAR_SEGMENTS,
+    ),
+    seamMat,
+  )
+  equator.rotation.x = Math.PI / 2
+  group.add(equator)
+
+  // Pole-to-pole great circle in the XY plane (default torus
+  // orientation). Reads as the front vertical seam from the broadcast
+  // camera.
+  const longitudeFront = new THREE.Mesh(
+    new THREE.TorusGeometry(
+      seamRingRadius,
+      BALL_SEAM_THICKNESS,
+      BALL_SEAM_RADIAL_SEGMENTS,
+      BALL_SEAM_TUBULAR_SEGMENTS,
+    ),
+    seamMat,
+  )
+  group.add(longitudeFront)
+
+  // Pole-to-pole great circle in the YZ plane. With the front circle
+  // above this gives the recognizable 8-panel basketball cut.
+  const longitudeSide = new THREE.Mesh(
+    new THREE.TorusGeometry(
+      seamRingRadius,
+      BALL_SEAM_THICKNESS,
+      BALL_SEAM_RADIAL_SEGMENTS,
+      BALL_SEAM_TUBULAR_SEGMENTS,
+    ),
+    seamMat,
+  )
+  longitudeSide.rotation.y = Math.PI / 2
+  group.add(longitudeSide)
+
+  return group
+}
+
+/**
+ * Procedurally paints a small canvas with a basketball-leather-ish
+ * pebble pattern and returns it as a CanvasTexture suitable for
+ * MeshStandardMaterial.map. The texture is solid orange with sparse
+ * dark micro-spots and lighter highlights so the ball does not read as
+ * a perfectly flat sphere even at glancing angles.
+ *
+ * Generation runs only on the client (the scene builder is invoked
+ * from a useEffect in Scenario3DCanvas), so document.createElement is
+ * safe here.
+ */
+function generateBasketballSurfaceTexture(size: number): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')
+  if (ctx) {
+    ctx.fillStyle = BALL_COLOR
+    ctx.fillRect(0, 0, size, size)
+
+    // Dark micro-pebble dots — give the surface its leathery look
+    // without a heavy noise pass.
+    const darkCount = Math.floor(size * size * 0.018)
+    for (let i = 0; i < darkCount; i++) {
+      const x = Math.random() * size
+      const y = Math.random() * size
+      const r = 0.7 + Math.random() * 1.3
+      const a = 0.18 + Math.random() * 0.22
+      ctx.fillStyle = `rgba(40, 18, 6, ${a})`
+      ctx.beginPath()
+      ctx.arc(x, y, r, 0, Math.PI * 2)
+      ctx.fill()
+    }
+
+    // Subtle warm highlights — break up the orange so it is not a
+    // single flat tone under directional light.
+    const lightCount = Math.floor(size * size * 0.012)
+    for (let i = 0; i < lightCount; i++) {
+      const x = Math.random() * size
+      const y = Math.random() * size
+      const r = 0.5 + Math.random() * 1.0
+      const a = 0.08 + Math.random() * 0.14
+      ctx.fillStyle = `rgba(255, 200, 130, ${a})`
+      ctx.beginPath()
+      ctx.arc(x, y, r, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  }
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.RepeatWrapping
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
 }

@@ -15,10 +15,14 @@ import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
 import { SceneMotionProvider } from './SceneMotionContext'
 import {
   buildBasketballGroup,
+  CameraController,
   disposeGroup,
   fitCameraToScene,
+  MotionController,
+  type CameraMode,
 } from './imperativeScene'
 import {
+  getCameraMode,
   hasWebGL,
   isAutoFitCamera,
   isDebug3D,
@@ -48,6 +52,12 @@ interface Scenario3DCanvasProps {
   onCaption?: (caption: string | undefined) => void
   onPhase?: (phase: ReplayPhase) => void
   showPaths?: boolean
+  /**
+   * Optional camera preset override. Wins over the `?camera=` URL
+   * param when both are set. Defaults to `'auto'` so the existing
+   * fit-to-scene framing keeps working without any caller change.
+   */
+  cameraMode?: CameraMode
 }
 
 // Mid-tone gray. While the rebuild is in flight we deliberately do NOT
@@ -106,6 +116,7 @@ export function Scenario3DCanvas({
   onCaption,
   onPhase,
   showPaths,
+  cameraMode: cameraModeProp,
 }: Scenario3DCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   // Refs into the THREE objects R3F creates. Captured in onCreated so a
@@ -115,6 +126,14 @@ export function Scenario3DCanvas({
   const glRef = useRef<THREE.WebGLRenderer | null>(null)
   const threeSceneRef = useRef<THREE.Scene | null>(null)
   const threeCameraRef = useRef<THREE.Camera | null>(null)
+  // Owns broadcast/tactical/follow/replay/auto framing. Created once
+  // per imperative scene mount and torn down with the same group so
+  // it never outlives the canvas it was aimed at.
+  const cameraControllerRef = useRef<CameraController | null>(null)
+  // Owns deterministic player + ball motion for the imperative scene.
+  // Same lifetime as the imperative scene group: rebuilt on scene/mode
+  // change, ticked from the parent rAF loop, cleared on unmount.
+  const motionControllerRef = useRef<MotionController | null>(null)
   const [mode, setMode] = useState<'probing' | '3d' | 'fallback'>('probing')
   const [webglSupported, setWebglSupported] = useState<boolean | null>(null)
   const [canvasMounted, setCanvasMounted] = useState(false)
@@ -132,8 +151,12 @@ export function Scenario3DCanvas({
     frames: number
     children: number
   } | null>(null)
+  const [cameraModeState, setCameraModeState] = useState<CameraMode>('auto')
 
   const reducedMotion = useReducedMotion()
+
+  // Resolved camera mode: prop wins over URL param wins over 'auto'.
+  const activeCameraMode: CameraMode = cameraModeProp ?? cameraModeState
 
   const visibleScene = useMemo(
     () => scene ?? createDefaultScene('default_3d_scene'),
@@ -156,6 +179,8 @@ export function Scenario3DCanvas({
     setOrbitMode(orbit)
     setSimpleMode(simple)
     setAutoFitMode(autofit)
+    const urlMode = getCameraMode()
+    if (urlMode) setCameraModeState(urlMode)
     const supported = hasWebGL()
     setWebglSupported(supported)
     setMode(supported ? '3d' : 'fallback')
@@ -191,7 +216,28 @@ export function Scenario3DCanvas({
       const cam = threeCameraRef.current
       if (gl && threeScene && cam) {
         try {
-          cam.updateMatrixWorld()
+          // Drive the camera controller from the same parent rAF loop
+          // we already trust to render. Skip when the user is manually
+          // orbiting (drei OrbitControls) so the controller does not
+          // fight a human dragger. Aspect is read fresh each frame so
+          // resize is automatic.
+          const ctrl = cameraControllerRef.current
+          if (ctrl && !orbitMode &&
+              (cam as THREE.PerspectiveCamera).isPerspectiveCamera) {
+            const dom = gl.domElement
+            if (dom && dom.clientHeight > 0) {
+              ctrl.setAspect(dom.clientWidth / dom.clientHeight)
+            }
+            ctrl.tick(cam as THREE.PerspectiveCamera)
+          } else {
+            cam.updateMatrixWorld()
+          }
+          // Drive imperative motion immediately after the camera tick
+          // so the rendered frame sees consistent player/ball
+          // transforms at the same instant the camera evaluates them.
+          // Uses the same rAF loop — no extra timer, no useFrame.
+          const motion = motionControllerRef.current
+          if (motion) motion.tick(performance.now())
           gl.render(threeScene, cam)
           frame++
           if (frame === 1 || frame % 60 === 0) {
@@ -216,7 +262,7 @@ export function Scenario3DCanvas({
       running = false
       window.cancelAnimationFrame(rafId)
     }
-  }, [mode])
+  }, [mode, orbitMode])
 
   // IMPERATIVE SCENE BUILDER. Bypasses R3F's reconciler entirely. We
   // discovered the reconciler silently dropped every <Canvas> child in
@@ -248,9 +294,9 @@ export function Scenario3DCanvas({
       // Build geometry imperatively for non-debug, non-emergency, simple-mode
       // scenes — that's the production path we're trying to fix.
       if (!emergencyMode && !debugMode && simpleMode) {
-        const group = buildBasketballGroup(visibleScene)
-        threeScene.add(group)
-        mounted = group
+        const result = buildBasketballGroup(visibleScene)
+        threeScene.add(result.root)
+        mounted = result.root
 
         const sizeEl = glRef.current?.domElement
         const aspect =
@@ -258,14 +304,39 @@ export function Scenario3DCanvas({
             ? sizeEl.clientWidth / sizeEl.clientHeight
             : 1
         if ('isPerspectiveCamera' in cam && (cam as THREE.PerspectiveCamera).isPerspectiveCamera) {
+          // Initial fit-to-scene so frame zero is correct even if the
+          // controller's first tick hasn't run yet.
           fitCameraToScene(cam as THREE.PerspectiveCamera, visibleScene, aspect)
+          // Hand the camera over to the controller. It snaps to its
+          // current mode's target on the next parent rAF tick, so any
+          // delta from fitCameraToScene above is invisible.
+          const controller = new CameraController(visibleScene, aspect, CAMERA_FOV)
+          controller.setMode(activeCameraMode)
+          controller.snapNext()
+          cameraControllerRef.current = controller
         }
+
+        // Imperative motion controller — deterministic player + ball
+        // playback driven from the same parent rAF loop the camera
+        // already rides on. Anchors itself on the next tick so motion
+        // begins from the moment the scene appears, not from canvas
+        // creation.
+        motionControllerRef.current = new MotionController(
+          visibleScene,
+          replayMode,
+          result.players,
+          result.ball,
+          result.ballBaseY,
+        )
 
         if (typeof console !== 'undefined') {
           // eslint-disable-next-line no-console
           console.info('[scenario3d] imperative scene mounted', {
-            objects: group.children.length,
+            objects: result.root.children.length,
+            players: result.players.size,
             sceneId: visibleScene.id,
+            cameraMode: activeCameraMode,
+            replayMode,
           })
         }
       }
@@ -281,8 +352,42 @@ export function Scenario3DCanvas({
         disposeGroup(mounted)
         mounted = null
       }
+      // Drop the controllers alongside the group so they never point
+      // at a stale camera/scene/group.
+      cameraControllerRef.current = null
+      motionControllerRef.current = null
     }
-  }, [mode, visibleScene, emergencyMode, debugMode, simpleMode])
+    // activeCameraMode is intentionally NOT in the dep array — pushing
+    // mode changes through a separate effect avoids tearing down and
+    // rebuilding the entire scene on every camera switch. The motion
+    // controller, in contrast, depends on replayMode (the timeline it
+    // resolves changes when mode changes), so replayMode IS a dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, visibleScene, emergencyMode, debugMode, simpleMode, replayMode])
+
+  // Push live camera-mode changes into the existing controller. No
+  // scene rebuild — just a target recompute, so the next parent rAF
+  // tick eases toward the new framing.
+  useEffect(() => {
+    const ctrl = cameraControllerRef.current
+    if (ctrl) ctrl.setMode(activeCameraMode)
+  }, [activeCameraMode])
+
+  // Push scene-data changes into the controller so follow mode (and
+  // auto-fit) update when the scenario swaps players or ball-holder.
+  useEffect(() => {
+    const ctrl = cameraControllerRef.current
+    if (ctrl) ctrl.setScene(visibleScene)
+  }, [visibleScene])
+
+  // External replay reset: when the parent bumps resetCounter, drop
+  // the motion controller's playback anchor so the timeline restarts
+  // from t=0 on the next parent rAF tick. The scene rebuild path
+  // already covers scene/mode changes, so this handles the
+  // "play again" button case without remounting the geometry.
+  useEffect(() => {
+    motionControllerRef.current?.reset()
+  }, [resetCounter])
 
   if (mode === 'probing') {
     return (
@@ -349,6 +454,9 @@ export function Scenario3DCanvas({
       ? DEBUG_CAMERA_FOV
       : CAMERA_FOV
   const activeBg = emergencyMode ? EMERGENCY_BG : CANVAS_BG
+  // True when the imperative CameraController is the rightful owner of
+  // camera framing — same gate as the imperative-scene mount effect.
+  const controllerActive = !emergencyMode && !debugMode && simpleMode
 
   return (
     <div
@@ -466,6 +574,11 @@ export function Scenario3DCanvas({
           <OrbitDebugControls
             target={[cameraLookAt[0], cameraLookAt[1], cameraLookAt[2]]}
           />
+        ) : controllerActive ? (
+          // The imperative CameraController owns framing here, so the
+          // JSX AutoFitCamera / CameraTarget paths stay out of the way
+          // to avoid two systems writing the same camera per frame.
+          null
         ) : autoFitMode && !emergencyMode && !debugMode ? (
           <AutoFitCamera scene={visibleScene} />
         ) : (
