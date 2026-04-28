@@ -529,4 +529,115 @@ The runtime stays a generic 3D scenario player. The decoder scenarios become the
 
 ---
 
-*Sections 5.2 onward, plus Section 6 (Overlay System Plan), Section 7 (BDW-01 Build Plan), and Sections 8–11 are pending micro-milestones.*
+### 5.2 Player / ball positioning
+
+Mounting rules (formalize what `ScenarioScene3D` already does in part):
+
+- For each `players[i]`, mount one `PlayerMarker3D` at `start` (court feet). Team coloring from `team`. Label from `label`. Exactly one marker has `isUser: true`; the renderer marks it with the existing user ring/glow.
+- The ball mounts at `ball.start`. If `ball.holderId` resolves to a real player, the ball snaps to that player's hand offset; otherwise it sits at `ball.start`.
+- During `setup` and `playing`, `PlayerMarker3D` and `BallMarker3D` interpolate via `useFrame` against the active timeline (existing behaviour, unchanged).
+
+**One-component rule:** the user player, defenders, and ball use the **same components** with prop-driven variation. There is no `UserPlayer3D` vs `DefenderPlayer3D` vs `OffensePlayer3D` split. Visual differences (team color, user glow, label style) come from props on `PlayerMarker3D`. The ball is always `BallMarker3D`. New scenarios never introduce a new player component — they introduce data.
+
+`AutoFitCamera` continues to bound the live scene `Box3` as a safety net; an explicit camera preset overrides it (see 5.6).
+
+### 5.3 Freeze-frame architecture
+
+**Runtime contract: `freezeAtMs` (absolute milliseconds).** This is the field `Scene3DInput` carries into the canvas. `MotionController.advance()` checks the playhead against a single number; nothing more.
+
+**Authoring shorthand: `freezeBeforeMovementId`.** Authors who think in cue events (rather than millisecond budgets) write `{ kind: 'beforeMovementId', movementId: 'x2_step_to_denial' }` in the schema's `freezeMarker` discriminated union (see 4.4). At scene load, `lib/scenario3d/scene.ts` resolves it to the corresponding `freezeAtMs` by summing `delayMs + durationMs` across preceding entries in `movements[]`. The runtime never sees the id form.
+
+Why this split:
+- **Authors win.** "Freeze right before x2 commits to denial" is how coaches narrate the moment; tweaking an earlier movement's `durationMs` does not break the freeze point.
+- **Runtime wins.** A single `number` is what the per-frame loop wants; no per-frame id lookups.
+- **Validator wins.** `freezeBeforeMovementId` must reference a real movement id; `freezeAtMs` must be ≥ 0 and ≤ the total `movements[]` duration. Both checks happen once at seed time and once at scene load.
+- **Default behaviour preserved.** When `freezeMarker` is omitted, the runtime defaults to "freeze at end of `movements[]`" — the existing implicit behaviour for legacy scenes.
+
+Playback flow:
+
+1. **`setup`** seeds player and ball start positions; mounts pre-answer overlays at zero opacity.
+2. **`playing`** advances `MotionController` along `movements[]`. Pre-answer overlays start fading in at the half-way point of the playthrough so the cue is fully readable by the time freeze hits.
+3. When the playhead reaches `freezeAtMs`, the controller snaps player and ball positions to their frozen values (no jitter from a partial lerp), pauses (`advance` becomes a no-op), and emits a **`frozen` event**. The train page subscribes to this event and mounts the question UI (prompt + 3–4 choice buttons). The `useFrame` loop continues running so reduced-motion and quality-tier behaviours stay correct, but no scene state changes until a choice is recorded.
+4. Pre-answer overlays remain at full opacity throughout `frozen`. Camera holds. No answer-revealing primitive is mounted.
+
+### 5.4 Replay state machine
+
+```
+idle → setup → playing → frozen → consequence(choiceId) → replaying → done
+```
+
+| State | User sees | Engine | UI mounted | Overlays |
+|---|---|---|---|---|
+| **`idle`** | Scenario card / "Start" | Scene unmounted or pre-mount | Train page intro card | None |
+| **`setup`** | 3D court appears, players at starting positions, ball with holder | Scene mounted, players at `start`, ball snapped, atmosphere/quality applied | Decoder chip, role assignment, scenario title | None |
+| **`playing`** | Possession plays for ~1–3 s up to the cue | `MotionController` runs `movements[]` to `freezeAtMs` | Same as setup | Pre-answer overlays fade in toward end of playthrough |
+| **`frozen`** | Play paused on the cue | `advance` is a no-op; positions snapped; `frozen` event emitted | Question prompt + 3–4 choice buttons | Pre-answer overlays at full opacity. No answer-revealing primitives. |
+| **`consequence(choiceId)`** | The chosen read plays out — recovery, deflection, missed window, or layup | `MotionController` runs `wrongDemos[choiceId].movements` | Choice buttons disabled; optional caption | Cue overlays remain; **no teaching overlays yet** |
+| **`replaying`** | Same possession replays with the best read and post-answer teaching overlays | `MotionController` runs `answerDemo` from snapshotted freeze positions | "Show me again" enabled | Post-answer overlays mount (visibility-flip from pre-answer set) |
+| **`done`** | Decoder lesson panel, feedback string, IQ/XP toast, self-review checklist, "Next" button | Scene held at end-of-replay frame; resources retained for "Show me again" | Lesson panel + feedback card + checklist | Post-answer overlays visible while lesson panel is open |
+
+**Best-read short-circuit:** when the picked choice has `quality: 'best'`, the controller skips `consequence(choiceId)` and goes directly to `replaying` — because the consequence *is* the answer demo. Implementation: if `wrongDemos.find(d => d.choiceId === pickedId)` is undefined, transition `frozen → replaying` directly.
+
+`replaying` is **idempotent**. "Show me again" cycles `done → replaying → done`. All transitions are React state updates inside `ScenarioReplayController`; per-frame work stays in `useFrame` and the parent rAF loop. No per-frame `setState`.
+
+### 5.5 Correct / wrong consequence replay + timing budget
+
+Behaviour:
+- **`quality: 'best'` picked** — skip consequence; play `answerDemo` once, post-answer overlays fade in layered (defender cues already on screen → red blocked lane → open-space region → green open lane → drive/cut preview).
+- **`quality: 'acceptable'` picked** — play `wrongDemos[choiceId]` (partial-success outcome: possession kept, layup window missed). Then play `answerDemo` with post-answer overlays.
+- **`quality: 'wrong'` picked** — play `wrongDemos[choiceId]` (failure: defender deflects / route ridden / angle disappears). Then play `answerDemo` with post-answer overlays.
+- **Missing wrong demo** — engine logs a Sentry breadcrumb and skips to `replaying`. The seed validator should make this case impossible for new scenarios.
+
+**Reset between consequence and replay:** the controller snapshots the freeze-frame positions at the end of `playing`. After `consequence(choiceId)` finishes, players and ball are snapped back to those frozen positions before `replaying` starts. Camera holds. Overlay groups visibility-flip between pre-answer and post-answer instead of being torn down.
+
+**Recommended timing budget** (validator emits warnings beyond these, not hard errors):
+
+| Phase | Target | Rationale |
+|---|---|---|
+| `setup` | < 400 ms | Mounting; should feel instant |
+| `playing` (pre-freeze) | 1.0–3.0 s | Long enough to see the cue develop, short enough to keep attention |
+| `frozen` | unbounded | User-driven |
+| `consequence(choiceId)` | 1.5–2.5 s per choice | Enough to teach the failure; longer drags the loop |
+| `replaying` | 2.0–3.0 s | Best-read playthrough; matches `answerDemo` total |
+| Lesson panel hand-off | < 300 ms | Slide-in animation only |
+
+Validator: warn if any single `wrongDemos[choiceId]` exceeds 3.0 s or if `answerDemo` total exceeds 3.5 s.
+
+### 5.6 Camera architecture
+
+Add one preset; allow per-scenario override.
+
+- **`passer_side_three_quarter`** — camera anchored on the same side as the passer, slightly above adult-coach shoulder height, pitched downward so passer, denied receiver, denying defender, and rim line are all on screen.
+- **Per-scenario `camera.anchor`** (in feet) overrides the preset's default anchor. Use only when the preset misframes the cue (typically weak-side scenarios).
+
+**Why BDW-01 needs passer-side framing:** the defender's body language — hand and foot in the lane, hips opened toward the sideline, chest between ball and receiver — is most legible from the *passer's* side. A defense-side or top-down view collapses the denial geometry into a flat silhouette. The denied lane (top → wing) and the open lane (top → rim front behind x2) read as distinct vectors only from the passer-side three-quarter angle.
+
+**Off-ball framing rule** — the camera satisfies all three or the preset has failed for that scenario:
+
+1. The passer (or whichever player is the source of the cue) must be visible.
+2. The user marker must be visible.
+3. The defender giving the cue must be visible.
+4. The ball must be visible.
+
+If any of those is outside the frame at freeze time, the preset is wrong; the author supplies an explicit `camera.anchor` rather than zooming through a hack. `AutoFitCamera` is **not removed** — it remains the safety net when no preset is selected.
+
+### 5.7 Off-ball visibility rules
+
+Authoring rules — enforced by the seed validator where mechanical, by visual QA where not:
+
+1. **Defender, cutter, and ball in one frame at freeze.** Validator checks that all three positions at the resolved `freezeAtMs` fall within the camera's frustum bounds for the chosen preset (computed once from `presets.ts`).
+2. **Freeze on the cue, not the outcome.** Validator warns if `freezeMarker` is unset *and* the last entry in `movements[]` has a `kind` of one of the cue/answer-revealing kinds (`back_cut`, `baseline_sneak`, `skip_pass`, `rip`).
+3. **Answer path hidden pre-answer.** Validator rejects `preAnswerOverlays` containing `passing_lane_open`, `drive_cut_preview`, or an answer-line `open_space_region` (per Section 6).
+4. **Small-sided geometry preferred.** Validator emits a soft warning when a new scenario has more than 6 players per team or uses `court: 'full'`. Pack 1 stays half-court 4-on-4.
+
+### 5.8 Scene path policy
+
+This is the rule that prevents visual drift across scenarios:
+
+> **Authored decoder scenarios run on the `Court3D + ScenarioScene3D` path with the imperative overlay system only.** No authored decoder scenario uses the simplified `BasketballScene3D` path or the legacy JSX `MovementPath3D` / `PremiumOverlay.tsx` paths.
+
+Supporting rules:
+- **Simplified path is for legacy / auto-fallback content.** `BasketballScene3D` is fine for legacy concept scenarios that already run there or for the emergency 3D fallback. Do not author against it.
+- **2D `<Court />` stays as the WebGL-unavailable fallback only.** It does not need to render decoder overlays. WebGL-unavailable users see the legacy 2D experience for that attempt; decoder framing in surrounding UI still applies.
+- **No parallel "decoder train" route.** `/train` handles all scenarios — legacy and decoder. Differences are data-driven, not route-driven.
+- **PR-4 (engineering phases) schedules `?simple=0` as the default for the decoder pack.** The train page picks the full path automatically for any scenario that carries a `decoderTag` or that ships under a Pack 1 manifest entry. The flag remains as a manual override for QA.
