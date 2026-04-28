@@ -11,7 +11,14 @@
 
 import * as THREE from 'three'
 import { COURT } from '@/lib/scenario3d/coords'
-import type { Scene3D, SceneTeam } from '@/lib/scenario3d/scene'
+import type { Scene3D, SceneMovement, SceneTeam } from '@/lib/scenario3d/scene'
+import {
+  buildTimeline,
+  resolveBallStart,
+  samplePlayer,
+  type ResolvedMovement,
+  type Timeline,
+} from '@/lib/scenario3d/timeline'
 
 const FLOOR_COLOR = '#C2823F'
 const LINE_COLOR = '#FFFFFF'
@@ -55,12 +62,30 @@ const SHORTS_DARKEN = 0.55
 const ACCENT_COLOR = '#FFFFFF'
 
 /**
- * Builds the full basketball scene as a single THREE.Group. Caller is
- * responsible for adding/removing it from the scene graph.
+ * Bundles the imperative scene root with the per-player and ball
+ * groups the MotionController needs to mutate each frame. The root
+ * remains the only object the caller adds/removes from the scene
+ * graph; the player/ball references are non-owning views into root's
+ * descendants.
  */
-export function buildBasketballGroup(scene: Scene3D): THREE.Group {
+export interface SceneBuildResult {
+  root: THREE.Group
+  players: Map<string, THREE.Group>
+  ball: THREE.Group
+  /** Y position the held ball should sit at — preserves the prior y math. */
+  ballBaseY: number
+}
+
+/**
+ * Builds the full basketball scene as a single THREE.Group plus a
+ * sidecar map of per-player groups and the ball group. Caller is
+ * responsible for adding/removing `result.root` from the scene graph
+ * and for disposing it via disposeGroup() on unmount.
+ */
+export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   const root = new THREE.Group()
   root.name = 'imperative-basketball'
+  const playerGroups = new Map<string, THREE.Group>()
 
   // Lights — ambient + two directionals so meshStandardMaterial reads.
   root.add(new THREE.AmbientLight(0xffffff, 1.4))
@@ -155,6 +180,7 @@ export function buildBasketballGroup(scene: Scene3D): THREE.Group {
     playerGroup.position.set(p.start.x, PLAYER_LIFT, p.start.z)
     playerGroup.rotation.y = computePlayerYaw(p.team, p.start.x, p.start.z)
     root.add(playerGroup)
+    playerGroups.set(p.id, playerGroup)
   }
 
   // Ball. Holder lookup is unchanged from prior packets — ball follows
@@ -167,10 +193,11 @@ export function buildBasketballGroup(scene: Scene3D): THREE.Group {
   const ballZ = ballHolder?.start.z ?? scene.ball.start.z
 
   const ball = buildBasketball()
-  ball.position.set(ballX, BALL_RADIUS + 0.2, ballZ)
+  const ballBaseY = BALL_RADIUS + 0.2
+  ball.position.set(ballX, ballBaseY, ballZ)
   root.add(ball)
 
-  return root
+  return { root, players: playerGroups, ball, ballBaseY }
 }
 
 /**
@@ -573,6 +600,288 @@ export class CameraController {
       this.hasTarget = true
     }
   }
+}
+
+// ---------- imperative motion ----------
+
+/** Replay modes the MotionController understands. Mirrors ReplayMode in
+ * ScenarioReplayController so callers can pass the same prop through.
+ */
+export type MotionMode = 'static' | 'intro' | 'answer'
+
+/**
+ * Pre-roll pause before motion starts. Matches the JSX
+ * ScenarioReplayController so the imperative path feels identical when
+ * a scene is loaded — viewers see the start pose for ~250ms before any
+ * player begins to move.
+ */
+const MOTION_PRE_DELAY_MS = 250
+
+/**
+ * Resolves the movement list for a given mode. Centralised here so the
+ * imperative MotionController and the older JSX ScenarioReplayController
+ * agree on which list to play even though they live in separate files.
+ */
+export function resolveMovementsForMode(
+  scene: Scene3D,
+  mode: MotionMode,
+): readonly SceneMovement[] {
+  if (mode === 'answer') return scene.answerDemo
+  if (mode === 'intro') return scene.movements
+  return []
+}
+
+/** Internal: a [startMs, endMs) span describing the ball's current owner.
+ * `holderId` is the player who currently holds the ball; `pass` is set
+ * for in-flight phases (between two holders) and unsets `holderId`.
+ */
+interface BallPhase {
+  startMs: number
+  endMs: number
+  holderId: string | null
+  pass: ResolvedMovement | null
+}
+
+/**
+ * Drives per-frame transform updates for player and ball groups based
+ * on the scene's movement list. Pure function of (scene, movements,
+ * elapsed time) — same inputs always produce the same transforms, so
+ * replays are byte-identical.
+ *
+ * Created once per scene mount alongside the imperative scene group.
+ * Owns no Three.js resources directly: the player and ball groups it
+ * mutates are still owned by the scene root and disposed via the same
+ * disposeGroup() traversal as everything else.
+ */
+export class MotionController {
+  private scene: Scene3D
+  private timeline: Timeline
+  private playerGroups: Map<string, THREE.Group>
+  private ballGroup: THREE.Group
+  private baseBallY: number
+  private startedAt: number | null = null
+  private phases: BallPhase[] = []
+  private initialHolderId: string | null
+
+  constructor(
+    scene: Scene3D,
+    mode: MotionMode,
+    playerGroups: Map<string, THREE.Group>,
+    ballGroup: THREE.Group,
+    baseBallY: number,
+  ) {
+    this.scene = scene
+    this.playerGroups = playerGroups
+    this.ballGroup = ballGroup
+    this.baseBallY = baseBallY
+    // Mode is consumed at construction time only — the resolved list
+    // is captured into the timeline, after which mode isn't needed
+    // again. A scene/mode change rebuilds the controller wholesale.
+    this.timeline = buildTimeline(
+      scene,
+      [...resolveMovementsForMode(scene, mode)],
+    )
+    this.initialHolderId = resolveInitialHolder(scene)
+    this.phases = this.computeBallPhases()
+  }
+
+  /** Drops the playback anchor so the next tick starts the timeline at
+   *  t=0 from the current real time. Called when the parent bumps
+   *  resetCounter or replays the scene.
+   */
+  reset(): void {
+    this.startedAt = null
+  }
+
+  /** Returns the current playback elapsed time in ms (clamped to the
+   *  timeline length). Useful for tests / diagnostics; not currently
+   *  used by the renderer itself.
+   */
+  getElapsedMs(nowMs: number): number {
+    if (this.startedAt === null) return 0
+    const raw = nowMs - this.startedAt - MOTION_PRE_DELAY_MS
+    return Math.max(0, Math.min(raw, this.timeline.totalMs))
+  }
+
+  /** Mutates player + ball positions for the current playback time.
+   *  Idempotent — calling tick(now) twice in a row yields identical
+   *  transforms. Allocates nothing per frame beyond the stack frames
+   *  for `samplePlayer`.
+   */
+  tick(nowMs: number): void {
+    if (this.startedAt === null) this.startedAt = nowMs
+    const t =
+      this.timeline.totalMs > 0
+        ? this.getElapsedMs(nowMs)
+        : 0
+
+    // Players first so the ball's holder-follow logic sees the
+    // up-to-date sampled position when it reads samplePlayer().
+    for (const player of this.scene.players) {
+      const g = this.playerGroups.get(player.id)
+      if (!g) continue
+      const pos = samplePlayer(this.scene, this.timeline, player.id, t)
+      g.position.x = pos.x
+      g.position.z = pos.z
+    }
+
+    this.applyBall(t)
+  }
+
+  // --- internals ---
+
+  /** Walks the resolved ball-pass timeline and produces a contiguous
+   *  list of held / in-flight phases covering [0, totalMs]. Built once
+   *  in the constructor so per-frame ticks just do an O(passes) lookup.
+   */
+  private computeBallPhases(): BallPhase[] {
+    const ballMoves = (this.timeline.byPlayer.get('ball') ?? [])
+      .filter((m) => m.kind === 'pass')
+      .slice()
+      .sort((a, b) => a.startMs - b.startMs)
+
+    const phases: BallPhase[] = []
+    let currentHolder: string | null = this.initialHolderId
+    let cursor = 0
+
+    for (const pass of ballMoves) {
+      if (pass.startMs > cursor) {
+        phases.push({
+          startMs: cursor,
+          endMs: pass.startMs,
+          holderId: currentHolder,
+          pass: null,
+        })
+      }
+      phases.push({
+        startMs: pass.startMs,
+        endMs: pass.endMs,
+        holderId: null,
+        pass,
+      })
+      currentHolder = this.resolveCatcher(pass.to, pass.endMs)
+      cursor = pass.endMs
+    }
+
+    const tail = Math.max(this.timeline.totalMs, 1)
+    if (cursor < tail) {
+      phases.push({
+        startMs: cursor,
+        endMs: tail,
+        holderId: currentHolder,
+        pass: null,
+      })
+    }
+    return phases
+  }
+
+  /** Returns the player whose sampled position at `atMs` is closest to
+   *  the pass's `target` point. Falls back to null if the scene has no
+   *  finite players (defensive — buildScene already guarantees finite
+   *  starts, but this keeps the controller from crashing on bad data).
+   */
+  private resolveCatcher(
+    target: { x: number; z: number },
+    atMs: number,
+  ): string | null {
+    let bestId: string | null = null
+    let bestDist = Number.POSITIVE_INFINITY
+    for (const p of this.scene.players) {
+      const pos = samplePlayer(this.scene, this.timeline, p.id, atMs)
+      const dx = pos.x - target.x
+      const dz = pos.z - target.z
+      const d = dx * dx + dz * dz
+      if (d < bestDist) {
+        bestDist = d
+        bestId = p.id
+      }
+    }
+    return bestId
+  }
+
+  /** Computes and applies the ball's position for time t, picking
+   *  between in-flight (lerp + parabolic Y arc) and held (follow the
+   *  current holder's sampled x/z, keep base Y).
+   */
+  private applyBall(t: number): void {
+    const phase = this.findPhase(t)
+    if (!phase) {
+      const start = resolveBallStart(this.scene)
+      this.ballGroup.position.set(start.x, this.baseBallY, start.z)
+      return
+    }
+
+    if (phase.pass) {
+      const span = Math.max(1, phase.endMs - phase.startMs)
+      const u = clamp01((t - phase.startMs) / span)
+      const eased = easeInOutCubic(u)
+      const fromX = phase.pass.from.x
+      const fromZ = phase.pass.from.z
+      const toX = phase.pass.to.x
+      const toZ = phase.pass.to.z
+      const x = fromX + (toX - fromX) * eased
+      const z = fromZ + (toZ - fromZ) * eased
+      // Symmetric parabolic arc with peak height proportional to pass
+      // distance, capped so cross-court bombs do not visibly clip the
+      // gym ceiling.
+      const dist = Math.hypot(toX - fromX, toZ - fromZ)
+      const peak = Math.min(7, Math.max(2, dist * 0.25))
+      const y = this.baseBallY + peak * 4 * u * (1 - u)
+      this.ballGroup.position.set(x, y, z)
+      return
+    }
+
+    if (phase.holderId) {
+      const pos = samplePlayer(this.scene, this.timeline, phase.holderId, t)
+      this.ballGroup.position.set(pos.x, this.baseBallY, pos.z)
+      return
+    }
+
+    const start = resolveBallStart(this.scene)
+    this.ballGroup.position.set(start.x, this.baseBallY, start.z)
+  }
+
+  private findPhase(t: number): BallPhase | null {
+    if (this.phases.length === 0) return null
+    for (const phase of this.phases) {
+      if (t >= phase.startMs && t <= phase.endMs) return phase
+    }
+    // Past end of timeline — return the last phase so the ball settles
+    // with the final holder rather than snapping back to the start.
+    return this.phases[this.phases.length - 1] ?? null
+  }
+}
+
+/** Resolves the player who starts the play with the ball: explicit
+ *  holderId wins, then the first hasBall flag, then null. Validated
+ *  against the player list so a stale id never escapes this function.
+ */
+function resolveInitialHolder(scene: Scene3D): string | null {
+  const candidate =
+    scene.ball.holderId ??
+    scene.players.find((p) => p.hasBall)?.id ??
+    null
+  if (candidate && scene.players.some((p) => p.id === candidate)) {
+    return candidate
+  }
+  return null
+}
+
+function clamp01(v: number): number {
+  if (v <= 0) return 0
+  if (v >= 1) return 1
+  return v
+}
+
+/** Same eased curve the existing timeline.ts uses for player motion.
+ *  Duplicated here (rather than re-exported) so the imperative motion
+ *  controller and the legacy JSX controller can evolve independently
+ *  without breaking each other.
+ */
+function easeInOutCubic(u: number): number {
+  if (u <= 0) return 0
+  if (u >= 1) return 1
+  return u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2
 }
 
 // ---------- internals ----------
