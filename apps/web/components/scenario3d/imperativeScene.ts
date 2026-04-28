@@ -59,6 +59,20 @@ const GYM_CEILING_COLOR = '#3A4150'
 const GYM_FLOOR_EXT_COLOR = '#7A4D24'
 const GYM_RAFTER_COLOR = '#1F232B'
 const GYM_TRIM_COLOR = '#181B22'
+// Packet F (renderer-polish, gym backdrop). Bleacher silhouettes sit
+// between the baseline and the back wall to ground the play in a real
+// gym. Seats and risers stay desaturated/low-contrast so they never
+// compete with the hardwood, the players, or the teaching overlays.
+const BLEACHER_SEAT_COLOR = '#2A3140'
+const BLEACHER_RISER_COLOR = '#1A1F28'
+// Soft horizontal banner band just below the rafters — lighter than
+// the wall so it reads as a hung cloth, not paint. Kept very thin and
+// translucent so it never advertises a brand or fights the court.
+const BANNER_BAND_COLOR = '#7C879A'
+// Wainscot trim runs around the room at human-eye height to break up
+// the otherwise flat wall. Same dark tone as the existing court trim
+// so the eye reads it as a single architectural detail.
+const WAINSCOT_COLOR = '#252A35'
 
 const PLAYER_HEIGHT = 6
 const PLAYER_RADIUS = 1.2
@@ -1647,7 +1661,254 @@ function buildGymShell(): THREE.Group {
     gym.add(rafter)
   }
 
+  // Packet F — gym backdrop composition. Adds bleachers, banner band,
+  // wainscot trim, and a soft top-of-wall vignette. All children of the
+  // gym shell group so the existing disposeGroup() traversal cleans
+  // them up alongside the walls and ceiling.
+  addGymBackdrop(gym, gymWidth, gymDepth, centerZ)
+
   return gym
+}
+
+/**
+ * Composites the gym backdrop in place: stepped bleacher silhouettes
+ * behind the baseline, a long horizontal banner band high on each
+ * wall, a wainscot trim line around the room, and a vertical-gradient
+ * vignette that darkens the top of each wall toward the rafters. All
+ * elements are MeshStandard or MeshBasic (no per-frame work), use
+ * shared materials where possible, and read as one cohesive room
+ * without competing with the court or the teaching overlays.
+ */
+function addGymBackdrop(
+  gym: THREE.Group,
+  gymWidth: number,
+  gymDepth: number,
+  centerZ: number,
+): void {
+  const seatMat = new THREE.MeshStandardMaterial({
+    color: BLEACHER_SEAT_COLOR,
+    roughness: 0.92,
+    metalness: 0.05,
+  })
+  const riserMat = new THREE.MeshStandardMaterial({
+    color: BLEACHER_RISER_COLOR,
+    roughness: 0.95,
+    metalness: 0,
+  })
+  const wainscotMat = new THREE.MeshStandardMaterial({
+    color: WAINSCOT_COLOR,
+    roughness: 0.7,
+    metalness: 0.15,
+  })
+  const bannerMat = new THREE.MeshBasicMaterial({
+    color: BANNER_BAND_COLOR,
+    transparent: true,
+    opacity: 0.42,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  })
+
+  // ----- Stepped bleacher rows behind the baseline -----
+  // Five rows that climb from the baseline back toward the rear wall.
+  // Width is narrowed so the rim/hoop read clearly in front of them
+  // and the side walls keep their own visible bleacher block.
+  const rowCount = 5
+  const rowDepth = 1.6
+  const rowHeight = 0.7
+  const seatThickness = 0.18
+  const bleacherWidth = GYM_HALF_WIDTH * 1.55
+  const bleacherStartZ = GYM_BACK_Z + 0.6
+  for (let i = 0; i < rowCount; i++) {
+    const baseY = i * rowHeight
+    const z = bleacherStartZ + i * rowDepth
+    // Riser (back face of the step).
+    const riser = new THREE.Mesh(
+      new THREE.BoxGeometry(bleacherWidth, rowHeight, 0.18),
+      riserMat,
+    )
+    riser.position.set(0, baseY + rowHeight / 2, z)
+    riser.receiveShadow = true
+    gym.add(riser)
+    // Seat plank — sits on top of the riser, depth = rowDepth so the
+    // next row's riser hides the seam.
+    const seat = new THREE.Mesh(
+      new THREE.BoxGeometry(bleacherWidth, seatThickness, rowDepth),
+      seatMat,
+    )
+    seat.position.set(
+      0,
+      baseY + rowHeight + seatThickness / 2,
+      z + rowDepth / 2,
+    )
+    seat.receiveShadow = true
+    gym.add(seat)
+  }
+
+  // ----- Side-wall bleacher silhouettes -----
+  // Two short stepped blocks that hug the side walls between the
+  // baseline and the back wall. Smaller than the back-baseline stand
+  // so they read as side seating without intruding on the play.
+  const sideRowCount = 4
+  const sideRowDepth = 1.4
+  const sideRowHeight = 0.65
+  const sideBlockWidth = 4.5
+  for (const sign of [-1, 1]) {
+    const xCenter = sign * (GYM_HALF_WIDTH - sideBlockWidth / 2 - 0.6)
+    for (let i = 0; i < sideRowCount; i++) {
+      const baseY = i * sideRowHeight
+      const z = GYM_BACK_Z + 1.2 + i * sideRowDepth
+      const seat = new THREE.Mesh(
+        new THREE.BoxGeometry(sideBlockWidth, seatThickness, sideRowDepth),
+        seatMat,
+      )
+      seat.position.set(
+        xCenter,
+        baseY + sideRowHeight + seatThickness / 2,
+        z + sideRowDepth / 2,
+      )
+      gym.add(seat)
+      const riser = new THREE.Mesh(
+        new THREE.BoxGeometry(sideBlockWidth, sideRowHeight, 0.18),
+        riserMat,
+      )
+      riser.position.set(xCenter, baseY + sideRowHeight / 2, z)
+      gym.add(riser)
+    }
+  }
+
+  // ----- Wainscot trim band -----
+  // Thin horizontal box that wraps around the inside of the room at
+  // ~6 ft. Adds a low-contrast architectural line that breaks up the
+  // tall blank walls without introducing any extra material.
+  const wainscotY = 6
+  const wainscotThickness = 0.15
+  const wainscotDepthInsetZ = GYM_BACK_Z + 0.05
+  const wainscotFrontZ = GYM_FRONT_Z - 0.05
+  // Back wall stripe.
+  const wainscotBack = new THREE.Mesh(
+    new THREE.BoxGeometry(gymWidth - 0.2, wainscotThickness, 0.06),
+    wainscotMat,
+  )
+  wainscotBack.position.set(0, wainscotY, wainscotDepthInsetZ + 0.03)
+  gym.add(wainscotBack)
+  // Side wall stripes.
+  for (const sign of [-1, 1]) {
+    const stripe = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06, wainscotThickness, gymDepth - 0.2),
+      wainscotMat,
+    )
+    stripe.position.set(
+      sign * (GYM_HALF_WIDTH - 0.03),
+      wainscotY,
+      (wainscotDepthInsetZ + wainscotFrontZ) / 2,
+    )
+    gym.add(stripe)
+  }
+
+  // ----- Banner band high on each wall -----
+  // Translucent strip just below the rafters that reads as a row of
+  // hung banners or a clerestory window line. We deliberately keep it
+  // free of text/logos — Packet H owns those props.
+  const bannerY = GYM_HEIGHT - 5.5
+  const bannerHeight = 1.6
+  const bannerInset = 0.05
+  // Back wall.
+  const bannerBack = new THREE.Mesh(
+    new THREE.PlaneGeometry(gymWidth - 1, bannerHeight),
+    bannerMat,
+  )
+  bannerBack.position.set(0, bannerY, GYM_BACK_Z + bannerInset)
+  gym.add(bannerBack)
+  // Side walls. Use a fresh PlaneGeometry per wall so each can rotate
+  // independently; the material is shared so the GPU material count
+  // stays at one for the whole banner band.
+  for (const sign of [-1, 1]) {
+    const banner = new THREE.Mesh(
+      new THREE.PlaneGeometry(gymDepth - 1, bannerHeight),
+      bannerMat,
+    )
+    banner.position.set(
+      sign * (GYM_HALF_WIDTH - bannerInset),
+      bannerY,
+      centerZ,
+    )
+    banner.rotation.y = sign === -1 ? Math.PI / 2 : -Math.PI / 2
+    gym.add(banner)
+  }
+
+  // ----- Top-of-wall vignette -----
+  // A vertical-gradient canvas texture darkens the top ~8 ft of each
+  // wall toward the ceiling. Reads as ambient ceiling falloff and
+  // softens the harsh wall/rafter junction without any extra lights.
+  const vignetteTex = makeVerticalDarkenTexture()
+  if (vignetteTex) {
+    const vignetteMat = new THREE.MeshBasicMaterial({
+      map: vignetteTex,
+      transparent: true,
+      opacity: 0.85,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
+    const vignetteHeight = 8
+    const vignetteY = GYM_HEIGHT - vignetteHeight / 2 - 0.02
+    // Back wall.
+    const vBack = new THREE.Mesh(
+      new THREE.PlaneGeometry(gymWidth - 0.2, vignetteHeight),
+      vignetteMat,
+    )
+    vBack.position.set(0, vignetteY, GYM_BACK_Z + 0.04)
+    gym.add(vBack)
+    // Side walls.
+    for (const sign of [-1, 1]) {
+      const v = new THREE.Mesh(
+        new THREE.PlaneGeometry(gymDepth - 0.2, vignetteHeight),
+        vignetteMat,
+      )
+      v.position.set(
+        sign * (GYM_HALF_WIDTH - 0.04),
+        vignetteY,
+        centerZ,
+      )
+      v.rotation.y = sign === -1 ? Math.PI / 2 : -Math.PI / 2
+      gym.add(v)
+    }
+  }
+}
+
+/**
+ * Generates a 1×64 vertical gradient that fades from transparent at
+ * the bottom to dark at the top. Used as a top-of-wall vignette so the
+ * ceiling/wall junction reads as ambient falloff rather than a hard
+ * seam. The texture is owned by the gym shell group and will be
+ * disposed via disposeGroup()'s material/texture traversal in
+ * Scenario3DCanvas.
+ */
+function makeVerticalDarkenTexture(): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null
+  const canvas = document.createElement('canvas')
+  canvas.width = 1
+  canvas.height = 64
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  const gradient = ctx.createLinearGradient(0, 0, 0, 64)
+  // Top of the texture is the bottom of the wall (origin of the
+  // PlaneGeometry's UV is bottom-left). We want the DARK end at the
+  // TOP of the wall, so dark is at v=1 → gradient stop 1.
+  gradient.addColorStop(0, 'rgba(10, 14, 22, 0)')
+  gradient.addColorStop(0.55, 'rgba(10, 14, 22, 0.18)')
+  gradient.addColorStop(1, 'rgba(10, 14, 22, 0.78)')
+  ctx.fillStyle = gradient
+  ctx.fillRect(0, 0, 1, 64)
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.wrapS = THREE.ClampToEdgeWrapping
+  tex.wrapT = THREE.ClampToEdgeWrapping
+  tex.minFilter = THREE.LinearFilter
+  tex.magFilter = THREE.LinearFilter
+  tex.needsUpdate = true
+  return tex
 }
 
 // Humanoid anatomy in feet. Hand-tuned so the figure reads as a 6 ft
