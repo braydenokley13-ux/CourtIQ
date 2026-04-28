@@ -217,6 +217,12 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   // Hoop (backboard, rim, stanchion, padding, net).
   root.add(buildHoopAssembly())
 
+  // Packet H — small realism props (scoreboard, hanging banners,
+  // center-court mark, sideline benches). Parented under root so the
+  // existing disposeGroup() traversal frees their geometry, materials,
+  // and canvas textures alongside the rest of the imperative scene.
+  root.add(buildRealismProps())
+
   // Resolve the initial ball-handler once, before walking the players.
   // Mirrors the holder lookup used for ball placement below so the
   // possession ring and the rendered ball end up on the same player.
@@ -1905,6 +1911,396 @@ function makeVerticalDarkenTexture(): THREE.CanvasTexture | null {
   tex.colorSpace = THREE.SRGBColorSpace
   tex.wrapS = THREE.ClampToEdgeWrapping
   tex.wrapT = THREE.ClampToEdgeWrapping
+  tex.minFilter = THREE.LinearFilter
+  tex.magFilter = THREE.LinearFilter
+  tex.needsUpdate = true
+  return tex
+}
+
+// ----- Packet H — gym realism props -----
+
+const SCOREBOARD_BODY_COLOR = '#101620'
+const SCOREBOARD_BEZEL_COLOR = '#2A3140'
+const SCOREBOARD_FACE_BG = '#05080F'
+const SCOREBOARD_HOME_COLOR = '#3BFF9D'
+const SCOREBOARD_GUEST_COLOR = '#FFB070'
+const SCOREBOARD_DIM_TEXT = '#7E8A9B'
+
+// Championship banners hung from the rafters. Tonally close to the
+// wall so they read as background props, never as marketing.
+const BANNER_PALETTE = ['#1F3A6B', '#642F2F', '#3D4654'] as const
+const BANNER_TRIM_COLOR = '#C9A14B'
+
+// Center-court CourtIQ mark — a faint two-letter monogram printed
+// directly into the hardwood. Kept very low contrast so the floor
+// stays the visual subject and the mark only reads from a still
+// frame.
+const CENTER_MARK_INK = 'rgba(255, 255, 255, 0.10)'
+const CENTER_MARK_RIM = 'rgba(255, 255, 255, 0.18)'
+
+// Sideline bench silhouette colors.
+const BENCH_FRAME_COLOR = '#1B2230'
+const BENCH_SEAT_COLOR = '#2A3140'
+
+/**
+ * Builds and returns a single THREE.Group containing every Packet H
+ * realism prop: a back-wall scoreboard, three hanging banners between
+ * the rafters, a center-court CourtIQ floor mark, and a pair of
+ * sideline bench silhouettes. All geometry/materials/canvas textures
+ * are owned by descendants of this group so the existing
+ * disposeGroup() traversal in Scenario3DCanvas frees them on unmount.
+ */
+function buildRealismProps(): THREE.Group {
+  const props = new THREE.Group()
+  props.name = 'gym-realism-props'
+
+  props.add(buildScoreboard())
+  props.add(buildHangingBanners())
+
+  const centerMark = buildCenterCourtMark()
+  if (centerMark) props.add(centerMark)
+
+  props.add(buildSidelineBenches())
+
+  return props
+}
+
+/**
+ * Back-wall scoreboard. Mounts a small panel above the rafter line,
+ * centered along x. The face is a single canvas texture (HOME / GUEST
+ * placeholder digits + clock) so the whole prop costs one geometry,
+ * one body material, and one face material with one map.
+ */
+function buildScoreboard(): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'scoreboard'
+
+  const width = 8
+  const height = 3.6
+  const depth = 0.6
+  // Sit just below the rafters but above the banner band so it reads
+  // as a piece of mounted hardware, not part of the wall paint.
+  const y = GYM_HEIGHT - 7.5
+  const z = GYM_BACK_Z + 0.05 + depth / 2
+
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color: SCOREBOARD_BODY_COLOR,
+    roughness: 0.6,
+    metalness: 0.4,
+  })
+  const bezelMat = new THREE.MeshStandardMaterial({
+    color: SCOREBOARD_BEZEL_COLOR,
+    roughness: 0.5,
+    metalness: 0.5,
+  })
+
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(width, height, depth),
+    bodyMat,
+  )
+  body.position.set(0, y, z)
+  group.add(body)
+
+  // Subtle bezel strip on top + bottom so the box doesn't read as a
+  // flat painted rectangle from the broadcast camera.
+  const bezelThickness = 0.18
+  for (const sign of [-1, 1]) {
+    const bezel = new THREE.Mesh(
+      new THREE.BoxGeometry(width + 0.2, bezelThickness, depth + 0.05),
+      bezelMat,
+    )
+    bezel.position.set(0, y + sign * (height / 2 + bezelThickness / 2), z)
+    group.add(bezel)
+  }
+
+  // Face panel — flush with the front of the body, slightly inset so
+  // the bezel reads in front of it from the broadcast camera.
+  const faceTex = makeScoreboardFaceTexture()
+  if (faceTex) {
+    const faceMat = new THREE.MeshBasicMaterial({
+      map: faceTex,
+      toneMapped: false,
+      transparent: false,
+    })
+    const face = new THREE.Mesh(
+      new THREE.PlaneGeometry(width - 0.4, height - 0.5),
+      faceMat,
+    )
+    face.position.set(0, y, z + depth / 2 + 0.01)
+    group.add(face)
+  }
+
+  // Two thin mounting brackets running from the body to the back
+  // wall. Cheap detail that keeps the scoreboard from reading as a
+  // floating sticker.
+  const armGeom = new THREE.BoxGeometry(0.18, 0.18, depth + 0.4)
+  const armMat = bezelMat
+  for (const sign of [-1, 1]) {
+    const arm = new THREE.Mesh(armGeom, armMat)
+    arm.position.set(sign * (width / 2 - 0.6), y + height / 2 + 0.5, GYM_BACK_Z + 0.1 + (depth + 0.4) / 2)
+    group.add(arm)
+  }
+
+  return group
+}
+
+/**
+ * Three thin championship-style banners hung between the back-wall
+ * rafters. Each banner is one PlaneGeometry plus a thin trim bar at
+ * top and bottom; colors are pulled from BANNER_PALETTE so each banner
+ * reads as a different season without any text.
+ */
+function buildHangingBanners(): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'hanging-banners'
+
+  const bannerWidth = 2.2
+  const bannerHeight = 5.5
+  const trimHeight = 0.18
+  // Hang the banners about a foot behind the back wall plane so they
+  // sit visually inside the gym from the broadcast camera. Slightly
+  // forward of the back wall means they read in front of the wall
+  // vignette without z-fighting.
+  const z = GYM_BACK_Z + 0.6
+  const topY = GYM_HEIGHT - 2.5
+
+  const positions = [-12, 0, 12]
+  for (let i = 0; i < positions.length; i++) {
+    const x = positions[i]!
+    const color = BANNER_PALETTE[i % BANNER_PALETTE.length]
+
+    const bannerMat = new THREE.MeshStandardMaterial({
+      color,
+      roughness: 0.95,
+      metalness: 0,
+      side: THREE.DoubleSide,
+    })
+    const banner = new THREE.Mesh(
+      new THREE.PlaneGeometry(bannerWidth, bannerHeight),
+      bannerMat,
+    )
+    banner.position.set(x, topY - bannerHeight / 2, z)
+    group.add(banner)
+
+    const trimMat = new THREE.MeshStandardMaterial({
+      color: BANNER_TRIM_COLOR,
+      roughness: 0.5,
+      metalness: 0.6,
+    })
+    // Top + bottom trim strips.
+    for (const sign of [-1, 1]) {
+      const trim = new THREE.Mesh(
+        new THREE.BoxGeometry(bannerWidth + 0.1, trimHeight, 0.08),
+        trimMat,
+      )
+      trim.position.set(
+        x,
+        sign === 1 ? topY - trimHeight / 2 : topY - bannerHeight + trimHeight / 2,
+        z,
+      )
+      group.add(trim)
+    }
+  }
+
+  return group
+}
+
+/**
+ * Faint center-court mark printed into the hardwood at the middle of
+ * the half-court. A 10 ft circle with a low-contrast "CIQ" monogram —
+ * just present enough to read as a court logo when the eye lands on
+ * it, never bright enough to compete with team colors or paths.
+ *
+ * Returns null on SSR / non-DOM contexts so the renderer never
+ * attempts to allocate a CanvasTexture without document.
+ */
+function buildCenterCourtMark(): THREE.Mesh | null {
+  if (typeof document === 'undefined') return null
+  const tex = makeCenterCourtTexture()
+  if (!tex) return null
+
+  const mat = new THREE.MeshBasicMaterial({
+    map: tex,
+    toneMapped: false,
+    transparent: true,
+    depthWrite: false,
+  })
+  const size = 9
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat)
+  mesh.rotation.x = -Math.PI / 2
+  // Place the mark in the open hardwood between the top of the
+  // three-point arc and the half-court line, where a real court logo
+  // sits on a half-court layout. Lifted a hair above the floor so the
+  // painted court lines still draw cleanly on top from any angle.
+  const markZ = (COURT.threePointRadiusFt + COURT.halfLengthFt) / 2
+  mesh.position.set(0, FLOOR_LIFT + 0.04, markZ)
+  mesh.renderOrder = 1
+  return mesh
+}
+
+/**
+ * Two low silhouette benches sitting just outside the sidelines,
+ * roughly mid-court. Frame + seat slab only — no players, no
+ * substitutes, no logos. They exist to break up the empty out-of-
+ * bounds floor strip so the eye doesn't read it as void.
+ */
+function buildSidelineBenches(): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'sideline-benches'
+
+  const benchLength = 10
+  const benchDepth = 1.2
+  const seatHeight = 1.4
+  const seatThickness = 0.16
+  const legHeight = seatHeight - seatThickness
+  const legThickness = 0.18
+
+  const frameMat = new THREE.MeshStandardMaterial({
+    color: BENCH_FRAME_COLOR,
+    roughness: 0.65,
+    metalness: 0.3,
+  })
+  const seatMat = new THREE.MeshStandardMaterial({
+    color: BENCH_SEAT_COLOR,
+    roughness: 0.85,
+    metalness: 0.05,
+  })
+
+  // Place each bench just outside the sideline, aligned with the
+  // free-throw line so it never visually overlaps the action area.
+  const sidelineX = COURT.halfWidthFt + 1.4
+  const benchZ = COURT.halfLengthFt * 0.45
+
+  for (const sign of [-1, 1]) {
+    const xCenter = sign * sidelineX
+
+    // Seat slab.
+    const seat = new THREE.Mesh(
+      new THREE.BoxGeometry(benchDepth, seatThickness, benchLength),
+      seatMat,
+    )
+    seat.position.set(xCenter, seatHeight - seatThickness / 2, benchZ)
+    group.add(seat)
+
+    // Two legs (each end). Cheaper than a full frame and reads
+    // unambiguously as bench seating from the broadcast camera.
+    for (const zSign of [-1, 1]) {
+      const leg = new THREE.Mesh(
+        new THREE.BoxGeometry(benchDepth - 0.05, legHeight, legThickness),
+        frameMat,
+      )
+      leg.position.set(
+        xCenter,
+        legHeight / 2,
+        benchZ + zSign * (benchLength / 2 - 0.4),
+      )
+      group.add(leg)
+    }
+  }
+
+  return group
+}
+
+/**
+ * Generates a 512×256 canvas containing the back-wall scoreboard
+ * face: HOME / GUEST labels, two big score digits, and a clock. All
+ * static — no per-frame updates — so the texture lives for the scene
+ * lifetime and disposes via the existing material/texture traversal.
+ */
+function makeScoreboardFaceTexture(): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 256
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+
+  ctx.fillStyle = SCOREBOARD_FACE_BG
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+  // HOME / GUEST labels.
+  ctx.font = 'bold 28px system-ui, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillStyle = SCOREBOARD_DIM_TEXT
+  ctx.fillText('HOME', 90, 56)
+  ctx.fillText('GUEST', 422, 56)
+
+  // Score digits.
+  ctx.font = 'bold 110px "DM Mono", "Courier New", monospace'
+  ctx.fillStyle = SCOREBOARD_HOME_COLOR
+  ctx.fillText('64', 90, 150)
+  ctx.fillStyle = SCOREBOARD_GUEST_COLOR
+  ctx.fillText('58', 422, 150)
+
+  // Quarter / clock band along the bottom.
+  ctx.font = 'bold 24px "DM Mono", "Courier New", monospace'
+  ctx.fillStyle = SCOREBOARD_DIM_TEXT
+  ctx.fillText('Q3', 90, 220)
+  ctx.fillText('FOULS 4 · 5', 256, 220)
+  ctx.fillStyle = SCOREBOARD_HOME_COLOR
+  ctx.fillText('07:32', 422, 220)
+
+  // Thin divider line down the middle so the two halves read as
+  // independent panels rather than one flat readout.
+  ctx.strokeStyle = SCOREBOARD_BEZEL_COLOR
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo(256, 32)
+  ctx.lineTo(256, 196)
+  ctx.stroke()
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.minFilter = THREE.LinearFilter
+  tex.magFilter = THREE.LinearFilter
+  tex.needsUpdate = true
+  return tex
+}
+
+/**
+ * Generates a 256×256 canvas with a soft circular CourtIQ-style mark
+ * — outer rim ring, inner faint disc, and a "CIQ" monogram. Alpha
+ * elsewhere so the mesh blends cleanly into the hardwood.
+ */
+function makeCenterCourtTexture(): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null
+  const canvas = document.createElement('canvas')
+  canvas.width = 256
+  canvas.height = 256
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+
+  // Transparent background — only the ring + monogram render.
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+  const cx = 128
+  const cy = 128
+  const outerR = 116
+  const innerR = 100
+
+  // Outer rim ring.
+  ctx.strokeStyle = CENTER_MARK_RIM
+  ctx.lineWidth = 4
+  ctx.beginPath()
+  ctx.arc(cx, cy, outerR, 0, Math.PI * 2)
+  ctx.stroke()
+
+  // Faint inner disc.
+  ctx.fillStyle = CENTER_MARK_INK
+  ctx.beginPath()
+  ctx.arc(cx, cy, innerR, 0, Math.PI * 2)
+  ctx.fill()
+
+  // Monogram.
+  ctx.font = 'bold 88px "Inter", system-ui, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillStyle = CENTER_MARK_RIM
+  ctx.fillText('CIQ', cx, cy + 4)
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
   tex.minFilter = THREE.LinearFilter
   tex.magFilter = THREE.LinearFilter
   tex.needsUpdate = true
