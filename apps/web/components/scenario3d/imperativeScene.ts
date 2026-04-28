@@ -16,7 +16,11 @@ import type { Scene3D, SceneTeam } from '@/lib/scenario3d/scene'
 const FLOOR_COLOR = '#C2823F'
 const LINE_COLOR = '#FFFFFF'
 const PAINT_COLOR = '#0050B4'
-const BALL_COLOR = '#FF8A3D'
+// Authentic basketball orange/brown leather (not the neon orange of the
+// previous sphere). The pebble texture darkens this further so the
+// rendered ball reads richer than the flat hex would suggest.
+const BALL_COLOR = '#D26B26'
+const BALL_SEAM_COLOR = '#0E0F10'
 const RIM_COLOR = '#F26B1F'
 const BACKBOARD_GLASS_TINT = '#9FD8FF'
 const BACKBOARD_FRAME_COLOR = '#1B1F2A'
@@ -35,7 +39,10 @@ const GYM_TRIM_COLOR = '#0B0C10'
 
 const PLAYER_HEIGHT = 6
 const PLAYER_RADIUS = 1.2
-const BALL_RADIUS = 0.8
+// NBA regulation ball radius is ~0.39 ft (9.4" diameter). Bumped slightly
+// so the ball still reads from the default broadcast camera which sits
+// ~70 ft from the action.
+const BALL_RADIUS = 0.45
 const FLOOR_LIFT = 0
 const LINE_LIFT = 0.05
 const PLAYER_LIFT = 0.05
@@ -150,17 +157,16 @@ export function buildBasketballGroup(scene: Scene3D): THREE.Group {
     root.add(playerGroup)
   }
 
-  // Ball.
+  // Ball. Holder lookup is unchanged from prior packets — ball follows
+  // either the explicit holderId or the first player with hasBall, and
+  // falls back to the scene's static ball coords if neither resolves.
   const ballHolder = scene.ball.holderId
     ? scene.players.find((p) => p.id === scene.ball.holderId)
     : scene.players.find((p) => p.hasBall)
   const ballX = ballHolder?.start.x ?? scene.ball.start.x
   const ballZ = ballHolder?.start.z ?? scene.ball.start.z
 
-  const ball = new THREE.Mesh(
-    new THREE.SphereGeometry(BALL_RADIUS, 24, 24),
-    new THREE.MeshStandardMaterial({ color: BALL_COLOR }),
-  )
+  const ball = buildBasketball()
   ball.position.set(ballX, BALL_RADIUS + 0.2, ballZ)
   root.add(ball)
 
@@ -168,9 +174,13 @@ export function buildBasketballGroup(scene: Scene3D): THREE.Group {
 }
 
 /**
- * Disposes every geometry/material under the given object and its
- * descendants. Call before removing an imperative group from the scene
- * to prevent GPU memory leaks.
+ * Disposes every geometry/material/texture under the given object and
+ * its descendants. Call before removing an imperative group from the
+ * scene to prevent GPU memory leaks.
+ *
+ * Textures are disposed alongside materials because Material.dispose()
+ * does NOT cascade to attached maps — a leaked CanvasTexture (e.g. the
+ * basketball surface map) would otherwise hang around forever.
  */
 export function disposeGroup(group: THREE.Object3D): void {
   group.traverse((child) => {
@@ -178,11 +188,42 @@ export function disposeGroup(group: THREE.Object3D): void {
     if (mesh.geometry) mesh.geometry.dispose()
     const mat = mesh.material as THREE.Material | THREE.Material[] | undefined
     if (Array.isArray(mat)) {
-      for (const m of mat) m.dispose()
+      for (const m of mat) {
+        disposeMaterialTextures(m)
+        m.dispose()
+      }
     } else if (mat) {
+      disposeMaterialTextures(mat)
       mat.dispose()
     }
   })
+}
+
+/**
+ * Disposes every THREE.Texture currently attached to the material. The
+ * lookup walks a known set of standard map slots — anything the
+ * imperative scene builders actually use today (map, bumpMap, normalMap,
+ * roughnessMap, metalnessMap, alphaMap, emissiveMap, aoMap, envMap).
+ */
+function disposeMaterialTextures(mat: THREE.Material): void {
+  const slots = [
+    'map',
+    'bumpMap',
+    'normalMap',
+    'roughnessMap',
+    'metalnessMap',
+    'alphaMap',
+    'emissiveMap',
+    'aoMap',
+    'envMap',
+  ] as const
+  const record = mat as unknown as Record<string, unknown>
+  for (const slot of slots) {
+    const tex = record[slot]
+    if (tex && typeof (tex as THREE.Texture).dispose === 'function') {
+      ;(tex as THREE.Texture).dispose()
+    }
+  }
 }
 
 /**
@@ -1057,4 +1098,150 @@ function addArcLines(
     const endV = new THREE.Vector3(b[0], y, b[1] + z)
     parent.add(buildTubeLine(startV, endV, 0.14))
   }
+}
+
+// Basketball seam geometry. Three thin black tori form the canonical
+// "8-panel" basketball pattern (one equator + two perpendicular
+// pole-to-pole great circles). Each torus is nudged just outside the
+// sphere surface to avoid z-fighting with the ball body.
+const BALL_SEAM_RADIAL_SEGMENTS = 8
+const BALL_SEAM_TUBULAR_SEGMENTS = 56
+const BALL_SEAM_THICKNESS = 0.014
+
+/**
+ * Builds the basketball as a small Group: a sphere body with a
+ * procedural pebble surface texture, three black seam rings forming
+ * the classic 8-panel basketball pattern, and shadow flags on so the
+ * existing lighting rig casts a believable contact shadow.
+ *
+ * Geometry/material/texture lifetimes follow the existing imperative
+ * convention — every owned resource is reachable via the returned
+ * group's descendants so disposeGroup() cleans it up automatically.
+ */
+function buildBasketball(): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'basketball'
+
+  const surfaceTex = generateBasketballSurfaceTexture(256)
+
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(BALL_RADIUS, 32, 32),
+    new THREE.MeshStandardMaterial({
+      color: '#FFFFFF',
+      map: surfaceTex,
+      roughness: 0.78,
+      metalness: 0,
+    }),
+  )
+  body.castShadow = true
+  body.receiveShadow = true
+  group.add(body)
+
+  const seamMat = new THREE.MeshStandardMaterial({
+    color: BALL_SEAM_COLOR,
+    roughness: 0.85,
+    metalness: 0,
+  })
+  const seamRingRadius = BALL_RADIUS + 0.001
+
+  // Equator. Default TorusGeometry lies in the local XY plane; rotating
+  // it 90° about X drops the ring into the XZ plane (around the ball's
+  // waist).
+  const equator = new THREE.Mesh(
+    new THREE.TorusGeometry(
+      seamRingRadius,
+      BALL_SEAM_THICKNESS,
+      BALL_SEAM_RADIAL_SEGMENTS,
+      BALL_SEAM_TUBULAR_SEGMENTS,
+    ),
+    seamMat,
+  )
+  equator.rotation.x = Math.PI / 2
+  group.add(equator)
+
+  // Pole-to-pole great circle in the XY plane (default torus
+  // orientation). Reads as the front vertical seam from the broadcast
+  // camera.
+  const longitudeFront = new THREE.Mesh(
+    new THREE.TorusGeometry(
+      seamRingRadius,
+      BALL_SEAM_THICKNESS,
+      BALL_SEAM_RADIAL_SEGMENTS,
+      BALL_SEAM_TUBULAR_SEGMENTS,
+    ),
+    seamMat,
+  )
+  group.add(longitudeFront)
+
+  // Pole-to-pole great circle in the YZ plane. With the front circle
+  // above this gives the recognizable 8-panel basketball cut.
+  const longitudeSide = new THREE.Mesh(
+    new THREE.TorusGeometry(
+      seamRingRadius,
+      BALL_SEAM_THICKNESS,
+      BALL_SEAM_RADIAL_SEGMENTS,
+      BALL_SEAM_TUBULAR_SEGMENTS,
+    ),
+    seamMat,
+  )
+  longitudeSide.rotation.y = Math.PI / 2
+  group.add(longitudeSide)
+
+  return group
+}
+
+/**
+ * Procedurally paints a small canvas with a basketball-leather-ish
+ * pebble pattern and returns it as a CanvasTexture suitable for
+ * MeshStandardMaterial.map. The texture is solid orange with sparse
+ * dark micro-spots and lighter highlights so the ball does not read as
+ * a perfectly flat sphere even at glancing angles.
+ *
+ * Generation runs only on the client (the scene builder is invoked
+ * from a useEffect in Scenario3DCanvas), so document.createElement is
+ * safe here.
+ */
+function generateBasketballSurfaceTexture(size: number): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')
+  if (ctx) {
+    ctx.fillStyle = BALL_COLOR
+    ctx.fillRect(0, 0, size, size)
+
+    // Dark micro-pebble dots — give the surface its leathery look
+    // without a heavy noise pass.
+    const darkCount = Math.floor(size * size * 0.018)
+    for (let i = 0; i < darkCount; i++) {
+      const x = Math.random() * size
+      const y = Math.random() * size
+      const r = 0.7 + Math.random() * 1.3
+      const a = 0.18 + Math.random() * 0.22
+      ctx.fillStyle = `rgba(40, 18, 6, ${a})`
+      ctx.beginPath()
+      ctx.arc(x, y, r, 0, Math.PI * 2)
+      ctx.fill()
+    }
+
+    // Subtle warm highlights — break up the orange so it is not a
+    // single flat tone under directional light.
+    const lightCount = Math.floor(size * size * 0.012)
+    for (let i = 0; i < lightCount; i++) {
+      const x = Math.random() * size
+      const y = Math.random() * size
+      const r = 0.5 + Math.random() * 1.0
+      const a = 0.08 + Math.random() * 0.14
+      ctx.fillStyle = `rgba(255, 200, 130, ${a})`
+      ctx.beginPath()
+      ctx.arc(x, y, r, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  }
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.RepeatWrapping
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
 }
