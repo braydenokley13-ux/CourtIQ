@@ -7,6 +7,7 @@ import type { Scene3D } from '@/lib/scenario3d/scene'
 import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
 import type { CameraMode } from './imperativeScene'
 import { getCameraMode } from '@/lib/scenario3d/feature'
+import type { QualityMode } from '@/lib/scenario3d/quality'
 import { PremiumOverlay, type PlaybackRate } from './PremiumOverlay'
 
 interface Scenario3DViewProps {
@@ -21,6 +22,10 @@ interface Scenario3DViewProps {
   onCaption?: (caption: string | undefined) => void
   onPhase?: (phase: ReplayPhase) => void
   showPaths?: boolean
+  /** Forward to the canvas for capability-aware rendering. Defaults to
+   *  'auto', which picks a tier from the device's hardware signals and
+   *  may auto-degrade at runtime via the in-loop FPS guard. */
+  quality?: QualityMode
 }
 
 /**

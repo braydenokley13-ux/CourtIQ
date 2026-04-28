@@ -32,6 +32,14 @@ import {
 } from '@/lib/scenario3d/feature'
 import { useReducedMotion } from '@/lib/scenario3d/useReducedMotion'
 import { createDefaultScene, type Scene3D } from '@/lib/scenario3d/scene'
+import {
+  getQualityModeFromUrl,
+  resolveQualitySettings,
+  settingsForTier,
+  type QualityMode,
+  type QualitySettings,
+  type QualityTier,
+} from '@/lib/scenario3d/quality'
 
 interface Scenario3DCanvasProps {
   /** Mounted as the WebGL fallback when WebGL is unavailable. */
@@ -62,6 +70,18 @@ interface Scenario3DCanvasProps {
   playbackRate?: number
   /** Optional pause flag. Defaults to false (playing). */
   paused?: boolean
+  /**
+   * Quality mode override. Defaults to 'auto', which delegates to the
+   * device-capability heuristic in `lib/scenario3d/quality.ts`. Pass
+   * 'low' / 'medium' / 'high' to pin the tier explicitly. The runtime
+   * FPS guard may still degrade from 'high' or 'medium' to a lower tier
+   * if sustained low FPS is detected.
+   */
+  quality?: QualityMode
+  /** Notified once the resolved tier becomes known (and again whenever
+   *  the FPS guard auto-degrades it). Useful for surfacing the active
+   *  tier in dev diagnostics. */
+  onQualityChange?: (tier: QualityTier) => void
 }
 
 // Mid-tone gray. While the rebuild is in flight we deliberately do NOT
@@ -123,6 +143,8 @@ export function Scenario3DCanvas({
   cameraMode: cameraModeProp,
   playbackRate,
   paused,
+  quality = 'auto',
+  onQualityChange,
 }: Scenario3DCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   // Refs into the THREE objects R3F creates. Captured in onCreated so a
@@ -158,6 +180,13 @@ export function Scenario3DCanvas({
     children: number
   } | null>(null)
   const [cameraModeState, setCameraModeState] = useState<CameraMode>('auto')
+  // Resolved quality settings. Server-render starts on a pessimistic
+  // 'medium' default so SSR markup matches; the first client-side
+  // effect below replaces it with a real device-capability resolve
+  // (or honors the explicit ?quality= URL override / prop).
+  const [qualitySettings, setQualitySettings] = useState<QualitySettings>(
+    () => settingsForTier('medium'),
+  )
 
   const reducedMotion = useReducedMotion()
 
@@ -203,6 +232,45 @@ export function Scenario3DCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Resolve quality settings on mount and whenever the prop changes.
+  // URL `?quality=` wins over the resolved auto-tier so a tester can
+  // pin the renderer to e.g. 'low' from a query string. The FPS guard
+  // below may further downgrade the resolved tier at runtime.
+  useEffect(() => {
+    const urlMode = getQualityModeFromUrl()
+    const effectiveMode: QualityMode = urlMode ?? quality
+    const resolved = resolveQualitySettings(effectiveMode)
+    setQualitySettings(resolved)
+    onQualityChange?.(resolved.tier)
+  }, [quality, onQualityChange])
+
+  // Mirror the active settings into a ref so the rAF loop can read the
+  // latest quality without re-subscribing every time it changes (which
+  // would tear down and recreate the loop). The FPS guard further
+  // mutates this ref-and-state pair when it auto-degrades.
+  const qualityRef = useRef<QualitySettings>(qualitySettings)
+  useEffect(() => {
+    qualityRef.current = qualitySettings
+    // Push the new pixel-ratio cap into the live renderer immediately —
+    // R3F reads `dpr` on Canvas creation; later changes need a manual
+    // setPixelRatio so the FPS guard can take effect without a remount.
+    const gl = glRef.current
+    if (gl) {
+      const target = Math.min(
+        qualitySettings.maxPixelRatio,
+        typeof window !== 'undefined' && typeof window.devicePixelRatio === 'number'
+          ? window.devicePixelRatio
+          : 1,
+      )
+      try {
+        gl.setPixelRatio(target)
+        setDpr(target)
+      } catch {
+        /* renderer torn down between effect and apply */
+      }
+    }
+  }, [qualitySettings])
+
   // Parent-level rAF render driver. Polls glRef each frame and, once the
   // canvas has been created, calls gl.render(scene, camera) directly.
   // This loop is OWNED BY THE PARENT COMPONENT, not by a child of
@@ -215,6 +283,19 @@ export function Scenario3DCanvas({
     let rafId = 0
     let running = true
     let frame = 0
+    // FPS guard state — local to this rAF loop so it dies with it.
+    // Tracks a rolling count of "slow" frames (>33ms). When the window
+    // is full of slow frames we downgrade the tier exactly once.
+    let lastFrameAt = 0
+    let slowFrames = 0
+    let measuredFrames = 0
+    let degradeCooldownFrames = 0
+    // Skip the first ~30 frames so initial mount work (geometry build,
+    // texture upload, font/JIT warmup) cannot trick the guard.
+    const FPS_GUARD_WARMUP = 30
+    const FPS_GUARD_WINDOW = 120 // ~2s @ 60fps
+    const FPS_SLOW_FRAME_MS = 33 // <30fps
+    const FPS_SLOW_FRACTION = 0.6 // 60% of the window
     const tick = () => {
       if (!running) return
       const gl = glRef.current
@@ -246,6 +327,48 @@ export function Scenario3DCanvas({
           if (motion) motion.tick(performance.now())
           gl.render(threeScene, cam)
           frame++
+
+          // FPS guard — measures frame deltas without per-frame React
+          // state updates. Only flips state when a tier downgrade
+          // actually fires, and at most once until the cooldown clears.
+          const nowFrame = performance.now()
+          if (lastFrameAt !== 0 && qualityRef.current.fpsGuardEnabled) {
+            const dt = nowFrame - lastFrameAt
+            if (frame > FPS_GUARD_WARMUP) {
+              measuredFrames++
+              if (dt > FPS_SLOW_FRAME_MS) slowFrames++
+              if (degradeCooldownFrames > 0) degradeCooldownFrames--
+              if (
+                measuredFrames >= FPS_GUARD_WINDOW &&
+                degradeCooldownFrames === 0
+              ) {
+                const slowFraction = slowFrames / measuredFrames
+                if (slowFraction >= FPS_SLOW_FRACTION) {
+                  const cur = qualityRef.current.tier
+                  const next: QualityTier | null =
+                    cur === 'high' ? 'medium' : cur === 'medium' ? 'low' : null
+                  if (next) {
+                    const nextSettings = settingsForTier(next)
+                    qualityRef.current = nextSettings
+                    setQualitySettings(nextSettings)
+                    onQualityChange?.(next)
+                    // eslint-disable-next-line no-console
+                    console.info('[scenario3d] fps guard degraded tier', {
+                      from: cur,
+                      to: next,
+                      slowFraction: slowFraction.toFixed(2),
+                    })
+                  }
+                }
+                // Reset window regardless so we don't immediately retry.
+                slowFrames = 0
+                measuredFrames = 0
+                degradeCooldownFrames = FPS_GUARD_WINDOW
+              }
+            }
+          }
+          lastFrameAt = nowFrame
+
           if (frame === 1 || frame % 60 === 0) {
             setParentLoopStats({ frames: frame, children: threeScene.children.length })
           }
@@ -268,6 +391,12 @@ export function Scenario3DCanvas({
       running = false
       window.cancelAnimationFrame(rafId)
     }
+    // onQualityChange and setQualitySettings are intentionally omitted —
+    // including them would tear down and recreate the rAF loop on every
+    // parent re-render. We accept a slightly stale onQualityChange
+    // closure for the telemetry call inside the FPS guard; the visible
+    // tier is still pushed into qualitySettings via the React setter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, orbitMode])
 
   // IMPERATIVE SCENE BUILDER. Bypasses R3F's reconciler entirely. We
@@ -300,7 +429,20 @@ export function Scenario3DCanvas({
       // Build geometry imperatively for non-debug, non-emergency, simple-mode
       // scenes — that's the production path we're trying to fix.
       if (!emergencyMode && !debugMode && simpleMode) {
-        const result = buildBasketballGroup(visibleScene)
+        let result: ReturnType<typeof buildBasketballGroup>
+        try {
+          result = buildBasketballGroup(visibleScene)
+        } catch (error) {
+          // A failed scene build leaves the canvas empty — flip to the
+          // 2D fallback instead so the user never sees a blank rectangle.
+          // eslint-disable-next-line no-console
+          console.error('[scenario3d] imperative scene build failed', error)
+          setRuntimeError(
+            error instanceof Error ? error.message : 'Scene build failed',
+          )
+          setMode('fallback')
+          return
+        }
         threeScene.add(result.root)
         mounted = result.root
 
@@ -446,9 +588,19 @@ export function Scenario3DCanvas({
   }
 
   if (mode === 'fallback') {
+    // Two distinct fallback reasons: WebGL is genuinely unavailable
+    // (very old browsers, hardware acceleration disabled), or the 3D
+    // setup raised at runtime (context lost, onCreated threw). The
+    // user-visible chip differentiates them so a player on a working
+    // browser sees a clear "3D unavailable" badge instead of silently
+    // sliding into a degraded 2D experience.
+    const fallbackReason: 'no-webgl' | 'runtime-error' = runtimeError
+      ? 'runtime-error'
+      : 'no-webgl'
     return (
       <div className={className} style={{ position: 'relative' }}>
         {fallback}
+        <FallbackBadge reason={fallbackReason} message={runtimeError} />
         <CanvasDiagnostics
           canvasMounted={canvasMounted}
           rendererCreated={rendererCreated}
@@ -513,9 +665,14 @@ export function Scenario3DCanvas({
         // applied, but no geometry ever drew. Trusting the default
         // scheduler restores normal rendering on every device.
         frameloop="always"
-        dpr={[1, 2]}
+        dpr={[1, qualitySettings.maxPixelRatio]}
         camera={{ position: cameraPosition, fov: cameraFov, near: 0.1, far: 1000 }}
-        gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
+        gl={{
+          antialias: qualitySettings.antialias,
+          alpha: false,
+          powerPreference:
+            qualitySettings.tier === 'low' ? 'low-power' : 'high-performance',
+        }}
         style={{ width: '100%', height: '100%', display: 'block' }}
         onCreated={({ gl, size, scene: createdScene, camera: createdCamera }) => {
           try {
@@ -784,6 +941,41 @@ function CanvasDiagnostics({
           </div>
         </>
       ) : null}
+    </div>
+  )
+}
+
+/**
+ * Always-visible chip surfaced when the canvas is in fallback mode so
+ * users (and Sentry-watching engineers) immediately see why the 2D
+ * court is showing instead of the 3D scene. Distinct copy for the
+ * "WebGL not available on this device" path vs the "3D scene crashed at
+ * runtime" path so the chip carries diagnostic value without being
+ * alarming for users on legitimately-old browsers.
+ */
+function FallbackBadge({
+  reason,
+  message,
+}: {
+  reason: 'no-webgl' | 'runtime-error'
+  message: string | null
+}) {
+  const label = reason === 'no-webgl' ? '2D mode' : '3D unavailable'
+  const detail =
+    reason === 'no-webgl'
+      ? 'WebGL not supported on this device'
+      : message ?? 'Scene failed to load'
+  const accent =
+    reason === 'no-webgl' ? 'border-white/15 text-white/85' : 'border-heat/50 text-heat'
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={`pointer-events-none absolute right-2 top-2 max-w-[80%] rounded-full border bg-black/70 px-3 py-1 text-[10px] font-bold uppercase tracking-[1.5px] backdrop-blur-md ${accent}`}
+      title={detail}
+    >
+      <span className="mr-1">●</span>
+      {label}
     </div>
   )
 }
