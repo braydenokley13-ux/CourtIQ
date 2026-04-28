@@ -1157,3 +1157,167 @@ Common validation commands referenced below:
 - **Risks.** Coordinate or timing tweaks driven by visual QA can ripple — a small camera anchor change for ESC-01 may also affect AOR-01 if they share preset behaviour. Mitigation: tweak per scenario, re-run the QA checklist for adjacent scenarios after any shared-component change.
 - **Stop / checkpoint.** Checklist green for all Pack 1 scenarios; CI green; `LIVE` status set on all scenarios cleared by coach validation. Commit, push, stop. Pack 1 is ready for user testing.
 - **Next prompt.** "Pack 1 (Decoder Foundations) is shipped. Begin Pack 2 planning per Section 8's optional `SKR-02` queue and the deferred-overlay roadmap in Section 6.7. Open a new planning document — do not extend this one."
+
+---
+
+## Section 10 — Validation Plan
+
+Validation runs in **layers**, in this order. Each layer is cheap to run and catches a different class of failure. None replaces the next.
+
+### 10.1 Build & lint layer
+
+The first gate. Runs in CI on every commit and locally before each phase commit:
+
+- `pnpm prisma:validate` — Prisma schema integrity (relations, enums, defaults).
+- `pnpm typecheck` — TypeScript strict, including the Zod-inferred types backing seed JSONs.
+- `pnpm lint` — ESLint preset across `apps/web` and `packages/*`.
+- `pnpm test` — Vitest. Existing `coords`, `schema`, `timeline`, `scene` suites must stay green; phases B/D/E/H extend them.
+- `pnpm build` — Next.js production build. Catches dynamic-import boundary breakage on the `/train` route and any SSR regression.
+
+If any of these fail, the phase does not commit.
+
+### 10.2 Seed & scenario-data layer
+
+After build/lint passes, the seed pipeline validates content:
+
+- `pnpm seed:scenarios` (and `pnpm seed:lessons`, or `pnpm seed:content` for both) — runs the Zod schema in `scripts/seed-scenarios.ts` plus the custom rules from Section 4.9. Idempotent; refuses bad data without partial writes.
+- **Custom rules enforced:**
+  - exactly one player has `isUser: true`
+  - `wrongDemos[].choiceId` references a real `ScenarioChoice.id`
+  - new scenarios (detected by presence of `decoderTag` or pack membership) include `decoderTag`, `freezeMarker` (or accept default), `preAnswerOverlays`, `postAnswerOverlays`, `feedback.correct`, `feedback.wrong`, `selfReviewChecklist` (≥2 items)
+  - `lessonConnection` resolves to an existing `module_slug`
+  - pre-answer overlays use only the allow-listed primitives from Section 6.3 (`defender_vision_cone`, `defender_hip_arrow`, `defender_foot_arrow`, `defender_chest_line`, `defender_hand_in_lane`, `help_pulse`, subtle `label`)
+  - coach-validation gating per Section 4.6
+- **BDW-01 fail-fast rule:** missing any of `decoderTag`, `freezeMarker` (or default applied), `bestRead`, `feedback.correct`, `feedback.wrong`, `selfReviewChecklist`, at least one `quality: 'best'` choice, or at least one `wrongDemos` entry rejects the scenario at seed time.
+- **Dry-run against legacy fixtures:** the seven existing concept scenarios must continue to upsert with no JSON edits. If any legacy fixture fails after a schema change, the schema change is wrong (not the fixture).
+
+### 10.3 Manual QA checklist (per scenario)
+
+Captured in `docs/scenario-qa-checklist.md` (Phase L deliverable). Every authored decoder scenario passes the checklist before `status: 'LIVE'`:
+
+1. **Intro / setup correctness.** Decoder chip, title, role assignment, and one-line context render and read for a 12-year-old.
+2. **Pre-freeze playthrough timing.** 1.0–3.0 s; the cue is fully visible by freeze.
+3. **Freeze framing rule.** Passer (or cue source), cue defender, user marker, ball, and rim line are all on screen at freeze for the chosen camera preset and anchor.
+4. **Pre-answer overlay discipline.** Only the allow-listed primitives present; no `passing_lane_open`, `drive_cut_preview`, or answer-line `open_space_region`.
+5. **Choice presentation.** Exactly the choices the JSON declares, in `order`. Tap target sized for phone-width (≤ 390 px) usability.
+6. **Consequence playback per choice.** Each non-`best` choice plays its `wrongDemos` entry within 1.5–2.5 s and reads as the failure the brief describes (deflection / ride / missed window). `best` short-circuits to `replaying`.
+7. **Best-read reveal.** Reset to freeze positions is jitter-free. `answerDemo` plays in 2.0–3.0 s with post-answer overlays layered over 600–900 ms.
+8. **Lesson panel content.** Decoder name, teaching point, and "Open lesson" CTA match the scenario JSON exactly. CTA routes to the right Academy module.
+9. **Self-review checklist.** All listed items render; checkboxes accept input; "Next" advances cleanly.
+10. **Progression update.** XP delta, IQ delta, streak flame, and any badge animations fire. Concept and decoder mastery rows both update.
+11. **Reduced-motion behaviour.** OS-level "reduce motion" disables animated camera moves and dash flow, but freeze and overlays still read.
+12. **Mobile layout.** No horizontal scroll, court fits, choices reachable with a single thumb.
+13. **WebGL fallback.** With WebGL disabled, the 2D `<Court />` renders and the surrounding decoder UI still surfaces decoder framing.
+
+### 10.4 Visual QA gate
+
+The framing rule from Section 5.6/5.7 is checked manually against rendered output for every scenario at the resolved `freezeAtMs`. Hard requirement to ship `LIVE`. Captured screenshots live in `docs/screenshots/<scenario-id>/freeze.png` (mirroring the existing renderer-baseline practice).
+
+### 10.5 Basketball-logic QA gate
+
+A reviewer (initially the author; ideally a coach for medium/high validation scenarios) confirms:
+
+- The cue is the cue a coach would point at.
+- The best read is what a coach would teach.
+- The acceptable read is genuinely acceptable (or it should be a wrong read).
+- Wrong reads fail for the *basketball* reason the consequence shows.
+- The decoder teaching point is portable — could the user apply this read in a different possession?
+
+This is a content quality gate, not a code gate. Phase L bakes it into the QA checklist.
+
+### 10.6 Coach-validation gate
+
+Enforced at seed time per Section 4.6:
+
+- `level: 'low'` — passes silently.
+- `level: 'medium'` — seeder warning; no block.
+- `level: 'high'` + `status !== 'approved'` + top-level `status: 'LIVE'` — **rejected** unless `--allow-unvalidated` flag is supplied (used only for staging dry-runs).
+
+Pack 1 status at ship: BDW-01 / ESC-01 / AOR-01 are `low`/`medium` and ship `LIVE`. SKR-01 is `medium` and ships `LIVE`. Optional SKR-02 is `medium`–`high` and stays `DRAFT` until reviewed.
+
+### 10.7 Regression risks
+
+The phases must not break:
+
+- **Legacy concept scenarios still play.** The seven existing fixtures (`closeouts`, `cutting_relocation`, etc.) continue to render and progress under the simple scene path with their existing `is_correct` semantics. CI dry-runs `pnpm seed:scenarios` against them after every schema change.
+- **Legacy `is_correct` semantics resolve via the seeder.** Any legacy JSON shipping `is_correct: true | false` is translated to `quality: 'best' | 'wrong'` at seed time without JSON edits. The `is_correct` Prisma column stays populated for backwards compatibility.
+- **`?simple=0` default does not regress non-decoder scenarios.** Phase G gates the default switch on `scenario.decoder_tag != null`; non-decoder scenarios continue to use whichever path they currently use.
+- **Mastery transaction stays atomic.** Phase J adds a decoder-dimension `Mastery` write inside the existing `prisma.$transaction`. If the decoder write fails, the entire attempt rolls back — no half-written progression.
+- **Bundle and frame-time budgets hold.** Renderer polish work merged through PR #51 set the current baseline; Phase E (overlay primitives) and Phase H (consequence playback) must not exceed it. Phase L verifies on a mid-tier mobile device.
+- **Sentry breadcrumbs catch runtime fallbacks.** Unknown `decoderTag`, malformed `freezeMarker`, missing `wrongDemos` for a non-`best` choice, and overlay primitive type mismatches all log breadcrumbs and degrade gracefully without crashing the canvas. Phase L includes a forced-fault dev fixture to verify each path.
+
+---
+
+## Section 11 — API-Safe Execution Plan
+
+The implementation playbook for Phase 1. These rules are derived from how this planning document was written — small commits survive stream timeouts; giant commits do not.
+
+### 11.1 Micro-milestones only
+
+- **One narrow phase per chat response.** Sections 9 phases A–L are sized to fit. If a phase feels like it will not fit, split it at the nearest stop/checkpoint inside the phase before starting work.
+- **Never a giant refactor in one chat response.** A "small refactor" that touches more than 2–3 files is a multi-phase change.
+- **No "while I'm here" cleanup.** A bug fix does not include surrounding refactor; a one-shot operation does not include a helper. Three similar lines is better than a premature abstraction.
+
+### 11.2 Commit cadence
+
+- **Commit after every meaningful phase.** Each phase in Section 9 ends with a commit. Each commit message follows the per-phase template in that phase's block.
+- **Push every commit.** A commit that has not been pushed has not survived a stream timeout.
+- **No squash before push.** Each phase commit is a recoverable checkpoint; squashing erases the recovery surface.
+- **One scope per commit.** `feat(schema): …`, `feat(db): …`, `content(scenarios): …`, `qa(pack1): …`. Mixed-scope commits make rollback expensive.
+
+### 11.3 Output discipline
+
+- **Never print full files.** Tool results carry the file content; the chat does not need to.
+- **Never paste large diffs into the chat.** `git diff --stat` is the correct summary.
+- **No marketing copy.** This is an architecture document and an implementation playbook.
+
+### 11.4 Stop and checkpoint discipline
+
+- **Before any change that touches more than 2–3 files, stop and checkpoint.** Confirm the plan, then proceed.
+- **At the first sign of a long response, stop and checkpoint.** Long responses time out. Short responses commit.
+- **At every checkpoint, give the exact next prompt.** A checkpoint without a next prompt is a half-checkpoint.
+
+### 11.5 Recovery from stream timeout
+
+If a stream timeout occurs mid-phase:
+
+1. Do **not** restart from scratch.
+2. Run `git status` to see what is on disk and what is committed.
+3. Pick up from the last good commit; the next phase prompt is in this document under that phase's "Next prompt" line.
+4. If a partial file write was lost, the planning document is the source of truth — re-derive the lost work from the relevant section.
+5. Never delete partial work; commit it with a clear message ("WIP: …") if necessary, but prefer to recover and finish the phase cleanly.
+
+### 11.6 Coach review and high-validation pause
+
+- **Scenarios with `coachValidation.level: 'high'` always pause for coach review** before `status: 'LIVE'`. The seeder enforces this; the override flag exists only for staging dry-runs.
+- **Medium-validation scenarios produce a seeder warning.** A reviewer (author, then ideally a coach) signs off in `coachValidation.notes` and updates `status: 'reviewed'` or `'approved'` before merge.
+- **Low-validation scenarios ship clean.** BDW-01 is the canonical example.
+
+### 11.7 Runtime fallback discipline
+
+- **Sentry breadcrumbs over crashes.** Unknown `decoderTag`, malformed `freezeMarker`, missing `wrongDemos`, and overlay-primitive mismatches log a breadcrumb and degrade visually without crashing the canvas.
+- **2D `<Court />` stays as the WebGL-unavailable fallback.** Do not remove it. Do not extend it with decoder overlays.
+- **Reduced-motion mode stays first-class.** Animations downgrade; freeze, choices, and feedback continue to work.
+
+### 11.8 Decoder framing in every commit message and PR
+
+The four decoder names — **The Backdoor Window**, **The Empty-Space Cut**, **Skip the Rotation**, **Advantage or Reset** — are CourtIQ's headline vocabulary. Use them:
+
+- In every commit message that touches decoder content (e.g., `content(scenarios): seed BDW-01 — Denied Wing Backdoor (Pack 1)`).
+- In PR titles and descriptions.
+- In Academy module slugs (`backdoor-window`, `empty-space-cut`, `skip-the-rotation`, `advantage-or-reset`).
+- In analytics events (`scenario_completed` with `decoder_tag` as a property).
+- In user-facing copy on the intro card, freeze prompt, lesson panel, and post-session summary.
+
+The vocabulary is the product. Inconsistent naming across commits, files, and UI surfaces dilutes it.
+
+### 11.9 What this document is, and is not
+
+- **Is:** the source of truth for Phase 1 (Decoder Foundations). The schema sketches, scene contracts, overlay primitive set, BDW-01 build plan, engineering-phase order, validation layers, and execution rules above are how this phase ships.
+- **Is not:** the implementation. Nothing in Section 9's twelve phases has been built yet. Beginning Phase A requires a new explicit instruction; this planning document does not authorise code work.
+
+When Pack 1 is shipped per Phase L, **open a new planning document for Pack 2.** Do not extend this one. The `SKR-02` queue and the deferred-overlay roadmap in Section 6.7 are the seeds for that next document.
+
+---
+
+*End of Phase 1 planning document. Sections 1 through 11 complete.*
