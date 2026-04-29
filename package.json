@@ -17,13 +17,16 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "seed:scenarios": "pnpm exec tsx scripts/seed-scenarios.ts",
     "seed:lessons": "pnpm exec tsx scripts/seed-lessons.ts",
-    "seed:content": "pnpm seed:scenarios && pnpm seed:lessons"
+    "seed:content": "pnpm seed:scenarios && pnpm seed:lessons",
+    "qa:screenshot": "pnpm exec tsx scripts/screenshot-scenario.ts",
+    "screenshot:bdw": "SCENARIO=BDW-01 pnpm exec tsx scripts/screenshot-scenario.ts"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "prettier": "^3.3.3",
+    "tsx": "^4.19.2",
     "turbo": "^2.3.3",
     "typescript": "^5.7.2",
-    "tsx": "^4.19.2",
     "zod": "^3.24.1"
   }
 }
