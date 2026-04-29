@@ -13,9 +13,12 @@ const playerSchema = z.object({
   hasBall: z.boolean().optional(),
 });
 
+// Pack 1 / Phase F adds 4-on-4 decoder scenarios (BDW-01, ESC-01, AOR-01,
+// SKR-01). Every existing fixture ships full 5-on-5, so the lower bound of
+// 4 is purely additive — legacy data parses unchanged.
 const courtStateSchema = z.object({
-  offense: z.array(playerSchema).length(5),
-  defense: z.array(playerSchema).length(5),
+  offense: z.array(playerSchema).min(4).max(5),
+  defense: z.array(playerSchema).min(4).max(5),
   ball_location: z.object({ x: z.number(), y: z.number() }),
   defender_orientation: z.unknown().optional(),
   motion_cues: z.unknown().optional(),
@@ -315,11 +318,29 @@ const sceneSchema = z
     }
   });
 
+// --- Phase F authoring fields (Section 4.3 / 7) --------------------------
+// These mirror the planning doc's `ScenarioSchema` content fields. They are
+// validated at seed time but not persisted to Prisma yet — Phase I/J wire
+// the lesson panel, self-review checklist, and decoder mastery against the
+// real DB columns. Today they are kept here so authoring discipline (and
+// the BDW-01 fail-fast rule) is enforced at the JSON boundary.
+const scenarioFeedbackSchema = z.object({
+  correct: z.string().min(1),
+  partial: z.string().min(1).optional(),
+  wrong: z.string().min(1),
+});
+
+const progressionMetadataSchema = z.object({
+  unlocks: z.array(z.string().min(1)).default([]),
+  prerequisites: z.array(z.string().min(1)).default([]),
+});
+
 const scenarioSchema = z
   .object({
     id: z.string().min(1),
     version: z.number().int().positive().default(1),
     status: z.nativeEnum(ScenarioStatus).default(ScenarioStatus.DRAFT),
+    title: z.string().min(1).max(80).optional(),
     category: z.nativeEnum(Category),
     concept_tags: z.array(z.string().min(1)).min(1),
     sub_concepts: z.array(z.string().min(1)).default([]),
@@ -343,14 +364,39 @@ const scenarioSchema = z
     // backing column is intentionally deferred to a later phase to
     // avoid forcing a per-row migration today.
     coach_validation: coachValidationSchema.optional(),
+    // Phase F authoring fields. Optional at the schema level so legacy
+    // fixtures parse unchanged; required-when-decoder is enforced in the
+    // superRefine below.
+    game_context: z.string().min(1).optional(),
+    possession_setup: z.string().min(1).optional(),
+    decision_moment: z.string().min(1).optional(),
+    visible_cue: z.string().min(1).optional(),
+    best_read: z.string().min(1).optional(),
+    acceptable_reads: z.array(z.string().min(1)).default([]),
+    bad_reads: z.array(z.string().min(1)).default([]),
+    common_miss_reason: z.string().min(1).optional(),
+    why_best_read_works: z.string().min(1).optional(),
+    decoder_teaching_point: z.string().min(1).optional(),
+    lesson_connection: z
+      .string()
+      .regex(/^[a-z0-9-]+$/, 'lesson_connection must be a lowercase, hyphenated module slug')
+      .optional(),
+    feedback: scenarioFeedbackSchema.optional(),
+    self_review_checklist: z.array(z.string().min(1)).min(2).max(6).optional(),
+    source_research_basis: z.string().optional(),
+    progression_metadata: progressionMetadataSchema.optional(),
   })
   .superRefine((scenario, ctx) => {
-    const correctCount = scenario.choices.filter((c) => deriveIsCorrect(c)).length;
-    if (correctCount !== 1) {
+    // Phase B/C: with three-quality choices, "exactly one correct" becomes
+    // "exactly one quality=best". Legacy fixtures (no `quality`) derive
+    // `quality='best'` only when `is_correct: true`, so this remains a
+    // strict generalisation of the old rule.
+    const bestCount = scenario.choices.filter((c) => deriveQuality(c) === ChoiceQuality.best).length;
+    if (bestCount !== 1) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['choices'],
-        message: `Exactly one choice must be correct; found ${correctCount}.`,
+        message: `Exactly one choice must be quality='best'; found ${bestCount}.`,
       });
     }
 
@@ -398,34 +444,144 @@ const scenarioSchema = z
           'LIVE scenarios with coach_validation.level=high require status=approved (or pass --allow-unvalidated).',
       });
     }
+
+    // Section 4.9 / 10.2 — decoder authoring discipline. Any scenario that
+    // declares a `decoder_tag` (i.e., a Pack 1+ decoder scenario) must ship
+    // the full teaching surface: best-read text, decoder teaching point,
+    // lesson connection, feedback for correct + wrong, a self-review
+    // checklist, and at least one `wrongDemos` entry to keep the
+    // consequence-replay path exercised.
+    if (scenario.decoder_tag) {
+      const decoderRequired: Array<[string, unknown]> = [
+        ['best_read', scenario.best_read],
+        ['decoder_teaching_point', scenario.decoder_teaching_point],
+        ['lesson_connection', scenario.lesson_connection],
+        ['feedback', scenario.feedback],
+        ['self_review_checklist', scenario.self_review_checklist],
+      ];
+      for (const [field, value] of decoderRequired) {
+        if (value === undefined || value === null) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [field],
+            message: `decoder scenarios require "${field}".`,
+          });
+        }
+      }
+      if (!scenario.scene?.wrongDemos || scenario.scene.wrongDemos.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['scene', 'wrongDemos'],
+          message: 'decoder scenarios require at least one wrongDemos entry.',
+        });
+      }
+    }
   });
 
 // CLI flag — populated in main(). Read inside the schema so the gate is
 // enforced at parse time rather than after upsert.
 let ALLOW_UNVALIDATED = false;
 
-const scenarioFileSchema = z.array(scenarioSchema);
+// Each pack ships a `pack.json` manifest declaring an ordered scenario
+// list. Manifests are validated; the seeder reads each scenario file in
+// declared order so progression unlocks (Section 8) stay deterministic.
+const packScenarioEntrySchema = z.object({
+  id: z.string().min(1),
+  file: z.string().min(1),
+  prerequisites: z.array(z.string().min(1)).default([]),
+});
+
+const packManifestSchema = z.object({
+  id: z.string().min(1),
+  slug: z.string().regex(/^[a-z0-9-]+$/, 'pack slug must be lowercase, hyphenated'),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  scenarios: z.array(packScenarioEntrySchema).min(1),
+});
+
+const PACKS_DIR = path.join(SCENARIOS_DIR, 'packs');
+
+const scenarioFileSchema = z.union([
+  z.array(scenarioSchema),
+  scenarioSchema.transform((s) => [s]),
+]);
 
 type SeedScenario = z.infer<typeof scenarioSchema>;
 
-async function loadScenarioFiles(): Promise<SeedScenario[]> {
+async function readScenarioFile(filePath: string): Promise<SeedScenario[]> {
+  const fileContent = await fs.readFile(filePath, 'utf8');
+  const parsedJson = JSON.parse(fileContent) as unknown;
+  return scenarioFileSchema.parse(parsedJson);
+}
+
+async function loadLegacyScenarioFiles(): Promise<SeedScenario[]> {
   const entries = await fs.readdir(SCENARIOS_DIR, { withFileTypes: true });
   const jsonFiles = entries
     .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
     .map((entry) => path.join(SCENARIOS_DIR, entry.name))
     .sort();
 
-  if (jsonFiles.length === 0) {
-    throw new Error(`No scenario JSON files found in ${SCENARIOS_DIR}`);
+  const scenarios: SeedScenario[] = [];
+  for (const filePath of jsonFiles) {
+    scenarios.push(...(await readScenarioFile(filePath)));
+  }
+  return scenarios;
+}
+
+async function loadPackScenarios(): Promise<SeedScenario[]> {
+  let packDirs: string[] = [];
+  try {
+    const entries = await fs.readdir(PACKS_DIR, { withFileTypes: true });
+    packDirs = entries
+      .filter((e) => e.isDirectory())
+      .map((e) => path.join(PACKS_DIR, e.name))
+      .sort();
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw err;
   }
 
   const scenarios: SeedScenario[] = [];
+  for (const packDir of packDirs) {
+    const manifestPath = path.join(packDir, 'pack.json');
+    let manifestContent: string;
+    try {
+      manifestContent = await fs.readFile(manifestPath, 'utf8');
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        throw new Error(`Pack directory "${packDir}" is missing a pack.json manifest.`);
+      }
+      throw err;
+    }
+    const manifest = packManifestSchema.parse(JSON.parse(manifestContent));
 
-  for (const filePath of jsonFiles) {
-    const fileContent = await fs.readFile(filePath, 'utf8');
-    const parsedJson = JSON.parse(fileContent) as unknown;
-    const parsed = scenarioFileSchema.parse(parsedJson);
-    scenarios.push(...parsed);
+    for (const entry of manifest.scenarios) {
+      const scenarioPath = path.join(packDir, entry.file);
+      const parsed = await readScenarioFile(scenarioPath);
+      if (parsed.length !== 1) {
+        throw new Error(
+          `Pack "${manifest.slug}" scenario file "${entry.file}" must contain exactly one scenario; found ${parsed.length}.`,
+        );
+      }
+      const [scenario] = parsed;
+      if (scenario.id !== entry.id) {
+        throw new Error(
+          `Pack "${manifest.slug}" manifest declares scenario id "${entry.id}" but "${entry.file}" parsed as "${scenario.id}".`,
+        );
+      }
+      scenarios.push(scenario);
+    }
+  }
+  return scenarios;
+}
+
+async function loadScenarioFiles(): Promise<SeedScenario[]> {
+  const legacy = await loadLegacyScenarioFiles();
+  const packed = await loadPackScenarios();
+  const scenarios = [...legacy, ...packed];
+
+  if (scenarios.length === 0) {
+    throw new Error(`No scenario JSON files found in ${SCENARIOS_DIR}`);
   }
 
   const ids = new Set<string>();
