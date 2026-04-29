@@ -26,11 +26,20 @@ import {
 // paint; brighter team colors so jerseys pop against both floor and
 // gym backdrop. The hardwood now has a procedural plank texture that
 // gives the floor honest depth instead of reading as a flat plane.
-const FLOOR_COLOR = '#C77A36'
-const FLOOR_PLANK_DARK = '#9C5821'
+// Phase 4 (Section 8) hardwood retune. The previous tone leaned toward
+// raw orange; broadcast hardwood reads as a warmer, more neutral tan.
+// `FLOOR_COLOR` is now the per-plank tint average; the procedural
+// texture adds the variation. `FLOOR_PLANK_DARK` darkens grain and
+// seam strokes only — the planks themselves never get this dark.
+const FLOOR_COLOR = '#BC7B3A'
+const FLOOR_PLANK_DARK = '#7A4A1E'
 const LINE_COLOR = '#FFFFFF'
-const PAINT_COLOR = '#0B5BD3'
-const PAINT_DEEP = '#063C92'
+// Phase 4 paint retune. Slightly deeper royal blue so the paint
+// anchors the half-court without competing with the user's mint
+// halo or the warm-gold possession ring. `PAINT_DEEP` is the seam
+// shadow at the baseline / free-throw line.
+const PAINT_COLOR = '#0E5BD9'
+const PAINT_DEEP = '#063879'
 // Authentic basketball orange/brown leather (not the neon orange of the
 // previous sphere). The pebble texture darkens this further so the
 // rendered ball reads richer than the flat hex would suggest.
@@ -128,48 +137,44 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   root.name = 'imperative-basketball'
   const playerGroups = new Map<string, THREE.Group>()
 
-  // Lighting rig — Packet C (renderer-polish).
+  // Lighting rig — Phase 5 (Section 9) broadcast-clarity tune.
   //
   // The MeshBasic floor/lines/ball use `toneMapped: false` and ignore
   // these lights entirely; the rig exists for the lit
   // MeshStandardMaterial gym shell, hoop, and player figures. With
-  // ACES Filmic tone mapping enabled at the renderer level (see
-  // Scenario3DCanvas.tsx) the rig now follows a standard 3-point setup:
-  //   - Hemisphere: warm sky bounce + cool ground bounce, replaces a
-  //     flat AmbientLight so PBR materials get directional ambient.
-  //   - Key (warm overhead): primary illumination from the main gym
-  //     lights, slightly warm so wood reads inviting.
-  //   - Fill (cool side): softens shadows on player faces / the off
-  //     side of the hoop.
-  //   - Rim (back-overhead, slightly cool): separates players and the
-  //     hoop from the back wall so they don't melt into the gym.
-  // A small AmbientLight is kept at low intensity to lift extreme
-  // shadow valleys without washing the scene.
-  root.add(new THREE.AmbientLight(0xffffff, 0.45))
-  const hemi = new THREE.HemisphereLight(0xfff5e0, 0x1c2330, 1.05)
+  // ACES Filmic tone mapping (exposure 1.18) enabled at the renderer
+  // level (Scenario3DCanvas.tsx), the rig follows a standard
+  // broadcast 3-point setup:
+  //   - Hemisphere: warm sky bounce + lifted ground bounce so the
+  //     under-side of player figures (legs, feet) never reads as
+  //     muddy. Section 9: defender hips and feet must stay readable.
+  //   - Key (warm overhead): primary illumination. Phase 5 dropped
+  //     intensity 1.6 → 1.32 so highlights on the chevron, white
+  //     midsole, and target square no longer blow out under the
+  //     1.18 exposure boost.
+  //   - Fill (cool side): bumped to 0.78 so the shaded side of
+  //     defenders keeps stance readable from broadcast distance.
+  //   - Rim (back-overhead, slightly cool): bumped to 0.65 and
+  //     cooled toward `#C6DCFF` so player silhouettes lift cleanly
+  //     off the gym wall — Section 9: "modest rim light to separate
+  //     players from the floor."
+  //   - Court spot: lowered intensity 0.9 → 0.55 and broadened
+  //     range 60 → 75 so the painted key gets a soft pool rather
+  //     than a single hot spot that erases stance on the wing.
+  root.add(new THREE.AmbientLight(0xffffff, 0.34))
+  const hemi = new THREE.HemisphereLight(0xfff5e0, 0x33384a, 0.95)
   hemi.position.set(0, 40, 0)
   root.add(hemi)
-  // Key — primary warm overhead. Punchier than before so the hardwood
-  // takes on real luminance and players read with strong dimensional
-  // shading instead of flat color blocks.
-  const key = new THREE.DirectionalLight(0xfff1d6, 1.6)
+  const key = new THREE.DirectionalLight(0xfff1d6, 1.32)
   key.position.set(24, 58, 30)
   root.add(key)
-  // Cool fill on the off side to keep the shaded planes from going
-  // muddy; tightens up the player silhouettes.
-  const fill = new THREE.DirectionalLight(0xb8d2ff, 0.65)
+  const fill = new THREE.DirectionalLight(0xb8d2ff, 0.78)
   fill.position.set(-28, 36, 12)
   root.add(fill)
-  // Cool rim from behind/above lifts the silhouette off the back wall
-  // so players never melt into the gym. Slightly more teal than before
-  // for a film-room feel without overwhelming the warm key.
-  const rim = new THREE.DirectionalLight(0xa8c8ff, 0.55)
+  const rim = new THREE.DirectionalLight(0xc6dcff, 0.65)
   rim.position.set(0, 48, -22)
   root.add(rim)
-  // Spot from the rim direction — a soft warm pool of light over the
-  // paint that mimics arena spot lighting on the play area. Cheap and
-  // visually centers the eye on the read.
-  const courtSpot = new THREE.PointLight(0xffd8a0, 0.9, 60, 1.4)
+  const courtSpot = new THREE.PointLight(0xffd8a0, 0.55, 75, 1.6)
   courtSpot.position.set(0, 24, 8)
   root.add(courtSpot)
 
@@ -204,13 +209,15 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
 
   // Soft warm spot under the rim — a faint glow that anchors the eye
   // on the rim/paint area without lighting up the rest of the floor.
+  // Phase 4: tightened radius and lowered opacity so the glow no
+  // longer outshines the painted key.
   const rimGlow = new THREE.Mesh(
-    new THREE.CircleGeometry(11, 64),
+    new THREE.CircleGeometry(8.5, 64),
     new THREE.MeshBasicMaterial({
       color: '#FFB070',
       toneMapped: false,
       transparent: true,
-      opacity: 0.18,
+      opacity: 0.12,
       depthWrite: false,
     }),
   )
@@ -222,13 +229,16 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   // Royal blue paint. Slightly translucent so a hint of the hardwood
   // texture shows through and the painted area reads as actual paint
   // on wood rather than a separate flat decal.
+  // Phase 4: opacity nudged from 0.92 → 0.96 so the painted key reads
+  // as a freshly-finished surface rather than a tinted decal — the
+  // paint is the diagram's center of gravity (Section 8).
   const paint = new THREE.Mesh(
     new THREE.PlaneGeometry(COURT.paintWidthFt, COURT.freeThrowDistFt),
     new THREE.MeshBasicMaterial({
       color: PAINT_COLOR,
       toneMapped: false,
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.96,
     }),
   )
   paint.rotation.x = -Math.PI / 2
@@ -239,6 +249,8 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   // band along the baseline and free-throw line so the paint reads as
   // a freshly-finished court rather than a single flat color. Pure
   // visual decoration, no functional impact.
+  // Phase 4: matching deep-blue band along the free-throw line so the
+  // paint has shadow lines on both ends, not just at the baseline.
   const paintTrim = new THREE.Mesh(
     new THREE.PlaneGeometry(COURT.paintWidthFt, 0.6),
     new THREE.MeshBasicMaterial({
@@ -251,6 +263,19 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   paintTrim.rotation.x = -Math.PI / 2
   paintTrim.position.set(0, FLOOR_LIFT + 0.022, 0.3)
   root.add(paintTrim)
+
+  const paintTrimFar = new THREE.Mesh(
+    new THREE.PlaneGeometry(COURT.paintWidthFt, 0.5),
+    new THREE.MeshBasicMaterial({
+      color: PAINT_DEEP,
+      toneMapped: false,
+      transparent: true,
+      opacity: 0.4,
+    }),
+  )
+  paintTrimFar.rotation.x = -Math.PI / 2
+  paintTrimFar.position.set(0, FLOOR_LIFT + 0.022, COURT.freeThrowDistFt - 0.25)
+  root.add(paintTrimFar)
 
   // Court outline + paint lines.
   const outlineSegments: Array<[THREE.Vector3, THREE.Vector3]> = [
@@ -283,13 +308,26 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
       new THREE.Vector3(COURT.paintWidthFt / 2, LINE_LIFT, COURT.freeThrowDistFt),
     ],
   ]
+  // Phase 4: line weight bumped 0.18 → 0.22 for the rectangular court
+  // outline. Section 8 calls for "slightly thicker than real lines" so
+  // the half-court reads cleanly from the high 3/4 broadcast camera.
   for (const [start, end] of outlineSegments) {
-    root.add(buildTubeLine(start, end, 0.18))
+    root.add(buildTubeLine(start, end, 0.22))
   }
 
   // Three-point arc + free-throw arc (semi-circles around the rim).
-  addArcLines(root, COURT.threePointRadiusFt, Math.PI, LINE_LIFT, 0)
-  addArcLines(root, 6, Math.PI, LINE_LIFT, COURT.freeThrowDistFt)
+  // Arc weight is the second readability lever from Section 8 — many
+  // CourtIQ reads (skip, paint touch, closeout) live on the arc, so
+  // bump it to match the outline weight.
+  addArcLines(root, COURT.threePointRadiusFt, Math.PI, LINE_LIFT, 0, 0.18)
+  addArcLines(root, 6, Math.PI, LINE_LIFT, COURT.freeThrowDistFt, 0.16)
+
+  // Restricted area — 4 ft no-charge arc centered under the rim. Calls
+  // out the rim landing zone for "paint touch" / "baseline cut" reads
+  // (Section 8: rim area / restricted area). Slightly thinner than
+  // the 3pt arc so the eye still reads the 3pt arc as the dominant
+  // boundary line.
+  addArcLines(root, 4, Math.PI, LINE_LIFT, 0, 0.13)
 
   // Hoop (backboard, rim, stanchion, padding, net).
   root.add(buildHoopAssembly())
@@ -469,8 +507,8 @@ export function fitCameraToScene(
   camera: THREE.PerspectiveCamera,
   scene: Scene3D,
   aspect: number,
-  pitchDeg = 28,
-  padding = 1.18,
+  pitchDeg = 30,
+  padding = 1.14,
 ): void {
   const target = computeAutoTarget(scene, aspect, camera.fov, pitchDeg, padding)
   if (!target) return
@@ -514,24 +552,41 @@ export interface CameraTarget {
 // Court spans x ∈ [-25, 25], z ∈ [0, 47], rim sits at the origin (0,
 // y≈10, 0). Half-court is at z = 47.
 //
-// All presets were re-tuned in Packet B (renderer-polish) to push the
-// court toward the centre of the frame and shrink the empty black
-// space that previously dominated the canvas. Lower height, closer
-// distance, and a slightly tighter FOV move from "stadium upper deck"
-// to "coaching film".
-const SCENE_FOCUS = new THREE.Vector3(0, 3, 20)
-const BROADCAST_POSITION = new THREE.Vector3(2, 18, 48)
-const BROADCAST_LOOKAT = new THREE.Vector3(0, 3, 20)
-const BROADCAST_FOV = 42
-const TACTICAL_POSITION = new THREE.Vector3(0, 52, 26)
-const TACTICAL_LOOKAT = new THREE.Vector3(0, 0, 22)
-const TACTICAL_FOV = 38
-const REPLAY_POSITION = new THREE.Vector3(-22, 8, 30)
-const REPLAY_LOOKAT = new THREE.Vector3(2, 4, 12)
-const REPLAY_FOV = 34
-const FOLLOW_LIFT_Y = 8
-const FOLLOW_TRAIL_DIST = 12
-const FOLLOW_LOOK_HEIGHT = 3.5
+// Phase 5 (Section 9) re-tune. The previous presets read more like
+// "broadcast stage" than "film room"; the new defaults sit higher,
+// pull a touch closer, and drop FOV slightly so the user lands on
+// a coach's-film angle that reads spacing AND defender stance from
+// the same shot. All four founder scenarios were hand-walked
+// against Section 13: BDW-01 wing denial, ESC-01 weak-side helper,
+// AOR-01 closeout momentum, SKR-01 opposite corner — each stays in
+// frame end-to-end.
+const SCENE_FOCUS = new THREE.Vector3(0, 4, 18)
+// Broadcast: high 3/4 film-room. Camera at 22 ft (was 18) sits high
+// enough to read paint spacing without flattening hips/feet, slight
+// off-axis (+3x) so the sideline doesn't hide the wing, and the
+// look-at is at chest height so player silhouettes read above the
+// court rather than against it.
+const BROADCAST_POSITION = new THREE.Vector3(3, 22, 46)
+const BROADCAST_LOOKAT = new THREE.Vector3(0, 4, 18)
+const BROADCAST_FOV = 40
+// Tactical: lifted off the previous near-top-down (52 ft was too
+// abstract per Section 9: "Top-down is too abstract"). 42 ft still
+// gives a tactical board feel without collapsing the floor.
+const TACTICAL_POSITION = new THREE.Vector3(0, 42, 28)
+const TACTICAL_LOOKAT = new THREE.Vector3(0, 0, 20)
+const TACTICAL_FOV = 36
+// Replay: slightly wider hold (Section 9: "a slightly wider hold
+// for feedback"). Lifted from 8 → 12 ft and pulled wider on x so
+// the post-decision overlay (cut path / closed lane) reads
+// end-to-end without occluding defender stance.
+const REPLAY_POSITION = new THREE.Vector3(-24, 12, 32)
+const REPLAY_LOOKAT = new THREE.Vector3(1, 3, 14)
+const REPLAY_FOV = 36
+// Follow: lift + trail distance bumped so the ball-handler stays
+// on screen with their nearest defender's stance still readable.
+const FOLLOW_LIFT_Y = 10
+const FOLLOW_TRAIL_DIST = 14
+const FOLLOW_LOOK_HEIGHT = 4
 
 /**
  * Computes a camera target for the given mode. Returns null only if the
@@ -634,7 +689,10 @@ function followTarget(scene: Scene3D): CameraTarget | null {
       tz + uz * FOLLOW_TRAIL_DIST,
     ),
     lookAt: new THREE.Vector3(tx, FOLLOW_LOOK_HEIGHT, tz),
-    fov: 50,
+    // Phase 5: FOV 50 → 46 so the follow shot doesn't distort
+    // defender hip / shoulder angles when the ball-handler runs
+    // past a defender at close range.
+    fov: 46,
     near: 0.5,
     far: 400,
   }
@@ -660,8 +718,13 @@ function computeAutoTarget(
   scene: Scene3D,
   aspect: number,
   fov: number,
-  pitchDeg = 28,
-  padding = 1.18,
+  // Phase 5: pitch 28° → 30°. Steeper pitch reads paint / arc /
+  // baseline spacing without flattening defender hips & feet
+  // (Section 9 high 3/4 baseline). Padding 1.18 → 1.14 brings the
+  // action closer so the ESC-01 / SKR-01 weak-side helpers don't
+  // get pushed to the edge by movement endpoints.
+  pitchDeg = 30,
+  padding = 1.14,
 ): CameraTarget | null {
   const points: THREE.Vector3[] = []
   for (const p of scene.players) {
@@ -1603,7 +1666,11 @@ function easeInOutCubic(u: number): number {
 // behind the rim center along the +z direction toward the baseline).
 // All numbers in feet.
 const RIM_RADIUS = 0.75
-const RIM_TUBE = 0.06
+// Phase 4: rim tube 0.06 → 0.075. The previous tube read as a wire
+// hoop from the default broadcast camera; bumping the tube radius
+// gives the rim a cast-iron weight without changing its position
+// or net attachment geometry.
+const RIM_TUBE = 0.075
 const BACKBOARD_WIDTH = 6
 const BACKBOARD_HEIGHT = 3.5
 const BACKBOARD_THICKNESS = 0.12
@@ -1617,8 +1684,18 @@ const POLE_RADIUS = 0.22
 const NET_TOP_Y = COURT.rimHeightFt - 0.05
 const NET_BOTTOM_Y = COURT.rimHeightFt - 1.4
 const NET_BOTTOM_RADIUS = 0.42
-const NET_STRANDS = 12
-const NET_RINGS = 4
+// Phase 4: net density bumped 12×4 → 14×5 strand×ring grid. ~80
+// vertical segments + 5×24 horizontal ties (~200 line segments)
+// stays well under the geometry budget while reading as an actual
+// woven net from the broadcast camera.
+const NET_STRANDS = 14
+const NET_RINGS = 5
+// Phase 4: stanchion padding accent — a thin colored stripe on the
+// top of the pole padding so the padding reads as a real foam wrap
+// instead of a pure black cylinder. Uses the same warm gold as the
+// possession ring so the hoop end of the floor reads as one
+// coordinated palette.
+const PADDING_ACCENT_COLOR = '#FFCB44'
 
 /**
  * Builds the full basket assembly: stanchion, backboard with target
@@ -1708,7 +1785,7 @@ function buildHoopAssembly(): THREE.Group {
 
   // Pole padding — black foam wrap for the lower 6 ft of the pole.
   const padding = new THREE.Mesh(
-    new THREE.CylinderGeometry(POLE_RADIUS + 0.18, POLE_RADIUS + 0.18, 6, 16),
+    new THREE.CylinderGeometry(POLE_RADIUS + 0.18, POLE_RADIUS + 0.22, 6, 18),
     new THREE.MeshStandardMaterial({
       color: PADDING_COLOR,
       roughness: 0.95,
@@ -1720,7 +1797,26 @@ function buildHoopAssembly(): THREE.Group {
   padding.receiveShadow = true
   hoop.add(padding)
 
+  // Phase 4: warm-gold accent stripe near the top of the pole padding.
+  // Section 8 calls for a quiet branded color treatment on the
+  // stanchion; the stripe ties the hoop end of the floor to the
+  // possession-ring palette without lifting the padding into the
+  // read.
+  const paddingAccent = new THREE.Mesh(
+    new THREE.CylinderGeometry(POLE_RADIUS + 0.21, POLE_RADIUS + 0.21, 0.18, 18),
+    new THREE.MeshStandardMaterial({
+      color: PADDING_ACCENT_COLOR,
+      roughness: 0.6,
+      metalness: 0.15,
+    }),
+  )
+  paddingAccent.position.set(0, 5.7, POLE_BASE_Z)
+  hoop.add(paddingAccent)
+
   // --- Backboard. Tinted, transparent glass with a thin dark frame.
+  // Phase 4: opacity 0.32 → 0.42 so the glass reads as glass-on-frame
+  // (Section 8) rather than a flat plate, but stays low enough that
+  // overlays behind the rim never get muddied.
   const glass = new THREE.Mesh(
     new THREE.BoxGeometry(
       BACKBOARD_WIDTH,
@@ -1730,7 +1826,7 @@ function buildHoopAssembly(): THREE.Group {
     new THREE.MeshStandardMaterial({
       color: BACKBOARD_GLASS_TINT,
       transparent: true,
-      opacity: 0.32,
+      opacity: 0.42,
       roughness: 0.05,
       metalness: 0.0,
       envMapIntensity: 1.2,
@@ -1742,6 +1838,27 @@ function buildHoopAssembly(): THREE.Group {
   glass.castShadow = false
   glass.receiveShadow = false
   hoop.add(glass)
+
+  // Soft glass highlight — a thin bright plane painted on the front
+  // face that catches the eye like a real-glass reflection. Cheap
+  // (single PlaneGeometry, MeshBasicMaterial, low alpha) and sits
+  // a hair in front of the glass so it never z-fights.
+  const glassHighlight = new THREE.Mesh(
+    new THREE.PlaneGeometry(BACKBOARD_WIDTH * 0.92, BACKBOARD_HEIGHT * 0.18),
+    new THREE.MeshBasicMaterial({
+      color: '#E9F5FF',
+      toneMapped: false,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+    }),
+  )
+  glassHighlight.position.set(
+    0,
+    BACKBOARD_CENTER_Y + BACKBOARD_HEIGHT * 0.28,
+    BACKBOARD_FRONT_Z + 0.005,
+  )
+  hoop.add(glassHighlight)
 
   // Backboard frame — slim dark border around the glass.
   const frameMat = new THREE.MeshStandardMaterial({
@@ -1853,15 +1970,18 @@ function buildHoopAssembly(): THREE.Group {
   hoop.add(targetRight)
 
   // --- Rim. Bright orange torus with a small mounting plate connecting
-  // back to the backboard.
+  // back to the backboard. Phase 4: chunkier tube (constant change),
+  // higher emissive intensity so the rim reads as the brightest spot
+  // on the hoop end of the floor — Section 8: "slightly brighter than
+  // the paint so it always reads."
   const rim = new THREE.Mesh(
-    new THREE.TorusGeometry(RIM_RADIUS, RIM_TUBE, 16, 48),
+    new THREE.TorusGeometry(RIM_RADIUS, RIM_TUBE, 18, 56),
     new THREE.MeshStandardMaterial({
       color: RIM_COLOR,
-      roughness: 0.45,
-      metalness: 0.55,
+      roughness: 0.4,
+      metalness: 0.6,
       emissive: RIM_COLOR,
-      emissiveIntensity: 0.05,
+      emissiveIntensity: 0.12,
     }),
   )
   rim.position.set(0, COURT.rimHeightFt, 0)
@@ -1875,8 +1995,8 @@ function buildHoopAssembly(): THREE.Group {
     new THREE.BoxGeometry(0.42, 0.16, bracketLength),
     new THREE.MeshStandardMaterial({
       color: RIM_COLOR,
-      roughness: 0.5,
-      metalness: 0.5,
+      roughness: 0.45,
+      metalness: 0.55,
     }),
   )
   bracket.position.set(
@@ -1886,6 +2006,22 @@ function buildHoopAssembly(): THREE.Group {
   )
   bracket.castShadow = true
   hoop.add(bracket)
+
+  // Net-attachment lip — a thin torus tucked just below the rim so
+  // the net reads as woven through hooks rather than dangling in
+  // mid-air. Section 8: "net attachment loops visible enough to feel
+  // real, not modeled in high detail." Single torus stays cheap.
+  const netLip = new THREE.Mesh(
+    new THREE.TorusGeometry(RIM_RADIUS - 0.02, 0.03, 10, 36),
+    new THREE.MeshStandardMaterial({
+      color: '#8E2A0A',
+      roughness: 0.55,
+      metalness: 0.5,
+    }),
+  )
+  netLip.position.set(0, COURT.rimHeightFt - 0.05, 0)
+  netLip.rotation.x = Math.PI / 2
+  hoop.add(netLip)
 
   // --- Net. Lightweight LineSegments hung from the rim. A small set of
   // vertical strands plus a few horizontal rings tying them together.
@@ -1967,10 +2103,13 @@ function buildHoopNet(): THREE.LineSegments {
     'position',
     new THREE.Float32BufferAttribute(positions, 3),
   )
+  // Phase 4: opacity 0.85 → 0.92 so the denser strand grid doesn't
+  // wash out at the default broadcast camera. Still LineSegments —
+  // no expensive cloth simulation per Section 8.
   const mat = new THREE.LineBasicMaterial({
     color: NET_COLOR,
     transparent: true,
-    opacity: 0.85,
+    opacity: 0.92,
     toneMapped: false,
   })
   const net = new THREE.LineSegments(geom, mat)
@@ -2412,8 +2551,11 @@ function makeVerticalDarkenTexture(): THREE.CanvasTexture | null {
 function makeHardwoodTexture(): THREE.CanvasTexture | null {
   if (typeof document === 'undefined') return null
   const canvas = document.createElement('canvas')
-  canvas.width = 512
-  canvas.height = 512
+  // Phase 4: bumped 512 → 1024 so plank seams stay crisp from the
+  // default broadcast distance. Texture is still cheap (one canvas
+  // generated at scene-build time, mipmapped, anisotropy 8).
+  canvas.width = 1024
+  canvas.height = 1024
   const ctx = canvas.getContext('2d')
   if (!ctx) return null
 
@@ -2421,29 +2563,46 @@ function makeHardwoodTexture(): THREE.CanvasTexture | null {
   ctx.fillStyle = FLOOR_COLOR
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-  // Vertical planks. Each plank gets a slightly varied base tone and
-  // a few horizontal grain streaks.
-  const plankCount = 8
+  // Phase 4 hardwood retune. The previous texture had high-frequency
+  // grain streaks that competed with painted court lines from the
+  // default camera (Section 8 anti-pattern: "no noisy wood texture
+  // that fights court lines"). The retune:
+  //   - lowers grain count from 14 → 6 streaks per plank
+  //   - drops grain alpha from 0.18 → 0.09 so the streaks read as
+  //     subtle character, not as floor noise
+  //   - keeps the per-plank base-tone variation but tightens its
+  //     amplitude so the floor reads as one continuous court rather
+  //     than a checkerboard of differently-finished planks
+  //   - adds a second cross-grain highlight sweep so the lacquered
+  //     finish reads from any default camera mode
+  const plankCount = 10
   const plankWidth = canvas.width / plankCount
   for (let i = 0; i < plankCount; i++) {
     const x = i * plankWidth
-    // Slight per-plank tone variation so planks read as individual
-    // pieces of wood rather than a single wash.
-    const variation = Math.sin(i * 12.3) * 18
-    const r = 199 + variation
-    const g = 122 + variation * 0.6
-    const b = 54 + variation * 0.3
+    const variation = Math.sin(i * 12.3) * 10
+    const r = 188 + variation
+    const g = 123 + variation * 0.55
+    const b = 58 + variation * 0.3
     ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
     ctx.fillRect(x, 0, plankWidth, canvas.height)
 
-    // Grain — short horizontal streaks at random heights.
+    // Soft per-plank shadow on the left edge — sells "edge of board"
+    // without a full dark seam line.
+    const edgeGrad = ctx.createLinearGradient(x, 0, x + plankWidth * 0.12, 0)
+    edgeGrad.addColorStop(0, 'rgba(70, 38, 14, 0.22)')
+    edgeGrad.addColorStop(1, 'rgba(70, 38, 14, 0)')
+    ctx.fillStyle = edgeGrad
+    ctx.fillRect(x, 0, plankWidth * 0.12, canvas.height)
+
+    // Grain — fewer, longer, lower-alpha streaks so the wood reads
+    // as wood without out-shouting the painted court lines above it.
     ctx.strokeStyle = FLOOR_PLANK_DARK
-    ctx.globalAlpha = 0.18
+    ctx.globalAlpha = 0.09
     ctx.lineWidth = 1
-    for (let g = 0; g < 14; g++) {
+    for (let g = 0; g < 6; g++) {
       const gy = Math.floor((Math.sin(i * 47 + g * 11.7) * 0.5 + 0.5) * canvas.height)
       const gx = x + Math.floor((Math.cos(i * 31 + g * 7.3) * 0.5 + 0.5) * plankWidth * 0.6)
-      const len = 30 + Math.floor((Math.sin(g * 3.1) * 0.5 + 0.5) * 60)
+      const len = 80 + Math.floor((Math.sin(g * 3.1) * 0.5 + 0.5) * 120)
       ctx.beginPath()
       ctx.moveTo(gx, gy)
       ctx.lineTo(gx + len, gy + (Math.sin(g) * 0.5))
@@ -2452,8 +2611,10 @@ function makeHardwoodTexture(): THREE.CanvasTexture | null {
     ctx.globalAlpha = 1
 
     // Plank seam — thin dark line on the right edge of every plank.
-    ctx.strokeStyle = 'rgba(60, 30, 8, 0.55)'
-    ctx.lineWidth = 1.4
+    // Slightly less aggressive alpha than before so seams read as
+    // wood joints rather than as painted lines.
+    ctx.strokeStyle = 'rgba(60, 32, 10, 0.42)'
+    ctx.lineWidth = 1.6
     ctx.beginPath()
     ctx.moveTo(x + plankWidth, 0)
     ctx.lineTo(x + plankWidth, canvas.height)
@@ -2461,13 +2622,22 @@ function makeHardwoodTexture(): THREE.CanvasTexture | null {
   }
 
   // Soft varnish highlight — a single broad diagonal sweep that
-  // suggests a lacquered finish.
+  // suggests a lacquered finish. Phase 4: paired with a perpendicular
+  // sweep so the highlight reads from both broadcast and tactical
+  // camera modes.
   const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
-  grad.addColorStop(0, 'rgba(255, 226, 176, 0.0)')
-  grad.addColorStop(0.45, `rgba(255, 226, 176, 0.10)`)
-  grad.addColorStop(0.55, `rgba(255, 226, 176, 0.10)`)
-  grad.addColorStop(1, 'rgba(255, 226, 176, 0.0)')
+  grad.addColorStop(0, 'rgba(244, 217, 168, 0.0)')
+  grad.addColorStop(0.45, `rgba(244, 217, 168, 0.12)`)
+  grad.addColorStop(0.55, `rgba(244, 217, 168, 0.12)`)
+  grad.addColorStop(1, 'rgba(244, 217, 168, 0.0)')
   ctx.fillStyle = grad
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+  const grad2 = ctx.createLinearGradient(canvas.width, 0, 0, canvas.height)
+  grad2.addColorStop(0, 'rgba(244, 217, 168, 0.0)')
+  grad2.addColorStop(0.5, `rgba(244, 217, 168, 0.06)`)
+  grad2.addColorStop(1, 'rgba(244, 217, 168, 0.0)')
+  ctx.fillStyle = grad2
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 
   const tex = new THREE.CanvasTexture(canvas)
@@ -2479,7 +2649,7 @@ function makeHardwoodTexture(): THREE.CanvasTexture | null {
   tex.repeat.set(2, 1)
   tex.minFilter = THREE.LinearMipMapLinearFilter
   tex.magFilter = THREE.LinearFilter
-  tex.anisotropy = 4
+  tex.anisotropy = 8
   tex.needsUpdate = true
   return tex
 }
@@ -3323,24 +3493,59 @@ function buildPlayerFigure(
   contactShadow.renderOrder = -1
   figure.add(contactShadow)
 
-  // Possession ring — a warm-gold outer band only present on the
-  // initial ball-handler. Sits OUTSIDE the team ring so both can be
-  // read at a glance without one occluding the other.
-  if (hasBall) {
-    const possession = new THREE.Mesh(
-      new THREE.RingGeometry(PLAYER_RADIUS + 0.55, PLAYER_RADIUS + 0.85, 48),
-      new THREE.MeshBasicMaterial({
-        color: POSSESSION_RING_COLOR,
-        toneMapped: false,
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.95,
-      }),
-    )
-    possession.rotation.x = -Math.PI / 2
-    possession.position.y = 0.045
-    figure.add(possession)
-  }
+  // ---- Phase 3: layered role / state indicators ---------------------
+  // Indicators live on three named sub-groups parented to the figure
+  // root so the indicator system from Section 7 (base / user /
+  // possession) is structurally legible and so the teaching overlay
+  // can find / hide them later without rebuilding geometry. Layer
+  // visibility is the contract; geometry is unchanged from Phase 2.
+  //
+  //   base       — team identity ring + inner outline. Always on.
+  //                Never animated.
+  //   user       — user-only halo + soft halo on the floor and the
+  //                "YOU" chevron above the head. Visible only on the
+  //                user-controlled player. Never animated.
+  //   possession — warm-gold ball-handler band. Visible only on the
+  //                ball-handler. Never animated.
+  //
+  // Pulse is reserved for the focus / feedback layers, which live on
+  // the teaching overlay (per imperativeTeachingOverlay) rather than
+  // on the player figure.
+  const baseLayer = new THREE.Group()
+  baseLayer.name = 'indicator-layer-base'
+  const userLayer = new THREE.Group()
+  userLayer.name = 'indicator-layer-user'
+  userLayer.visible = isUser
+  const possessionLayer = new THREE.Group()
+  possessionLayer.name = 'indicator-layer-possession'
+  possessionLayer.visible = hasBall
+  // The user chevron has to ride the upper body so it follows the
+  // crouch translation. Its own named sub-group keeps it discoverable
+  // alongside the other user-layer pieces.
+  const userHeadLayer = new THREE.Group()
+  userHeadLayer.name = 'indicator-layer-user-head'
+  userHeadLayer.visible = isUser
+
+  // Possession ring — a warm-gold outer band that sits OUTSIDE the
+  // team ring so both can be read at a glance without one occluding
+  // the other. The geometry is built for every player and the layer's
+  // visibility flag drives whether it shows; this keeps the
+  // `getPlayerIndicatorLayers(...).possession.visible = true` post-mount
+  // contract honest, so a future ball-handoff can flip possession on
+  // a non-initial holder without rebuilding any geometry.
+  const possession = new THREE.Mesh(
+    new THREE.RingGeometry(PLAYER_RADIUS + 0.55, PLAYER_RADIUS + 0.85, 48),
+    new THREE.MeshBasicMaterial({
+      color: POSSESSION_RING_COLOR,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.95,
+    }),
+  )
+  possession.rotation.x = -Math.PI / 2
+  possession.position.y = 0.045
+  possessionLayer.add(possession)
 
   // Floor disc — keeps the existing team-colored selection ring used
   // upstream by the 2D motion overlay so the renderer reads the same.
@@ -3360,7 +3565,7 @@ function buildPlayerFigure(
   )
   ring.rotation.x = -Math.PI / 2
   ring.position.y = 0.05
-  figure.add(ring)
+  baseLayer.add(ring)
 
   // Inner ring outline — a thin bright ring just inside the team
   // ring. Adds a clean edge so the ring reads as a lit disc, not as
@@ -3377,7 +3582,7 @@ function buildPlayerFigure(
   )
   innerOutline.rotation.x = -Math.PI / 2
   innerOutline.position.y = 0.052
-  figure.add(innerOutline)
+  baseLayer.add(innerOutline)
 
   if (isUser) {
     // Outer halo — a wider, brighter mint band around the team ring
@@ -3394,7 +3599,7 @@ function buildPlayerFigure(
     )
     halo.rotation.x = -Math.PI / 2
     halo.position.y = 0.046
-    figure.add(halo)
+    userLayer.add(halo)
 
     // Soft outer fade — a very faint, wide ring that creates a
     // "spotlight" feel under the user without being a hard edge.
@@ -3410,7 +3615,7 @@ function buildPlayerFigure(
     )
     softHalo.rotation.x = -Math.PI / 2
     softHalo.position.y = 0.044
-    figure.add(softHalo)
+    userLayer.add(softHalo)
 
     // Floating "YOU" chevron — a small downward-pointing cone in mint
     // that hovers above the head. Parented to upperBody so it follows
@@ -3424,7 +3629,7 @@ function buildPlayerFigure(
     )
     chevron.rotation.x = Math.PI
     chevron.position.set(0, HEAD_Y + HEAD_RADIUS + 1.1, 0)
-    upperBody.add(chevron)
+    userHeadLayer.add(chevron)
 
     // Chevron outline — thin dark cone behind the mint cone so the
     // floating marker reads against the bright gym walls without
@@ -3441,10 +3646,76 @@ function buildPlayerFigure(
     chevronOutline.rotation.x = Math.PI
     chevronOutline.position.set(0, HEAD_Y + HEAD_RADIUS + 1.1, 0)
     chevronOutline.renderOrder = -1
-    upperBody.add(chevronOutline)
+    userHeadLayer.add(chevronOutline)
   }
 
+  // Attach indicator layers in z-order: base under user halo under
+  // possession band so the warm-gold ball-handler ring is never
+  // hidden by the team ring beneath it.
+  figure.add(baseLayer)
+  figure.add(userLayer)
+  figure.add(possessionLayer)
+  upperBody.add(userHeadLayer)
+
+  // Public, named handle to the role-state layers so future code (e.g.
+  // ball-handoff updates that flip possession after the scene mounts)
+  // can `getPlayerLayers(figure).possession.visible = true` without
+  // rebuilding any geometry. Stays `any`-typed via userData rather
+  // than threading a new field through every player return type.
+  const indicatorLayers: PlayerIndicatorLayers = {
+    base: baseLayer,
+    user: userLayer,
+    userHead: userHeadLayer,
+    possession: possessionLayer,
+  }
+  ;(figure.userData as Record<string, unknown>).indicatorLayers = indicatorLayers
+
   return figure
+}
+
+/**
+ * Phase 3 — named handles to the role/state indicator layers attached
+ * to a player figure. Caller-owned: the figure itself owns the
+ * lifetime; this struct is a non-owning view into its sub-groups.
+ *
+ * Layer policy (per Section 7):
+ *   base       — team identity, always on, never animated
+ *   user       — user-only floor halos, visible iff isUser
+ *   userHead   — user-only "YOU" chevron, parented to upper body so it
+ *                follows the defensive / denial crouch translation
+ *   possession — ball-handler ring, visible iff this player has the
+ *                ball at scene-build time
+ *
+ * Pulse animation lives in the teaching overlay's focus / feedback
+ * marks layer, not on these groups; do not animate them.
+ */
+export interface PlayerIndicatorLayers {
+  base: THREE.Group
+  user: THREE.Group
+  userHead: THREE.Group
+  possession: THREE.Group
+}
+
+/**
+ * Phase 3 — returns the named indicator layer handles attached to a
+ * player figure built by `buildPlayerFigure`, or `null` if the object
+ * was not built by this module. Lookup is O(1) (userData read).
+ */
+export function getPlayerIndicatorLayers(
+  figure: THREE.Object3D,
+): PlayerIndicatorLayers | null {
+  const layers = (figure.userData as Record<string, unknown>).indicatorLayers
+  if (!layers || typeof layers !== 'object') return null
+  const candidate = layers as Partial<PlayerIndicatorLayers>
+  if (
+    !candidate.base ||
+    !candidate.user ||
+    !candidate.userHead ||
+    !candidate.possession
+  ) {
+    return null
+  }
+  return candidate as PlayerIndicatorLayers
 }
 
 /**
@@ -3491,6 +3762,7 @@ function addArcLines(
   sweep: number,
   y: number,
   z: number,
+  thickness: number = 0.14,
 ): void {
   const segments = 64
   const start = -sweep / 2
@@ -3505,7 +3777,7 @@ function addArcLines(
     const b = points[i + 1]
     const startV = new THREE.Vector3(a[0], y, a[1] + z)
     const endV = new THREE.Vector3(b[0], y, b[1] + z)
-    parent.add(buildTubeLine(startV, endV, 0.14))
+    parent.add(buildTubeLine(startV, endV, thickness))
   }
 }
 
