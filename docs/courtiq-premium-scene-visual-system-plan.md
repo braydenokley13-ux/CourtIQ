@@ -910,3 +910,277 @@ renderer in a working state, and has a clear acceptance criterion.
 - **Deliverable.** Ready-to-implement final polish list.
 
 ---
+
+## 13. Scenario-Specific Visual Requirements
+
+The visual system must serve the **founder scenarios**. Each scenario
+asks for a slightly different cue, but all of them must work with the
+same player models, indicator layers, court, lighting, and overlay
+state machine. If a scenario needs a special case, that is a sign the
+system is too narrow.
+
+### BDW-01 — Denied Wing Backdoor
+
+- **Denial stance readable.** The wing defender's stance must clearly
+  show denial — hand in the passing lane, hips and feet angled toward
+  the ball, body between passer and receiver.
+- **Passing lane blocked.** Pre-decision overlay should faintly show
+  the closed wing pass lane without flashing it.
+- **Backdoor lane visible after reveal.** Post-decision, the cut path
+  to the rim must animate cleanly end-to-end.
+- **User player distinct.** The user identity halo must remain
+  unmistakable while focus / cue layers are active on the wing
+  defender.
+- **Defender hip/foot angle obvious.** The hips/feet arrow overlay
+  (Section 10) must read on the denial defender from the default
+  camera.
+
+### ESC-01 — Empty Corner Baseline Sneak
+
+- **Empty corner geometry obvious.** The strong-side corner must
+  visibly **not have an offensive player** — empty space is the cue.
+- **Help step readable.** The weak-side helper's first step toward
+  the ball must be visible; this is what opens the baseline.
+- **Baseline cut lane clear.** Post-decision, the baseline cut path
+  animates from origin to rim without occlusion by the stanchion.
+- **Weak-side helper visible.** Camera framing must keep the weak-
+  side helper in frame **at the same time** as the strong-side play.
+
+### AOR-01 — No Gap Go Now
+
+- **Closeout distance readable.** The gap (or lack of gap) between
+  ball-handler and the closing-out defender must be readable from
+  the default camera.
+- **Defender momentum readable.** The closeout defender's body and
+  feet must communicate "out of control" vs "balanced." Hips/feet
+  arrows are allowed in the cue state to teach this.
+- **Empty baseline lane obvious.** The available drive lane to the
+  baseline must read clearly once the user makes the right read.
+- **First-touch urgency visible.** Post-decision, the drive path
+  should animate fast — the lesson is *go now*, and the visual
+  feedback should match that energy.
+
+### SKR-01 — Paint Touch Opposite Corner
+
+- **Weak-side shrink readable.** The weak-side defender stepping
+  toward the paint must be visibly shrinking off their assignment.
+- **Opposite corner visible.** The opposite corner shooter and the
+  open space around them must remain in frame.
+- **Overhelp obvious.** The cue layer should highlight the over-
+  helping defender so the user can read why the skip is there.
+- **Skip lane clean after feedback reveal.** Post-decision, the skip
+  pass path animates clearly across the court without fighting
+  overlays in the middle of the frame.
+
+### Future scenarios
+
+- **SKR-02, AOR-03, and beyond** must inherit the same player models,
+  indicator layers, court, lighting, and overlay state machine. New
+  scenarios should never require a new player class, a new role
+  layer, or a new floor highlight color. The visual system scales by
+  composing the existing layers, not by adding more.
+
+---
+
+## 14. Performance Rules
+
+> **Performance-safe polish.**
+
+The product runs on Mac. Polish that costs frames is not polish.
+
+- **Geometry budgets should be reasonable.** Each player stays well
+  under a modest tri budget; the court, hoop, and stanchion together
+  do not balloon. Fancy geometry growth must justify itself with a
+  visible readability win.
+- **Avoid expensive per-frame effects unless necessary.** No realtime
+  cloth, no realtime fluid, no per-frame shader allocations. Pulses
+  and animations should be cheap parameter sweeps, not heavy passes.
+- **Prefer reusable primitives.** Rings, halos, pips, and arrows are
+  shared meshes / materials, instanced or cloned where possible.
+  Five players should not mean five copies of every indicator
+  geometry.
+- **Avoid excessive shadows or postprocessing.** One soft contact
+  shadow per player is enough. Skip aggressive bloom, SSAO, motion
+  blur, and depth of field.
+- **Test on Mac.** The Mac integrated-GPU laptop is the perf target.
+  Anything that looks great on a desktop GPU but lags on Mac is a
+  regression.
+- **Preserve smooth playback controls.** Replay scrubbing, 0.5x /
+  1x / 2x must stay smooth on every scenario. If a visual upgrade
+  hurts replay smoothness, it is rolled back.
+- **Keep overlays lightweight.** Overlays use simple geometry, flat
+  shaders, and short-lived animations. Any overlay that requires a
+  custom shader pass must justify itself.
+- **Avoid making player variation too expensive.** Per-player tweaks
+  (height, build, jersey number) should be parameter changes on a
+  shared player builder, not unique meshes per player.
+
+---
+
+## 15. QA Checklist
+
+The plan is not complete until every item below passes on every
+founder scenario. This is the bar.
+
+- [ ] Can the user identify themselves instantly?
+- [ ] Can the user identify the ball-handler instantly?
+- [ ] Can the user read offense vs defense instantly?
+- [ ] Can the user see defender body angle (hips, shoulders, feet)?
+- [ ] Can the user see the open window before the answer reveal —
+      without the overlay handing them the answer?
+- [ ] Are overlays sparse before the choice?
+- [ ] Are overlays explanatory after the choice?
+- [ ] Does the court look premium but not distracting?
+- [ ] Does the scene still run well on Mac?
+- [ ] Does the visual system work for BDW-01, ESC-01, AOR-01, and
+      SKR-01 with no scenario-specific hacks?
+
+---
+
+## 16. Implementation Prompt Sequence
+
+These are the prompts to paste into a future Claude Code session, one
+at a time, to implement this plan. Each prompt is small-commit
+friendly and explicitly tells Claude not to over-scope.
+
+> Run prompts in order. Do not skip ahead. Do not bundle phases.
+
+### 1. Phase 1 — Audit only
+
+```
+Read docs/courtiq-premium-scene-visual-system-plan.md, Section 12,
+Phase 1.
+
+Do Phase 1 ONLY. This phase is read-only. Do NOT modify the renderer,
+players, court, indicators, overlays, lighting, camera, or shell.
+
+Produce a written file map and risk notes covering:
+- player geometry
+- court geometry
+- hoop / stanchion geometry
+- indicators
+- overlays
+- lighting
+- camera
+- module shell
+
+Append the audit as a new section to
+docs/courtiq-premium-scene-visual-system-plan.md or as a sibling doc,
+whichever fits the existing docs style.
+
+Commit small. Do not start Phase 2.
+```
+
+### 2. Phase 2 — Player visual foundation
+
+```
+Read docs/courtiq-premium-scene-visual-system-plan.md, Sections 4, 6,
+14, and 12 / Phase 2. Use the Phase 1 audit to locate files.
+
+Implement Phase 2 ONLY: improve the player model silhouette,
+proportions, and stance per Section 6. Do NOT touch indicators,
+court, hoop, lighting, camera, or shell.
+
+Constraints:
+- readability beats realism
+- the user player must remain unmistakable
+- stay under the player tri budget; test on Mac
+- one player builder, parameterized by role and stance
+
+Commit small. Stop when Phase 2 acceptance criteria pass.
+```
+
+### 3. Phase 3 — Player role UI / indicators
+
+```
+Read docs/courtiq-premium-scene-visual-system-plan.md, Sections 4, 7,
+13, 14, and 12 / Phase 3.
+
+Implement Phase 3 ONLY: the layered indicator system (base, user,
+possession, focus, feedback). Do NOT change player geometry, court,
+hoop, lighting, camera, or shell.
+
+Constraints:
+- offense, defense, ball, and focus states readable in one glance
+- the user player feels unmistakable even when focus is active
+- pulse is reserved for focus / cue and incorrect-choice consequence
+- indicators are shared, lightweight primitives
+
+Commit small. Stop at the Phase 3 acceptance criteria.
+```
+
+### 4. Phase 4 — Court / hoop polish
+
+```
+Read docs/courtiq-premium-scene-visual-system-plan.md, Sections 4, 8,
+14, and 12 / Phase 4.
+
+Implement Phase 4 ONLY: hardwood material, court lines, paint, arc,
+hoop, backboard, rim, net, stanchion, and quiet background. Do NOT
+change players, indicators, lighting, camera, or shell.
+
+Constraints:
+- the court is a teaching stage, not decoration
+- crisp lines beat photoreal grain
+- nothing on the court out-shouts the players
+- stay within the geometry / material budget
+
+Commit small. Stop at the Phase 4 acceptance criteria.
+```
+
+### 5. Phase 5 — Lighting / camera polish
+
+```
+Read docs/courtiq-premium-scene-visual-system-plan.md, Sections 4, 9,
+13, 14, and 12 / Phase 5.
+
+Implement Phase 5 ONLY: default high 3/4 camera, lighting, contrast,
+subtle broadcast feel, scenario-specific framing nudges per Section
+13. Do NOT change players, indicators, court geometry, or shell.
+
+Constraints:
+- spacing and defender stance must read from the default camera
+- no muddy shadows, no aggressive cinematic moves during live
+  decisions
+- camera nudges per scenario must not break the baseline
+
+Commit small. Stop at the Phase 5 acceptance criteria.
+```
+
+### 6. Phase 6 — Module shell polish
+
+```
+Read docs/courtiq-premium-scene-visual-system-plan.md, Sections 4, 11,
+and 12 / Phase 6.
+
+Implement Phase 6 ONLY: decoder pill, step row, scene control chips,
+playback bar, answer cards, glass treatment, spacing. Do NOT redesign
+nav / dashboard / settings. Do NOT change anything inside the canvas.
+
+Constraints:
+- shell defers to the court at all times
+- shell colors / motion / glass match the upgraded scene
+- eye path is scene → cue → answer cards
+- no shell element blocks the read area on small windows
+
+Commit small. Stop at the Phase 6 acceptance criteria.
+```
+
+### 7. Phase 7 — QA / tuning
+
+```
+Read docs/courtiq-premium-scene-visual-system-plan.md, Sections 13,
+14, 15, and 12 / Phase 7.
+
+Implement Phase 7 ONLY: targeted tuning to pass the Section 15 QA
+checklist on BDW-01, ESC-01, AOR-01, and SKR-01. No new features.
+
+Constraints:
+- performance-safe polish; verify Mac frame rate
+- no scenario may regress to fix another
+- prefer the smallest possible diff per QA item
+
+Commit small. Stop when every QA item passes.
+```
+
+---
