@@ -6,8 +6,9 @@
 
 import type { CourtState } from '@/components/court'
 import { COURT, projectLegacyPoint, type CourtPoint } from './coords'
-import { sceneSchema } from './schema'
+import { resolveFreezeAtMs, sceneSchema, type FreezeMarker } from './schema'
 import { getPresetForConcept } from './presets'
+import { buildTimeline } from './timeline'
 
 export type SceneTeam = 'offense' | 'defense'
 
@@ -32,11 +33,28 @@ export interface SceneBall {
   holderId?: string
 }
 
+export type SceneMovementKind =
+  | 'cut'
+  | 'closeout'
+  | 'rotation'
+  | 'lift'
+  | 'drift'
+  | 'pass'
+  | 'drive'
+  | 'stop_ball'
+  // Phase B additions — see `apps/web/lib/scenario3d/schema.ts` for the
+  // matching Zod enum. Renderer behaviour is unchanged at this phase.
+  | 'back_cut'
+  | 'baseline_sneak'
+  | 'skip_pass'
+  | 'rip'
+  | 'jab'
+
 export interface SceneMovement {
   id: string
   /** Player id, or "ball" for a pass. */
   playerId: string
-  kind: 'cut' | 'closeout' | 'rotation' | 'lift' | 'drift' | 'pass' | 'drive' | 'stop_ball'
+  kind: SceneMovementKind
   to: CourtPoint
   /** ms before this movement starts after replay begins. */
   delayMs?: number
@@ -46,16 +64,49 @@ export interface SceneMovement {
   caption?: string
 }
 
+export type SceneCameraPreset =
+  | 'teaching_angle'
+  | 'defense'
+  | 'top_down'
+  // Phase B addition. Runtime mapping for this preset is wired in
+  // Phase E/G; today the canvas falls back to its existing framing.
+  | 'passer_side_three_quarter'
+
+/**
+ * Phase D — per-choice consequence demo. Plays the chosen wrong / acceptable
+ * read after the freeze, before the answer-demo replay. Empty for legacy
+ * scenes; populated from the authored `scene.wrongDemos[]` block (Phase B
+ * Zod schema).
+ */
+export interface SceneWrongDemo {
+  choiceId: string
+  movements: SceneMovement[]
+  caption?: string
+}
+
 export interface Scene3D {
   /** Stable identifier for memoising frames. */
   id: string
   type?: string
   court: 'half' | 'full'
-  camera: 'teaching_angle' | 'defense' | 'top_down'
+  camera: SceneCameraPreset
   players: ScenePlayer[]
   ball: SceneBall
   movements: SceneMovement[]
   answerDemo: SceneMovement[]
+  /**
+   * Phase D — consequence demos keyed by choiceId. Empty for legacy
+   * scenes (no authored wrongDemos block).
+   */
+  wrongDemos: SceneWrongDemo[]
+  /**
+   * Phase B — resolved freeze cue, in ms from the start of `movements`.
+   * `null` means "no freeze authored" (renderer treats this as "freeze at
+   * end of `movements`", per Section 4.4). Authors set this via the
+   * `freezeMarker` field on the input scene; both `atMs` and
+   * `beforeMovementId` forms collapse here at scene load.
+   */
+  freezeAtMs: number | null
   /** True if the scene was synthesised from legacy court_state. */
   synthetic: boolean
 }
@@ -77,6 +128,8 @@ interface AuthoredScene {
   ball?: SceneBall
   movements?: SceneMovement[]
   answerDemo?: SceneMovement[]
+  wrongDemos?: SceneWrongDemo[]
+  freezeMarker?: FreezeMarker
 }
 
 interface SourceScenario {
@@ -140,6 +193,8 @@ function normaliseAuthoredScene(id: string, scene: AuthoredScene): Scene3D {
       hasBall: !!p.hasBall,
       color: p.color,
     })) ?? []
+  const movements = scene.movements ?? []
+  const freezeAtMs = resolveFreezeFromAuthored(players, scene.ball, movements, scene.freezeMarker)
   return {
     id,
     type: scene.type,
@@ -147,10 +202,47 @@ function normaliseAuthoredScene(id: string, scene: AuthoredScene): Scene3D {
     camera: scene.camera ?? 'teaching_angle',
     players,
     ball: scene.ball ?? { start: { x: 0, z: 0 } },
-    movements: scene.movements ?? [],
+    movements,
     answerDemo: scene.answerDemo ?? [],
+    wrongDemos: scene.wrongDemos ?? [],
+    freezeAtMs,
     synthetic: false,
   }
+}
+
+/**
+ * Resolves an authored `freezeMarker` to an absolute `freezeAtMs`. Builds
+ * a throwaway timeline so the `beforeMovementId` form picks up the same
+ * `startMs` the renderer will sample at runtime. Defensive against
+ * malformed input — returns `null` if no freeze can be resolved.
+ */
+function resolveFreezeFromAuthored(
+  players: ScenePlayer[],
+  ball: SceneBall | undefined,
+  movements: SceneMovement[],
+  marker: FreezeMarker | undefined,
+): number | null {
+  if (!marker) return null
+  if (marker.kind === 'atMs') return marker.atMs
+  // beforeMovementId — resolve via buildTimeline so chained movements
+  // share the same startMs math the runtime uses.
+  const proxyScene: Scene3D = {
+    id: 'freeze-resolution',
+    court: 'half',
+    camera: 'teaching_angle',
+    players,
+    ball: ball ?? { start: { x: 0, z: 0 } },
+    movements,
+    answerDemo: [],
+    wrongDemos: [],
+    freezeAtMs: null,
+    synthetic: false,
+  }
+  const timeline = buildTimeline(proxyScene, movements)
+  return resolveFreezeAtMs(
+    marker,
+    timeline.movements.map((m) => ({ id: m.id, startMs: m.startMs })),
+  )
 }
 
 function synthesiseSceneFromCourtState(
@@ -208,6 +300,8 @@ function synthesiseSceneFromCourtState(
     ball: { start: ballPoint, holderId: holder?.id },
     movements: [],
     answerDemo: [],
+    wrongDemos: [],
+    freezeAtMs: null,
     synthetic: true,
   }
 }
@@ -227,6 +321,8 @@ export function createDefaultScene(id = 'default_3d_scene'): Scene3D {
     ball: { start: { x: 0, z: 22 }, holderId: 'you' },
     movements: [],
     answerDemo: [],
+    wrongDemos: [],
+    freezeAtMs: null,
     synthetic: true,
   }
 }
@@ -283,12 +379,24 @@ function sanitiseScene(scene: Scene3D): Scene3D {
       }))
   }
 
+  const cleanWrongDemos = (list: SceneWrongDemo[] | undefined): SceneWrongDemo[] => {
+    if (!Array.isArray(list)) return []
+    return list
+      .filter((d) => d && typeof d.choiceId === 'string')
+      .map((d) => ({
+        choiceId: d.choiceId,
+        movements: cleanMovements(d.movements),
+        caption: d.caption,
+      }))
+  }
+
   return {
     ...scene,
     players,
     ball,
     movements: cleanMovements(scene.movements),
     answerDemo: cleanMovements(scene.answerDemo),
+    wrongDemos: cleanWrongDemos(scene.wrongDemos),
   }
 }
 

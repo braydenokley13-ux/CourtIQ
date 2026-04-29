@@ -84,6 +84,7 @@ export async function POST(
     await updateMastery(tx, {
       userId: body.userId!,
       conceptIds: scenario.concept_tags,
+      decoderTag: scenario.decoder_tag,
       isCorrect: selectedChoice.is_correct,
     })
 

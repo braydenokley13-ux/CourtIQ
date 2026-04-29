@@ -10,12 +10,14 @@
  */
 
 import * as THREE from 'three'
+import type { CourtPoint } from '@/lib/scenario3d/coords'
 import { COURT } from '@/lib/scenario3d/coords'
 import type { Scene3D, SceneMovement, SceneTeam } from '@/lib/scenario3d/scene'
 import {
   buildTimeline,
   resolveBallStart,
   samplePlayer,
+  samplePositionsAt,
   type ResolvedMovement,
   type Timeline,
 } from '@/lib/scenario3d/timeline'
@@ -798,6 +800,15 @@ export class MotionController {
   // Cleared by `consumePassArrival()` so the parent rAF loop can read
   // it once per arrival without re-triggering on subsequent frames.
   private pendingPassArrival = false
+  // Phase D — playback hard-cap. When set, `getElapsedMs` clamps the
+  // visible t at this value so the rendered transforms freeze on the
+  // cue. tick() fires `pendingFrozen` once when t first crosses this
+  // threshold; the state-machine layer reads the flag via
+  // `consumeFrozen()` and transitions `playing → frozen`. null means
+  // "play to end of timeline" (legacy behaviour).
+  private freezeAtMs: number | null = null
+  private hasFiredFrozen = false
+  private pendingFrozen = false
 
   constructor(
     scene: Scene3D,
@@ -832,6 +843,8 @@ export class MotionController {
     this.pausedAtT = null
     this.lastPhaseIndex = -1
     this.pendingPassArrival = false
+    this.hasFiredFrozen = false
+    this.pendingFrozen = false
   }
 
   /** Returns true (and clears the flag) once after a pass phase ends
@@ -886,14 +899,60 @@ export class MotionController {
   }
 
   /** Returns the current playback elapsed time in ms (clamped to the
-   *  timeline length). Useful for tests / diagnostics; not currently
-   *  used by the renderer itself.
+   *  timeline length, or to `freezeAtMs` when one is set).
    */
   getElapsedMs(nowMs: number): number {
     if (this.pausedAtT !== null) return this.pausedAtT
     if (this.startedAt === null) return 0
     const raw = (nowMs - this.startedAt - MOTION_PRE_DELAY_MS) * this.playbackRate
-    return Math.max(0, Math.min(raw, this.timeline.totalMs))
+    return Math.max(0, Math.min(raw, this.effectiveCapMs()))
+  }
+
+  /** Effective upper bound on the visible t for the current leg. The
+   *  cap is the smaller of the timeline length and the explicit
+   *  freezeAtMs (when set). Encapsulating this keeps `getElapsedMs`,
+   *  `isPlaybackComplete`, and the freeze detection in `tick` consistent.
+   */
+  private effectiveCapMs(): number {
+    if (this.freezeAtMs !== null) {
+      return Math.max(0, Math.min(this.freezeAtMs, this.timeline.totalMs))
+    }
+    return this.timeline.totalMs
+  }
+
+  /** Phase D — sets (or clears) the freeze hard-cap. The next tick that
+   *  crosses the cap fires the one-shot `pendingFrozen` flag exactly
+   *  once; subsequent ticks hold the rendered transforms steady at the
+   *  freeze pose. Pass `null` to drop the cap and resume normal
+   *  end-of-timeline playback (used by `startConsequence` / `startReplay`).
+   */
+  setFreezeAtMs(ms: number | null): void {
+    this.freezeAtMs = ms
+    this.hasFiredFrozen = false
+    this.pendingFrozen = false
+  }
+
+  /** Phase D — reads the one-shot frozen flag. Returns true exactly
+   *  once after the playhead crosses `freezeAtMs`; subsequent calls
+   *  return false until `setFreezeAtMs` / `setMovements` resets it.
+   */
+  consumeFrozen(): boolean {
+    if (this.pendingFrozen) {
+      this.pendingFrozen = false
+      return true
+    }
+    return false
+  }
+
+  /** Phase D — true when the playhead has reached the end of the
+   *  current movement list. Used by the state machine to detect
+   *  consequence-leg / replay-leg completion. Falls back to false for
+   *  empty timelines (so callers don't transition immediately on
+   *  zero-movement legs).
+   */
+  isPlaybackComplete(nowMs: number): boolean {
+    if (this.timeline.totalMs <= 0) return false
+    return this.getElapsedMs(nowMs) >= this.timeline.totalMs
   }
 
   /** Mutates player + ball positions for the current playback time.
@@ -909,6 +968,20 @@ export class MotionController {
       this.timeline.totalMs > 0
         ? this.getElapsedMs(nowMs)
         : 0
+
+    // Phase D — fire the one-shot frozen flag the first time t reaches
+    // the cap. Held in `pendingFrozen` so the state-machine consumer
+    // sees it exactly once, even if the parent rAF loop calls tick()
+    // many times after the cap was first crossed.
+    if (
+      this.freezeAtMs !== null &&
+      !this.hasFiredFrozen &&
+      this.timeline.totalMs > 0 &&
+      t >= this.effectiveCapMs()
+    ) {
+      this.pendingFrozen = true
+      this.hasFiredFrozen = true
+    }
 
     // Players first so the ball's holder-follow logic sees the
     // up-to-date sampled position when it reads samplePlayer().
@@ -1076,6 +1149,266 @@ export class MotionController {
       if (t >= phase.startMs && t <= phase.endMs) return i
     }
     return this.phases.length - 1
+  }
+
+  /**
+   * Phase D — swaps the active movement list. Used by the state machine
+   * to drive `frozen → consequence → replaying`. The new timeline starts
+   * from `startOverrides` (typically the freeze snapshot) so the
+   * consequence and replay legs resume from the visible pose rather than
+   * snapping back to `scene.players[*].start`. The freeze cap is cleared
+   * — the new leg always plays to its end.
+   */
+  setMovements(
+    movements: SceneMovement[],
+    startOverrides?: ReadonlyMap<string, CourtPoint>,
+  ): void {
+    this.timeline = buildTimeline(this.scene, movements, { startOverrides })
+    this.initialHolderId =
+      startOverrides && startOverrides.has('ball')
+        ? this.findHolderForOverride(startOverrides)
+        : resolveInitialHolder(this.scene)
+    this.phases = this.computeBallPhases()
+    this.startedAt = null
+    this.pausedAtT = null
+    this.lastPhaseIndex = -1
+    this.pendingPassArrival = false
+    this.freezeAtMs = null
+    this.hasFiredFrozen = false
+    this.pendingFrozen = false
+  }
+
+  /** Phase D — captures the current sampled positions of every player
+   *  and the ball. Used by the state machine to snapshot at freeze
+   *  before swapping to the consequence or replay leg.
+   */
+  snapshotPositions(nowMs: number = performance.now()): Map<string, CourtPoint> {
+    const t = this.getElapsedMs(nowMs)
+    return samplePositionsAt(this.scene, this.timeline, t)
+  }
+
+  /** Phase D — starts the per-choice consequence leg. Returns false
+   *  (and does not touch state) when the scene has no `wrongDemos`
+   *  entry for this choice — the state-machine layer treats that as
+   *  the best-read short-circuit and goes straight to `startReplay`.
+   */
+  startConsequence(
+    choiceId: string,
+    startOverrides?: ReadonlyMap<string, CourtPoint>,
+  ): boolean {
+    const demo = this.scene.wrongDemos.find((d) => d.choiceId === choiceId)
+    if (!demo) return false
+    this.setMovements(demo.movements, startOverrides)
+    return true
+  }
+
+  /** Phase D — starts the answer-demo replay leg. The leg always plays
+   *  to the end of `scene.answerDemo`; "Show me again" calls this again
+   *  to recycle `done → replaying → done`.
+   */
+  startReplay(startOverrides?: ReadonlyMap<string, CourtPoint>): void {
+    this.setMovements(this.scene.answerDemo, startOverrides)
+  }
+
+  /** Defensive: when start overrides include the ball, pick the player
+   *  whose override position is closest to the override ball position
+   *  as the initial holder. Keeps the ball glued to the right hand on
+   *  the first frame of consequence / replay legs.
+   */
+  private findHolderForOverride(
+    overrides: ReadonlyMap<string, CourtPoint>,
+  ): string | null {
+    const ball = overrides.get('ball')
+    if (!ball) return resolveInitialHolder(this.scene)
+    let bestId: string | null = null
+    let bestDist = Number.POSITIVE_INFINITY
+    for (const p of this.scene.players) {
+      const pos = overrides.get(p.id) ?? p.start
+      const dx = pos.x - ball.x
+      const dz = pos.z - ball.z
+      const d = dx * dx + dz * dz
+      if (d < bestDist) {
+        bestDist = d
+        bestId = p.id
+      }
+    }
+    return bestId
+  }
+}
+
+// ---------- Phase D: replay state machine ----------
+
+/**
+ * Phase D — replay state machine.
+ *
+ * Models the full decoder loop:
+ *
+ *   idle → setup → playing → frozen → consequence → replaying → done
+ *                                  ↑                              │
+ *                                  └────── (showAgain) ───────────┘
+ *
+ * Drives a `MotionController`: configures `freezeAtMs` for the initial
+ * leg, snapshots the freeze pose, swaps movement lists for the
+ * consequence and replay legs (keyed off the picked choiceId), and
+ * recycles `done → replaying → done` on `showAgain`.
+ *
+ * Best-read short-circuit (Section 5.4): when `pickChoice(id)` is called
+ * with a choice that has no matching `wrongDemos[]` entry, the machine
+ * skips `consequence` and goes straight to `replaying` — because for a
+ * best-quality choice, the consequence *is* the answer demo.
+ *
+ * The machine itself does no per-frame work: it owns React-friendly
+ * state and exposes `tick(now)` so the parent rAF loop can drive event
+ * detection (frozen / consequence-end / replay-end) once per frame.
+ */
+export type ReplayState =
+  | 'idle'
+  | 'setup'
+  | 'playing'
+  | 'frozen'
+  | 'consequence'
+  | 'replaying'
+  | 'done'
+
+export interface ReplayStateSnapshot {
+  state: ReplayState
+  /** The choiceId picked when the state machine entered `consequence`
+   *  or `replaying`. Null in every other state, and reset on
+   *  `showAgain` so the replay leg does not re-emit a picked choice. */
+  choiceId: string | null
+}
+
+export type ReplayStateListener = (snapshot: ReplayStateSnapshot) => void
+
+export class ReplayStateMachine {
+  private state: ReplayState = 'idle'
+  private chosenChoiceId: string | null = null
+  private freezeSnapshot: Map<string, CourtPoint> | null = null
+  private listeners = new Set<ReplayStateListener>()
+
+  constructor(
+    private readonly motion: MotionController,
+    private readonly scene: Scene3D,
+  ) {}
+
+  /** Returns the current state and the choiceId that drove the most
+   *  recent `consequence` / `replaying` transition. */
+  getSnapshot(): ReplayStateSnapshot {
+    return { state: this.state, choiceId: this.chosenChoiceId }
+  }
+
+  /** Subscribe to state transitions. Returns an unsubscribe function. */
+  subscribe(listener: ReplayStateListener): () => void {
+    this.listeners.add(listener)
+    listener(this.getSnapshot())
+    return () => {
+      this.listeners.delete(listener)
+    }
+  }
+
+  /** Begins playback. Configures the motion controller's freeze cap
+   *  from `scene.freezeAtMs` and transitions `idle → setup → playing`.
+   *  Idempotent: callable multiple times only when in `idle` (other
+   *  callers must `reset()` first).
+   */
+  start(): void {
+    if (this.state !== 'idle') return
+    this.motion.reset()
+    this.motion.setFreezeAtMs(this.scene.freezeAtMs)
+    this.transition('setup')
+    this.transition('playing')
+  }
+
+  /** Records the user's choice while in `frozen`. Snapshots the
+   *  freeze pose, then either:
+   *    - jumps to `consequence` and runs the matching `wrongDemos[]`
+   *      entry; or
+   *    - short-circuits to `replaying` when no wrongDemos entry
+   *      matches (best-read short-circuit, Section 5.4).
+   */
+  pickChoice(choiceId: string, nowMs: number = performance.now()): void {
+    if (this.state !== 'frozen') return
+    this.chosenChoiceId = choiceId
+    if (this.freezeSnapshot === null) {
+      this.freezeSnapshot = this.motion.snapshotPositions(nowMs)
+    }
+    const started = this.motion.startConsequence(choiceId, this.freezeSnapshot)
+    if (started) {
+      this.transition('consequence')
+    } else {
+      this.motion.startReplay(this.freezeSnapshot)
+      this.transition('replaying')
+    }
+  }
+
+  /** "Show me again" — only available in `done`; cycles the replay
+   *  leg from the snapshotted freeze pose. Idempotent in any other
+   *  state (no-op).
+   */
+  showAgain(): void {
+    if (this.state !== 'done') return
+    if (this.freezeSnapshot === null) {
+      // Without a freeze snapshot (legacy scenes that never froze),
+      // just rewind the original timeline by resetting the motion
+      // controller.
+      this.motion.reset()
+    } else {
+      this.motion.startReplay(this.freezeSnapshot)
+    }
+    this.transition('replaying')
+  }
+
+  /** Drops the machine back to `idle` so a fresh `start()` plays the
+   *  scenario from the beginning. Used when the parent swaps to a new
+   *  scene or the user navigates between scenarios. */
+  reset(): void {
+    this.chosenChoiceId = null
+    this.freezeSnapshot = null
+    this.motion.reset()
+    this.motion.setFreezeAtMs(null)
+    this.transition('idle')
+  }
+
+  /** Phase D — drives event-based transitions. Called once per parent
+   *  rAF tick after `motion.tick(now)`. Reads the motion controller's
+   *  one-shot frozen flag and end-of-leg flag and advances the state
+   *  machine accordingly. Pure event polling — no per-frame allocation.
+   */
+  tick(nowMs: number): void {
+    if (this.state === 'playing') {
+      if (this.motion.consumeFrozen()) {
+        this.freezeSnapshot = this.motion.snapshotPositions(nowMs)
+        this.transition('frozen')
+        return
+      }
+      if (this.motion.isPlaybackComplete(nowMs)) {
+        // Legacy scenes (no freezeAtMs): playing → done directly. The
+        // freeze snapshot stays null, which `showAgain` handles by
+        // resetting the original timeline.
+        this.transition('done')
+      }
+      return
+    }
+
+    if (this.state === 'consequence' && this.motion.isPlaybackComplete(nowMs)) {
+      // Consequence finished. Snap back to the freeze pose and start
+      // the answer-demo replay leg.
+      this.motion.startReplay(this.freezeSnapshot ?? undefined)
+      this.transition('replaying')
+      return
+    }
+
+    if (this.state === 'replaying' && this.motion.isPlaybackComplete(nowMs)) {
+      this.transition('done')
+    }
+  }
+
+  private transition(next: ReplayState): void {
+    if (this.state === next) return
+    this.state = next
+    if (next === 'idle') this.chosenChoiceId = null
+    const snapshot = this.getSnapshot()
+    for (const fn of this.listeners) fn(snapshot)
   }
 }
 

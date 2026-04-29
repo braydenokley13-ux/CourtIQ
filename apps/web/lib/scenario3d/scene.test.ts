@@ -186,4 +186,67 @@ describe('buildScene', () => {
       expect(result.players.filter((p) => p.isUser).length).toBeLessThanOrEqual(1)
     }
   })
+
+  it('default and synth scenes have no freeze marker', () => {
+    expect(buildScene({ id: 'empty' }).freezeAtMs).toBeNull()
+    expect(buildScene({ id: 'preset', concept_tags: ['closeouts'] }).freezeAtMs).toBeNull()
+  })
+
+  it('resolves freezeMarker.atMs to freezeAtMs on scene load', () => {
+    const result = buildScene({
+      id: 'freeze_at_ms',
+      scene: {
+        players: [
+          { id: 'user', team: 'offense', role: 'wing', start: { x: 0, z: 10 }, isUser: true },
+        ],
+        ball: { start: { x: 0, z: 10 } },
+        freezeMarker: { kind: 'atMs', atMs: 1234 },
+      },
+    })
+    expect(result.freezeAtMs).toBe(1234)
+  })
+
+  it('resolves freezeMarker.beforeMovementId via the movement timeline', () => {
+    const result = buildScene({
+      id: 'freeze_before_movement',
+      scene: {
+        players: [
+          { id: 'user', team: 'offense', role: 'wing', start: { x: 0, z: 10 }, isUser: true },
+        ],
+        ball: { start: { x: 0, z: 10 } },
+        movements: [
+          { id: 'first', playerId: 'user', kind: 'cut', to: { x: 0, z: 8 }, durationMs: 700 },
+          {
+            id: 'second',
+            playerId: 'user',
+            kind: 'back_cut',
+            to: { x: 0, z: 4 },
+            durationMs: 500,
+            delayMs: 100,
+          },
+        ],
+        freezeMarker: { kind: 'beforeMovementId', movementId: 'second' },
+      },
+    })
+    // first movement starts at 0 and ends at 700; second starts at 800
+    expect(result.freezeAtMs).toBe(800)
+  })
+
+  it('falls through to preset when authored freezeMarker references a missing movement id', () => {
+    const result = buildScene({
+      id: 'bad_freeze',
+      concept_tags: ['closeouts'],
+      scene: {
+        players: [
+          { id: 'user', team: 'offense', role: 'wing', start: { x: 0, z: 10 }, isUser: true },
+        ],
+        ball: { start: { x: 0, z: 10 } },
+        movements: [],
+        freezeMarker: { kind: 'beforeMovementId', movementId: 'missing' },
+      },
+    })
+    // Schema rejects the authored scene; buildScene falls back to the
+    // preset rather than throwing.
+    expect(result.type).toBe('closeouts')
+  })
 })
