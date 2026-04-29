@@ -78,6 +78,74 @@ const FADE_OPEN_SPACE_MS = 400
 const FADE_DRIVE_PREVIEW_MS = 600 // path build-out window (400–700 ms)
 const HELP_PULSE_HZ = 1.0 // ~1 Hz pulse
 
+// --- Phase 3: focus / feedback marks layer ----------------------------
+// The focus mark is the pre-decision "watch this player" cue from
+// Section 7. A single warm hue distinct from the user identity mint
+// (`#3BFF9D`) and from the warm-gold possession ring (`#FFCB44`) so the
+// three never collide on color even when they appear in the same frame.
+const FOCUS_MARK_COLOR = '#FFAB55'
+// Slow pulse — the focus layer is the only player-bound mark that
+// pulses pre-decision, so its rate has to read as "look here" without
+// shouting. ~0.7 Hz reads as a calm heartbeat, well below the help-
+// pulse 1.0 Hz cadence and the consequence-pulse 1.5 Hz cadence.
+const FOCUS_MARK_PULSE_HZ = 0.7
+const FOCUS_MARK_INNER = 1.6
+const FOCUS_MARK_OUTER = 2.05
+
+// Feedback marks fire post-decision and during replay — the "wrong-
+// read consequence" layer from Section 7. Pulse is allowed here per
+// the same section: focus and consequence are the only two layers
+// permitted to animate.
+const FEEDBACK_DEFENDER_COLOR = '#FF3F58'
+const FEEDBACK_LANE_COLOR = '#FF7A40'
+const FEEDBACK_PULSE_HZ = 1.5
+const FEEDBACK_DEFENDER_INNER = 1.55
+const FEEDBACK_DEFENDER_OUTER = 1.9
+const FEEDBACK_LANE_THICKNESS = 0.55
+
+/**
+ * Phase 3 — caller-supplied spec for a focus mark on a single player.
+ * `position` is the player's current floor position; the mark is a
+ * flat ring lifted just above the floor, not parented to the player
+ * group, so the caller updates `position` if the player moves.
+ */
+export interface FocusMarkSpec {
+  position: { x: number; z: number }
+}
+
+/**
+ * Phase 3 — caller-supplied spec for a feedback mark on a single
+ * player. `defender_outline` is a hot defender footprint (the
+ * recovered helper); `closed_lane` is a flat strip from a starting
+ * point to a target point (the lane that closed).
+ */
+export type FeedbackMarkSpec =
+  | {
+      kind: 'defender_outline'
+      position: { x: number; z: number }
+    }
+  | {
+      kind: 'closed_lane'
+      from: { x: number; z: number }
+      to: { x: number; z: number }
+    }
+
+interface FocusMarkHandle {
+  group: THREE.Group
+  material: THREE.MeshBasicMaterial
+  baseOpacity: number
+  geometries: THREE.BufferGeometry[]
+  materials: THREE.Material[]
+}
+
+interface FeedbackMarkHandle {
+  group: THREE.Group
+  material: THREE.MeshBasicMaterial
+  baseOpacity: number
+  geometries: THREE.BufferGeometry[]
+  materials: THREE.Material[]
+}
+
 interface AnimatedTube {
   mesh: THREE.Mesh
   material: THREE.MeshBasicMaterial
@@ -169,6 +237,15 @@ export class TeachingOverlayController {
   }> = []
   private scene: Scene3D
   private phase: OverlayPhase = 'hidden'
+  // Phase 3 — per-player focus and feedback marks. Each layer owns
+  // its own sub-group so visibility and disposal are independent of
+  // the heuristic / authored overlay sets above. The maps are keyed
+  // by playerId so callers can swap a single mark without touching
+  // the others.
+  private focusMarksGroup: THREE.Group
+  private feedbackMarksGroup: THREE.Group
+  private focusMarks: Map<string, FocusMarkHandle> = new Map()
+  private feedbackMarks: Map<string, FeedbackMarkHandle> = new Map()
 
   constructor(
     scene: Scene3D,
@@ -204,6 +281,18 @@ export class TeachingOverlayController {
     this.postAnswerGroup.visible = false
     this.group.add(this.preAnswerGroup)
     this.group.add(this.postAnswerGroup)
+
+    // Phase 3 — focus / feedback marks layer. Both groups stay visible
+    // by default; per-player marks toggle visibility implicitly by
+    // being added or removed. They are not phase-tagged like the
+    // authored overlay groups because the focus / feedback layers are
+    // driven by the lesson state machine, not by `setPhase`.
+    this.focusMarksGroup = new THREE.Group()
+    this.focusMarksGroup.name = 'focus-marks-layer'
+    this.feedbackMarksGroup = new THREE.Group()
+    this.feedbackMarksGroup.name = 'feedback-marks-layer'
+    this.group.add(this.focusMarksGroup)
+    this.group.add(this.feedbackMarksGroup)
 
     if (buildHeuristic) {
       const movements = resolveMovements(scene, mode)
@@ -262,6 +351,80 @@ export class TeachingOverlayController {
 
   getPhase(): OverlayPhase {
     return this.phase
+  }
+
+  // ----- Phase 3: focus / feedback marks API ----------------------
+  //
+  // Per-player marks for the pre-decision focus cue (Section 7,
+  // "focus / cue layer") and the post-decision feedback layer. The
+  // user halo and the team rings live on the player figure (built by
+  // imperativeScene) — those layers never animate. These two layers
+  // do animate, and they are deliberately scoped to colors and pulse
+  // rates that do not collide with the user halo (mint, no pulse).
+  //
+  // BDW-01 collision check: in BDW-01 the wing defender carries the
+  // focus mark while the user halo stays on the cutter. The user halo
+  // is mint `#3BFF9D` and never pulses; the focus mark is warm amber
+  // `#FFAB55` and pulses at ~0.7 Hz. They are physically on different
+  // players, different hues, different pulse rates — so the user halo
+  // remains visually dominant while the focus pulse fires.
+
+  /**
+   * Phase 3 — sets a slow-pulsing focus ring at the player's position.
+   * Replaces any existing focus mark for the same `playerId`. The
+   * mark uses a single warm hue (`FOCUS_MARK_COLOR`) so the focus
+   * layer never reads as a second user-identity halo. Idempotent for
+   * the same playerId + position.
+   */
+  setFocusMark(playerId: string, spec: FocusMarkSpec): void {
+    this.removeFocusMark(playerId)
+    const handle = this.buildFocusMark(spec)
+    this.focusMarksGroup.add(handle.group)
+    this.focusMarks.set(playerId, handle)
+  }
+
+  /**
+   * Phase 3 — clears the focus mark for a single player, or every
+   * focus mark when called with no argument. Safe to call when no
+   * mark exists.
+   */
+  clearFocusMark(playerId?: string): void {
+    if (playerId === undefined) {
+      for (const id of Array.from(this.focusMarks.keys())) {
+        this.removeFocusMark(id)
+      }
+      return
+    }
+    this.removeFocusMark(playerId)
+  }
+
+  /**
+   * Phase 3 — sets a feedback mark for a player. The
+   * `defender_outline` kind is a hot defender footprint ring; the
+   * `closed_lane` kind is a flat strip from `from` to `to` for the
+   * lane that closed. Replaces any existing feedback mark for the
+   * same `playerId`.
+   */
+  setFeedbackMark(playerId: string, spec: FeedbackMarkSpec): void {
+    this.removeFeedbackMark(playerId)
+    const handle = this.buildFeedbackMark(spec)
+    this.feedbackMarksGroup.add(handle.group)
+    this.feedbackMarks.set(playerId, handle)
+  }
+
+  /**
+   * Phase 3 — clears the feedback mark for a single player, or every
+   * feedback mark when called with no argument. Safe to call when
+   * no mark exists.
+   */
+  clearFeedbackMark(playerId?: string): void {
+    if (playerId === undefined) {
+      for (const id of Array.from(this.feedbackMarks.keys())) {
+        this.removeFeedbackMark(id)
+      }
+      return
+    }
+    this.removeFeedbackMark(playerId)
   }
 
   /** Animates dash offsets, pulse rings, and pressure halos. Safe to
@@ -324,6 +487,22 @@ export class TeachingOverlayController {
         p.haloMaterial.opacity = p.baseOpacity * pulse
       }
     }
+
+    // Phase 3 — focus and feedback marks are the only player-bound
+    // marks allowed to pulse (Section 7). Distinct rates keep the
+    // two from blurring into a single rhythm when both are visible.
+    if (this.focusMarks.size > 0) {
+      const pulse = 0.55 + 0.45 * Math.sin(t * Math.PI * 2 * FOCUS_MARK_PULSE_HZ)
+      for (const m of this.focusMarks.values()) {
+        m.material.opacity = m.baseOpacity * pulse
+      }
+    }
+    if (this.feedbackMarks.size > 0) {
+      const pulse = 0.6 + 0.4 * Math.sin(t * Math.PI * 2 * FEEDBACK_PULSE_HZ)
+      for (const m of this.feedbackMarks.values()) {
+        m.material.opacity = m.baseOpacity * pulse
+      }
+    }
   }
 
   /** Removes the overlay group from its parent and frees every GPU
@@ -347,6 +526,16 @@ export class TeachingOverlayController {
     this.animatedFades = []
     this.animatedBuilds = []
     this.animatedHelpPulses = []
+    // Phase 3 — drop every per-player mark and free its GPU memory.
+    // Builders track their own geometries / materials so the global
+    // `disposables` list above doesn't grow unbounded as marks come
+    // and go during a session.
+    for (const id of Array.from(this.focusMarks.keys())) {
+      this.removeFocusMark(id)
+    }
+    for (const id of Array.from(this.feedbackMarks.keys())) {
+      this.removeFeedbackMark(id)
+    }
   }
 
   /** Phase E — clears the authored-overlay sub-groups and frees any
@@ -1308,6 +1497,175 @@ export class TeachingOverlayController {
     // World-space pixel scale tuned so labels read but never dominate.
     sprite.scale.set(4.2, 1.05, 1)
     return sprite
+  }
+
+  // ----- Phase 3: focus / feedback mark builders ------------------
+
+  private buildFocusMark(spec: FocusMarkSpec): FocusMarkHandle {
+    const group = new THREE.Group()
+    group.name = 'focus-mark'
+    group.position.set(spec.position.x, 0, spec.position.z)
+
+    // Two thin rings sharing a single material so the pulse animates
+    // both edges in sync. Inner ring + outer ring give the mark an
+    // unmistakable silhouette without bleeding wide enough to fight
+    // the user halo on an adjacent player.
+    const ringGeom = new THREE.RingGeometry(
+      FOCUS_MARK_INNER,
+      FOCUS_MARK_OUTER,
+      48,
+    )
+    const mat = new THREE.MeshBasicMaterial({
+      color: FOCUS_MARK_COLOR,
+      transparent: true,
+      opacity: 0.85,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
+    const ring = new THREE.Mesh(ringGeom, mat)
+    ring.rotation.x = -Math.PI / 2
+    ring.position.y = PATH_Y + 0.05
+    group.add(ring)
+
+    // Underglow disc — a flat fill inside the ring at low alpha so
+    // the focus mark also reads as a soft warm pool from broadcast
+    // distance. Same material colour, separate alpha + geometry so
+    // the pulse modulates both together without re-allocating.
+    const fillGeom = new THREE.CircleGeometry(FOCUS_MARK_INNER * 0.96, 32)
+    const fillMat = new THREE.MeshBasicMaterial({
+      color: FOCUS_MARK_COLOR,
+      transparent: true,
+      opacity: 0.18,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
+    const fill = new THREE.Mesh(fillGeom, fillMat)
+    fill.rotation.x = -Math.PI / 2
+    fill.position.y = PATH_Y + 0.04
+    group.add(fill)
+
+    return {
+      group,
+      material: mat,
+      baseOpacity: 0.85,
+      geometries: [ringGeom, fillGeom],
+      materials: [mat, fillMat],
+    }
+  }
+
+  private buildFeedbackMark(spec: FeedbackMarkSpec): FeedbackMarkHandle {
+    const group = new THREE.Group()
+    group.name = 'feedback-mark'
+
+    if (spec.kind === 'defender_outline') {
+      // A defender footprint outline — the helper that recovered.
+      // Sits slightly above the floor and a hair above the focus
+      // mark Y so the two never z-fight if a player carries both
+      // briefly during the post-decision freeze.
+      group.position.set(spec.position.x, 0, spec.position.z)
+      const ringGeom = new THREE.RingGeometry(
+        FEEDBACK_DEFENDER_INNER,
+        FEEDBACK_DEFENDER_OUTER,
+        48,
+      )
+      const mat = new THREE.MeshBasicMaterial({
+        color: FEEDBACK_DEFENDER_COLOR,
+        transparent: true,
+        opacity: 0.85,
+        toneMapped: false,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+      const ring = new THREE.Mesh(ringGeom, mat)
+      ring.rotation.x = -Math.PI / 2
+      ring.position.y = PATH_Y + 0.06
+      group.add(ring)
+      return {
+        group,
+        material: mat,
+        baseOpacity: 0.85,
+        geometries: [ringGeom],
+        materials: [mat],
+      }
+    }
+
+    // closed_lane — a flat strip from `from` to `to` showing the
+    // lane that closed. Reuses RingGeometry semantics by way of a
+    // simple PlaneGeometry rotated flat to the floor; cheap and
+    // shares exactly the same disposal pattern.
+    const dx = spec.to.x - spec.from.x
+    const dz = spec.to.z - spec.from.z
+    const length = Math.max(0.05, Math.hypot(dx, dz))
+    const geom = new THREE.PlaneGeometry(length, FEEDBACK_LANE_THICKNESS)
+    const mat = new THREE.MeshBasicMaterial({
+      color: FEEDBACK_LANE_COLOR,
+      transparent: true,
+      opacity: 0.7,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
+    const lane = new THREE.Mesh(geom, mat)
+    lane.position.set(
+      (spec.from.x + spec.to.x) / 2,
+      PATH_Y + 0.03,
+      (spec.from.z + spec.to.z) / 2,
+    )
+    lane.rotation.x = -Math.PI / 2
+    // Plane's local +x is its length; rotate around the floor-up
+    // axis so it points from `from` toward `to`.
+    lane.rotation.z = -Math.atan2(dz, dx)
+    group.add(lane)
+    return {
+      group,
+      material: mat,
+      baseOpacity: 0.7,
+      geometries: [geom],
+      materials: [mat],
+    }
+  }
+
+  private removeFocusMark(playerId: string): void {
+    const handle = this.focusMarks.get(playerId)
+    if (!handle) return
+    this.focusMarks.delete(playerId)
+    this.focusMarksGroup.remove(handle.group)
+    disposeMarkHandle(handle)
+  }
+
+  private removeFeedbackMark(playerId: string): void {
+    const handle = this.feedbackMarks.get(playerId)
+    if (!handle) return
+    this.feedbackMarks.delete(playerId)
+    this.feedbackMarksGroup.remove(handle.group)
+    disposeMarkHandle(handle)
+  }
+}
+
+/**
+ * Phase 3 — disposes the geometries and materials owned by a focus
+ * or feedback mark handle. Marks are not tracked in the controller's
+ * global `disposables` list because they come and go on their own
+ * cadence, so each handle frees its own GPU resources here.
+ */
+function disposeMarkHandle(
+  handle: FocusMarkHandle | FeedbackMarkHandle,
+): void {
+  for (const g of handle.geometries) {
+    try {
+      g.dispose()
+    } catch {
+      // best-effort
+    }
+  }
+  for (const m of handle.materials) {
+    try {
+      m.dispose()
+    } catch {
+      // best-effort
+    }
   }
 }
 

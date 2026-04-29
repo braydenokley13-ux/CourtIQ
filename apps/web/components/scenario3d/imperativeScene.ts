@@ -3323,6 +3323,39 @@ function buildPlayerFigure(
   contactShadow.renderOrder = -1
   figure.add(contactShadow)
 
+  // ---- Phase 3: layered role / state indicators ---------------------
+  // Indicators live on three named sub-groups parented to the figure
+  // root so the indicator system from Section 7 (base / user /
+  // possession) is structurally legible and so the teaching overlay
+  // can find / hide them later without rebuilding geometry. Layer
+  // visibility is the contract; geometry is unchanged from Phase 2.
+  //
+  //   base       — team identity ring + inner outline. Always on.
+  //                Never animated.
+  //   user       — user-only halo + soft halo on the floor and the
+  //                "YOU" chevron above the head. Visible only on the
+  //                user-controlled player. Never animated.
+  //   possession — warm-gold ball-handler band. Visible only on the
+  //                ball-handler. Never animated.
+  //
+  // Pulse is reserved for the focus / feedback layers, which live on
+  // the teaching overlay (per imperativeTeachingOverlay) rather than
+  // on the player figure.
+  const baseLayer = new THREE.Group()
+  baseLayer.name = 'indicator-layer-base'
+  const userLayer = new THREE.Group()
+  userLayer.name = 'indicator-layer-user'
+  userLayer.visible = isUser
+  const possessionLayer = new THREE.Group()
+  possessionLayer.name = 'indicator-layer-possession'
+  possessionLayer.visible = hasBall
+  // The user chevron has to ride the upper body so it follows the
+  // crouch translation. Its own named sub-group keeps it discoverable
+  // alongside the other user-layer pieces.
+  const userHeadLayer = new THREE.Group()
+  userHeadLayer.name = 'indicator-layer-user-head'
+  userHeadLayer.visible = isUser
+
   // Possession ring — a warm-gold outer band only present on the
   // initial ball-handler. Sits OUTSIDE the team ring so both can be
   // read at a glance without one occluding the other.
@@ -3339,7 +3372,7 @@ function buildPlayerFigure(
     )
     possession.rotation.x = -Math.PI / 2
     possession.position.y = 0.045
-    figure.add(possession)
+    possessionLayer.add(possession)
   }
 
   // Floor disc — keeps the existing team-colored selection ring used
@@ -3360,7 +3393,7 @@ function buildPlayerFigure(
   )
   ring.rotation.x = -Math.PI / 2
   ring.position.y = 0.05
-  figure.add(ring)
+  baseLayer.add(ring)
 
   // Inner ring outline — a thin bright ring just inside the team
   // ring. Adds a clean edge so the ring reads as a lit disc, not as
@@ -3377,7 +3410,7 @@ function buildPlayerFigure(
   )
   innerOutline.rotation.x = -Math.PI / 2
   innerOutline.position.y = 0.052
-  figure.add(innerOutline)
+  baseLayer.add(innerOutline)
 
   if (isUser) {
     // Outer halo — a wider, brighter mint band around the team ring
@@ -3394,7 +3427,7 @@ function buildPlayerFigure(
     )
     halo.rotation.x = -Math.PI / 2
     halo.position.y = 0.046
-    figure.add(halo)
+    userLayer.add(halo)
 
     // Soft outer fade — a very faint, wide ring that creates a
     // "spotlight" feel under the user without being a hard edge.
@@ -3410,7 +3443,7 @@ function buildPlayerFigure(
     )
     softHalo.rotation.x = -Math.PI / 2
     softHalo.position.y = 0.044
-    figure.add(softHalo)
+    userLayer.add(softHalo)
 
     // Floating "YOU" chevron — a small downward-pointing cone in mint
     // that hovers above the head. Parented to upperBody so it follows
@@ -3424,7 +3457,7 @@ function buildPlayerFigure(
     )
     chevron.rotation.x = Math.PI
     chevron.position.set(0, HEAD_Y + HEAD_RADIUS + 1.1, 0)
-    upperBody.add(chevron)
+    userHeadLayer.add(chevron)
 
     // Chevron outline — thin dark cone behind the mint cone so the
     // floating marker reads against the bright gym walls without
@@ -3441,10 +3474,76 @@ function buildPlayerFigure(
     chevronOutline.rotation.x = Math.PI
     chevronOutline.position.set(0, HEAD_Y + HEAD_RADIUS + 1.1, 0)
     chevronOutline.renderOrder = -1
-    upperBody.add(chevronOutline)
+    userHeadLayer.add(chevronOutline)
   }
 
+  // Attach indicator layers in z-order: base under user halo under
+  // possession band so the warm-gold ball-handler ring is never
+  // hidden by the team ring beneath it.
+  figure.add(baseLayer)
+  figure.add(userLayer)
+  figure.add(possessionLayer)
+  upperBody.add(userHeadLayer)
+
+  // Public, named handle to the role-state layers so future code (e.g.
+  // ball-handoff updates that flip possession after the scene mounts)
+  // can `getPlayerLayers(figure).possession.visible = true` without
+  // rebuilding any geometry. Stays `any`-typed via userData rather
+  // than threading a new field through every player return type.
+  const indicatorLayers: PlayerIndicatorLayers = {
+    base: baseLayer,
+    user: userLayer,
+    userHead: userHeadLayer,
+    possession: possessionLayer,
+  }
+  ;(figure.userData as Record<string, unknown>).indicatorLayers = indicatorLayers
+
   return figure
+}
+
+/**
+ * Phase 3 — named handles to the role/state indicator layers attached
+ * to a player figure. Caller-owned: the figure itself owns the
+ * lifetime; this struct is a non-owning view into its sub-groups.
+ *
+ * Layer policy (per Section 7):
+ *   base       — team identity, always on, never animated
+ *   user       — user-only floor halos, visible iff isUser
+ *   userHead   — user-only "YOU" chevron, parented to upper body so it
+ *                follows the defensive / denial crouch translation
+ *   possession — ball-handler ring, visible iff this player has the
+ *                ball at scene-build time
+ *
+ * Pulse animation lives in the teaching overlay's focus / feedback
+ * marks layer, not on these groups; do not animate them.
+ */
+export interface PlayerIndicatorLayers {
+  base: THREE.Group
+  user: THREE.Group
+  userHead: THREE.Group
+  possession: THREE.Group
+}
+
+/**
+ * Phase 3 — returns the named indicator layer handles attached to a
+ * player figure built by `buildPlayerFigure`, or `null` if the object
+ * was not built by this module. Lookup is O(1) (userData read).
+ */
+export function getPlayerIndicatorLayers(
+  figure: THREE.Object3D,
+): PlayerIndicatorLayers | null {
+  const layers = (figure.userData as Record<string, unknown>).indicatorLayers
+  if (!layers || typeof layers !== 'object') return null
+  const candidate = layers as Partial<PlayerIndicatorLayers>
+  if (
+    !candidate.base ||
+    !candidate.user ||
+    !candidate.userHead ||
+    !candidate.possession
+  ) {
+    return null
+  }
+  return candidate as PlayerIndicatorLayers
 }
 
 /**
