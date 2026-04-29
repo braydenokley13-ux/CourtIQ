@@ -65,6 +65,34 @@ Key files:
 
 ---
 
+## Visual QA: Scenario Screenshots
+
+A minimal Playwright script captures screenshots of the 3D scenario view so the
+court, players, ball, and overlays can be inspected without running the app
+locally.
+
+```bash
+# 1. Start the dev server in another terminal
+pnpm dev
+
+# 2. Take screenshots of BDW-01
+pnpm screenshot:bdw
+
+# Or pick another scenario
+SCENARIO=PNR-02 pnpm qa:screenshot
+```
+
+Output is written to `docs/screenshots/<SCENARIO>/`:
+- `debug.png` — captured once the canvas renders
+- `debug-after-play.png` — captured ~3s later (after replay starts)
+
+Browser console errors, page errors, and failed network requests are streamed
+to the terminal during the run. Override the target with `BASE_URL=...`.
+
+The first run on a new machine needs `pnpm exec playwright install chromium`.
+
+---
+
 ## License
 
 TBD — will be set before first external contributor or public launch. Default to "All rights reserved" until then.
