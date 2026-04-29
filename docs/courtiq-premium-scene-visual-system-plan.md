@@ -522,3 +522,154 @@ attention belongs on the players and the read; the court's job is to
   value.
 
 ---
+
+## 9. Lighting / Camera / Composition Plan
+
+Lighting and camera are the difference between "3D scene" and
+"sports-broadcast clarity." This section keeps both honest: every
+choice serves readability of the read.
+
+### Default camera — high 3/4 film-room angle
+
+- Position: elevated, behind and slightly off-axis from the user
+  player, looking down toward the rim. Close enough to the classic
+  coach's-film angle that any coach feels at home.
+- Pitch: steep enough to read **spacing on the floor** (distances
+  between players, lanes, paint, arc), shallow enough to still read
+  **defender body angle** (hips, shoulders, feet).
+- This is the default for every scenario. Variations (Section 10 +
+  scenario-specific) tilt this baseline, they do not abandon it.
+
+### Readability of spacing
+
+- The high 3/4 angle is chosen specifically so the eye reads the
+  **distances** between players. A user must be able to see "the
+  corner is empty" or "the closeout is short" without an overlay.
+- Camera should never collapse the floor into a line. Top-down is too
+  abstract; side-on hides spacing. Stick to the high 3/4 baseline.
+
+### Readability of defender stance
+
+- The angle must preserve readable hips and feet on defenders. If a
+  camera move flattens defenders into silhouettes facing the camera,
+  the read dies.
+- When the lesson is about a specific defender (denial, closeout,
+  helper), the framing should keep that defender's body angle on
+  camera, even if the user player is briefly off-center.
+
+### Avoiding muddy lighting
+
+- Lighting target: clean, neutral key light from above-front, soft
+  fill, modest rim light to separate players from the floor.
+- No deep shadows that swallow defender stances. No blown highlights
+  that erase jersey edges. **Beauty supports readability.**
+
+### Contrast between players and floor
+
+- Players should always sit visually **above** the floor, never blend
+  into it. A subtle contact shadow under each player is fine and
+  helps grounding; long, dramatic shadows are not.
+- Jersey tones and paint tone should be tuned so offense and defense
+  contrast against the hardwood and against each other.
+
+### Subtle broadcast feel
+
+- Slight cinematic warmth, gentle vignette toward the edges, subtle
+  film grain at most. Broadcast graphics, not movie grading.
+- No lens flares, no chromatic aberration, no aggressive bloom.
+  **Premium training sim, not arcade game.**
+
+### Not overdoing cinematic drama
+
+- Camera moves are small and purposeful: a gentle settle on scene
+  start, a tiny pull-in at the cue moment, a slightly wider hold for
+  feedback. No swoops, no orbits during the live decision.
+- The user is reading, not watching a highlight reel. The camera
+  must stay still when the user is choosing.
+
+### Camera framing by scenario type
+
+The default high 3/4 camera is the **base**. Each scenario type may
+nudge it to keep the right cue on screen.
+
+- **Backdoor scenarios (BDW-01).** Frame favors the wing and the
+  defender's denial side. The cutter's approach to the rim must be
+  visible end-to-end after reveal.
+- **Empty-space cut scenarios (ESC-01).** Frame must show **both**
+  the empty corner and the weak-side helper at the same time. The
+  baseline cut lane must be readable end-to-end.
+- **Skip-pass scenarios (SKR-01, future SKR-02).** Frame must reveal
+  the **opposite corner** clearly. A camera that hides the skip target
+  defeats the lesson.
+- **Closeout decision scenarios (AOR-01, future AOR-03).** Frame must
+  preserve the closeout defender's momentum vector — the user has to
+  read whether the defender is under control or flying.
+
+---
+
+## 10. Overlay Compatibility Plan
+
+Overlays are the thinnest visual layer in CourtIQ — and the most
+dangerous. Done well, they teach the read. Done poorly, they hand the
+user the answer.
+
+> **Before the choice, overlays should clarify the cue. After the
+> choice, overlays should explain the answer.**
+
+The pre-choice overlay is allowed to **open the read** (e.g., dim the
+denied lane, soften the empty corner, mark the helper). It is not
+allowed to **announce the answer** (e.g., a flashing arrow into the
+backdoor lane before the user has chosen). **The cue comes before the
+answer.**
+
+### Overlay types the visual system must support
+
+- **Open / closed passing lanes.** A quiet line or beam from passer
+  toward target, color-coded for "open" vs "closed." Subtle pre-
+  decision; brighter and labeled post-decision.
+- **Defender vision cones.** A soft cone from the defender's chest /
+  eyes showing where they are checking. Used to teach denial vs ball-
+  watching. Must never look sci-fi; broadcast-graphic feel only.
+- **Help-defender pulse.** A slow pulse on the focus / cue layer for
+  the help defender — used to ask the user *"see this guy?"* without
+  saying *"pass here."*
+- **Hips / feet arrows.** Small, broadcast-style indicators at the
+  defender's hip and foot showing stance direction. Reserved for
+  teaching moments; off by default to avoid clutter.
+- **Open-space highlights.** A soft fill on the floor where there is
+  exploitable space (empty corner, baseline lane, paint). Pre-
+  decision: low intensity. Post-decision: brighter, fully labeled.
+- **Drive / cut path reveal.** A clean path line drawn after the
+  user's choice, animating from start to finish to **show** what the
+  decision looked like on the floor. **A cut lane is not decoration;
+  it is the lesson.**
+- **Sparse decision-state overlays.** During the live read, fewer
+  overlays, lower intensity, room for the user to think.
+- **Richer feedback-state overlays.** After the choice, the scene is
+  allowed to be much more explicit: lane fills, defender outlines,
+  path animations, labels.
+
+### State machine in plain terms
+
+- **Idle / setup:** base + team identity + user identity + possession.
+  No overlays.
+- **Pre-decision (cue):** add focus / cue layer, plus minimal
+  open-space hint and minimal defender stance hint. **The user
+  should see why the window opened**, but the answer stays implicit.
+- **Live decision:** all overlays at their lowest intensity. The
+  scene should feel quiet and readable. The scene should **teach
+  spacing before text explains it**.
+- **Feedback / replay:** feedback layer + full overlays + path
+  reveal + outcome labels. The court should explain the decision.
+
+### Anti-patterns
+
+- No pre-decision arrow that points to the correct pass.
+- No "correct lane" highlight before the user has chosen.
+- No simultaneous overlays competing for the same pixels.
+- No overlay so bright that the player silhouettes disappear.
+
+> **Visual polish cannot hide basketball information.**
+> **Every highlight has a teaching job.**
+
+---
