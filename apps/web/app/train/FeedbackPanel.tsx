@@ -41,7 +41,7 @@ export function FeedbackPanel({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: [0.2, 0.8, 0.2, 1] }}
-      className="relative overflow-hidden rounded-2xl border-2 bg-bg-1 p-4"
+      className="ciq-shell-card relative overflow-hidden border-2 p-4"
       style={{ borderColor: accent }}
     >
       <div className="flex items-start gap-3">

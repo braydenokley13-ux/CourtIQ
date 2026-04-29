@@ -34,7 +34,7 @@ export function DecoderLessonPanel({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: [0.2, 0.8, 0.2, 1] }}
-      className="relative overflow-hidden rounded-2xl border-2 border-brand/40 bg-gradient-to-br from-brand/10 via-bg-1 to-bg-1 p-4"
+      className="ciq-shell-card relative overflow-hidden border-2 border-brand/40 p-4"
     >
       <div
         aria-hidden

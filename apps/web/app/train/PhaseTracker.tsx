@@ -53,35 +53,44 @@ export function PhaseTracker({ phase }: PhaseTrackerProps) {
       {STEPS.map((step, idx) => {
         const active = isActive(step, phase)
         const done = isComplete(step, phase)
-        const reached = active || done
         return (
           <div key={step.label} className="flex flex-1 items-center gap-1.5">
             <motion.div
               animate={
                 active
-                  ? { boxShadow: ['0 0 0 0 rgba(59,227,131,0)', '0 0 0 6px rgba(59,227,131,0.15)', '0 0 0 0 rgba(59,227,131,0)'] }
+                  ? {
+                      boxShadow: [
+                        '0 0 0 0 rgba(59,227,131,0)',
+                        '0 0 0 5px rgba(59,227,131,0.18)',
+                        '0 0 0 0 rgba(59,227,131,0)',
+                      ],
+                    }
                   : { boxShadow: '0 0 0 0 rgba(59,227,131,0)' }
               }
               transition={
                 active
-                  ? { duration: 1.6, repeat: Infinity, ease: 'easeOut' }
+                  ? { duration: 1.8, repeat: Infinity, ease: 'easeOut' }
                   : { duration: 0 }
               }
               className={[
-                'flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold uppercase tracking-[1px] transition-colors',
+                'flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 font-display text-[10px] font-bold tabular-nums leading-none tracking-[0.5px] transition-colors',
                 done
-                  ? 'bg-brand text-brand-ink'
+                  ? 'bg-brand text-brand-ink shadow-[0_0_8px_-2px_rgba(59,227,131,0.55)]'
                   : active
-                    ? 'bg-brand/20 text-brand ring-1 ring-brand/60'
-                    : 'bg-bg-2 text-text-mute ring-1 ring-hairline-2',
+                    ? 'bg-brand/15 text-brand ring-1 ring-brand/70'
+                    : 'bg-bg-2/70 text-text-mute ring-1 ring-hairline-2',
               ].join(' ')}
             >
               {done ? '✓' : idx + 1}
             </motion.div>
             <span
               className={[
-                'text-[10px] font-bold uppercase tracking-[1.2px] transition-colors',
-                reached ? 'text-text' : 'text-text-mute',
+                'text-[10px] font-bold uppercase tracking-[1.4px] transition-colors',
+                done
+                  ? 'text-text-dim'
+                  : active
+                    ? 'text-text'
+                    : 'text-text-mute',
               ].join(' ')}
             >
               {step.shortLabel}
@@ -91,7 +100,7 @@ export function PhaseTracker({ phase }: PhaseTrackerProps) {
                 aria-hidden
                 className={[
                   'h-px flex-1 transition-colors',
-                  done ? 'bg-brand/60' : 'bg-hairline-2',
+                  done ? 'bg-brand/55' : active ? 'bg-brand/25' : 'bg-hairline-2',
                 ].join(' ')}
               />
             ) : null}

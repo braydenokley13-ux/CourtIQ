@@ -556,71 +556,83 @@ function TrainPageInner() {
           ) : null}
         </div>
 
-        {/* Decoder chip + Phase A-E tracker. The chip frames the read with
-            the decoder name; the tracker shows where the user is in the
-            Watch → Read → Choose → Learn loop. Tracker only renders for
-            decoder scenarios — legacy fixtures don't have a freeze beat. */}
-        {decoderLabel ? (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-2 rounded-full border border-brand/40 bg-brand/15 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[1.6px] text-brand shadow-[0_2px_8px_rgba(59,255,157,0.15)]">
-                <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-brand shadow-[0_0_8px_currentColor]" />
-                Decoder · {decoderLabel}
-              </span>
+        {/* Phase 6 — module shell panel. Decoder pill, step row, and
+            canvas live inside a single glass surface so the canvas reads
+            as the inset jewel rather than a misfit rectangle next to its
+            chrome. Decoder scenarios get the full pill+tracker stack;
+            legacy scenarios still get the panel + canvas. */}
+        <div className="ciq-module-panel space-y-3 p-3">
+          {decoderLabel ? (
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2">
+                {/* Coach's-clipboard label: small DECODER eyebrow over the
+                    scenario name; subtle warm-mint gradient + brand
+                    pulse dot. Reads as a TV graphic, not a UI badge. */}
+                <span className="relative inline-flex items-center gap-2.5 overflow-hidden rounded-full border border-brand/35 bg-gradient-to-br from-brand/20 via-brand/10 to-transparent px-3 py-1.5 text-brand shadow-[0_2px_10px_-2px_rgba(59,227,131,0.25),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-md">
+                  <span aria-hidden className="relative flex h-1.5 w-1.5 shrink-0">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand/60" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand shadow-[0_0_6px_currentColor]" />
+                  </span>
+                  <span className="flex items-baseline gap-1.5">
+                    <span className="text-[9px] font-bold uppercase tracking-[1.8px] text-brand/70">
+                      Decoder
+                    </span>
+                    <span className="text-[12px] font-bold tracking-[0.2px] text-text">
+                      {decoderLabel}
+                    </span>
+                  </span>
+                </span>
+              </div>
+              {isDecoder ? <PhaseTracker phase={learnPhase} /> : null}
             </div>
-            {isDecoder ? <PhaseTracker phase={learnPhase} /> : null}
-          </div>
-        ) : null}
-
-        {/* Court — brand ring lights up on the freeze beat so the eye
-            anchors on the play surface during the read window. */}
-        <div
-          className={[
-            'relative overflow-hidden rounded-2xl border bg-bg-1 transition-[box-shadow,border-color] duration-300',
-            learnPhase === 'read' || learnPhase === 'choose'
-              ? 'border-brand/50 shadow-brand-sm'
-              : 'border-hairline-2',
-          ].join(' ')}
-        >
-          <Scenario3DView
-            height={280}
-            scene={scene}
-            concept={current.concept_tags.join(', ')}
-            replayMode={replayMode}
-            resetCounter={replayCounter}
-            showPaths={replayMode === 'answer'}
-            onCaption={setSceneCaption}
-            onPhase={isDecoder ? onScenePhase : undefined}
-            forceFullPath={isDecoder}
-            pickedChoiceId={pickedChoiceId}
-            fallback={
-              <Court
-                width={360}
-                height={280}
-                courtState={current.court_state}
-                you="you"
-              />
-            }
-          />
-          {sceneCaption &&
-          (replayMode === 'answer' ||
-            scenePhase === 'replaying' ||
-            scenePhase === 'consequence') ? (
-            <motion.div
-              key={`caption-${sceneCaption}`}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}
-              className={[
-                'pointer-events-none absolute inset-x-0 bottom-3 mx-auto w-fit max-w-[92%] rounded-2xl border px-4 py-2 text-center text-[13px] font-semibold leading-tight shadow-[0_8px_24px_rgba(0,0,0,0.55)] backdrop-blur-md',
-                scenePhase === 'consequence'
-                  ? 'border-heat/40 bg-bg-0/90 text-heat'
-                  : 'border-brand/30 bg-bg-0/90 text-brand',
-              ].join(' ')}
-            >
-              {sceneCaption}
-            </motion.div>
           ) : null}
+
+          {/* Court — brand ring lights up on the freeze beat so the eye
+              anchors on the play surface during the read window. */}
+          <div
+            className="ciq-canvas-inset relative overflow-hidden bg-bg-0 transition-[box-shadow,border-color] duration-300"
+            data-attention={learnPhase === 'read' || learnPhase === 'choose' ? 'on' : 'off'}
+          >
+            <Scenario3DView
+              height={280}
+              scene={scene}
+              concept={isDecoder ? undefined : current.concept_tags.join(', ')}
+              replayMode={replayMode}
+              resetCounter={replayCounter}
+              showPaths={replayMode === 'answer'}
+              onCaption={setSceneCaption}
+              onPhase={isDecoder ? onScenePhase : undefined}
+              forceFullPath={isDecoder}
+              pickedChoiceId={pickedChoiceId}
+              fallback={
+                <Court
+                  width={360}
+                  height={280}
+                  courtState={current.court_state}
+                  you="you"
+                />
+              }
+            />
+            {sceneCaption &&
+            (replayMode === 'answer' ||
+              scenePhase === 'replaying' ||
+              scenePhase === 'consequence') ? (
+              <motion.div
+                key={`caption-${sceneCaption}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}
+                className={[
+                  'pointer-events-none absolute inset-x-0 bottom-3 mx-auto w-fit max-w-[92%] rounded-2xl border px-4 py-2 text-center text-[13px] font-semibold leading-tight shadow-[0_8px_24px_rgba(0,0,0,0.55)] backdrop-blur-md',
+                  scenePhase === 'consequence'
+                    ? 'border-heat/40 bg-bg-0/90 text-heat'
+                    : 'border-brand/30 bg-bg-0/90 text-brand',
+                ].join(' ')}
+              >
+                {sceneCaption}
+              </motion.div>
+            ) : null}
+          </div>
         </div>
 
         {/* Prompt — held back until the scene reaches its freeze marker

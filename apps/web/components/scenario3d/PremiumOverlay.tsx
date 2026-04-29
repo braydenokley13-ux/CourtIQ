@@ -80,9 +80,10 @@ export function PremiumOverlay({
     >
       {/* Top-left: scenario chip — quietly orients the user. Idle dims to
           ~55% so the chip never competes with the court; comes back to
-          full when the overlay is engaged. */}
+          full when the overlay is engaged. Hidden on decoder scenarios
+          where the train header decoder pill plays this role. */}
       {concept ? (
-        <div className="pointer-events-none absolute left-3 top-3 flex max-w-[55%] items-center gap-2 rounded-full border border-white/15 bg-black/55 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[1.6px] text-white/90 shadow-[0_4px_14px_rgba(0,0,0,0.5)] backdrop-blur-md transition-opacity duration-200 [opacity:0.65] group-hover/overlay:[opacity:1] group-focus-within/overlay:[opacity:1] group-data-[attention=on]/overlay:[opacity:1]">
+        <div className="ciq-broadcast-chip pointer-events-none absolute left-3 top-3 flex max-w-[55%] items-center gap-2 rounded-full px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[1.6px] text-white/90 transition-opacity duration-200 [opacity:0.65] group-hover/overlay:[opacity:1] group-focus-within/overlay:[opacity:1] group-data-[attention=on]/overlay:[opacity:1]">
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#3BFF9D] shadow-[0_0_8px_#3BFF9D]" />
           <span className="truncate">{concept}</span>
         </div>
@@ -96,7 +97,10 @@ export function PremiumOverlay({
           caption + transport. */}
       <div className="pointer-events-none absolute right-3 top-3 flex items-center gap-1.5 transition-opacity duration-200 [opacity:0.7] group-hover/overlay:[opacity:1] group-focus-within/overlay:[opacity:1] group-data-[attention=on]/overlay:[opacity:1]">
         {isReplay ? (
-          <div className="flex items-center gap-1.5 rounded-full border border-[#3BFF9D]/50 bg-[#062118]/85 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-[#3BFF9D] shadow-[0_2px_8px_rgba(0,0,0,0.35)] backdrop-blur-md">
+          <div
+            data-active="true"
+            className="ciq-broadcast-chip flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-[#3BFF9D]"
+          >
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#3BFF9D]/70" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-[#3BFF9D]" />
@@ -109,11 +113,10 @@ export function PremiumOverlay({
             type="button"
             onClick={() => onShowPathsChange(!showPaths)}
             aria-pressed={showPaths}
+            data-active={showPaths ? 'true' : 'false'}
             title={showPaths ? 'Hide teaching paths' : 'Show teaching paths'}
-            className={`pointer-events-auto inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] backdrop-blur-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70 ${
-              showPaths
-                ? 'border-[#3BFF9D]/50 bg-[#062118]/85 text-[#3BFF9D]'
-                : 'border-white/10 bg-black/55 text-white/80 hover:text-white'
+            className={`ciq-broadcast-chip pointer-events-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70 ${
+              showPaths ? 'text-[#3BFF9D]' : 'text-white/80 hover:text-white'
             }`}
           >
             <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />
@@ -137,7 +140,7 @@ export function PremiumOverlay({
         <div
           role="toolbar"
           aria-label="Replay controls"
-          className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-white/10 bg-black/60 px-1.5 py-1 text-white shadow-[0_4px_16px_rgba(0,0,0,0.45)] backdrop-blur-md transition-opacity duration-200 [opacity:0.7] hover:[opacity:1] focus-within:[opacity:1] group-data-[attention=on]/overlay:[opacity:1]"
+          className="ciq-broadcast-chip pointer-events-auto flex items-center gap-0.5 rounded-full px-1.5 py-1 text-white transition-opacity duration-200 [opacity:0.7] hover:[opacity:1] focus-within:[opacity:1] group-data-[attention=on]/overlay:[opacity:1]"
         >
           <IconButton
             label="Restart replay"
@@ -176,7 +179,7 @@ function IconButton({ label, onClick, children, kind = 'ghost' }: IconButtonProp
     'inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70'
   const styles =
     kind === 'primary'
-      ? 'bg-[#3BFF9D] text-[#062118] hover:bg-[#5cffae] active:scale-[0.96]'
+      ? 'bg-[#3BFF9D] text-[#062118] shadow-[0_0_12px_-2px_rgba(59,255,157,0.55)] hover:bg-[#5cffae] active:scale-[0.96]'
       : 'text-white/85 hover:bg-white/10 hover:text-white active:scale-[0.96]'
   return (
     <button
@@ -213,9 +216,9 @@ function SpeedSelector({
             role="radio"
             aria-checked={active}
             onClick={() => onChange(opt)}
-            className={`min-w-[32px] rounded-full px-2 py-0.5 text-[10px] font-bold tracking-[0.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70 ${
+            className={`min-w-[32px] rounded-full px-2 py-0.5 font-display text-[10px] font-bold tabular-nums tracking-[0.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70 ${
               active
-                ? 'bg-white text-[#0a0d12] shadow-sm'
+                ? 'bg-[#3BFF9D]/15 text-[#3BFF9D] shadow-[inset_0_0_0_1px_rgba(59,255,157,0.45)]'
                 : 'text-white/70 hover:text-white'
             }`}
           >
@@ -264,7 +267,8 @@ function CameraSelector({
         aria-expanded={open}
         aria-label={`Camera: ${active.label}`}
         title={`Camera: ${active.label}`}
-        className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/55 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-white/80 shadow-[0_2px_8px_rgba(0,0,0,0.35)] backdrop-blur-md transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70"
+        data-active={open ? 'true' : 'false'}
+        className="ciq-broadcast-chip flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-white/80 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70"
       >
         <CameraIcon />
         <span className="hidden sm:inline">{active.label}</span>
@@ -274,7 +278,7 @@ function CameraSelector({
         <ul
           role="listbox"
           aria-label="Camera mode"
-          className="absolute right-0 top-[calc(100%+6px)] z-10 min-w-[140px] overflow-hidden rounded-xl border border-white/10 bg-black/85 py-1 text-[11px] font-semibold text-white/85 shadow-[0_8px_24px_rgba(0,0,0,0.55)] backdrop-blur-md"
+          className="ciq-broadcast-chip absolute right-0 top-[calc(100%+6px)] z-10 min-w-[148px] overflow-hidden rounded-xl py-1 text-[11px] font-semibold text-white/85"
         >
           {CAMERA_MODES.map((mode) => {
             const isActive = mode.id === value
@@ -288,15 +292,13 @@ function CameraSelector({
                     onChange(mode.id)
                     setOpen(false)
                   }}
-                  className={`flex w-full items-center justify-between px-3 py-1.5 text-left transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none ${
-                    isActive ? 'text-[#3BFF9D]' : 'text-white/85'
+                  className={`flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none ${
+                    isActive ? 'bg-[#3BFF9D]/10 text-[#3BFF9D]' : 'text-white/85'
                   }`}
                 >
                   <span>{mode.label}</span>
                   {isActive ? (
-                    <span aria-hidden className="text-[#3BFF9D]">
-                      ●
-                    </span>
+                    <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[#3BFF9D] shadow-[0_0_6px_currentColor]" />
                   ) : null}
                 </button>
               </li>
