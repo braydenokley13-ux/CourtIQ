@@ -1,0 +1,13 @@
+{
+  "module_slug": "advantage-or-reset",
+  "title": "Advantage or Reset",
+  "concept_id": "advantage_or_reset",
+  "category": "OFFENSE",
+  "order": 13,
+  "prerequisite_module_ids": [],
+  "lesson": {
+    "order": 1,
+    "title": "If the advantage is there, take it. If not, reset.",
+    "body_md": "## What is Advantage or Reset?\n\nEvery catch has a window. If your defender is closing out late or out of position, the advantage is yours — attack now. If they're already squared up, the advantage is gone — reset the play and look for the next read.\n\n```takeaway\nThe first move on the catch is the read: either there is an advantage to take, or there isn't.\n```\n\n## The cue\n\n- **Advantage:** the closeout is high, off-balance, or late. Their chest is forward, their feet are still moving.\n- **No advantage:** the closeout is on time, low, with both feet under them and a hand up. The window is closed.\n\n```tip\nLook at their feet on the catch. Moving feet = advantage. Set feet = reset.\n```\n\n## How to attack the advantage\n\n1. **Rip and go.** One hard rip across your body, one decisive first step toward the rim.\n2. **Pick a side.** Drive away from the closeout's lead foot. Don't dance.\n3. **Punish or reset, never both.** A half-rip with no commitment burns the window.\n\n```mistake\nJab-stepping on a late closeout. You just gave the defender time to recover.\nFix: rip and go on the catch. The advantage doesn't wait.\n```\n\n## How to reset cleanly\n\n1. **Calm catch, eyes up.** Don't force the play.\n2. **Swing the ball.** Move it to the next decision-maker — the defense has to shift again.\n3. **Re-space.** Get back to your spot before the next read.\n\n## Self-check after the rep\n\n```reveal\nQ: Did I read the closeout's feet before I moved?\nA: Set feet means reset. Moving feet means attack. Read first, then move.\n```\n\n```reveal\nQ: If I attacked, did I commit fully?\nA: Half-attacks lose the window. Decide once.\n```\n\n```reveal\nQ: If I reset, did I move the ball quickly?\nA: A held reset is a turnover. Swing it and re-space.\n```\n\n## Try it\n\n```quiz\nQ: You catch the ball and your defender's feet are still moving. What's the read?\n- Pump fake ✗\n- Reset to the next pass ✗\n- Rip and drive past their lead foot ✓\nWhy: Moving feet is the cue for advantage. Attack on the catch.\n```\n\n```coach\nGood shot is good. Better shot is better. Don't fake yourself out of the right one.\n```"
+  }
+}

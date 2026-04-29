@@ -809,6 +809,12 @@ export class MotionController {
   private freezeAtMs: number | null = null
   private hasFiredFrozen = false
   private pendingFrozen = false
+  // Phase H — currently active start-position overrides (the freeze
+  // snapshot for consequence/replay legs). Stored so `samplePlayer`
+  // calls can hold idle players (no entry in `byPlayer`) at their
+  // freeze pose instead of snapping them back to `scene.players[*].
+  // start`. null on the initial intro leg.
+  private currentOverrides: ReadonlyMap<string, CourtPoint> | null = null
 
   constructor(
     scene: Scene3D,
@@ -988,7 +994,13 @@ export class MotionController {
     for (const player of this.scene.players) {
       const g = this.playerGroups.get(player.id)
       if (!g) continue
-      const pos = samplePlayer(this.scene, this.timeline, player.id, t)
+      const pos = samplePlayer(
+        this.scene,
+        this.timeline,
+        player.id,
+        t,
+        this.currentOverrides,
+      )
       g.position.x = pos.x
       g.position.z = pos.z
     }
@@ -1075,7 +1087,7 @@ export class MotionController {
     let bestId: string | null = null
     let bestDist = Number.POSITIVE_INFINITY
     for (const p of this.scene.players) {
-      const pos = samplePlayer(this.scene, this.timeline, p.id, atMs)
+      const pos = samplePlayer(this.scene, this.timeline, p.id, atMs, this.currentOverrides)
       const dx = pos.x - target.x
       const dz = pos.z - target.z
       const d = dx * dx + dz * dz
@@ -1120,7 +1132,13 @@ export class MotionController {
     }
 
     if (phase.holderId) {
-      const pos = samplePlayer(this.scene, this.timeline, phase.holderId, t)
+      const pos = samplePlayer(
+        this.scene,
+        this.timeline,
+        phase.holderId,
+        t,
+        this.currentOverrides,
+      )
       this.ballGroup.position.set(pos.x, this.baseBallY, pos.z)
       return
     }
@@ -1164,6 +1182,7 @@ export class MotionController {
     startOverrides?: ReadonlyMap<string, CourtPoint>,
   ): void {
     this.timeline = buildTimeline(this.scene, movements, { startOverrides })
+    this.currentOverrides = startOverrides ?? null
     this.initialHolderId =
       startOverrides && startOverrides.has('ball')
         ? this.findHolderForOverride(startOverrides)
@@ -1184,7 +1203,7 @@ export class MotionController {
    */
   snapshotPositions(nowMs: number = performance.now()): Map<string, CourtPoint> {
     const t = this.getElapsedMs(nowMs)
-    return samplePositionsAt(this.scene, this.timeline, t)
+    return samplePositionsAt(this.scene, this.timeline, t, this.currentOverrides)
   }
 
   /** Phase D — starts the per-choice consequence leg. Returns false

@@ -1,0 +1,13 @@
+{
+  "module_slug": "skip-the-rotation",
+  "title": "Skip the Rotation",
+  "concept_id": "skip_the_rotation",
+  "category": "OFFENSE",
+  "order": 12,
+  "prerequisite_module_ids": [],
+  "lesson": {
+    "order": 1,
+    "title": "Beat the rotation with the cross-court pass.",
+    "body_md": "## What is Skip the Rotation?\n\nA paint touch makes the defense slide. By the time the next pass arrives, the closest defender is the one who *just rotated*. The Skip pass — across the court — beats them to the spot, because the rotation never gets there.\n\n```takeaway\nWhen the defense is rotating, throw the ball to the spot they can't get to in time.\n```\n\n## The cue\n\n- A teammate's drive forces help to commit.\n- Two defenders are rotating across the court at the same time.\n- The opposite corner or wing is open *before* the closeout starts.\n\n```tip\nIf the help rotated, the skip is on. Don't wait for the rotation to finish.\n```\n\n## How to punish it\n\n1. **See the second rotation, not just the first.** Help on the drive is one rotation; the next defender filling for them is the second.\n2. **Throw it on a line.** A skip pass that floats lets the closeout catch up.\n3. **Trust the receiver.** The catch is the read; don't pre-decide whether they shoot, drive, or skip again.\n\n```mistake\nForcing the skip when only one defender has rotated. The closest perimeter defender is still in position — they'll deflect or strip it.\nFix: wait for the second rotation, then throw.\n```\n\n## Self-check after the rep\n\n```reveal\nQ: Did I see the help commit before I skipped?\nA: Skip without rotation is a turnover. Read the help first.\n```\n\n```reveal\nQ: Did I throw it on a line, not a rainbow?\nA: A flat skip beats the closeout. A floater lets the defense recover.\n```\n\n```reveal\nQ: Did I trust my teammate to make the next read?\nA: Your job ends when the ball arrives. The catch is theirs.\n```\n\n## Try it\n\n```quiz\nQ: A teammate's paint touch pulled help. The opposite corner is open before any defender has closed out. Best move?\n- Drive again ✗\n- Pass back to the slot ✗\n- Skip pass to the open corner ✓\nWhy: The skip beats the rotation. The corner shooter sees the closeout long before it arrives.\n```\n\n```coach\nThe pass beats the run. Skip it.\n```"
+  }
+}

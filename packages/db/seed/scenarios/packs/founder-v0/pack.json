@@ -1,0 +1,13 @@
+{
+  "id": "pack-founder-v0",
+  "slug": "founder-v0",
+  "title": "Founder v0 / Decoder Foundations",
+  "description": "Pack 1. Four gold-standard decoder scenarios — backdoor window, empty-space cut, advantage-or-reset, skip-the-rotation — that establish CourtIQ's read-the-defender curriculum.",
+  "scenarios": [
+    {
+      "id": "BDW-01",
+      "file": "BDW-01.json",
+      "prerequisites": []
+    }
+  ]
+}

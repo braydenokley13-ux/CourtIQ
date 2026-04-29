@@ -1,0 +1,13 @@
+{
+  "module_slug": "empty-space-cut",
+  "title": "The Empty-Space Cut",
+  "concept_id": "empty_space_cut",
+  "category": "OFFENSE",
+  "order": 11,
+  "prerequisite_module_ids": [],
+  "lesson": {
+    "order": 1,
+    "title": "Cut into the space your teammate just created.",
+    "body_md": "## What is an Empty-Space Cut?\n\nWhen a teammate drives, the defense rotates to stop the ball. That rotation leaves a hole somewhere on the floor. The Empty-Space Cut is your move into that hole — usually along the baseline, behind the helper that just left.\n\n```takeaway\nWhen your teammate drives, your job is to fill the space their defender just abandoned.\n```\n\n## The cue\n\n- A teammate puts the ball on the floor toward the rim.\n- Your defender (the low helper) steps in to tag or stop the drive.\n- The corner or short baseline behind them is suddenly empty.\n\n```tip\nThe second the helper steps up, you step down. Same instant — that's the read.\n```\n\n## How to punish it\n\n1. **Hold the corner until the help moves.** Lifting too early gives the helper time to recover.\n2. **Sneak baseline.** Stay low and tight to the line so your defender can't see you and the ball at the same time.\n3. **Show target hands.** A baseline drop-off is short and quick — be ready to catch and finish.\n\n```mistake\nSprinting up to the wing the moment your teammate drives. You're now standing where their defender will rotate to.\nFix: drop down baseline, into the space the helper just left.\n```\n\n## Self-check after the rep\n\n```reveal\nQ: Did I see the helper commit before I cut?\nA: Wait for the rotation. Cutting before the help moves is just running into traffic.\n```\n\n```reveal\nQ: Did I cut along the baseline, not up to the wing?\nA: The empty space is below the helper, not above. Stay low.\n```\n\n```reveal\nQ: Did I show target hands for a baseline drop-off?\nA: The pass is short and quick. Be ready before it arrives.\n```\n\n## Try it\n\n```quiz\nQ: Your teammate drives middle and your defender (low helper) steps up to tag. What's your move?\n- Stay in the corner ✗\n- Sneak baseline behind them ✓\n- Lift to the wing ✗\nWhy: The corner-side rim is wide open. Cut into it before your defender can recover.\n```\n\n```coach\nCut into the space your teammate just created.\n```"
+  }
+}

@@ -174,9 +174,16 @@ export class TeachingOverlayController {
     scene: Scene3D,
     mode: MotionMode,
     root: THREE.Group,
-    options?: { reduced?: boolean },
+    options?: { reduced?: boolean; heuristic?: boolean },
   ) {
     this.reduced = !!options?.reduced
+    // Phase H — authored-only mode. The JSX path mounts a separate
+    // overlay bridge that only needs the authored pre/post groups
+    // (movement paths and spacing labels are already drawn by the
+    // declarative `<MovementPath3D>` tree). Defaults to true so the
+    // imperative simple-mode path keeps rendering its full overlay
+    // surface unchanged.
+    const buildHeuristic = options?.heuristic !== false
     this.root = root
     this.scene = scene
     this.group = new THREE.Group()
@@ -198,13 +205,14 @@ export class TeachingOverlayController {
     this.group.add(this.preAnswerGroup)
     this.group.add(this.postAnswerGroup)
 
-    const movements = resolveMovements(scene, mode)
-
-    if (movements.length > 0) {
-      this.buildMovementPaths(scene, movements)
-      this.buildDefensiveCues(scene, movements)
+    if (buildHeuristic) {
+      const movements = resolveMovements(scene, mode)
+      if (movements.length > 0) {
+        this.buildMovementPaths(scene, movements)
+        this.buildDefensiveCues(scene, movements)
+      }
+      this.buildSpacingLabels(scene)
     }
-    this.buildSpacingLabels(scene)
 
     root.add(this.group)
   }

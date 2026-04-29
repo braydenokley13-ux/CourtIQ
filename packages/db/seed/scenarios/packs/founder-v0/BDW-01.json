@@ -1,0 +1,279 @@
+[
+  {
+    "id": "BDW-01",
+    "version": 1,
+    "status": "LIVE",
+    "title": "Denied Wing Backdoor",
+    "category": "OFFENSE",
+    "decoder_tag": "BACKDOOR_WINDOW",
+    "concept_tags": ["off_ball_movement", "reading_denial"],
+    "sub_concepts": ["backdoor_cut", "denial_read"],
+    "difficulty": 1,
+    "user_role": "off_ball_wing",
+    "game_context": "4-on-4 half-court shell, ball reversal from the left slot, 14 on the shot clock.",
+    "possession_setup": "The ball is at the left slot. You are the right wing. The defense is denying your reversal — your defender's hand and foot are in the passing lane.",
+    "decision_moment": "Your defender steps into the passing lane, hand and foot extended, chest between ball and receiver.",
+    "visible_cue": "x2 has hand and foot in the lane, hips opened toward the sideline, chest between ball and receiver.",
+    "court_state": {
+      "offense": [
+        { "id": "pg", "x": 160, "y": 140, "role": "ball_handler", "hasBall": true },
+        { "id": "user", "x": 430, "y": 80, "role": "off_ball_wing", "hasBall": false },
+        { "id": "o3", "x": 70, "y": 90, "role": "weak_wing", "hasBall": false },
+        { "id": "o4", "x": 470, "y": 10, "role": "strong_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x1", "x": 160, "y": 160, "role": "on_ball", "hasBall": false },
+        { "id": "x2", "x": 400, "y": 100, "role": "denying_wing_defender", "hasBall": false },
+        { "id": "x3", "x": 100, "y": 100, "role": "weak_wing_defender", "hasBall": false },
+        { "id": "x4", "x": 440, "y": 30, "role": "low_man", "hasBall": false }
+      ],
+      "ball_location": { "x": 160, "y": 140 }
+    },
+    "prompt": "Your defender is sitting on the reversal. What is the smartest move right now?",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Cut backdoor behind the defender.",
+        "quality": "best",
+        "feedback_text": "Best read. The defender is guarding the pass, not the basket — punish that with a plant-and-go.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "V-cut out to a deeper catch point.",
+        "quality": "acceptable",
+        "feedback_text": "Acceptable. The V-cut keeps possession alive, but you traded a layup window for a contested perimeter catch.",
+        "partial_feedback_text": "Re-spacing keeps the play alive — the cleaner answer is the layup window behind the denying defender.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Stay on the wing and call for the ball.",
+        "quality": "wrong",
+        "feedback_text": "Wrong. The defender is already in the lane — forcing the reversal is a deflection or turnover.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Slowly cut in front of the defender.",
+        "quality": "wrong",
+        "feedback_text": "Wrong. Cutting in front lets the defender ride your route — go behind them, not through them.",
+        "order": 4
+      }
+    ],
+    "best_read": "Plant the outside foot and back-cut behind x2 to the front of the rim; passer leads you to the layup before x4 can rotate.",
+    "acceptable_reads": [
+      "V-cut out to a deeper catch point. Possession kept, but the layup window is missed."
+    ],
+    "bad_reads": [
+      "Stay on the wing and call for the ball — defender deflects the reversal.",
+      "Slow front cut — defender rides the route and the window closes."
+    ],
+    "common_miss_reason": "Loyalty to the spot. Wings keep fighting for the assigned catch even after the defender has visibly given up the basket to take away the pass.",
+    "why_best_read_works": "The defender is guarding the pass, not the basket. The denial removes the wing catch but opens the layup window behind it — the back-cut punishes the very stance that denied the reversal.",
+    "decoder_teaching_point": "When your defender sits in the passing lane, the basket is open behind them.",
+    "lesson_connection": "backdoor-window",
+    "feedback": {
+      "correct": "Good read. You punished the denial instead of fighting for the catch.",
+      "partial": "Re-spacing can keep the play alive, but the cleaner answer was the layup window behind the defender.",
+      "wrong": "You stayed loyal to the spot instead of the cue. If they deny the pass, cut behind them."
+    },
+    "self_review_checklist": [
+      "Did I see the hand-and-foot denial?",
+      "Did I plant and go behind, not in front?",
+      "Did I cut hard enough to make it a scoring cut?",
+      "Did I show target hands at the rim?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "reviewed",
+      "notes": "Backdoor against denial is universally taught. Later confirm whether the default youth pass should be bounce, lead, or chest-fake-to-bounce."
+    },
+    "source_research_basis": "Universally taught youth-level read; backdoor against denial is system-independent.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": []
+    },
+    "explanation_md": "**The Backdoor Window.** Your defender is denying the reversal — hand and foot in the lane, chest between ball and receiver, hips opened toward the sideline. That stance gives up the basket to take away the pass. The plant-and-go back-cut punishes the denial: jab the outside foot to commit the defender's hips, then explode behind them to the front of the rim before x4 can rotate. Read the defender, not the spot.",
+    "xp_reward": 12,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "denied_wing_backdoor",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        { "id": "pg", "team": "offense", "role": "ball_handler", "label": "PG", "start": { "x": -9, "z": 14 }, "hasBall": true },
+        { "id": "user", "team": "offense", "role": "off_ball_wing", "label": "You", "start": { "x": 18, "z": 8 }, "isUser": true },
+        { "id": "o3", "team": "offense", "role": "weak_wing", "label": "3", "start": { "x": -18, "z": 9 } },
+        { "id": "o4", "team": "offense", "role": "strong_corner", "label": "4", "start": { "x": 22, "z": 1 } },
+        { "id": "x1", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": -9, "z": 16 } },
+        { "id": "x2", "team": "defense", "role": "denying_wing_defender", "label": "x2", "start": { "x": 15, "z": 10 } },
+        { "id": "x3", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": -15, "z": 10 } },
+        { "id": "x4", "team": "defense", "role": "low_man", "label": "x4", "start": { "x": 19, "z": 3 } }
+      ],
+      "ball": {
+        "start": { "x": -9, "z": 14 },
+        "holderId": "pg"
+      },
+      "movements": [
+        {
+          "id": "user_show_hands",
+          "playerId": "user",
+          "kind": "lift",
+          "to": { "x": 18, "z": 9 },
+          "delayMs": 0,
+          "durationMs": 600
+        },
+        {
+          "id": "x2_step_to_denial",
+          "playerId": "x2",
+          "kind": "rotation",
+          "to": { "x": 14, "z": 11 },
+          "delayMs": 200,
+          "durationMs": 600
+        }
+      ],
+      "answerDemo": [
+        {
+          "id": "user_jab",
+          "playerId": "user",
+          "kind": "jab",
+          "to": { "x": 19, "z": 9 },
+          "delayMs": 0,
+          "durationMs": 250
+        },
+        {
+          "id": "user_plant_and_go",
+          "playerId": "user",
+          "kind": "back_cut",
+          "to": { "x": 4, "z": 2 },
+          "delayMs": 100,
+          "durationMs": 750
+        },
+        {
+          "id": "pg_lead_pass",
+          "playerId": "ball",
+          "kind": "pass",
+          "to": { "x": 4, "z": 2 },
+          "delayMs": 350,
+          "durationMs": 500
+        },
+        {
+          "id": "user_finish",
+          "playerId": "user",
+          "kind": "cut",
+          "to": { "x": 0, "z": 0.5 },
+          "delayMs": 100,
+          "durationMs": 350
+        }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "Possession kept, layup window missed.",
+          "movements": [
+            {
+              "id": "user_v_cut",
+              "playerId": "user",
+              "kind": "cut",
+              "to": { "x": 21, "z": 10 },
+              "delayMs": 0,
+              "durationMs": 600
+            },
+            {
+              "id": "pg_late_pass",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": { "x": 21, "z": 10 },
+              "delayMs": 200,
+              "durationMs": 500
+            }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "Defender deflects the reversal.",
+          "movements": [
+            {
+              "id": "pg_force_pass",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": { "x": 18, "z": 8 },
+              "delayMs": 0,
+              "durationMs": 450
+            },
+            {
+              "id": "x2_deflect",
+              "playerId": "x2",
+              "kind": "rotation",
+              "to": { "x": 16, "z": 9 },
+              "delayMs": 100,
+              "durationMs": 350
+            },
+            {
+              "id": "ball_loose",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": { "x": 18, "z": 12 },
+              "delayMs": 300,
+              "durationMs": 350
+            }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "Defender rides the cut. Window closes.",
+          "movements": [
+            {
+              "id": "user_front_cut",
+              "playerId": "user",
+              "kind": "cut",
+              "to": { "x": 8, "z": 6 },
+              "delayMs": 0,
+              "durationMs": 800
+            },
+            {
+              "id": "x2_ride",
+              "playerId": "x2",
+              "kind": "rotation",
+              "to": { "x": 9, "z": 7 },
+              "delayMs": 100,
+              "durationMs": 700
+            }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "defender_vision_cone", "playerId": "x2", "targetId": "pg" },
+        { "kind": "defender_hip_arrow", "playerId": "x2" },
+        { "kind": "defender_foot_arrow", "playerId": "x2" },
+        { "kind": "defender_chest_line", "playerId": "x2" },
+        { "kind": "defender_hand_in_lane", "playerId": "x2" },
+        { "kind": "help_pulse", "playerId": "x4", "role": "low_man" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "passing_lane_blocked", "from": "pg", "to": "user" },
+        { "kind": "passing_lane_open", "from": "pg", "to": "user" },
+        { "kind": "defender_vision_cone", "playerId": "x2", "targetId": "pg" },
+        { "kind": "defender_hip_arrow", "playerId": "x2" },
+        { "kind": "defender_foot_arrow", "playerId": "x2" },
+        { "kind": "defender_chest_line", "playerId": "x2" },
+        { "kind": "defender_hand_in_lane", "playerId": "x2" },
+        { "kind": "help_pulse", "playerId": "x4", "role": "low_man" },
+        { "kind": "open_space_region", "anchor": { "x": 5, "z": 4 }, "radiusFt": 4 },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "user",
+          "path": [
+            { "x": 18, "z": 8 },
+            { "x": 19, "z": 9 },
+            { "x": 4, "z": 2 },
+            { "x": 0, "z": 0.5 }
+          ]
+        }
+      ]
+    }
+  }
+]

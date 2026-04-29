@@ -21,6 +21,8 @@ function buildScene(): Scene3D {
     movements: [],
     answerDemo: [],
     wrongDemos: [],
+    preAnswerOverlays: [],
+    postAnswerOverlays: [],
     freezeAtMs: null,
     synthetic: false,
   }

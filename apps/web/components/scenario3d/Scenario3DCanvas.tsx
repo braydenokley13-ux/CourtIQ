@@ -30,6 +30,7 @@ import {
   isEmergencyScene,
   isOrbitDebug,
   isSimpleScene,
+  readSimpleSceneOverride,
 } from '@/lib/scenario3d/feature'
 import { useReducedMotion } from '@/lib/scenario3d/useReducedMotion'
 import { createDefaultScene, type Scene3D } from '@/lib/scenario3d/scene'
@@ -84,6 +85,23 @@ interface Scenario3DCanvasProps {
    *  the FPS guard auto-degrades it). Useful for surfacing the active
    *  tier in dev diagnostics. */
   onQualityChange?: (tier: QualityTier) => void
+  /**
+   * Phase G — opt the canvas into the full Court3D + ScenarioScene3D
+   * path even when the URL has not set `?simple=0`. The parent
+   * (`Scenario3DView`) sets this for decoder scenarios so they default
+   * to the JSX scenario tree (which mounts `ScenarioReplayController`
+   * and emits the `frozen` phase). Legacy scenarios omit the prop and
+   * stay on the imperative simple path. URL `?simple=1` still wins so
+   * authors can force the simple path during diagnostics.
+   */
+  forceFullPath?: boolean
+  /**
+   * Phase H — forwards the user's picked choice into the JSX
+   * `ScenarioReplayController` so it can dispatch the consequence and
+   * best-read replay legs. Only meaningful on the full path; ignored
+   * by the imperative simple-mode tree.
+   */
+  pickedChoiceId?: string | null
 }
 
 // Mid-tone gray. While the rebuild is in flight we deliberately do NOT
@@ -152,6 +170,8 @@ export function Scenario3DCanvas({
   paused,
   quality = 'auto',
   onQualityChange,
+  forceFullPath,
+  pickedChoiceId,
 }: Scenario3DCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   // Refs into the THREE objects R3F creates. Captured in onCreated so a
@@ -233,7 +253,13 @@ export function Scenario3DCanvas({
     const debug = isDebug3D()
     const emergency = isEmergencyScene()
     const orbit = isOrbitDebug()
-    const simple = isSimpleScene()
+    // Phase G — decoder scenarios default to the full Court3D +
+    // ScenarioScene3D path so the JSX `ScenarioReplayController` can
+    // emit the freeze edge. URL `?simple=1` still wins so testers can
+    // force the simple path; URL `?simple=0` and the prop both push
+    // the canvas onto the full path.
+    const explicit = readSimpleSceneOverride()
+    const simple = explicit ?? (forceFullPath ? false : isSimpleScene())
     const autofit = isAutoFitCamera()
     setDebugMode(debug)
     setEmergencyMode(emergency)
@@ -257,6 +283,16 @@ export function Scenario3DCanvas({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Phase G — keep simpleMode in sync with `forceFullPath` so a parent
+  // can flip a decoder scenario into the full path mid-session without
+  // remounting the canvas. URL `?simple=` still wins when explicit so
+  // testers can pin either path.
+  useEffect(() => {
+    const explicit = readSimpleSceneOverride()
+    const next = explicit ?? (forceFullPath ? false : isSimpleScene())
+    setSimpleMode(next)
+  }, [forceFullPath])
 
   // Resolve quality settings on mount and whenever the prop changes.
   // URL `?quality=` wins over the resolved auto-tier so a tester can
@@ -985,6 +1021,7 @@ export function Scenario3DCanvas({
               onCaption={onCaption}
               onPhase={onPhase}
               showPaths={showPaths}
+              pickedChoiceId={pickedChoiceId}
             />
             <Suspense fallback={null}>{children}</Suspense>
             <SceneDebug3D scene={visibleScene} />

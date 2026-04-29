@@ -81,6 +81,24 @@ export function isSimpleScene(): boolean {
 }
 
 /**
+ * Returns whichever explicit `?simple=` value the URL carries, or null
+ * when the param is absent. Phase G uses this to let an explicit
+ * `?simple=1` keep the simple path even on decoder scenarios that would
+ * otherwise force the full Court3D + ScenarioScene3D tree.
+ */
+export function readSimpleSceneOverride(): boolean | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = new URLSearchParams(window.location.search).get('simple')
+    if (raw === '0') return false
+    if (raw === '1') return true
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
  * True unless the page is loaded with `?autofit=0`. When true, the canvas
  * computes a Box3 over the scene's player + ball positions and aims the
  * camera at the box, sized to fit the canvas. This makes the renderer
