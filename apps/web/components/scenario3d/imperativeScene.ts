@@ -3526,24 +3526,26 @@ function buildPlayerFigure(
   userHeadLayer.name = 'indicator-layer-user-head'
   userHeadLayer.visible = isUser
 
-  // Possession ring — a warm-gold outer band only present on the
-  // initial ball-handler. Sits OUTSIDE the team ring so both can be
-  // read at a glance without one occluding the other.
-  if (hasBall) {
-    const possession = new THREE.Mesh(
-      new THREE.RingGeometry(PLAYER_RADIUS + 0.55, PLAYER_RADIUS + 0.85, 48),
-      new THREE.MeshBasicMaterial({
-        color: POSSESSION_RING_COLOR,
-        toneMapped: false,
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.95,
-      }),
-    )
-    possession.rotation.x = -Math.PI / 2
-    possession.position.y = 0.045
-    possessionLayer.add(possession)
-  }
+  // Possession ring — a warm-gold outer band that sits OUTSIDE the
+  // team ring so both can be read at a glance without one occluding
+  // the other. The geometry is built for every player and the layer's
+  // visibility flag drives whether it shows; this keeps the
+  // `getPlayerIndicatorLayers(...).possession.visible = true` post-mount
+  // contract honest, so a future ball-handoff can flip possession on
+  // a non-initial holder without rebuilding any geometry.
+  const possession = new THREE.Mesh(
+    new THREE.RingGeometry(PLAYER_RADIUS + 0.55, PLAYER_RADIUS + 0.85, 48),
+    new THREE.MeshBasicMaterial({
+      color: POSSESSION_RING_COLOR,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.95,
+    }),
+  )
+  possession.rotation.x = -Math.PI / 2
+  possession.position.y = 0.045
+  possessionLayer.add(possession)
 
   // Floor disc — keeps the existing team-colored selection ring used
   // upstream by the 2D motion overlay so the renderer reads the same.

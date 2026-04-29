@@ -136,6 +136,7 @@ interface FocusMarkHandle {
   baseOpacity: number
   geometries: THREE.BufferGeometry[]
   materials: THREE.Material[]
+  position: { x: number; z: number }
 }
 
 interface FeedbackMarkHandle {
@@ -144,6 +145,10 @@ interface FeedbackMarkHandle {
   baseOpacity: number
   geometries: THREE.BufferGeometry[]
   materials: THREE.Material[]
+  kind: 'defender_outline' | 'closed_lane'
+  position?: { x: number; z: number }
+  from?: { x: number; z: number }
+  to?: { x: number; z: number }
 }
 
 interface AnimatedTube {
@@ -371,13 +376,24 @@ export class TeachingOverlayController {
 
   /**
    * Phase 3 — sets a slow-pulsing focus ring at the player's position.
-   * Replaces any existing focus mark for the same `playerId`. The
-   * mark uses a single warm hue (`FOCUS_MARK_COLOR`) so the focus
-   * layer never reads as a second user-identity halo. Idempotent for
-   * the same playerId + position.
+   * Reuses the existing mesh when called repeatedly for the same
+   * `playerId` (translates the group instead of rebuilding) so a
+   * caller updating the position per frame never allocates new
+   * geometry / material / GPU buffers on the hot path. Idempotent
+   * for the same playerId + position.
    */
   setFocusMark(playerId: string, spec: FocusMarkSpec): void {
-    this.removeFocusMark(playerId)
+    const existing = this.focusMarks.get(playerId)
+    if (existing) {
+      if (
+        existing.position.x !== spec.position.x ||
+        existing.position.z !== spec.position.z
+      ) {
+        existing.group.position.set(spec.position.x, 0, spec.position.z)
+        existing.position = { x: spec.position.x, z: spec.position.z }
+      }
+      return
+    }
     const handle = this.buildFocusMark(spec)
     this.focusMarksGroup.add(handle.group)
     this.focusMarks.set(playerId, handle)
@@ -402,10 +418,37 @@ export class TeachingOverlayController {
    * Phase 3 — sets a feedback mark for a player. The
    * `defender_outline` kind is a hot defender footprint ring; the
    * `closed_lane` kind is a flat strip from `from` to `to` for the
-   * lane that closed. Replaces any existing feedback mark for the
-   * same `playerId`.
+   * lane that closed. Reuses the existing mesh when the kind and
+   * geometry match so per-frame callers never allocate. A kind
+   * switch (or a `closed_lane` whose endpoints have moved) falls
+   * through to a clean rebuild.
    */
   setFeedbackMark(playerId: string, spec: FeedbackMarkSpec): void {
+    const existing = this.feedbackMarks.get(playerId)
+    if (existing && existing.kind === spec.kind) {
+      if (spec.kind === 'defender_outline') {
+        if (
+          existing.position?.x !== spec.position.x ||
+          existing.position?.z !== spec.position.z
+        ) {
+          existing.group.position.set(spec.position.x, 0, spec.position.z)
+          existing.position = { x: spec.position.x, z: spec.position.z }
+        }
+        return
+      }
+      // closed_lane: reuse only when both endpoints are unchanged.
+      // Length-based PlaneGeometry would have to be rebuilt to
+      // change, so a moving lane falls through to the dispose +
+      // rebuild path below — still cheap (single PlaneGeometry).
+      if (
+        existing.from?.x === spec.from.x &&
+        existing.from?.z === spec.from.z &&
+        existing.to?.x === spec.to.x &&
+        existing.to?.z === spec.to.z
+      ) {
+        return
+      }
+    }
     this.removeFeedbackMark(playerId)
     const handle = this.buildFeedbackMark(spec)
     this.feedbackMarksGroup.add(handle.group)
@@ -1552,6 +1595,7 @@ export class TeachingOverlayController {
       baseOpacity: 0.85,
       geometries: [ringGeom, fillGeom],
       materials: [mat, fillMat],
+      position: { x: spec.position.x, z: spec.position.z },
     }
   }
 
@@ -1588,6 +1632,8 @@ export class TeachingOverlayController {
         baseOpacity: 0.85,
         geometries: [ringGeom],
         materials: [mat],
+        kind: 'defender_outline',
+        position: { x: spec.position.x, z: spec.position.z },
       }
     }
 
@@ -1624,6 +1670,9 @@ export class TeachingOverlayController {
       baseOpacity: 0.7,
       geometries: [geom],
       materials: [mat],
+      kind: 'closed_lane',
+      from: { x: spec.from.x, z: spec.from.z },
+      to: { x: spec.to.x, z: spec.to.z },
     }
   }
 
