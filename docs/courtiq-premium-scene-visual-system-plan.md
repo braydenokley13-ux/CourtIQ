@@ -330,3 +330,195 @@ on the existing renderer plans:
   must be tracked and disposed on unmount.
 
 ---
+
+## 7. Player Role UI / Indicator System Plan
+
+The indicator system is what turns a 3D scene into a **playable film
+room**. It is the layer that says, in one glance: *"that's you, that
+person has the ball, those are defenders, watch the helper."*
+
+> **Offense, defense, ball, and focus states must be readable in one glance.**
+
+### States that must be expressible
+
+- **User-controlled player** — always the most distinct mark.
+- **Ball-handler** — clear at any moment of the play.
+- **Offense** — non-ball-handler offensive players.
+- **Defense** — every defender, base team identity.
+- **Selected / focus state** — the player the lesson wants the user to
+  read right now (e.g., "watch the wing defender").
+- **Matchup state** — pairs a defender with the player they are
+  guarding when the lesson needs that link explicit.
+- **Teaching cue state** — the pre-decision "look here" mark.
+- **Help defender state** — the helper that should pull the user's eye
+  on shrink / skip / drive scenarios.
+- **Incorrect-choice consequence state** — what lights up when a wrong
+  read is made (e.g., the defender that recovered, the lane that
+  closed).
+
+### Layered state model
+
+To keep states stackable without becoming visually noisy, indicators
+are split into five additive layers. Each player can have at most one
+mark from each layer active at a time.
+
+1. **Base team identity layer.** Sets offense vs defense at all times.
+   Lowest visual weight. Lives on the player's foot ring or jersey
+   tint. Always on. Never animated.
+2. **User identity layer.** Marks the user-controlled player. Highest
+   priority of all layers. Stronger ring + a unique secondary mark
+   (e.g., a subtle underglow) so the user is identifiable even when
+   another layer is active. Always on for the user. Never on for
+   anyone else.
+3. **Possession layer.** Marks the ball-handler. A small, broadcast-
+   style pip near the player or a clean ring accent. Switches cleanly
+   on a pass. Never confused with the user identity mark.
+4. **Focus / cue layer.** Marks who the lesson wants the user to read.
+   This layer is **animated** (slow pulse), used sparingly, and is
+   what carries the pre-decision teaching cue. Off by default, on
+   only when the lesson calls it.
+5. **Feedback / replay layer.** Used post-decision and during replay.
+   Marks the helper that recovered, the lane that closed, the cutter
+   the user missed. Stronger color, often paired with overlays. Off
+   during the live decision moment.
+
+The layers stack additively: **base** is always there; **user** is
+always there for the user; **possession** is always there for the
+ball-handler; **focus** is added when the cue fires; **feedback** is
+added after the choice. Because each layer occupies a different
+visual channel (ring band, underglow, pip, pulse, color sweep), they
+read clearly without fighting each other.
+
+### Specific ideas per primitive
+
+- **Foot rings.** The base team identity carrier. Two flat,
+  broadcast-style ring tones — one for offense, one for defense.
+  Subtle, low-contrast, always on. Designed to live under everything
+  else without competing.
+- **Halos.** Reserved for the user player. A clean, single accent
+  halo at chest height, slightly tilted toward the camera, that reads
+  even when the player is occluded by another body. This is the
+  primary "that's you" cue.
+- **Underglows.** Used as the **secondary** user identity mark and as
+  the focus / cue glow. Soft, contained, never bleeding past the
+  player's footprint. Different hues for "you" vs "watch this."
+- **Outlines.** Reserved for replay / feedback moments — e.g., a
+  defender outlined briefly when explaining "that helper recovered."
+  Off during live decisions to keep the frame quiet.
+- **Pulsing states.** Only the focus / cue layer and the
+  incorrect-choice consequence layer pulse. Pulse is precious. If
+  everything pulses, nothing teaches.
+- **Ball possession marker.** A small, broadcast-style pip floating
+  above or next to the ball-handler. Switches instantly on pass.
+  Never large enough to obscure the player's body or stance.
+- **Focus glow.** The pre-decision "read this player" mark. A soft,
+  warm pulse on the focus layer. Used to **open the read**, not to
+  point at the answer. Fades cleanly when the user starts to choose.
+- **Wrong-read consequence visuals.** When the user picks the wrong
+  read, the defender who would have recovered briefly outlines and
+  the closed lane briefly fills, paired with the post-decision
+  overlay. This is the moment the scene **teaches the answer** —
+  short, clean, then back to neutral so the next attempt feels fresh.
+
+### Anti-patterns
+
+- No "everything pulses" frames. Pulse is reserved.
+- No simultaneous loud halos on multiple players. The user halo wins.
+- No team-color halos that compete with the user identity halo.
+- No floor decals that compete with court lines.
+
+---
+
+## 8. Court / Hoop / Environment Upgrade Plan
+
+> **The court is a teaching stage.**
+
+The court should feel premium without becoming distracting. The user's
+attention belongs on the players and the read; the court's job is to
+**hold** that attention, not to **steal** it.
+
+### Hardwood material
+
+- Soft, slightly warm wood tone — close to broadcast hardwood, not
+  glossy and not matte.
+- Subtle plank direction so the floor reads as wood, but no high-
+  frequency grain that competes with painted lines.
+- Minimal specular response. A faint sheen, not a mirror.
+
+### Court lines
+
+- Crisp, high-contrast paint lines: sidelines, baseline, free-throw
+  line, lane lines, three-point arc, restricted area, half-court.
+- Slightly thicker than "real" lines for readability from the default
+  camera.
+- Color: a clean off-white that holds up under the scene lighting and
+  never glares.
+
+### Paint and key
+
+- A muted, branded paint color — saturated enough to anchor the half-
+  court visually, desaturated enough to never out-shout the players.
+- The paint is the diagram's center of gravity. It should pull the eye
+  to the action.
+
+### Three-point arc
+
+- The arc must be unambiguously readable. Many CourtIQ reads
+  (skip, paint touch, closeout) live around the arc.
+- Slightly emphasized line weight is allowed if needed for
+  readability. **Readability beats realism.**
+
+### Rim area / restricted area
+
+- Visible enough to anchor "paint touch" and "baseline cut"
+  scenarios.
+- Quiet by default, ready to be highlighted by overlays in Section 10.
+
+### Hoop
+
+- Cleaner stanchion geometry: padded base, a real arm, a backboard
+  that reads as glass-on-frame, not as a flat plate.
+- Stanchion presence should signal "real gym hoop" without crowding
+  the half-court visually.
+
+### Backboard
+
+- Frame, glass, and shooter's square readable from the high 3/4 angle.
+- Slight transparency on the glass, but not so much that overlays
+  behind the rim become noisy.
+
+### Rim
+
+- Round tube geometry, broadcast-orange tone, slightly brighter than
+  the paint so it always reads.
+- Net attachment loops visible enough to feel real, not modeled in
+  high detail.
+
+### Net
+
+- Stylized net — a few segments, soft motion only when the ball goes
+  through. No expensive cloth simulation.
+- Net visibility should never compete with player silhouettes.
+
+### Stanchion
+
+- Base, arm, padding. Branded color treatment is allowed but should
+  stay quiet.
+- Lives in the background of the frame, not in the read.
+
+### Background environment
+
+- A quiet, low-contrast volume around the half-court — implied gym,
+  not modeled gym. No bleachers, no crowd, no ceiling truss.
+- A soft vignette / falloff away from the court keeps the eye where
+  the lesson is. **Quiet background, high-contrast decision space.**
+
+### Anti-patterns
+
+- No glossy mirror floor.
+- No noisy wood texture that fights court lines.
+- No realistic crowd, banners, or scoreboard at this phase.
+- No environmental detail that costs frames on Mac for zero teaching
+  value.
+
+---
