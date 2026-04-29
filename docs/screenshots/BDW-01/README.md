@@ -161,6 +161,11 @@ copy, and motion.
   credentials and the build pipeline is the source of truth for the
   font subset. The CI/preview pipeline still exercises this capture
   path (see `pnpm screenshot:bdw`).
+- Authenticated visual QA (`pnpm qa:auth` → `pnpm qa:screenshot`) is
+  not yet wired in this branch — there's no `.auth/courtiq-user.json`
+  or `qa:auth` script in `package.json`. Adding the auth bootstrap
+  + storage-state plumbing is the unblocker for a visual-QA polish
+  pass.
 - The "Show what I did" CTA on a miss is currently wired to the same
   best-read replay counter — the imperative scene's state machine
   retains the picked choice across replay resets, but a follow-up
@@ -169,6 +174,15 @@ copy, and motion.
   (`SELF_SIGNED_CERT_IN_CHAIN` on `fonts.googleapis.com`); same
   environmental limit as the baseline pass. Code-level validations
   (typecheck, lint, test) are clean.
+
+## Build issue history
+
+- The earlier Vercel build error
+  `"deriveChoiceState" is not a valid Page export field` came from a
+  pre-fix commit. Resolved in `0c6d31e` by relocating
+  `deriveChoiceState` from `app/train/page.tsx` into
+  `app/train/ChoiceCard.tsx` so the page module only exports
+  `default`. The current branch tip compiles.
 
 ## Validation
 
