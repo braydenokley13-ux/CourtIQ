@@ -473,23 +473,37 @@ function TrainPageInner() {
   return (
     <main className="min-h-dvh bg-bg-0 text-text pb-8">
       <div className="mx-auto max-w-md space-y-3 px-4 pt-6">
-        {/* Header — clear at-a-glance status */}
+        {/* Header — clear at-a-glance status. XP + IQ live as soft chips
+            so the eye doesn't have to parse three different colors when
+            the streak is hot. */}
         <div className="flex items-center justify-between gap-3">
-          <Link href="/home" className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">
-            ✕ Quit
+          <Link
+            href="/home"
+            className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[1.4px] text-text-dim transition-colors hover:text-text"
+          >
+            <span aria-hidden>✕</span>
+            Quit
           </Link>
-          <div className="flex items-center gap-3 text-xs font-bold tabular-nums">
-            <span className="flex items-center gap-1 text-xp">
+          <div className="flex items-center gap-1.5 text-[11px] font-bold tabular-nums">
+            <span className="inline-flex items-center gap-1 rounded-full border border-hairline-2 bg-bg-2 px-2.5 py-1 text-xp">
               <span aria-hidden>✦</span>
               {xp}
             </span>
-            <span className="text-iq">IQ {iq}</span>
-            {streak > 0 && (
-              <span className="flex items-center gap-0.5 text-xp">
-                {streak}
+            <span className="inline-flex items-center gap-1 rounded-full border border-hairline-2 bg-bg-2 px-2.5 py-1 text-iq">
+              IQ {iq}
+            </span>
+            {streak > 0 ? (
+              <motion.span
+                key={`streak-${streak}`}
+                initial={{ scale: 0.85, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.35, ease: [0.34, 1.56, 0.64, 1] }}
+                className="inline-flex items-center gap-1 rounded-full border border-heat/40 bg-heat/10 px-2.5 py-1 text-heat"
+              >
                 <span aria-hidden>🔥</span>
-              </span>
-            )}
+                {streak}
+              </motion.span>
+            ) : null}
           </div>
         </div>
 
