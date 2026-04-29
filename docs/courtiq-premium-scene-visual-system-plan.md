@@ -167,3 +167,166 @@ one of them, it does not ship — no matter how pretty it is.
     product feel **coach-respectable**.
 
 ---
+
+## 5. Visual Vocabulary / Phrase Bank
+
+Shared language saves time and keeps reviews honest. When debating a
+visual choice, anyone on the team should be able to point at one of
+these phrases and end the argument.
+
+### Overall Feel
+
+- premium film room
+- sports-broadcast clarity
+- training sim polish
+- clean competitive energy
+- coach-respectable
+- serious but still fun
+- playable film room (not arcade, not sim)
+- premium training sim, not arcade game
+- the scene is the lesson
+- beauty supports readability
+
+### Player Design
+
+- readable silhouette
+- athletic but simplified
+- stance-first design (the stance is the cue)
+- directionally clear (where are they facing?)
+- not toy-like
+- not overly realistic
+- body angle tells the story
+- defender hips and feet do the teaching
+- the user player should feel unmistakable
+
+### Court Design
+
+- polished hardwood
+- crisp teaching lines
+- premium half-court stage
+- quiet background
+- high-contrast decision space
+- court as diagram, not decoration
+- the court should explain the decision
+- the court is a teaching stage
+
+### Indicator Design
+
+- role-state clarity
+- user-first highlight
+- elegant possession signal
+- focus without clutter
+- matchup readability
+- teaching glow, not video-game power-up
+- offense, defense, ball, and focus states must be readable in one glance
+- signature CourtIQ on-court language
+
+### Overlay Design
+
+- cue-first overlays
+- reveal the window
+- show why the lane opened
+- sparse before decision, richer after answer
+- every highlight has a teaching job
+- do not solve the question too early
+- a cut lane is not decoration; it is the lesson
+- the cue comes before the answer
+- the scene should teach spacing before text explains it
+- the user should see why the window opened
+
+---
+
+## 6. Player Model Upgrade Plan
+
+The player model is the single biggest lever in this entire plan. If
+the players read as athletes in a stance, the rest of the visuals can
+be modest and the product will already feel premium. If the players
+read as pegs, no amount of court polish can save it.
+
+### What should change from the current version
+
+- **Proportions.** Move from peg-like cylinders toward stylized
+  athletic proportions: clear shoulders, a distinct torso, defined
+  arms, shorts, legs, and shoes. Heads stay simple — no facial
+  detail — to keep the silhouette and stance dominant.
+- **Torso / shoulders.** Shoulders should be the widest part of the
+  upper body. A clear shoulder line is what makes "facing direction"
+  readable from the high 3/4 camera.
+- **Arms.** Arms should be visible as separate volumes, not fused to
+  the torso. Defenders must be able to show "active hands" implicitly
+  through arm position. Ball-handlers must show a triple-threat-ish
+  posture.
+- **Shorts and legs.** A short/leg break gives the eye a clear "lower
+  body" shape. This is what sells the **stance**.
+- **Shoes.** Small, simple shoes that ground the player to the floor.
+  Foot direction is a primary defender cue, so feet must read.
+- **Stance clarity.** The default offensive pose, the default defensive
+  stance, and the closeout pose must each look distinct from above.
+  Offensive players stand tall; defenders sit lower, wider, hands out.
+- **Body facing.** Every player must have an unambiguous facing
+  direction. From the default camera, you must be able to tell who is
+  looking at whom without overlays.
+- **Defender hip/foot readability.** Denial stance, sag stance, and
+  closeout stance must each show distinct hip angle and foot stagger.
+  This is what the user is supposed to read in most scenarios.
+- **Modest variation.** Allow small differences — height, build,
+  skin tone, jersey number — so the team doesn't feel like five clones.
+  Variation is a feature, not a goal: it must never reduce readability.
+- **Avoid unnecessary facial detail.** No eyes, no mouths, no hair
+  systems. Faces are an attention sink and a perf cost for zero
+  teaching value at this camera distance.
+- **Performance-safe geometry.** Each player should stay well under a
+  modest tri budget. Geometry growth comes from better topology in the
+  torso/legs, not from per-finger detail.
+
+### Why it matters for CourtIQ
+
+- The whole product thesis is **read the defender, not the spot.** If
+  the defender's body does not communicate denial, sag, or closeout,
+  the user is forced to read the overlay, and the overlay becomes a
+  crutch. The scene should teach spacing **before** text explains it.
+- Stance-first players make every scenario more honest: the user is
+  rewarded for reading hips and feet, not for memorizing prompts.
+- A premium silhouette is the fastest path to **coach-respectable**.
+
+### Likely files / components / functions to inspect
+
+The Phase 1 audit will confirm exact paths. Best current guesses based
+on the existing renderer plans:
+
+- The imperative scene builder used by the `/train` route (referenced
+  in `docs/courtiq-realistic-renderer-plan.md` and
+  `docs/courtiq-renderer-polish-plan-part2.md`).
+- Whatever module currently builds the cylinder/peg player meshes
+  (likely a `buildPlayer` / `createPlayer` style helper inside the
+  imperative renderer).
+- The team / role assignment layer that decides offense vs defense and
+  marks the user player.
+- Any pose / stance setter that positions arms and legs per state.
+- Material/texture helpers used by the current player primitives.
+
+### What to avoid
+
+- No facial detail, no hair, no per-finger hands.
+- No high-frequency textures that compete with court lines.
+- No per-player skinned animation rigs in this phase — stance is set
+  by pose, not by skeletal animation.
+- No team-specific jerseys yet; one neutral offense look and one
+  neutral defense look is enough until the indicator system lands.
+- No "cool" details that would survive a screenshot but die under the
+  performance budget on Mac.
+
+### How to keep geometry reusable across scenarios
+
+- One player builder, parameterized by role (offense / defense / user),
+  stance (idle / defensive / closeout / cut), and small variation knobs
+  (height, build, jersey number, skin tone).
+- All role and state visuals come from the **indicator layer**, not
+  from the player mesh itself. The player model is a stable base; the
+  rings, halos, and glows ride on top. This keeps BDW-01, ESC-01,
+  AOR-01, and SKR-01 sharing one player system.
+- Disposal hygiene matches the existing imperative renderer rules:
+  every geometry, material, and texture created by the player builder
+  must be tracked and disposed on unmount.
+
+---
