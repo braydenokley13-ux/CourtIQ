@@ -35,6 +35,14 @@ interface Scenario3DViewProps {
    * default path (URL `?simple=` still wins when explicit).
    */
   forceFullPath?: boolean
+  /**
+   * Phase H — drives the consequence + best-read replay flow on the
+   * full path. The train page sets this to the choice id the user
+   * picked at freeze; the canvas forwards it to
+   * `ScenarioReplayController` which dispatches the wrongDemo leg
+   * (or short-circuits to the answer leg for best-read choices).
+   */
+  pickedChoiceId?: string | null
 }
 
 /**

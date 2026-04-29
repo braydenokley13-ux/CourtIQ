@@ -105,15 +105,24 @@ export function resolveBallStart(scene: Scene3D): CourtPoint {
  *
  * If no movement applies at `t`, returns the most recent end position (or
  * the player's start if there have been no prior movements).
+ *
+ * Phase H — `overrides` lets the consequence and replay legs hold idle
+ * players (anyone with no movement in this leg) at the freeze snapshot
+ * instead of snapping them back to `scene.players[*].start`. The
+ * override map is keyed by playerId / 'ball' the same way as
+ * `buildTimeline.startOverrides`.
  */
 export function samplePlayer(
   scene: Scene3D,
   timeline: Timeline,
   playerId: string,
   t: number,
+  overrides?: ReadonlyMap<string, CourtPoint> | null,
 ): CourtPoint {
   const list = timeline.byPlayer.get(playerId)
   if (!list || list.length === 0) {
+    const override = overrides?.get(playerId)
+    if (override) return override
     if (playerId === 'ball') return resolveBallStart(scene)
     return scene.players.find((p) => p.id === playerId)?.start ?? { x: 0, z: 0 }
   }
@@ -155,12 +164,13 @@ export function samplePositionsAt(
   scene: Scene3D,
   timeline: Timeline,
   t: number,
+  overrides?: ReadonlyMap<string, CourtPoint> | null,
 ): Map<string, CourtPoint> {
   const snapshot = new Map<string, CourtPoint>()
   for (const p of scene.players) {
-    snapshot.set(p.id, samplePlayer(scene, timeline, p.id, t))
+    snapshot.set(p.id, samplePlayer(scene, timeline, p.id, t, overrides))
   }
-  snapshot.set('ball', samplePlayer(scene, timeline, 'ball', t))
+  snapshot.set('ball', samplePlayer(scene, timeline, 'ball', t, overrides))
   return snapshot
 }
 

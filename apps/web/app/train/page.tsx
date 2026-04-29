@@ -108,10 +108,20 @@ function TrainPageInner() {
 
   const current = scenarios[idx]
   const phase = feedback ? 'feedback' : 'prompt'
-  const replayMode: 'intro' | 'answer' | 'static' = feedback ? 'answer' : 'intro'
   const decoderTag = current?.decoder_tag ?? null
   const isDecoder = !!decoderTag
   const decoderLabel = decoderTag ? DECODER_LABELS[decoderTag] : null
+  // Phase H — decoder scenarios stay on `mode='intro'` for the full
+  // session; the JSX `ScenarioReplayController` drives the freeze →
+  // (consequence →) replaying → done legs internally off `pickedChoiceId`
+  // and the freeze snapshot. Legacy scenarios keep their pre-decoder
+  // intro/answer toggle so existing 2D content plays unchanged.
+  const replayMode: 'intro' | 'answer' | 'static' = isDecoder
+    ? 'intro'
+    : feedback
+      ? 'answer'
+      : 'intro'
+  const pickedChoiceId = isDecoder ? selected : null
   // Decoder scenarios hold the prompt + choices until 'frozen' fires;
   // legacy scenarios are unchanged (questionReady = true from the start).
   const questionReady = !isDecoder || frozen
@@ -389,6 +399,7 @@ function TrainPageInner() {
             onCaption={setSceneCaption}
             onPhase={isDecoder ? onScenePhase : undefined}
             forceFullPath={isDecoder}
+            pickedChoiceId={pickedChoiceId}
             fallback={
               <Court
                 width={360}

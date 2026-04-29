@@ -31,6 +31,8 @@ function preset(
     movements,
     answerDemo,
     wrongDemos: [],
+    preAnswerOverlays: [],
+    postAnswerOverlays: [],
     freezeAtMs: null,
     synthetic: false,
   }

@@ -95,6 +95,13 @@ interface Scenario3DCanvasProps {
    * authors can force the simple path during diagnostics.
    */
   forceFullPath?: boolean
+  /**
+   * Phase H — forwards the user's picked choice into the JSX
+   * `ScenarioReplayController` so it can dispatch the consequence and
+   * best-read replay legs. Only meaningful on the full path; ignored
+   * by the imperative simple-mode tree.
+   */
+  pickedChoiceId?: string | null
 }
 
 // Mid-tone gray. While the rebuild is in flight we deliberately do NOT
@@ -164,6 +171,7 @@ export function Scenario3DCanvas({
   quality = 'auto',
   onQualityChange,
   forceFullPath,
+  pickedChoiceId,
 }: Scenario3DCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   // Refs into the THREE objects R3F creates. Captured in onCreated so a
@@ -1013,6 +1021,7 @@ export function Scenario3DCanvas({
               onCaption={onCaption}
               onPhase={onPhase}
               showPaths={showPaths}
+              pickedChoiceId={pickedChoiceId}
             />
             <Suspense fallback={null}>{children}</Suspense>
             <SceneDebug3D scene={visibleScene} />

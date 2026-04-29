@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
+import { useFrame, useThree } from '@react-three/fiber'
 import { PlayerMarker3D } from './PlayerMarker3D'
 import { BallMarker3D } from './BallMarker3D'
 import { MovementPath3D } from './MovementPath3D'
@@ -10,6 +11,8 @@ import {
   type ReplayMode,
   type ReplayPhase,
 } from './ScenarioReplayController'
+import { TeachingOverlayController, type OverlayPhase } from './imperativeTeachingOverlay'
+import { useReducedMotion } from '@/lib/scenario3d/useReducedMotion'
 import type { Scene3D } from '@/lib/scenario3d/scene'
 
 interface ScenarioScene3DProps {
@@ -24,6 +27,13 @@ interface ScenarioScene3DProps {
   onPhase?: (phase: ReplayPhase) => void
   /** Show MovementPath3D arrows for the active timeline. */
   showPaths?: boolean
+  /**
+   * Phase H — drives the consequence + best-read replay flow. Forwarded
+   * to `ScenarioReplayController`; while the controller is in `frozen`,
+   * setting this kicks off the consequence leg (or short-circuits to
+   * the answer leg for best-read choices).
+   */
+  pickedChoiceId?: string | null
 }
 
 const PLAYER_HEIGHT = 0
@@ -52,9 +62,19 @@ export function ScenarioScene3D({
   onCaption,
   onPhase,
   showPaths,
+  pickedChoiceId,
 }: ScenarioScene3DProps) {
   const playerRefs = useRef<Map<string, THREE.Group>>(new Map())
   const ballRef = useRef<THREE.Group | null>(null)
+  // Phase H — track the controller's emitted phase locally so the
+  // authored-overlay bridge can flip pre/post visibility in lockstep
+  // with the replay state machine. Parent listeners still receive the
+  // phase through the existing `onPhase` callback.
+  const [replayPhase, setReplayPhase] = useState<ReplayPhase>('idle')
+  const handlePhase = (next: ReplayPhase) => {
+    setReplayPhase(next)
+    onPhase?.(next)
+  }
 
   // When the scene changes, drop stale refs so the new player set has a
   // fresh map.
@@ -94,9 +114,15 @@ export function ScenarioScene3D({
         playerRefs={playerRefs}
         ballRef={ballRef}
         onCaption={onCaption}
-        onPhase={onPhase}
+        onPhase={handlePhase}
         resetCounter={resetCounter}
+        pickedChoiceId={pickedChoiceId}
       />
+
+      {/* Phase H — authored pre/post overlay bridge. Mounts a heuristic-free
+          TeachingOverlayController inside the JSX scene tree so decoder
+          scenarios on the full path get layered post-answer reveals. */}
+      <AuthoredOverlayBridge scene={scene} replayPhase={replayPhase} />
 
       {showPaths && activeMovements.length > 0
         ? activeMovements.map((m) => {
@@ -164,4 +190,65 @@ export function ScenarioScene3D({
       </group>
     </group>
   )
+}
+
+/**
+ * Phase H — JSX bridge that wraps the imperative `TeachingOverlayController`
+ * in heuristic-free mode so decoder scenarios on the full Court3D +
+ * ScenarioScene3D path get the same authored pre/post overlays the
+ * imperative simple-mode path has shipped since Phase E.
+ *
+ * The controller attaches its overlay group to the R3F scene root via
+ * `useThree`; the overlay mounts on first render, swaps the authored
+ * primitives in `setAuthoredOverlays`, flips visibility on `replayPhase`
+ * (frozen → 'pre'; consequence/replaying/done → 'post'), and disposes
+ * GPU resources on unmount.
+ */
+function AuthoredOverlayBridge({
+  scene,
+  replayPhase,
+}: {
+  scene: Scene3D
+  replayPhase: ReplayPhase
+}) {
+  const root = useThree((s) => s.scene as unknown as THREE.Group)
+  const ctrlRef = useRef<TeachingOverlayController | null>(null)
+  const reduced = useReducedMotion()
+
+  useEffect(() => {
+    if (!root) return
+    const ctrl = new TeachingOverlayController(scene, 'intro', root, {
+      reduced,
+      heuristic: false,
+    })
+    ctrl.setAuthoredOverlays(scene.preAnswerOverlays, scene.postAnswerOverlays)
+    ctrl.setVisible(true)
+    ctrlRef.current = ctrl
+    return () => {
+      ctrl.dispose()
+      ctrlRef.current = null
+    }
+    // Rebuild only on scene swap; phase changes flow through setPhase below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scene.id])
+
+  useEffect(() => {
+    const ctrl = ctrlRef.current
+    if (!ctrl) return
+    const overlayPhase: OverlayPhase =
+      replayPhase === 'frozen'
+        ? 'pre'
+        : replayPhase === 'consequence' ||
+            replayPhase === 'replaying' ||
+            replayPhase === 'done'
+          ? 'post'
+          : 'hidden'
+    ctrl.setPhase(overlayPhase)
+  }, [replayPhase])
+
+  useFrame((state) => {
+    ctrlRef.current?.tick(state.clock.getElapsedTime() * 1000)
+  })
+
+  return null
 }

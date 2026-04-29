@@ -6,7 +6,12 @@
 
 import type { CourtState } from '@/components/court'
 import { COURT, projectLegacyPoint, type CourtPoint } from './coords'
-import { resolveFreezeAtMs, sceneSchema, type FreezeMarker } from './schema'
+import {
+  resolveFreezeAtMs,
+  sceneSchema,
+  type FreezeMarker,
+  type OverlayPrimitive,
+} from './schema'
 import { getPresetForConcept } from './presets'
 import { buildTimeline } from './timeline'
 
@@ -107,6 +112,16 @@ export interface Scene3D {
    * `beforeMovementId` forms collapse here at scene load.
    */
   freezeAtMs: number | null
+  /**
+   * Phase E / H — authored overlay primitives that drive the
+   * pre-answer (defender body language, help pulses, optional labels)
+   * and post-answer (lanes, open-space regions, drive/cut previews)
+   * teaching reveals. Empty arrays for legacy scenes; preserved here
+   * so the JSX render path can mount them without re-parsing the
+   * authored JSON.
+   */
+  preAnswerOverlays: OverlayPrimitive[]
+  postAnswerOverlays: OverlayPrimitive[]
   /** True if the scene was synthesised from legacy court_state. */
   synthetic: boolean
 }
@@ -130,6 +145,8 @@ interface AuthoredScene {
   answerDemo?: SceneMovement[]
   wrongDemos?: SceneWrongDemo[]
   freezeMarker?: FreezeMarker
+  preAnswerOverlays?: OverlayPrimitive[]
+  postAnswerOverlays?: OverlayPrimitive[]
 }
 
 interface SourceScenario {
@@ -205,6 +222,8 @@ function normaliseAuthoredScene(id: string, scene: AuthoredScene): Scene3D {
     movements,
     answerDemo: scene.answerDemo ?? [],
     wrongDemos: scene.wrongDemos ?? [],
+    preAnswerOverlays: scene.preAnswerOverlays ?? [],
+    postAnswerOverlays: scene.postAnswerOverlays ?? [],
     freezeAtMs,
     synthetic: false,
   }
@@ -235,6 +254,8 @@ function resolveFreezeFromAuthored(
     movements,
     answerDemo: [],
     wrongDemos: [],
+    preAnswerOverlays: [],
+    postAnswerOverlays: [],
     freezeAtMs: null,
     synthetic: false,
   }
@@ -301,6 +322,8 @@ function synthesiseSceneFromCourtState(
     movements: [],
     answerDemo: [],
     wrongDemos: [],
+    preAnswerOverlays: [],
+    postAnswerOverlays: [],
     freezeAtMs: null,
     synthetic: true,
   }
@@ -322,6 +345,8 @@ export function createDefaultScene(id = 'default_3d_scene'): Scene3D {
     movements: [],
     answerDemo: [],
     wrongDemos: [],
+    preAnswerOverlays: [],
+    postAnswerOverlays: [],
     freezeAtMs: null,
     synthetic: true,
   }

@@ -34,6 +34,8 @@ function buildScene(opts: {
     movements: opts.intro,
     answerDemo: opts.answerDemo ?? [],
     wrongDemos: opts.wrongDemos ?? [],
+    preAnswerOverlays: [],
+    postAnswerOverlays: [],
     freezeAtMs: opts.freezeAtMs ?? null,
     synthetic: false,
   }
@@ -294,5 +296,120 @@ describe('ReplayStateMachine', () => {
 
     machine.start()
     expect(machine.getSnapshot().state).toBe('playing')
+  })
+})
+
+describe('Phase H — consequence + replay budgets', () => {
+  // Section 5.5 / Phase H validation: each consequence demo plays in
+  // ≤2.5 s; the answer-demo replay leg plays in ≤3.0 s. These bounds
+  // come from the planning doc and apply to every authored decoder
+  // scenario in Pack 1. The numbers below mirror BDW-01's authored
+  // movements to guard against drift in the timing model.
+  const introMovements = [
+    { id: 'user_show_hands', playerId: 'user', kind: 'lift' as const, to: { x: 18, z: 9 }, delayMs: 0, durationMs: 600 },
+    { id: 'x2_step_to_denial', playerId: 'pg', kind: 'rotation' as const, to: { x: 14, z: 11 }, delayMs: 200, durationMs: 600 },
+  ]
+  const answerMovements = [
+    { id: 'user_jab', playerId: 'user', kind: 'jab' as const, to: { x: 19, z: 9 }, delayMs: 0, durationMs: 250 },
+    { id: 'user_plant_and_go', playerId: 'user', kind: 'back_cut' as const, to: { x: 4, z: 2 }, delayMs: 100, durationMs: 750 },
+    { id: 'pg_lead_pass', playerId: 'pg', kind: 'pass' as const, to: { x: 4, z: 2 }, delayMs: 350, durationMs: 500 },
+    { id: 'user_finish', playerId: 'user', kind: 'cut' as const, to: { x: 0, z: 0.5 }, delayMs: 100, durationMs: 350 },
+  ]
+  const c2Demo = {
+    choiceId: 'c2',
+    movements: [
+      { id: 'user_v_cut', playerId: 'user', kind: 'cut' as const, to: { x: 21, z: 10 }, delayMs: 0, durationMs: 600 },
+      { id: 'pg_late_pass', playerId: 'pg', kind: 'pass' as const, to: { x: 21, z: 10 }, delayMs: 200, durationMs: 500 },
+    ],
+  }
+  const c4Demo = {
+    choiceId: 'c4',
+    movements: [
+      { id: 'user_front_cut', playerId: 'user', kind: 'cut' as const, to: { x: 8, z: 6 }, delayMs: 0, durationMs: 800 },
+      { id: 'x2_ride', playerId: 'pg', kind: 'rotation' as const, to: { x: 9, z: 7 }, delayMs: 100, durationMs: 700 },
+    ],
+  }
+
+  it('keeps every BDW-01 consequence under the 2.5 s budget', () => {
+    const scene = buildScene({
+      freezeAtMs: 1400,
+      intro: introMovements,
+      answerDemo: answerMovements,
+      wrongDemos: [c2Demo, c4Demo],
+    })
+    for (const demo of scene.wrongDemos) {
+      const { motion } = makeMotion(scene)
+      motion.startConsequence(demo.choiceId)
+      motion.tick(0)
+      const total = motion.isPlaybackComplete(0 + 250 + 2500) // PRE_DELAY_MS + budget
+      expect(total).toBe(true)
+    }
+  })
+
+  it('keeps the BDW-01 answer demo under the 3.0 s budget', () => {
+    const scene = buildScene({
+      freezeAtMs: 1400,
+      intro: introMovements,
+      answerDemo: answerMovements,
+    })
+    const { motion } = makeMotion(scene)
+    motion.startReplay()
+    motion.tick(0)
+    const total = motion.isPlaybackComplete(0 + 250 + 3000) // PRE_DELAY_MS + budget
+    expect(total).toBe(true)
+  })
+})
+
+describe('Phase H — idle players honor the freeze snapshot', () => {
+  // Bug fix: before Phase H, an idle player (no entry in the
+  // consequence/replay leg's `byPlayer`) snapped back to its
+  // `scene.players[*].start` position the instant the leg began. With
+  // the snapshot override threaded through `samplePlayer`, idle players
+  // now hold their freeze pose. This guards both the schema-level fix
+  // (`samplePlayer` accepting overrides) and the controller plumbing
+  // (`MotionController.currentOverrides`).
+  it('writes snapshot positions to idle players when running a wrongDemo leg', () => {
+    const scene: Scene3D = {
+      id: 'idle_test',
+      court: 'half',
+      camera: 'teaching_angle',
+      players: [
+        { id: 'user', team: 'offense', role: 'wing', start: { x: 18, z: 8 }, isUser: true },
+        { id: 'pg', team: 'offense', role: 'pg', start: { x: -9, z: 14 }, hasBall: true },
+        { id: 'x2', team: 'defense', role: 'denying', start: { x: 15, z: 10 } },
+      ],
+      ball: { start: { x: -9, z: 14 }, holderId: 'pg' },
+      movements: [],
+      answerDemo: [],
+      wrongDemos: [
+        {
+          choiceId: 'wait',
+          movements: [
+            { id: 'm', playerId: 'user', kind: 'cut', to: { x: 21, z: 10 }, durationMs: 400 },
+          ],
+        },
+      ],
+      preAnswerOverlays: [],
+      postAnswerOverlays: [],
+      freezeAtMs: null,
+      synthetic: false,
+    }
+    const { motion, players } = makeMotion(scene)
+    // Snapshot says x2 is at (14, 11) — its post-rotation freeze pose.
+    const snapshot = new Map([
+      ['user', { x: 18, z: 9 }],
+      ['pg', { x: -9, z: 14 }],
+      ['x2', { x: 14, z: 11 }],
+      ['ball', { x: -9, z: 14 }],
+    ])
+    motion.startConsequence('wait', snapshot)
+    motion.tick(0)
+    motion.tick(0 + 250 + 200) // Mid-leg.
+    const x2 = players.get('x2')!
+    // Without the snapshot override, samplePlayer would return x2.start
+    // (15, 10) because x2 has no movement in this leg. With the
+    // override, it stays at (14, 11) — the frozen pose.
+    expect(x2.position.x).toBeCloseTo(14, 5)
+    expect(x2.position.z).toBeCloseTo(11, 5)
   })
 })
