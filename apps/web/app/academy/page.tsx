@@ -1,7 +1,11 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { listModulesForUser, type ModuleState } from '@/lib/services/academyService'
+import {
+  listDecodersForUser,
+  listModulesForUser,
+  type ModuleState,
+} from '@/lib/services/academyService'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,7 +24,12 @@ export default async function AcademyPage() {
     redirect('/login')
   }
 
-  const modules = await listModulesForUser(user.id)
+  const [modules, decoders] = await Promise.all([
+    listModulesForUser(user.id),
+    listDecodersForUser(user.id),
+  ])
+  const decodersStarted = decoders.filter((d) => d.attempts > 0)
+  const decodersMastered = decoders.filter((d) => d.state === 'mastered').length
   const masteredCount = modules.filter((m) => m.state === 'mastered').length
   const inProgress = modules.find((m) => m.state === 'in_progress')
   const nextNew = modules.find((m) => m.state === 'new')
@@ -142,6 +151,64 @@ export default async function AcademyPage() {
             </div>
           </>
         )}
+
+        {/* Decoders */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">
+              Decoders
+            </p>
+            {decodersStarted.length > 0 && (
+              <p className="text-[11px] font-semibold text-brand">
+                {decodersMastered} of {decoders.length} mastered
+              </p>
+            )}
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {decoders.map((d) => {
+              const pct = Math.round(d.rolling_accuracy * 100)
+              const mastered = d.state === 'mastered'
+              const inProgress = d.state === 'in_progress'
+              const progressPct = mastered ? 100 : d.attempts > 0 ? Math.min(100, pct) : 0
+              return (
+                <div
+                  key={d.tag}
+                  className={`flex h-full flex-col gap-3 rounded-2xl border-2 bg-bg-1 p-4 ${
+                    mastered ? 'border-brand/40' : 'border-hairline-2'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-[11px] uppercase tracking-wide">
+                    <span className="text-text-dim">Decoder</span>
+                    <span
+                      className={`flex items-center gap-1 ${
+                        mastered ? 'text-brand' : inProgress ? 'text-iq' : 'text-text-mute'
+                      }`}
+                    >
+                      <span aria-hidden>{mastered ? '✅' : inProgress ? '🟢' : '⭐'}</span>
+                      {mastered ? 'Mastered' : inProgress ? 'In progress' : 'New'}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="font-display text-[15px] font-semibold leading-snug text-text">
+                      {d.title}
+                    </p>
+                    <p className="mt-1 text-[12px] text-text-dim">
+                      {d.attempts > 0
+                        ? `${d.attempts} ${d.attempts === 1 ? 'rep' : 'reps'} · ${pct}% right`
+                        : 'No reps yet'}
+                    </p>
+                  </div>
+                  <div className="mt-auto h-1.5 overflow-hidden rounded-full bg-bg-2">
+                    <div
+                      className="h-full bg-brand transition-all"
+                      style={{ width: `${progressPct}%` }}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
 
         {/* Bottom actions */}
         <div className="flex gap-2 pt-2">

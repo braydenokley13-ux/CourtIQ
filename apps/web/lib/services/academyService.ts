@@ -1,4 +1,5 @@
 import type { Module, Lesson, Mastery } from '@prisma/client'
+import { DecoderTag, MasteryDimension } from '@prisma/client'
 import { prisma } from '@/lib/db/prisma'
 
 /**
@@ -16,6 +17,57 @@ export const ACADEMY_THRESHOLDS = {
 } as const
 
 export type ModuleState = 'locked' | 'new' | 'in_progress' | 'mastered'
+
+/** Decoders have no prerequisite chain, so the `locked` state never applies. */
+export type DecoderState = Exclude<ModuleState, 'locked'>
+
+export interface DecoderProgress {
+  tag: DecoderTag
+  title: string
+  state: DecoderState
+  attempts: number
+  rolling_accuracy: number
+}
+
+const DECODER_TITLES: Record<DecoderTag, string> = {
+  BACKDOOR_WINDOW: 'Backdoor Window',
+  EMPTY_SPACE_CUT: 'Empty Space Cut',
+  SKIP_THE_ROTATION: 'Skip the Rotation',
+  ADVANTAGE_OR_RESET: 'Advantage or Reset',
+}
+
+function deriveDecoderState(attempts: number, accuracy: number): DecoderState {
+  if (
+    attempts >= ACADEMY_THRESHOLDS.MIN_ATTEMPTS_FOR_MASTERY &&
+    accuracy >= ACADEMY_THRESHOLDS.MASTERED_ACCURACY
+  ) {
+    return 'mastered'
+  }
+  if (attempts > 0) return 'in_progress'
+  return 'new'
+}
+
+export async function listDecodersForUser(userId: string | null): Promise<DecoderProgress[]> {
+  const masteries = userId
+    ? await prisma.mastery.findMany({
+        where: { user_id: userId, dimension: MasteryDimension.decoder },
+      })
+    : []
+  const byTag = new Map(masteries.map((m) => [m.concept_id, m]))
+
+  return Object.values(DecoderTag).map((tag) => {
+    const m = byTag.get(tag)
+    const attempts = m?.attempts_count ?? 0
+    const rolling_accuracy = m?.rolling_accuracy ?? 0
+    return {
+      tag,
+      title: DECODER_TITLES[tag],
+      state: deriveDecoderState(attempts, rolling_accuracy),
+      attempts,
+      rolling_accuracy,
+    }
+  })
+}
 
 export interface ModuleSummary {
   slug: string
@@ -69,7 +121,7 @@ export async function listModulesForUser(userId: string | null): Promise<ModuleS
       include: { lessons: { select: { id: true } } },
     }),
     userId
-      ? prisma.mastery.findMany({ where: { user_id: userId } })
+      ? prisma.mastery.findMany({ where: { user_id: userId, dimension: MasteryDimension.concept } })
       : Promise.resolve([] as Mastery[]),
     prisma.scenario.groupBy({
       by: ['concept_tags'],
@@ -129,7 +181,7 @@ export async function getModuleBySlug(
 
   const [masteries, scenarios] = await Promise.all([
     userId
-      ? prisma.mastery.findMany({ where: { user_id: userId } })
+      ? prisma.mastery.findMany({ where: { user_id: userId, dimension: MasteryDimension.concept } })
       : Promise.resolve([] as Mastery[]),
     prisma.scenario.findMany({
       where: { status: 'LIVE', concept_tags: { has: mod.concept_id } },

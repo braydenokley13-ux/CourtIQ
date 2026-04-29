@@ -18,6 +18,14 @@ const fadeUp = {
   }),
 }
 
+interface DecoderProgress {
+  tag: string
+  title: string
+  state: 'new' | 'in_progress' | 'mastered'
+  attempts: number
+  rolling_accuracy: number
+}
+
 interface ProfileData {
   profile: {
     iq_score: number
@@ -29,6 +37,7 @@ interface ProfileData {
   rankLabel: string
   accuracy: number
   attemptsCount: number
+  decoders: DecoderProgress[]
 }
 
 interface RecentSession {
@@ -271,6 +280,56 @@ export default function HomePage() {
             </svg>
           </Link>
         </motion.div>
+
+        {/* Decoder Mastery */}
+        {!loading && (data?.decoders?.some((d) => d.attempts > 0) ?? false) && (
+          <motion.div custom={5.5} initial="hidden" animate="show" variants={fadeUp} className="mb-5">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-[#6B7280]">
+                Decoder Mastery
+              </p>
+              <Link href="/academy" className="text-[11px] font-semibold text-[#3BE383]">
+                Academy →
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {data!.decoders
+                .filter((d) => d.attempts > 0)
+                .map((d) => {
+                  const pct = Math.round(d.rolling_accuracy * 100)
+                  const mastered = d.state === 'mastered'
+                  return (
+                    <div
+                      key={d.tag}
+                      className="flex flex-col gap-2 rounded-2xl border border-[#1F2937] bg-[#111827] p-3"
+                    >
+                      <div className="flex items-center justify-between">
+                        <p className="text-[13px] font-semibold text-[#F9FAFB]">{d.title}</p>
+                        <span
+                          className="text-[10px] font-bold uppercase tracking-wide"
+                          style={{ color: mastered ? '#3BE383' : '#F59E0B' }}
+                        >
+                          {mastered ? '✅ Mastered' : `${pct}%`}
+                        </span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-[#1F2937]">
+                        <div
+                          className="h-full transition-all"
+                          style={{
+                            width: `${mastered ? 100 : pct}%`,
+                            background: mastered ? '#3BE383' : '#F59E0B',
+                          }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-[#4B5563]">
+                        {d.attempts} {d.attempts === 1 ? 'rep' : 'reps'}
+                      </p>
+                    </div>
+                  )
+                })}
+            </div>
+          </motion.div>
+        )}
 
         {/* Recent Sessions */}
         <motion.div custom={6} initial="hidden" animate="show" variants={fadeUp}>
