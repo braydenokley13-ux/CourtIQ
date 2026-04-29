@@ -1184,3 +1184,279 @@ Commit small. Stop when every QA item passes.
 ```
 
 ---
+
+## 17. Phase 1 Scene Architecture Audit
+
+> Read-only audit. No renderer, scene, or shell code changed by this
+> section. Findings here drive the precise small commits in Phases 2–7.
+
+### 17.1 Headline finding
+
+The `/train` scene is rendered by an **imperative vanilla-Three.js
+builder**, not by R3F JSX. The earlier R3F tree (`Court3D`,
+`ScenarioScene3D`, `BasketballScene3D`, `PlayerMarker3D`, `BallMarker3D`,
+`MovementPath3D`, etc.) is still in the codebase but is unreachable on
+the production path: `Scenario3DCanvas` hard-pins `simpleMode = true`
+and explicitly ignores the `forceFullPath` prop. The JSX path is only
+mounted via the `?simple=0` URL escape hatch for diagnostics. Every
+visual change in Phases 2–6 should land in the imperative files.
+
+A consequence: edits to JSX scene files will appear to do nothing in
+production. Phase reviewers should confirm a change is in the
+imperative builder before approving.
+
+### 17.2 File map
+
+| # | Concern | Primary file | Key symbols / lines |
+|---|---|---|---|
+| 1 | Player geometry / creation | `apps/web/components/scenario3d/imperativeScene.ts` | `buildPlayerFigure()` ~L2976; assembled in `buildBasketballGroup()` ~L126, per-player loop ~L341–L376 |
+| 2 | Player stance / pose / facing | `apps/web/components/scenario3d/imperativeScene.ts` | `computePlayerYaw()` ~L2958; denial-pose branch inside `buildPlayerFigure()`; denial target chosen ~L320–L339 |
+| 3 | Ball possession state | `apps/web/components/scenario3d/imperativeScene.ts` | initial holder ~L306–L309; possession ring ~L3220–L3234; `MotionController.applyBall()` ~L1229 onward; `resolveCatcher()` ~L1206 |
+| 4 | Offense vs defense rendering | `apps/web/components/scenario3d/imperativeScene.ts` | palette `OFFENSE_COLOR`/`DEFENSE_COLOR`/trim L29–L72; jersey + ring color picked ~L341–L376 and inside `buildPlayerFigure()` |
+| 5 | User-player highlighting | `apps/web/components/scenario3d/imperativeScene.ts` | `USER_COLOR` L54; `isUser` widening ring + outer halo inside `buildPlayerFigure()` ~L3241, L3273–L3288 |
+| 6 | Foot rings / halos / role indicators | `apps/web/components/scenario3d/imperativeScene.ts` | contact shadow + team ring + inner outline + user halo ~L3198–L3289; possession halo ~L3220–L3234 |
+| 7 | Overlays / path lines / teaching highlights | `apps/web/components/scenario3d/imperativeTeachingOverlay.ts` | `TeachingOverlayController` (paths, denial cones, pressure halos, spacing labels). Mounted by `Scenario3DCanvas` ~L696–L708; ticked by parent rAF; toggled by Paths chip in `PremiumOverlay` |
+| 8 | Court geometry (floor, lines, paint, arc) | `apps/web/components/scenario3d/imperativeScene.ts` | floor + paint + outline ~L176–L293; `buildTubeLine()` ~L3360; `addArcLines()` ~L3380; `makeHardwoodTexture()` ~L2402 |
+| 9 | Hoop / backboard / rim / stanchion | `apps/web/components/scenario3d/imperativeScene.ts` | `buildHoopAssembly()` ~L1620; `buildHoopNet()` ~L1893; mounted at `root.add(buildHoopAssembly())` ~L295 |
+| 10 | Materials / palette | `apps/web/components/scenario3d/imperativeScene.ts` | color constants L25–L103; `MeshBasicMaterial` (court, rings, jerseys) vs `MeshStandardMaterial` (gym, hoop, players); `disposeGroup()` ~L407 + `disposeMaterialTextures()` ~L430 |
+| 11 | Lighting | `apps/web/components/scenario3d/imperativeScene.ts` | 3-point rig + court spot inside `buildBasketballGroup()` ~L131–L174; tone mapping (ACES Filmic, exposure 1.18) set in `Scenario3DCanvas.onCreated` ~L987 |
+| 12 | Camera / framing | `apps/web/components/scenario3d/imperativeScene.ts` | `BROADCAST_POSITION` L513, `TACTICAL_POSITION` L516, `REPLAY_POSITION` L519; `fitCameraToScene()` ~L458; `CameraController` ~L736; URL/prop precedence in `Scenario3DView.tsx` ~L71–L75 |
+| 13 | Module shell UI (around the canvas) | `apps/web/app/train/page.tsx` (header, decoder pill, prompt, choices, feedback) + `apps/web/components/scenario3d/PremiumOverlay.tsx` (in-canvas concept chip, camera selector, playback bar, paths toggle) + `apps/web/app/train/PhaseTracker.tsx`, `ChoiceCard.tsx`, `FeedbackPanel.tsx`, `DecoderLessonPanel.tsx`, `SelfReviewChecklist.tsx`, `WinBurst.tsx` | decoder pill ~train/page.tsx L563–L573; scene frame ~L577–L624 |
+| 14 | BDW-01 / ESC-01 / AOR-01 / SKR-01 data | `packages/db/seed/scenarios/packs/founder-v0/BDW-01.json` (only authored entry); `packages/db/seed/scenarios/packs/founder-v0/pack.json`; `scripts/seed-scenarios.ts`; `apps/web/lib/services/scenarioService.ts`; `DECODER_LABELS` + `DECODER_HANDOFF` in `apps/web/app/train/page.tsx` L40–L111; runtime scene resolution in `apps/web/lib/scenario3d/scene.ts` (`buildScene`) and `apps/web/lib/scenario3d/useScenarioSceneData.ts` | ESC-01, AOR-01, SKR-01 are referenced as decoder identifiers in code/comments but are **not yet authored as JSON packs** — only the decoder tags exist. |
+
+### 17.3 What each file controls (one-liners)
+
+- **`imperativeScene.ts`** — single source of truth for the live scene:
+  builds court, paint, lines, arc, hoop, stanchion, players, foot
+  rings, halos, the ball; owns palette constants; owns lighting;
+  owns camera presets, `CameraController`, `MotionController`,
+  `ReplayStateMachine`, `disposeGroup`. ~3,580 lines. Phases 2, 3, 4,
+  5 will all touch this file.
+- **`imperativeTeachingOverlay.ts`** — separate Three.Group for paths,
+  defender cues, pressure halos, spacing labels, and authored
+  `OverlayPrimitive[]` reveals. ~1,400 lines. Phase 3 (focus/feedback
+  layers) and Phase 7 tuning land here.
+- **`Scenario3DCanvas.tsx`** — R3F `<Canvas>` host plus the parent rAF
+  loop that drives `gl.render`, the camera/motion/state-machine ticks,
+  the FPS guard, dust-mote tick, and pass-arrival camera shake. Hosts
+  the `simpleMode` pin and the JSX-vs-imperative gate.
+- **`Scenario3DView.tsx`** — public entry: error boundary + canvas +
+  `PremiumOverlay`. Owns camera-mode/playback-rate/paused/restart
+  state. Reads `?camera=` once on mount.
+- **`PremiumOverlay.tsx`** — in-canvas chrome that lives over the
+  scene: concept chip (top-left), camera selector (top-right),
+  play/pause/restart/speed (bottom-center), Paths toggle. This is
+  inside the `Scenario3DView` boundary, not part of the train page
+  shell.
+- **`lib/scenario3d/scene.ts`** — `Scene3D` type, `buildScene()`
+  (authored → preset → synth → default fallback), sanitisation,
+  freeze-marker resolution.
+- **`lib/scenario3d/schema.ts`** — Zod validators for authored scenes
+  and overlay primitives.
+- **`lib/scenario3d/presets.ts`** — six concept presets (closeouts,
+  cutting_relocation, help_defense_basics, low_man_rotation,
+  spacing_fundamentals, transition_stop_ball). Used when a scenario
+  has concept tags but no authored `scene` block.
+- **`lib/scenario3d/coords.ts`** — `COURT` dimensions and legacy 2D →
+  3D projection. Phases 4 and 5 will read court constants from here.
+- **`lib/scenario3d/timeline.ts`** — chained-movement timeline build.
+- **`lib/scenario3d/useScenarioSceneData.ts`** — React hook used by
+  `/train` to derive `Scene3D` from the API scenario object.
+- **`lib/scenario3d/atmosphere.ts`** — dust-mote field for the high
+  quality tier (Phase 5 / Phase 7 polish budget).
+- **`lib/scenario3d/quality.ts`** — quality tier resolver and
+  per-tier settings (pixel ratio cap, antialias, FPS guard).
+- **`lib/scenario3d/feature.ts`** — URL flag readers (`?simple`,
+  `?camera`, `?debug3d`, `?orbit`, `?quality`, `?autofit`).
+- **`app/train/page.tsx`** — the scenario module shell: header,
+  XP/IQ/streak chips, session progress, difficulty/timer, decoder
+  pill, `PhaseTracker`, the canvas frame, prompt + `ChoiceCard`s,
+  `WinBurst`, `FeedbackPanel`, `DecoderLessonPanel`,
+  `SelfReviewChecklist`, "next rep" CTA, miss toast.
+- **`app/train/{ChoiceCard,FeedbackPanel,PhaseTracker,DecoderLessonPanel,SelfReviewChecklist,WinBurst}.tsx`**
+  — discrete shell pieces; each maps to one Phase 6 lever.
+- **`packages/db/seed/scenarios/packs/founder-v0/BDW-01.json`** — only
+  authored decoder scenario today. Carries `scene.players`,
+  `scene.movements`, `scene.answerDemo`, `scene.wrongDemos`,
+  `scene.freezeMarker`, `scene.preAnswerOverlays`,
+  `scene.postAnswerOverlays`, `decoder_tag = BACKDOOR_WINDOW`.
+
+### 17.4 Legacy / unused-on-production-path files
+
+These exist in the tree but only render under `?simple=0` (or other
+debug flags). Treat as legacy — do not invest visual upgrades here
+unless the team explicitly decides to revive the JSX path:
+
+- `components/scenario3d/BasketballScene3D.tsx` (mounted inside
+  `<Canvas>` even on the simple path, but is effectively a no-op
+  shell while the imperative builder owns the scene graph)
+- `components/scenario3d/Court3D.tsx`
+- `components/scenario3d/ScenarioScene3D.tsx`
+- `components/scenario3d/PlayerMarker3D.tsx`
+- `components/scenario3d/BallMarker3D.tsx`
+- `components/scenario3d/MovementPath3D.tsx`
+- `components/scenario3d/PolyLine3D.tsx`
+- `components/scenario3d/LinePrimitive3D.tsx`
+- `components/scenario3d/LabelSprite.tsx`
+- `components/scenario3d/AutoFitCamera.tsx`
+- `components/scenario3d/ScenarioReplayController.tsx`
+- `components/scenario3d/SceneMotionContext.tsx`
+- `components/scenario3d/Debug3DScene.tsx`
+- `components/scenario3d/EmergencyScene3D.tsx`
+- `components/scenario3d/OrbitDebugControls.tsx`
+- `components/scenario3d/SceneDebug3D.tsx`
+- `components/court/{Court,Player,Ball,Arrow}.tsx` — legacy 2D fallback
+  surface, still used as the `fallback` node when WebGL is unavailable
+
+### 17.5 Safest files to edit, by future phase
+
+- **Phase 2 (player visuals).** Edit `imperativeScene.ts` only:
+  `buildPlayerFigure()`, `computePlayerYaw()`, the per-player loop in
+  `buildBasketballGroup()` (~L341–L376), and the player palette
+  constants (`OFFENSE_COLOR`, `OFFENSE_TRIM`, `DEFENSE_COLOR`,
+  `DEFENSE_TRIM`, `USER_COLOR`, `USER_TRIM`). Stay above `L1600`.
+- **Phase 3 (indicators / role + state layers).** Edit
+  `imperativeScene.ts` ring/halo block (~L3198–L3289) for the base +
+  user + possession layers, and `imperativeTeachingOverlay.ts` for
+  the focus/cue and feedback/replay layers. New layers should mount
+  through the existing controller, not as freestanding meshes.
+- **Phase 4 (court / hoop / materials).** Edit `imperativeScene.ts`
+  court block (~L176–L293), `buildHoopAssembly()` / `buildHoopNet()`
+  (~L1620–L1900), `makeHardwoodTexture()` (~L2402), and the material
+  palette constants. Keep `MeshBasicMaterial` for floor/lines/paint
+  (so they ignore tone mapping and stay readable).
+- **Phase 5 (lighting / camera / framing).** Edit the lighting block
+  (~L131–L174), tone-mapping in `Scenario3DCanvas.onCreated`, the
+  camera-preset constants and `computeCameraTarget` (~L513–L631), and
+  `CameraController` (~L736+). Per-scenario nudges should be small
+  per-mode tweaks, not new modes.
+- **Phase 6 (module shell).** Edit `app/train/page.tsx` and the small
+  shell components in `app/train/`, plus `PremiumOverlay.tsx` for the
+  in-canvas chrome. Do **not** redesign navigation or the dashboard.
+- **Phase 7 (QA / tuning).** Targeted constant tuning across the
+  files above; add no new files.
+
+### 17.6 Risky files / boundaries to touch carefully
+
+- **`Scenario3DCanvas.tsx`** — owns the parent rAF loop, the
+  reconciler workaround, the FPS guard, and the simple/full path
+  pin. Almost no visual phase needs to edit this. If a phase change
+  appears to require a Canvas-level edit, escalate before touching.
+- **`MotionController` / `ReplayStateMachine`** in `imperativeScene.ts`
+  — drive all player + ball movement and the freeze/consequence/
+  replay state transitions. Visual changes should not reach these.
+  Phase 7 may tune timing constants, nothing else.
+- **`disposeGroup()` / `disposeMaterialTextures()`** — every mesh,
+  material, and texture added in Phases 2–4 must be reachable by the
+  existing traversal. Adding raw geometry that escapes this dispose
+  path is a leak.
+- **`lib/scenario3d/schema.ts`** — changing the authored scene
+  schema breaks `BDW-01.json`. Visual phases should not touch the
+  schema; new authored knobs are out of scope until Phase 7+.
+- **`lib/scenario3d/presets.ts`** — six concept presets feed legacy
+  fixtures. A visual change here can shift hundreds of scenarios at
+  once; prefer changing the renderer instead of the data.
+- **Tone mapping + output color space** in `Scenario3DCanvas.onCreated`
+  (`ACESFilmicToneMapping`, exposure `1.18`, `SRGBColorSpace`).
+  Touched only by Phase 5.
+- **JSX legacy files** listed in 17.4 — editing these has no
+  production effect and burns review time.
+
+### 17.7 Current architecture observations
+
+- **Color space already correct.** Output is `SRGBColorSpace` with
+  ACES Filmic tone mapping at exposure 1.18; lit materials get film-
+  like rolloff while `MeshBasicMaterial` (court/lines/paint/rings)
+  opts out via `toneMapped: false`. This is a strong base for Phase
+  4 hardwood/court polish — Phase 4 should not undo `toneMapped:
+  false` on court lines.
+- **Lighting is already a 3-point film rig.** Ambient + hemisphere +
+  warm key + cool fill + cool rim + a warm court spot. Phase 5 is
+  tuning, not redesign.
+- **Camera presets already exist** (`auto`, `broadcast`, `tactical`,
+  `replay`, `follow`) with a controller that eases between them.
+  Phase 5 scenario-specific framing nudges should be small offsets
+  per scenario type, not new modes.
+- **Layered indicators are partially implemented.** Foot ring, inner
+  outline, possession halo, and a user-only outer halo already
+  exist in `buildPlayerFigure`. Phase 3 will formalise these into
+  the named base / user / possession / focus / feedback layers and
+  add the focus + feedback layers, which today live in the teaching
+  overlay rather than per-player.
+- **Denial pose already exists,** chosen by closest-defender
+  heuristic to the user (or ball-handler). Phase 2 should preserve
+  this entry point while broadening to closeout/sag/help stances
+  and a clearer hip/foot stagger; the heuristic at L320–L339 is the
+  natural extension point.
+- **Ball possession is animated, not just positional.** The
+  `MotionController` does parabolic in-flight arcs and resolves the
+  catcher at landing time. Phase 3 should not duplicate possession
+  state in the indicator layer; it should react to motion's holder.
+- **Quality tiers and the FPS guard are already wired.** Dust motes
+  only mount on the high tier; postprocessing is intentionally
+  absent. Phase 7 should respect the `low` tier path (no shake, no
+  dust, lower DPR cap).
+- **`PremiumOverlay`** lives inside `Scenario3DView`, not the train
+  page. Phase 6 needs to coordinate with this so the train-page
+  shell and the in-canvas chrome don't fight (e.g., the decoder
+  pill in the train header vs. the concept chip in `PremiumOverlay`).
+- **Only BDW-01 is authored today.** ESC-01, AOR-01, SKR-01 exist
+  as decoder identifiers and copy strings, but no scene JSON has
+  been authored yet. Visual upgrades that depend on those scenarios
+  cannot be screenshotted end-to-end until pack authoring lands.
+
+### 17.8 Likely implementation order
+
+The plan's Phase 2 → 7 order is preserved. Within that:
+
+1. **Phase 2 (players)** — edit `buildPlayerFigure` proportions, add
+   `stance: 'idle' | 'defensive' | 'closeout' | 'cut'` parameter, keep
+   the existing denial branch, expose facing direction via
+   `computePlayerYaw` only. Do not touch rings/halos in this phase.
+2. **Phase 3 (indicators)** — split current ring/halo block into
+   named base/user/possession layers; move focus and feedback
+   layers into `imperativeTeachingOverlay.ts` with a per-player
+   marks API; verify pulse only fires on focus + wrong-choice.
+3. **Phase 4 (court / hoop / materials)** — hardwood material,
+   crisper lines, paint tone, arc weight, hoop/backboard/rim/net
+   redesign in `buildHoopAssembly` / `buildHoopNet`. Pass on tone
+   mapping for unlit materials.
+4. **Phase 5 (lighting / camera)** — tone-mapping exposure tweaks,
+   key/fill/rim balance, scenario-specific framing nudges via
+   `CameraController.setMode` overrides. No new modes.
+5. **Phase 6 (shell)** — `app/train/page.tsx` + companions +
+   `PremiumOverlay` glass tuning. Reconcile the decoder pill vs.
+   concept chip duplication.
+6. **Phase 7 (QA)** — targeted constant tuning; verify Mac frame
+   rate; verify all four decoder scenarios once their packs land.
+
+### 17.9 Uncertainty / open questions
+
+- **Does the JSX path still need to exist?** `Scenario3DCanvas`
+  pins to imperative; the JSX tree is an escape hatch. If the team
+  agrees the imperative path is permanent, a future cleanup could
+  delete the JSX scene components. Out of scope for the visual
+  phases, but worth flagging — these files will look confusing to a
+  reader of the audit.
+- **Where do ESC-01 / AOR-01 / SKR-01 packs author?** Pack authoring
+  appears to live in `packages/db/seed/scenarios/packs/founder-v0/`
+  alongside `BDW-01.json`. Phase 7 QA cannot complete until those
+  are seeded.
+- **Decoder pill duplication.** `app/train/page.tsx` shows a "Decoder ·
+  {label}" chip and `PremiumOverlay` shows the concept(s) as a
+  separate chip. Phase 6 may want to merge or differentiate these.
+- **`BasketballScene3D` on the simple path.** This JSX component is
+  still mounted inside `<Canvas>` even on the imperative simple
+  path (Scenario3DCanvas.tsx ~L1097), but the imperative builder
+  attaches geometry directly to the same scene root. Worth
+  verifying once whether `BasketballScene3D` adds anything visible
+  on top of the imperative tree, or whether it can be inlined to
+  `null` to remove the dead branch. Diagnostic, not blocking.
+- **`COURT` constants** in `lib/scenario3d/coords.ts` are read by
+  both the imperative builder and the legacy presets. Phase 4
+  should use these constants rather than hard-coding new dimensions.
+- **Tri-budget baseline.** The plan calls for a "modest tri budget"
+  per player. The audit did not measure current player tri counts;
+  Phase 2 should baseline this before adding geometry.
+
+---

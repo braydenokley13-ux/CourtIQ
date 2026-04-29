@@ -362,7 +362,17 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
         ? String(4 + (offenseIdx++ % 6))
         : String(20 + (defenseIdx++ % 6))
 
-    const denying = p.id === denyDefenderId
+    // Stance: the closest defender to the user / ball-handler stays
+    // 'denial' to preserve the BDW-01 backdoor cue; other defenders
+    // sit in the base 'defensive' stance (knees bent, hands out);
+    // offense stays 'idle'. Future phases can extend this heuristic
+    // without changing the call site.
+    const stance: PlayerStance =
+      p.id === denyDefenderId
+        ? 'denial'
+        : p.team === 'defense'
+          ? 'defensive'
+          : 'idle'
 
     const playerGroup = buildPlayerFigure(
       teamColor,
@@ -370,7 +380,7 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
       p.isUser ?? false,
       p.id === initialHolderId,
       jerseyNumber,
-      denying,
+      stance,
     )
     playerGroup.position.set(p.start.x, PLAYER_LIFT, p.start.z)
     playerGroup.rotation.y = computePlayerYaw(p.team, p.start.x, p.start.z)
@@ -2947,6 +2957,39 @@ const ARM_Y = TORSO_Y
 const NECK_Y = TORSO_Y + TORSO_HEIGHT / 2 + NECK_HEIGHT / 2
 const HEAD_Y = NECK_Y + NECK_HEIGHT / 2 + HEAD_RADIUS
 
+// Shoulder yoke — a thin horizontal capsule across the top of the
+// torso, slightly wider than the torso itself. Makes the shoulder line
+// the widest part of the upper body so facing direction is unambiguous
+// from the high 3/4 broadcast camera.
+const YOKE_WIDTH = TORSO_WIDTH * 1.18
+const YOKE_HEIGHT = 0.32
+const YOKE_DEPTH = TORSO_DEPTH * 0.85
+const YOKE_Y = TORSO_Y + TORSO_HEIGHT / 2 - YOKE_HEIGHT * 0.55
+
+/**
+ * Stance presets the renderer paints today. The closest defender to the
+ * user / ball-handler is `'denial'` (preserves the BDW-01 backdoor cue);
+ * other defenders are `'defensive'` (knees bent, feet wider, active
+ * hands); offense is `'idle'` (standing tall, hands relaxed). Future
+ * phases can add `'closeout'`, `'sag'`, `'cut'` here without changing
+ * the call sites — only `buildPlayerFigure` interprets the value.
+ */
+type PlayerStance = 'idle' | 'defensive' | 'denial'
+
+// Crouch lower — how far the upper body drops in defensive / denial
+// stances. The legs stay full length; the shorts cover the visual
+// overlap at the hips, which from broadcast distance reads as bent
+// knees. Cheap stance abstraction (no skeletal rig).
+const STANCE_LOWER_FT = 0.35
+// Defensive feet are wider than offensive idle feet so the player
+// reads as "in a stance" instead of "standing".
+const HIP_GAP_DEFENSIVE = 0.62
+// Forward / back foot offset. Defensive: stance-ready stagger.
+// Denial: small stagger toward the rim side. Idle: tiny forward bias
+// already used to break up the silhouette.
+const FOOT_STAGGER_DEFENSIVE = 0.18
+const FOOT_STAGGER_DENIAL = 0.1
+
 /**
  * Returns the yaw (rotation around y in radians) for a player at
  * (x, z) on the given team. Offense is oriented to face the rim at
@@ -2969,9 +3012,13 @@ function computePlayerYaw(team: SceneTeam, x: number, z: number): number {
  * default facing toward -z. Caller is expected to set position and
  * rotation.y on the returned group.
  *
- * Geometry budget: ~12 simple meshes per player. Materials are
- * created per-figure so the existing disposeGroup() traversal cleans
- * everything without aliasing.
+ * The upper body (shorts, torso, jersey, shoulder yoke, arms, neck,
+ * head, hair, facing wedge, user chevron) is parented to a sub-group
+ * so a single translation drops the player into a defensive crouch
+ * without rebuilding any geometry. Legs stay full length; the shorts
+ * cover the resulting hip overlap, which from broadcast distance reads
+ * as bent knees. This keeps stance changes to a position write rather
+ * than a per-frame skeletal rig.
  */
 function buildPlayerFigure(
   teamColor: string,
@@ -2979,7 +3026,7 @@ function buildPlayerFigure(
   isUser: boolean,
   hasBall: boolean,
   jerseyNumber: string,
-  denying: boolean,
+  stance: PlayerStance,
 ): THREE.Group {
   const figure = new THREE.Group()
   figure.name = 'player-figure'
@@ -3015,15 +3062,33 @@ function buildPlayerFigure(
     metalness: 0.1,
   })
 
-  // Shoes — slightly forward-biased (-z) so the silhouette reads as
-  // facing forward rather than as a featureless box. White midsole
-  // stripe sells the "athletic shoe" silhouette without extra meshes.
-  for (const sx of [-HIP_GAP / 2, HIP_GAP / 2]) {
+  const isCrouch = stance === 'defensive' || stance === 'denial'
+  const hipGap = isCrouch ? HIP_GAP_DEFENSIVE : HIP_GAP
+  const upperLower = isCrouch ? STANCE_LOWER_FT : 0
+  // Per-foot z offset for stance stagger. Index 0 is the left foot,
+  // index 1 the right foot. Defensive: classic ready stagger (right
+  // foot forward, left foot back). Denial: small stagger toward the
+  // ball side. Idle: tiny forward bias on both feet to break up the
+  // silhouette without reading as motion.
+  const footStagger: [number, number] =
+    stance === 'defensive'
+      ? [-FOOT_STAGGER_DEFENSIVE, FOOT_STAGGER_DEFENSIVE]
+      : stance === 'denial'
+        ? [FOOT_STAGGER_DENIAL, -FOOT_STAGGER_DENIAL]
+        : [-0.05, -0.05]
+
+  // Shoes — staggered per stance for hip/foot readability. White
+  // midsole stripe sells the "athletic shoe" silhouette without
+  // extra meshes.
+  const shoeXs: [number, number] = [-hipGap / 2, hipGap / 2]
+  for (let i = 0; i < 2; i++) {
+    const sx = shoeXs[i]!
+    const sz = footStagger[i]!
     const shoe = new THREE.Mesh(
       new THREE.BoxGeometry(SHOE_WIDTH, SHOE_HEIGHT, SHOE_DEPTH),
       shoeMat,
     )
-    shoe.position.set(sx, SHOE_Y, -0.05)
+    shoe.position.set(sx, SHOE_Y, sz)
     shoe.castShadow = true
     shoe.receiveShadow = true
     figure.add(shoe)
@@ -3033,21 +3098,34 @@ function buildPlayerFigure(
       new THREE.BoxGeometry(SHOE_WIDTH + 0.02, 0.12, SHOE_DEPTH + 0.02),
       accentMat,
     )
-    sole.position.set(sx, 0.06, -0.05)
+    sole.position.set(sx, 0.06, sz)
     figure.add(sole)
   }
 
   // Lower-body legs — tapered cylinder (thicker at thigh, thinner at
   // calf) for a more athletic silhouette. Shorts hide the very top.
-  for (const lx of [-HIP_GAP / 2, HIP_GAP / 2]) {
+  // Legs follow the foot stagger so the figure reads as a single
+  // staggered stance, not a torso floating over offset shoes.
+  for (let i = 0; i < 2; i++) {
+    const lx = shoeXs[i]!
+    const lz = footStagger[i]! * 0.4
     const leg = new THREE.Mesh(
       new THREE.CylinderGeometry(LEG_RADIUS * 0.95, LEG_RADIUS * 1.25, LEG_HEIGHT, 14),
       skinMat,
     )
-    leg.position.set(lx, LEG_Y, 0)
+    leg.position.set(lx, LEG_Y, lz)
     leg.castShadow = true
     figure.add(leg)
   }
+
+  // Upper body — every part above the knees lives on this sub-group
+  // so a single position write drops the figure into a crouch for
+  // defensive / denial stances. Lower body (shoes, legs) stays on the
+  // figure root so the feet always touch the floor.
+  const upperBody = new THREE.Group()
+  upperBody.name = 'player-upper'
+  upperBody.position.y = -upperLower
+  figure.add(upperBody)
 
   // Shorts — capsule-shaped via a slightly tapered cylinder so the
   // bottom is wider than the top (athletic basketball shorts). Side
@@ -3060,7 +3138,7 @@ function buildPlayerFigure(
   shorts.castShadow = true
   shorts.receiveShadow = true
   shorts.scale.set(1, 1, 0.85)
-  figure.add(shorts)
+  upperBody.add(shorts)
 
   // Side stripes on the shorts — thin trim-color bands hugging both
   // hips. Two bands instead of one so the player reads symmetrically
@@ -3071,12 +3149,12 @@ function buildPlayerFigure(
       trimMat,
     )
     stripe.position.set(sign * (SHORTS_WIDTH / 2 + 0.001), SHORTS_Y, 0)
-    figure.add(stripe)
+    upperBody.add(stripe)
   }
 
   // Torso — capsule for a more natural torso silhouette than a box.
-  // The capsule's rounded top blends into the neck without a visible
-  // seam at any reasonable camera angle.
+  // Tapered toward the waist (narrower at the bottom) so the
+  // V-shaped athletic torso reads from above.
   const torso = new THREE.Mesh(
     new THREE.CapsuleGeometry(TORSO_WIDTH * 0.46, TORSO_HEIGHT * 0.6, 6, 16),
     jerseyMat,
@@ -3084,10 +3162,26 @@ function buildPlayerFigure(
   torso.position.set(0, TORSO_Y, 0)
   torso.castShadow = true
   torso.receiveShadow = true
-  // Slight depth scale so the torso is shallower than wide (typical
-  // basketball jersey silhouette from the broadcast camera).
-  torso.scale.set(1, 1, 0.75)
-  figure.add(torso)
+  // Wider at the chest, narrower at the waist, shallow front-to-back —
+  // the broadcast-silhouette V the eye reads as "athlete".
+  torso.scale.set(1.05, 1, 0.72)
+  upperBody.add(torso)
+
+  // Shoulder yoke — a thin horizontal capsule riding the shoulder
+  // line. Makes the shoulders unambiguously the widest part of the
+  // upper body so facing direction reads without overlays. Painted
+  // in trim so a defensive shoulder line and an offensive shoulder
+  // line are immediately distinguishable from the broadcast camera.
+  const yoke = new THREE.Mesh(
+    new THREE.CapsuleGeometry(YOKE_HEIGHT * 0.5, YOKE_WIDTH - YOKE_HEIGHT, 4, 10),
+    trimMat,
+  )
+  yoke.position.set(0, YOKE_Y, 0)
+  // Capsule's long axis is +y by default; rotate so it lies along x.
+  yoke.rotation.z = Math.PI / 2
+  yoke.scale.set(1, 1, YOKE_DEPTH / YOKE_HEIGHT)
+  yoke.castShadow = true
+  upperBody.add(yoke)
 
   // Jersey number panel — flat plane on the chest with the number
   // canvas texture. Sits a hair in front of the torso so depth-write
@@ -3105,7 +3199,7 @@ function buildPlayerFigure(
     )
     numberPanel.position.set(0, TORSO_Y, -TORSO_DEPTH * 0.36)
     numberPanel.rotation.y = Math.PI
-    figure.add(numberPanel)
+    upperBody.add(numberPanel)
 
     // Mirror panel on the back so the number reads from any angle.
     const backPanel = new THREE.Mesh(
@@ -3113,7 +3207,7 @@ function buildPlayerFigure(
       numberMat,
     )
     backPanel.position.set(0, TORSO_Y, TORSO_DEPTH * 0.36)
-    figure.add(backPanel)
+    upperBody.add(backPanel)
   }
 
   // Chest accent stripe across the top of the jersey.
@@ -3122,11 +3216,14 @@ function buildPlayerFigure(
     trimMat,
   )
   chestStripe.position.set(0, TORSO_Y + TORSO_HEIGHT / 2 - 0.12, 0)
-  figure.add(chestStripe)
+  upperBody.add(chestStripe)
 
-  // Arms — capsule limbs angled differently for offense (relaxed,
-  // hands-down) and defense (active hands when denying). The denying
-  // pose sells the BDW-01 "sitting on the pass" read at a glance.
+  // Arms — capsule limbs posed by stance.
+  //   idle    : relaxed, slight outward angle (current offense pose)
+  //   defensive: both arms low and out to the sides, palms-out feel
+  //   denial  : asymmetric raise — outside arm in the passing lane,
+  //             inside arm low. Sells the BDW-01 "sitting on the
+  //             pass" read at a glance.
   for (const ax of [-ARM_OFFSET, ARM_OFFSET]) {
     const arm = new THREE.Mesh(
       new THREE.CapsuleGeometry(ARM_RADIUS, ARM_LENGTH * 0.9, 4, 10),
@@ -3134,21 +3231,29 @@ function buildPlayerFigure(
     )
     arm.position.set(ax, ARM_Y, 0)
 
-    if (denying) {
-      // Outside arm raised toward the rim side, inside arm low. This
-      // produces the asymmetric "denial" silhouette the user must
-      // recognize. ax sign tells us left/right; raise whichever arm
-      // is closest to the rim direction (-z = facing rim).
+    if (stance === 'denial') {
+      // Outside arm raised toward the rim side, inside arm low.
       const raise = ax < 0 ? 1.0 : 1.1
       arm.rotation.z = ax < 0 ? 0.22 : -0.22
       arm.rotation.x = -raise
       arm.position.y = ARM_Y + 0.55
       arm.position.z = -0.45
+    } else if (stance === 'defensive') {
+      // Hands-out base defensive pose. Arms angled outward and a
+      // touch forward so the silhouette reads "active hands" without
+      // copying the asymmetric denial raise.
+      arm.rotation.z = ax < 0 ? 0.55 : -0.55
+      arm.rotation.x = -0.25
+      arm.position.x = ax * 1.05
+      arm.position.y = ARM_Y - 0.18
+      arm.position.z = -0.18
     } else {
+      // Idle / offensive — relaxed, hands-down with a small outward
+      // angle so arms don't fuse to the torso.
       arm.rotation.z = ax < 0 ? 0.22 : -0.22
     }
     arm.castShadow = true
-    figure.add(arm)
+    upperBody.add(arm)
   }
 
   // Neck.
@@ -3157,43 +3262,47 @@ function buildPlayerFigure(
     skinMat,
   )
   neck.position.set(0, NECK_Y, 0)
-  figure.add(neck)
+  upperBody.add(neck)
 
-  // Head — slightly squashed sphere for better proportions.
+  // Head — slightly squashed sphere. Tessellation trimmed (24×20 →
+  // 18×14) since the head is small in the frame; saves ~512 tris per
+  // figure with no visible quality drop at any default camera mode.
   const head = new THREE.Mesh(
-    new THREE.SphereGeometry(HEAD_RADIUS, 24, 20),
+    new THREE.SphereGeometry(HEAD_RADIUS, 18, 14),
     skinMat,
   )
   head.position.set(0, HEAD_Y, 0)
   head.scale.set(1, 1.05, 0.95)
   head.castShadow = true
-  figure.add(head)
+  upperBody.add(head)
 
   // Hair cap — darker hemisphere on top of the head so heads don't
   // read as featureless pink balls. Same skin-toned hair for all
   // figures keeps the team color the dominant signal; the cap exists
-  // only to sell "this is a person", not identity.
+  // only to sell "this is a person", not identity. Same tessellation
+  // trim as the head.
   const hairMat = new THREE.MeshStandardMaterial({
     color: '#1B1208',
     roughness: 0.85,
     metalness: 0,
   })
   const hair = new THREE.Mesh(
-    new THREE.SphereGeometry(HEAD_RADIUS * 1.02, 24, 14, 0, Math.PI * 2, 0, Math.PI * 0.55),
+    new THREE.SphereGeometry(HEAD_RADIUS * 1.02, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.55),
     hairMat,
   )
   hair.position.set(0, HEAD_Y + 0.02, 0)
   hair.castShadow = true
-  figure.add(hair)
+  upperBody.add(hair)
 
-  // Tiny "front" wedge on the head front (negative-z side) so the
-  // facing direction reads even at distance. Cheap nose stand-in.
+  // Front-facing wedge — a small skin-tone nub on the head's front
+  // (-z) so facing direction reads from any default camera angle.
+  // Slightly larger than before so it survives medium camera distance.
   const facingMarker = new THREE.Mesh(
-    new THREE.BoxGeometry(0.16, 0.1, 0.12),
+    new THREE.BoxGeometry(0.2, 0.13, 0.16),
     skinMat,
   )
-  facingMarker.position.set(0, HEAD_Y - 0.05, -HEAD_RADIUS - 0.04)
-  figure.add(facingMarker)
+  facingMarker.position.set(0, HEAD_Y - 0.05, -HEAD_RADIUS - 0.05)
+  upperBody.add(facingMarker)
 
   // Soft contact shadow — anchors the figure to the hardwood so it
   // doesn't read as floating. Sits beneath every other floor mark.
@@ -3304,9 +3413,8 @@ function buildPlayerFigure(
     figure.add(softHalo)
 
     // Floating "YOU" chevron — a small downward-pointing cone in mint
-    // that hovers above the head. Uses ConeGeometry rotated so the
-    // tip points down at the player; toneMapped: false so it stays
-    // bright independent of lighting.
+    // that hovers above the head. Parented to upperBody so it follows
+    // the head when the user is in a defensive / denial crouch.
     const chevron = new THREE.Mesh(
       new THREE.ConeGeometry(0.42, 0.85, 24),
       new THREE.MeshBasicMaterial({
@@ -3316,7 +3424,7 @@ function buildPlayerFigure(
     )
     chevron.rotation.x = Math.PI
     chevron.position.set(0, HEAD_Y + HEAD_RADIUS + 1.1, 0)
-    figure.add(chevron)
+    upperBody.add(chevron)
 
     // Chevron outline — thin dark cone behind the mint cone so the
     // floating marker reads against the bright gym walls without
@@ -3333,7 +3441,7 @@ function buildPlayerFigure(
     chevronOutline.rotation.x = Math.PI
     chevronOutline.position.set(0, HEAD_Y + HEAD_RADIUS + 1.1, 0)
     chevronOutline.renderOrder = -1
-    figure.add(chevronOutline)
+    upperBody.add(chevronOutline)
   }
 
   return figure
