@@ -582,10 +582,24 @@ function TrainPageInner() {
               />
             }
           />
-          {sceneCaption && replayMode === 'answer' ? (
-            <div className="pointer-events-none absolute inset-x-0 bottom-3 mx-auto w-fit max-w-[92%] rounded-2xl border border-brand/30 bg-bg-0/90 px-4 py-2 text-center text-[13px] font-semibold leading-tight text-brand shadow-[0_8px_24px_rgba(0,0,0,0.55)] backdrop-blur-md">
+          {sceneCaption &&
+          (replayMode === 'answer' ||
+            scenePhase === 'replaying' ||
+            scenePhase === 'consequence') ? (
+            <motion.div
+              key={`caption-${sceneCaption}`}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}
+              className={[
+                'pointer-events-none absolute inset-x-0 bottom-3 mx-auto w-fit max-w-[92%] rounded-2xl border px-4 py-2 text-center text-[13px] font-semibold leading-tight shadow-[0_8px_24px_rgba(0,0,0,0.55)] backdrop-blur-md',
+                scenePhase === 'consequence'
+                  ? 'border-heat/40 bg-bg-0/90 text-heat'
+                  : 'border-brand/30 bg-bg-0/90 text-brand',
+              ].join(' ')}
+            >
               {sceneCaption}
-            </div>
+            </motion.div>
           ) : null}
         </div>
 
@@ -700,16 +714,24 @@ function TrainPageInner() {
           </>
         ) : null}
 
-        {/* Next-play button surfaces below the lesson hand-off so users see
-            the teaching surface before advancing. Legacy scenarios still see
-            this button immediately under the feedback panel above. */}
+        {/* Next-play button surfaces below the lesson hand-off so users
+            see the teaching surface before advancing. Bigger tap target
+            + brand glow so the win moment leads directly into the next
+            rep. */}
         {feedback ? (
-          <button
+          <motion.button
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35, duration: 0.25 }}
+            whileTap={{ scale: 0.99 }}
             onClick={() => void next()}
-            className="w-full rounded-xl bg-brand py-3.5 font-display text-[14px] font-bold uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm active:scale-[0.99]"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 font-display text-[15px] font-bold uppercase tracking-[1px] text-brand-ink shadow-brand"
           >
-            {idx === scenarios.length - 1 ? 'See your results' : 'Next play →'}
-          </button>
+            {idx === scenarios.length - 1 ? 'See your results' : 'Next rep'}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14M13 5l7 7-7 7" />
+            </svg>
+          </motion.button>
         ) : null}
       </div>
 
