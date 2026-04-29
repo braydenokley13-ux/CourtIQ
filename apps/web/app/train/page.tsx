@@ -14,7 +14,7 @@ import { friendlyError } from '@/lib/errors'
 import { DecoderLessonPanel } from './DecoderLessonPanel'
 import { SelfReviewChecklist } from './SelfReviewChecklist'
 import { PhaseTracker, type LearnPhase } from './PhaseTracker'
-import { ChoiceCard, type ChoiceState } from './ChoiceCard'
+import { ChoiceCard, deriveChoiceState } from './ChoiceCard'
 import { FeedbackPanel } from './FeedbackPanel'
 import { WinBurst } from './WinBurst'
 
@@ -149,27 +149,6 @@ function pick<T>(arr: T[], seed: number): T {
   return arr[seed % arr.length]!
 }
 
-/**
- * Compute the visual state of an answer card given the user's pick and
- * the server feedback. Lives near the page so the wiring is obvious
- * when the choice column is rewritten in a follow-up patch.
- */
-export function deriveChoiceState(input: {
-  choiceId: string
-  selected: string | null
-  feedback: { is_correct: boolean; correct_choice_id: string } | null
-  submitting: boolean
-}): ChoiceState {
-  const { choiceId, selected, feedback, submitting } = input
-  if (!feedback) {
-    if (submitting && selected === choiceId) return 'selected'
-    return 'idle'
-  }
-  if (feedback.is_correct && selected === choiceId) return 'correct'
-  if (!feedback.is_correct && selected === choiceId) return 'wrong'
-  if (feedback.correct_choice_id === choiceId) return 'reveal-correct'
-  return 'dimmed'
-}
 
 // Defensive runtime guard for the decoder tag returned by the API. Unknown
 // values fall through to legacy behaviour (no decoder UI) and emit a
@@ -593,8 +572,16 @@ function TrainPageInner() {
           </div>
         ) : null}
 
-        {/* Court */}
-        <div className="relative overflow-hidden rounded-2xl border border-hairline-2 bg-bg-1">
+        {/* Court — brand ring lights up on the freeze beat so the eye
+            anchors on the play surface during the read window. */}
+        <div
+          className={[
+            'relative overflow-hidden rounded-2xl border bg-bg-1 transition-[box-shadow,border-color] duration-300',
+            learnPhase === 'read' || learnPhase === 'choose'
+              ? 'border-brand/50 shadow-brand-sm'
+              : 'border-hairline-2',
+          ].join(' ')}
+        >
           <Scenario3DView
             height={280}
             scene={scene}

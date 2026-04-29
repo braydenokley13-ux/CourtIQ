@@ -4,6 +4,28 @@ import { motion } from 'framer-motion'
 
 export type ChoiceState = 'idle' | 'selected' | 'correct' | 'wrong' | 'reveal-correct' | 'dimmed'
 
+/**
+ * Compute the visual state of an answer card from the user's pick and
+ * the server feedback. Pure function — co-located with ChoiceCard so
+ * the state machine is visible alongside the styling.
+ */
+export function deriveChoiceState(input: {
+  choiceId: string
+  selected: string | null
+  feedback: { is_correct: boolean; correct_choice_id: string } | null
+  submitting: boolean
+}): ChoiceState {
+  const { choiceId, selected, feedback, submitting } = input
+  if (!feedback) {
+    if (submitting && selected === choiceId) return 'selected'
+    return 'idle'
+  }
+  if (feedback.is_correct && selected === choiceId) return 'correct'
+  if (!feedback.is_correct && selected === choiceId) return 'wrong'
+  if (feedback.correct_choice_id === choiceId) return 'reveal-correct'
+  return 'dimmed'
+}
+
 interface ChoiceCardProps {
   letter: string
   label: string
