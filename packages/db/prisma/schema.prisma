@@ -77,6 +77,7 @@ model Scenario {
   category       Category
   concept_tags   String[]
   sub_concepts   String[]
+  decoder_tag    DecoderTag?
   difficulty     Int
   court_state    Json
   scene          Json?
@@ -96,11 +97,12 @@ model Scenario {
 }
 
 model ScenarioChoice {
-  id            String   @id @default(uuid())
+  id            String        @id @default(uuid())
   scenario_id   String
-  scenario      Scenario @relation(fields: [scenario_id], references: [id], onDelete: Cascade)
+  scenario      Scenario      @relation(fields: [scenario_id], references: [id], onDelete: Cascade)
   label         String
   is_correct    Boolean
+  quality       ChoiceQuality @default(wrong)
   feedback_text String
   order         Int
 
@@ -144,14 +146,15 @@ model Attempt {
 
 model Mastery {
   user_id           String
-  user              User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user              User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
   concept_id        String
-  rolling_accuracy  Float     @default(0)
-  attempts_count    Int       @default(0)
+  dimension         MasteryDimension  @default(concept)
+  rolling_accuracy  Float             @default(0)
+  attempts_count    Int               @default(0)
   last_seen_at      DateTime?
   spaced_rep_due_at DateTime?
 
-  @@id([user_id, concept_id])
+  @@id([user_id, concept_id, dimension])
   @@index([spaced_rep_due_at])
 }
 
@@ -235,4 +238,22 @@ enum BadgeFamily {
   CONCEPT
   MILESTONE
   ACCURACY
+}
+
+enum DecoderTag {
+  BACKDOOR_WINDOW
+  EMPTY_SPACE_CUT
+  SKIP_THE_ROTATION
+  ADVANTAGE_OR_RESET
+}
+
+enum ChoiceQuality {
+  best
+  acceptable
+  wrong
+}
+
+enum MasteryDimension {
+  concept
+  decoder
 }

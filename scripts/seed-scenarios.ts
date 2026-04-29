@@ -1,4 +1,4 @@
-import { PrismaClient, Category, ScenarioStatus } from '@prisma/client';
+import { PrismaClient, Category, ChoiceQuality, DecoderTag, ScenarioStatus } from '@prisma/client';
 import { z } from 'zod';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -68,12 +68,27 @@ const choiceSchema = z
     }
   });
 
-function deriveIsCorrect(choice: { is_correct?: boolean; quality?: ChoiceQuality }): boolean {
+function deriveIsCorrect(choice: { is_correct?: boolean; quality?: ZodChoiceQuality }): boolean {
   if (choice.is_correct !== undefined) return choice.is_correct;
   return choice.quality !== 'wrong' && choice.quality !== undefined;
 }
 
-type ChoiceQuality = z.infer<typeof choiceQualitySchema>;
+/**
+ * Derives the new `quality` column from whichever fields the JSON ships.
+ * When `quality` is authored, it wins; when only `is_correct` is present,
+ * `true` becomes `'best'` and `false` becomes `'wrong'` per Section 4.2's
+ * back-compat rule. Returns the Prisma enum value so the caller can
+ * write it directly with no extra casting.
+ */
+function deriveQuality(choice: {
+  is_correct?: boolean
+  quality?: ZodChoiceQuality
+}): ChoiceQuality {
+  if (choice.quality !== undefined) return choice.quality as ChoiceQuality;
+  return choice.is_correct ? ChoiceQuality.best : ChoiceQuality.wrong;
+}
+
+type ZodChoiceQuality = z.infer<typeof choiceQualitySchema>;
 
 // --- Optional 3D scene block ----------------------------------------------
 const courtPointSchema = z.object({ x: z.number().finite(), z: z.number().finite() });
@@ -319,10 +334,14 @@ const scenarioSchema = z
     render_tier: z.number().int().positive().default(1),
     media_refs: z.array(z.string()).default([]),
     scene: sceneSchema.optional(),
-    // Phase B additions. Validated and stored in-memory; the Prisma
-    // columns that back them land in Phase C (`add_decoder_and_quality`
-    // migration). The seeder ignores these fields at upsert time today.
+    // Phase B / C: decoder_tag is persisted on Scenario as of the
+    // `add_decoder_and_quality` migration. Optional — legacy fixtures
+    // omit it, and Prisma stores them with NULL.
     decoder_tag: decoderTagSchema.optional(),
+    // coach_validation is validated here but is NOT persisted on
+    // Scenario yet. The seeder uses it for the gating rule below; the
+    // backing column is intentionally deferred to a later phase to
+    // avoid forcing a per-row migration today.
     coach_validation: coachValidationSchema.optional(),
   })
   .superRefine((scenario, ctx) => {
@@ -428,6 +447,12 @@ async function upsertScenario(
   await prisma.$transaction(async (tx) => {
     const existing = await tx.scenario.findUnique({ where: { id: scenario.id }, select: { id: true } })
     action = existing ? 'updated' : 'created'
+    // Phase C: decoder_tag is persisted as a Scenario column. The cast
+    // through DecoderTag keeps the @prisma/client types in lockstep with
+    // the Zod-parsed enum value (which is a string literal).
+    const decoderTag: DecoderTag | null = scenario.decoder_tag
+      ? (scenario.decoder_tag as DecoderTag)
+      : null;
     await tx.scenario.upsert({
       where: { id: scenario.id },
       create: {
@@ -437,6 +462,7 @@ async function upsertScenario(
         category: scenario.category,
         concept_tags: scenario.concept_tags,
         sub_concepts: scenario.sub_concepts,
+        decoder_tag: decoderTag,
         difficulty: scenario.difficulty,
         user_role: scenario.user_role,
         court_state: scenario.court_state,
@@ -454,6 +480,7 @@ async function upsertScenario(
         category: scenario.category,
         concept_tags: scenario.concept_tags,
         sub_concepts: scenario.sub_concepts,
+        decoder_tag: decoderTag,
         difficulty: scenario.difficulty,
         user_role: scenario.user_role,
         court_state: scenario.court_state,
@@ -469,14 +496,16 @@ async function upsertScenario(
 
     await tx.scenarioChoice.deleteMany({ where: { scenario_id: scenario.id } });
     await tx.scenarioChoice.createMany({
-      // Phase B compat: derive `is_correct` from `quality` when only the
-      // new field is authored. The Prisma `quality` column itself lands
-      // in Phase C; until then we keep the existing column populated so
-      // legacy code paths (attempt scoring, mastery write) keep working.
+      // Phase C: persist both `is_correct` (legacy) and `quality` (new).
+      // When only `is_correct` is authored, `quality` is back-filled to
+      // 'best' / 'wrong'. When only `quality` is authored, `is_correct`
+      // is derived. When both are present, the schema-level superRefine
+      // already enforced agreement, so either is safe to use.
       data: scenario.choices.map((choice) => ({
         scenario_id: scenario.id,
         label: choice.label,
         is_correct: deriveIsCorrect(choice),
+        quality: deriveQuality(choice),
         feedback_text: choice.feedback_text,
         order: choice.order,
       })),
