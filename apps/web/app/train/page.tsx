@@ -519,12 +519,27 @@ function TrainPageInner() {
           </motion.div>
         )}
 
-        {/* Timer / question header */}
+        {/* Timer / phase line. Difficulty stays on the left as a quiet
+            anchor; the right side surfaces a status line that adapts to
+            what the user should be paying attention to right now. */}
         <div className="flex items-center justify-between text-[11px] uppercase tracking-[1.5px] text-text-dim">
           <span>Difficulty {current.difficulty}</span>
           {phase === 'prompt' && questionReady ? (
-            <span className={timeLeft < 2 ? 'font-bold text-heat' : 'font-bold text-text-dim'}>
+            <motion.span
+              key="timer"
+              initial={{ opacity: 0, y: -2 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={timeLeft < 2 ? 'font-bold text-heat' : 'font-bold text-text'}
+            >
               {timeLeft.toFixed(1)}s
+            </motion.span>
+          ) : phase === 'prompt' && !questionReady ? (
+            <span className="inline-flex items-center gap-1.5 font-bold text-text-dim">
+              <span aria-hidden className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand/60" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand" />
+              </span>
+              Watch the play
             </span>
           ) : null}
         </div>
@@ -574,15 +589,27 @@ function TrainPageInner() {
           ) : null}
         </div>
 
-        {/* Prompt — held back until the scene reaches its freeze marker for
-            decoder scenarios so the user reads the play before reading the
-            question. Legacy scenarios skip the gate via questionReady=true. */}
-        {questionReady ? (
-          <div>
-            <p className="text-sm text-text-dim">{current.prompt}</p>
-            <p className="mt-1 font-display text-[22px] font-bold leading-tight">What do you do?</p>
-          </div>
-        ) : null}
+        {/* Prompt — held back until the scene reaches its freeze marker
+            for decoder scenarios so the user reads the play before
+            reading the question. Animated in so it lands on the freeze
+            beat instead of jumping. */}
+        <AnimatePresence>
+          {questionReady ? (
+            <motion.div
+              key="prompt"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}
+            >
+              <p className="text-[12px] font-semibold leading-snug text-text-dim">
+                {current.prompt}
+              </p>
+              <p className="mt-1 font-display text-[22px] font-bold leading-tight text-text">
+                What do you do?
+              </p>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
 
         {/* Choices — premium cards with letter pill, hover/tap states,
             and confidence-colored states after submit. */}
