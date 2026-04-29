@@ -749,9 +749,11 @@ function TrainPageInner() {
         ) : null}
       </div>
 
-      {/* Floating XP / IQ reward toast */}
+      {/* Floating "keep going" toast — fires only on a miss now that
+          the WinBurst handles the success celebration. Keeps a quick
+          recovery beat without doubling up XP / IQ chrome. */}
       <AnimatePresence>
-        {reward ? (
+        {reward && !reward.correct ? (
           <motion.div
             key={reward.key}
             initial={{ opacity: 0, y: 10, scale: 0.9 }}
@@ -763,21 +765,8 @@ function TrainPageInner() {
               setTimeout(() => setReward((cur) => (cur?.key === reward.key ? null : cur)), 900)
             }
           >
-            <div
-              className="flex items-center gap-2 rounded-full px-4 py-2 font-display text-[14px] font-bold shadow-xp"
-              style={{
-                background: reward.correct ? 'rgba(59,227,131,0.12)' : 'rgba(255,77,109,0.12)',
-                color: reward.correct ? 'var(--brand)' : 'var(--heat)',
-                border: reward.correct ? '1px solid rgba(59,227,131,0.4)' : '1px solid rgba(255,77,109,0.4)',
-              }}
-            >
-              {reward.correct ? `+${reward.xp} XP` : 'Keep going'}
-              {reward.correct && reward.iq !== 0 && (
-                <span className="text-iq">
-                  · IQ {reward.iq > 0 ? '+' : ''}
-                  {reward.iq}
-                </span>
-              )}
+            <div className="flex items-center gap-2 rounded-full border border-heat/40 bg-heat/10 px-4 py-2 font-display text-[13px] font-bold uppercase tracking-[1px] text-heat shadow-heat">
+              Keep going
             </div>
           </motion.div>
         ) : null}
