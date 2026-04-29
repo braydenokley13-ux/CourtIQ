@@ -306,16 +306,29 @@ function TrainPageInner() {
     })()
   }, [router, conceptParam, scenarioParam])
 
+  // Settle delay between the freeze beat firing and the timer starting
+  // ticking — gives the kid ~700ms to register the question before the
+  // clock kicks in. Reset alongside the per-scenario UI state.
+  const [timerArmed, setTimerArmed] = useState(false)
+
+  useEffect(() => {
+    if (!questionReady) return
+    const t = setTimeout(() => setTimerArmed(true), 700)
+    return () => clearTimeout(t)
+  }, [questionReady])
+
   useEffect(() => {
     if (phase !== 'prompt') return
-    // Phase G — for decoder scenarios, hold the timer at 8 until the
-    // scene reaches its freeze marker. The pre-freeze playback is part
-    // of the read, not part of the response window.
+    // Phase G — for decoder scenarios, hold the timer until the scene
+    // reaches its freeze marker AND the post-freeze settle window
+    // expires. The pre-freeze playback + settle are part of the read,
+    // not the response window.
     if (!questionReady) return
+    if (!timerArmed) return
     if (timeLeft <= 0) return
     const t = setTimeout(() => setTimeLeft((v) => Math.max(0, Number((v - 0.1).toFixed(1)))), 100)
     return () => clearTimeout(t)
-  }, [phase, timeLeft, questionReady])
+  }, [phase, timeLeft, questionReady, timerArmed])
 
   useEffect(() => {
     setTimeLeft(8)
@@ -324,6 +337,8 @@ function TrainPageInner() {
     setSceneCaption(undefined)
     setReplayCounter(0)
     setFrozen(false)
+    setTimerArmed(false)
+    setScenePhase('idle')
   }, [idx])
 
   // Phase G — react to phase events emitted by the JSX
