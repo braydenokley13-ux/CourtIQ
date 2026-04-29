@@ -1645,7 +1645,11 @@ function easeInOutCubic(u: number): number {
 // behind the rim center along the +z direction toward the baseline).
 // All numbers in feet.
 const RIM_RADIUS = 0.75
-const RIM_TUBE = 0.06
+// Phase 4: rim tube 0.06 → 0.075. The previous tube read as a wire
+// hoop from the default broadcast camera; bumping the tube radius
+// gives the rim a cast-iron weight without changing its position
+// or net attachment geometry.
+const RIM_TUBE = 0.075
 const BACKBOARD_WIDTH = 6
 const BACKBOARD_HEIGHT = 3.5
 const BACKBOARD_THICKNESS = 0.12
@@ -1659,8 +1663,18 @@ const POLE_RADIUS = 0.22
 const NET_TOP_Y = COURT.rimHeightFt - 0.05
 const NET_BOTTOM_Y = COURT.rimHeightFt - 1.4
 const NET_BOTTOM_RADIUS = 0.42
-const NET_STRANDS = 12
-const NET_RINGS = 4
+// Phase 4: net density bumped 12×4 → 14×5 strand×ring grid. ~80
+// vertical segments + 5×24 horizontal ties (~200 line segments)
+// stays well under the geometry budget while reading as an actual
+// woven net from the broadcast camera.
+const NET_STRANDS = 14
+const NET_RINGS = 5
+// Phase 4: stanchion padding accent — a thin colored stripe on the
+// top of the pole padding so the padding reads as a real foam wrap
+// instead of a pure black cylinder. Uses the same warm gold as the
+// possession ring so the hoop end of the floor reads as one
+// coordinated palette.
+const PADDING_ACCENT_COLOR = '#FFCB44'
 
 /**
  * Builds the full basket assembly: stanchion, backboard with target
@@ -1750,7 +1764,7 @@ function buildHoopAssembly(): THREE.Group {
 
   // Pole padding — black foam wrap for the lower 6 ft of the pole.
   const padding = new THREE.Mesh(
-    new THREE.CylinderGeometry(POLE_RADIUS + 0.18, POLE_RADIUS + 0.18, 6, 16),
+    new THREE.CylinderGeometry(POLE_RADIUS + 0.18, POLE_RADIUS + 0.22, 6, 18),
     new THREE.MeshStandardMaterial({
       color: PADDING_COLOR,
       roughness: 0.95,
@@ -1762,7 +1776,26 @@ function buildHoopAssembly(): THREE.Group {
   padding.receiveShadow = true
   hoop.add(padding)
 
+  // Phase 4: warm-gold accent stripe near the top of the pole padding.
+  // Section 8 calls for a quiet branded color treatment on the
+  // stanchion; the stripe ties the hoop end of the floor to the
+  // possession-ring palette without lifting the padding into the
+  // read.
+  const paddingAccent = new THREE.Mesh(
+    new THREE.CylinderGeometry(POLE_RADIUS + 0.21, POLE_RADIUS + 0.21, 0.18, 18),
+    new THREE.MeshStandardMaterial({
+      color: PADDING_ACCENT_COLOR,
+      roughness: 0.6,
+      metalness: 0.15,
+    }),
+  )
+  paddingAccent.position.set(0, 5.7, POLE_BASE_Z)
+  hoop.add(paddingAccent)
+
   // --- Backboard. Tinted, transparent glass with a thin dark frame.
+  // Phase 4: opacity 0.32 → 0.42 so the glass reads as glass-on-frame
+  // (Section 8) rather than a flat plate, but stays low enough that
+  // overlays behind the rim never get muddied.
   const glass = new THREE.Mesh(
     new THREE.BoxGeometry(
       BACKBOARD_WIDTH,
@@ -1772,7 +1805,7 @@ function buildHoopAssembly(): THREE.Group {
     new THREE.MeshStandardMaterial({
       color: BACKBOARD_GLASS_TINT,
       transparent: true,
-      opacity: 0.32,
+      opacity: 0.42,
       roughness: 0.05,
       metalness: 0.0,
       envMapIntensity: 1.2,
@@ -1784,6 +1817,27 @@ function buildHoopAssembly(): THREE.Group {
   glass.castShadow = false
   glass.receiveShadow = false
   hoop.add(glass)
+
+  // Soft glass highlight — a thin bright plane painted on the front
+  // face that catches the eye like a real-glass reflection. Cheap
+  // (single PlaneGeometry, MeshBasicMaterial, low alpha) and sits
+  // a hair in front of the glass so it never z-fights.
+  const glassHighlight = new THREE.Mesh(
+    new THREE.PlaneGeometry(BACKBOARD_WIDTH * 0.92, BACKBOARD_HEIGHT * 0.18),
+    new THREE.MeshBasicMaterial({
+      color: '#E9F5FF',
+      toneMapped: false,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+    }),
+  )
+  glassHighlight.position.set(
+    0,
+    BACKBOARD_CENTER_Y + BACKBOARD_HEIGHT * 0.28,
+    BACKBOARD_FRONT_Z + 0.005,
+  )
+  hoop.add(glassHighlight)
 
   // Backboard frame — slim dark border around the glass.
   const frameMat = new THREE.MeshStandardMaterial({
@@ -1895,15 +1949,18 @@ function buildHoopAssembly(): THREE.Group {
   hoop.add(targetRight)
 
   // --- Rim. Bright orange torus with a small mounting plate connecting
-  // back to the backboard.
+  // back to the backboard. Phase 4: chunkier tube (constant change),
+  // higher emissive intensity so the rim reads as the brightest spot
+  // on the hoop end of the floor — Section 8: "slightly brighter than
+  // the paint so it always reads."
   const rim = new THREE.Mesh(
-    new THREE.TorusGeometry(RIM_RADIUS, RIM_TUBE, 16, 48),
+    new THREE.TorusGeometry(RIM_RADIUS, RIM_TUBE, 18, 56),
     new THREE.MeshStandardMaterial({
       color: RIM_COLOR,
-      roughness: 0.45,
-      metalness: 0.55,
+      roughness: 0.4,
+      metalness: 0.6,
       emissive: RIM_COLOR,
-      emissiveIntensity: 0.05,
+      emissiveIntensity: 0.12,
     }),
   )
   rim.position.set(0, COURT.rimHeightFt, 0)
@@ -1917,8 +1974,8 @@ function buildHoopAssembly(): THREE.Group {
     new THREE.BoxGeometry(0.42, 0.16, bracketLength),
     new THREE.MeshStandardMaterial({
       color: RIM_COLOR,
-      roughness: 0.5,
-      metalness: 0.5,
+      roughness: 0.45,
+      metalness: 0.55,
     }),
   )
   bracket.position.set(
@@ -1928,6 +1985,22 @@ function buildHoopAssembly(): THREE.Group {
   )
   bracket.castShadow = true
   hoop.add(bracket)
+
+  // Net-attachment lip — a thin torus tucked just below the rim so
+  // the net reads as woven through hooks rather than dangling in
+  // mid-air. Section 8: "net attachment loops visible enough to feel
+  // real, not modeled in high detail." Single torus stays cheap.
+  const netLip = new THREE.Mesh(
+    new THREE.TorusGeometry(RIM_RADIUS - 0.02, 0.03, 10, 36),
+    new THREE.MeshStandardMaterial({
+      color: '#8E2A0A',
+      roughness: 0.55,
+      metalness: 0.5,
+    }),
+  )
+  netLip.position.set(0, COURT.rimHeightFt - 0.05, 0)
+  netLip.rotation.x = Math.PI / 2
+  hoop.add(netLip)
 
   // --- Net. Lightweight LineSegments hung from the rim. A small set of
   // vertical strands plus a few horizontal rings tying them together.
@@ -2009,10 +2082,13 @@ function buildHoopNet(): THREE.LineSegments {
     'position',
     new THREE.Float32BufferAttribute(positions, 3),
   )
+  // Phase 4: opacity 0.85 → 0.92 so the denser strand grid doesn't
+  // wash out at the default broadcast camera. Still LineSegments —
+  // no expensive cloth simulation per Section 8.
   const mat = new THREE.LineBasicMaterial({
     color: NET_COLOR,
     transparent: true,
-    opacity: 0.85,
+    opacity: 0.92,
     toneMapped: false,
   })
   const net = new THREE.LineSegments(geom, mat)
