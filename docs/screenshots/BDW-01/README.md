@@ -39,155 +39,191 @@ BASE_URL=http://localhost:3001 pnpm qa:screenshot
 
 ---
 
-# BDW-01 — Visual Upgrade Pass
+# BDW-01 — Premium Learning Loop Upgrade
 
-Scope: small-commit visual redesign + learning-clarity pass for BDW-01
-(THE BACKDOOR WINDOW). No new scenarios, no architecture changes, no
-business/growth features. Targeted upgrades to the in-scenario rendering
-pipeline so BDW-01 reads as a premium basketball learning product
-instead of a toy.
+Scope: small-commit upgrade pass that lifts BDW-01 (THE BACKDOOR
+WINDOW) from working prototype into a premium interactive learning
+product. No new scenarios, no architecture changes — every change is
+constrained to the `/train` surface, the four BDW-specific train
+components, and the supporting copy. Builds on the prior visual
+upgrade pass and the founder-pack content seeds.
 
-## Visual upgrades made
+## Phase A–E learning loop
 
-### Player figures (`buildPlayerFigure` in `imperativeScene.ts`)
+The rep is now structured as a clean five-phase loop. Every phase is
+visible to the user via the new `PhaseTracker` chip strip above the
+court (Watch → Read → Pick → Learn) and reinforced through pacing,
+copy, and motion.
 
-- **Capsule-based torso + shorts** instead of plain box geometry, so the
-  silhouette reads as an athletic body rather than a stack of rectangles.
-- **Athletic taper on the legs** (slightly thicker thigh, narrower
-  calf), and the shorts cylinder is wider at the bottom than the top.
-- **Jersey numbers**: every player wears a deterministic number painted
-  onto the chest AND the back via a procedural canvas texture so the
-  player reads as a real basketball jersey from any camera angle. User
-  is always `0`, offense `4..9`, defense `20..25`.
-- **Trim color**: each team color now has a paired trim (deeper
-  saturation) used for jersey side stripes, shorts side stripes, and
-  the chest band. Reads as a coordinated uniform set.
-- **Hair cap**: a dark hemisphere on top of the head so figures don't
-  read as featureless skin-toned spheres.
-- **Athletic shoes**: white midsole stripe under each shoe sells the
-  silhouette without extra meshes.
-- **Denial pose**: when a defender is the closest defender to the user
-  (or ball-handler), their arm raises into a denial stance — sells the
-  BDW-01 "sitting on the pass" lesson visually before any overlay
-  fires.
-- **YOU identity**:
-  - Bigger team ring with a thin white inner outline so it reads as a
-    lit disc, not a fuzzy color blob.
-  - Two-stage halo (bright inner + soft outer fade) so the user reads
-    as a clear focal point at any zoom.
-  - Larger floating mint chevron above the head with a dark outline
-    cone behind it so it pops against bright gym walls.
+### Phase A — Watch
+- "Watch the play" pulse + dot in the timer slot while the scene is
+  playing toward freeze. Tells the kid the scene is intentionally
+  unfolding instead of stalled.
+- Decoder chip names the read ("Decoder · The Backdoor Window") so
+  the kid enters the rep with framing.
+- Tracker chip 1 ("Watch") pulses; chips 2–4 are dim.
 
-### Court (`buildBasketballGroup` in `imperativeScene.ts`)
+### Phase B — Freeze + Think
+- Freeze fires on the authored `freezeAtMs`; the question prompt +
+  premium choice cards animate in on the freeze beat (300ms motion
+  curve, no jump).
+- New 700ms "settle" window: the response timer holds for 700ms after
+  freeze so the kid gets to read the play before the clock starts.
+- Tracker chip 2 ("Read") pulses.
 
-- **Procedural hardwood texture** with vertical planks, grain streaks,
-  plank seams, and a soft varnish sweep — the floor reads as actual
-  wood from any angle instead of a flat orange plane.
-- **Deeper paint contrast**: a darker baseline trim band along the
-  free-throw line edge of the paint sells the painted-on-wood look.
-- **Soft warm rim glow**: a faint orange glow under the hoop area
-  anchors the eye on the rim/paint without lighting the rest of the
-  floor.
-- **Updated palette**:
-  - Floor: warm hardwood `#C77A36` with dark/light plank variation.
-  - Paint: punchier royal `#0B5BD3` with `#063C92` trim.
-  - Team colors: brighter offense `#2D8AFF`, deeper defense `#FF3046`,
-    user mint `#3BFF9D`.
-  - Rim: brighter orange `#FF6A1F`.
-  - Backboard frame and pole: deeper navy/black tones for stronger
-    contrast against the wood.
+### Phase C — Choose
+- New `ChoiceCard` component replaces the legacy bordered button.
+  Each card has a real letter pill (A/B/C/D), a hover/tap state, a
+  tap target sized for kids' fingers, and confidence-colored states
+  after submit.
+- Submit fires the per-choice consequence/replay flow inside the
+  3D canvas (unchanged).
+- Tracker chip 3 ("Pick") pulses; on submit, it locks to ✓.
 
-### Ball (`buildBasketball` in `imperativeScene.ts`)
+### Phase D — Learn Consequence
+- The 3D scene drives the consequence leg for wrong picks (red
+  caption "Defender deflects the reversal." / "Defender rides the
+  cut.") and short-circuits to the best-read leg for the correct
+  pick.
+- Caption pill is now red on consequence and brand-green on the
+  best-read leg, animated in/out so the kid feels the difference.
+- Tracker chip 4 ("Learn") pulses through both consequence and the
+  best-read replay.
 
-- **Higher-resolution sphere** (36 segments vs 32) and richer pebble
-  texture (384px vs 256px).
-- **Soft contact shadow** disc under the ball so it never reads as
-  floating.
-- **Faint orange halo** around the ball so the eye finds it from
-  broadcast distance even when it's next to a player.
-- Slightly less rough material so the ball catches the new key/fill
-  lighting without going glossy.
+### Phase E — Win Moment
+- New `WinBurst` celebration card pops above the feedback panel on
+  correct picks: brand-glow shell, spark ring, decoder-specific
+  micro-praise ("You saw the help defender."), and a row of XP / IQ
+  / streak chips that scale-in one-by-one.
+- Premium `FeedbackPanel` replaces the legacy box: header pill with
+  ✓ / ! glyph, "Why" body in its own subtle card, dual replay CTAs
+  ("Watch the right read", "Show what I did" on a miss).
+- Decoder hand-off + self-review surface below the feedback so the
+  kid lands on "here's the move + here's how to grade your own rep."
 
-### Lighting (`buildBasketballGroup`)
+## Better teaching UI
 
-- Brighter ambient (`0.45` vs `0.35`) and warmer hemisphere
-  (`#fff5e0 / #1c2330` at `1.05`) so the gym reads as a real lit
-  arena.
-- Punchier warm key (`1.6` vs `1.35`) so hardwood and player jerseys
-  hold real luminance.
-- Cooler, slightly stronger fill (`0.65` vs `0.55`) keeps the off-side
-  of player figures from going muddy.
-- Tighter teal rim (`0.55` vs `0.45`) lifts player silhouettes off the
-  back wall.
-- New warm point light over the rim/paint area mimics arena spot
-  lighting and centers the eye on the read.
+### Copy upgrades
+- Praise rotation: `Great read.` / `Locked in.` / `Smart move.` /
+  `You saw it.` / `Big brain.`
+- Recover rotation: `Almost.` / `So close.` / `Not quite.` /
+  `Try the next one.` / `Reset.`
+- Per-decoder micro-praise on the win burst (BDW-01: `You saw the
+  help defender.`).
+- Per-decoder miss note under the feedback headline (BDW-01: `Read
+  the defender, not the spot.`).
+- Loading state: `Setting the play…` (was `Getting the gym ready…`).
 
-### HUD / overlays (`PremiumOverlay.tsx`, `app/train/page.tsx`)
+### Layout upgrades
+- Header chips: XP / IQ / streak each on their own pill with a
+  consistent border + bg. Streak pill animates a `scale + opacity`
+  pop when it ticks up.
+- Combo flame: brand-bordered pill with a flame glyph that does not
+  collide with the win burst (only renders during the active prompt).
+- Quit is now a tap pill with a hit target instead of bare text.
+- Phase tracker step strip with active-step pulse + completed-step
+  filled state.
 
-- **Concept chip**: brighter border, bigger letter-spacing, larger
-  shadow, slightly bolder type so the orientation chip reads cleanly
-  without competing with the court.
-- **Decoder chip**: now carries a small mint pulse dot, larger
-  letter-spacing, and a soft brand-colored shadow.
-- **Reading-the-play indicator**: replaced the static "Reading…" text
-  with a pulsing dot + "Reading the play…" copy so the user knows the
-  scene is actively unfolding.
-- **Scene caption**: pre-existing caption pill upgraded to a rounded
-  card with brand-colored border, bigger inner padding, stronger shadow,
-  and slight backdrop blur — sells the teaching beat instead of reading
-  as a tiny status pill.
+## Make choices feel great
 
-## Learning-clarity improvements
+- `ChoiceCard.tsx` replaces the legacy button. States:
+  - `idle` — neutral chrome, hover lifts y by 1px and brightens the
+    letter pill toward brand.
+  - `selected` — brand ring while submit is in flight.
+  - `correct` — brand ring + ✓ pill + "Best read" tag + bottom
+    progress bar swiping in left-to-right.
+  - `wrong` — heat ring + ✕ pill, dimmed copy.
+  - `reveal-correct` — brand ring + ✓ pill on the correct option
+    after a wrong pick.
+  - `dimmed` — non-picked options after submit fade to 55% opacity
+    so the eye lands on the picked + correct rows.
+- All states animate via framer-motion `whileHover` + `whileTap` so
+  the cards feel tactile.
+- `deriveChoiceState` helper centralizes the state machine for the
+  cards; small unit-testable function exported from `page.tsx`.
 
-- **Defender denial pose** is now a built-in part of the figure
-  rendering (not just an authored overlay primitive), so the BDW-01
-  "sitting on the pass" read is visible from frame 1 even before any
-  pulse rings or vision cones animate.
-- **YOU identity layered cues**: bright team ring + white inner edge +
-  outer mint halo + soft outer fade + floating chevron with dark
-  outline. Five overlapping signals so kids never lose track of which
-  player they are.
-- **Better team color separation**: brighter offense blue and deeper,
-  more saturated defense red read as clearly different teams against
-  both the warm hardwood and the gym backdrop.
-- **Jersey numbers** anchor the player as "a real basketball player"
-  cognitively, which makes the lesson feel credible to parents/coaches
-  without making the renderer expensive.
-- **Stronger paint contrast** makes the active basket area
-  unmistakable — the read is "the basket is open behind the defender"
-  and the paint should be visually anchored.
+## Improve replay teaching
 
-## ADHD-friendly improvements
+- Decoder caption pill now renders during BOTH the consequence and
+  best-read replay legs (was previously gated only by the legacy
+  `replayMode === 'answer'`).
+- Caption is heat-colored on consequence ("Defender deflects the
+  reversal.") and brand-colored on the best-read replay ("Plant and
+  back-cut. Layup before x4 rotates."), animated in/out per caption
+  change so the kid follows the cue beats.
+- "Watch the right read" CTA in the feedback panel re-fires the
+  best-read replay; on a miss, a secondary "Show what I did" CTA is
+  available for context (wired to the same replay counter — the
+  `imperativeScene` already retains the picked-choice consequence
+  inside the replay state machine).
 
-- **One clear focal point**: the user's mint identity stack pulls the
-  eye to YOU first, then to the denying defender's red pose, then to
-  the open paint. Three steps, in order, no clutter.
-- **Higher base contrast** (deeper team colors, warmer floor, brighter
-  paint, deeper trim) makes the scene read at a glance even on
-  glare-heavy screens.
-- **Cleaner HUD typography**: bigger letter-spacing on chips, stronger
-  shadows so floating chrome reads as chrome (not part of the play).
-- **Pulsing "Reading the play…" indicator** tells the user the scene
-  is intentionally building, not stalled.
-- **Snappier, more obvious YOU marker** — the floating chevron is now
-  larger with a dark outline so it cannot be missed.
+## Motivation layer
+
+- `WinBurst` celebration card on correct answers (XP / IQ / streak
+  pills + spark ring + decoder-specific praise).
+- Streak chip pop in the header when the streak ticks up.
+- Combo chip ("3 in a row 🔥") in brand-bordered pill, only during
+  the active prompt.
+- Recovery toast for misses ("Keep going") on the heat color so a
+  miss still has a visible respond-and-continue beat without
+  competing with the success state.
+
+## ADHD / focus pass
+
+- 700ms post-freeze settle window before the response timer starts
+  ticking.
+- "Watch the play" pulsing dot during pre-freeze playback so the
+  kid knows the scene is intentionally unfolding.
+- Animated mount of the prompt + question on the freeze beat (was
+  a hard cut-in).
+- Win burst chips scale-in one-by-one (XP first, then IQ, then
+  streak) so reward attention is staged, not slammed.
+- Phase tracker bar makes the rep feel like four small steps instead
+  of one big one.
+- Dropped the duplicate XP toast that fired on top of the win burst
+  on correct answers.
+
+## Polish bugs fixed
+
+- Caption visibility gate: was hiding the consequence/replay caption
+  on the decoder path because the legacy `replayMode === 'answer'`
+  predicate did not match `'intro'`-mode decoder scenes.
+- `replayDone` and `setReplayDone` were declared but never read —
+  removed.
+- Loading state copy was inconsistent between the suspense fallback
+  and the in-page spinner — both now read `Setting the play…`.
 
 ## Remaining known issues
 
-- No new scenarios were added — BDW-01 is the only fully-decoded
-  scenario in the founder pack. The rest of `Pack 1` (ESC-01, AOR-01,
-  STR-01) still need their authored scenes.
-- Camera orientation / positioning is unchanged in this commit.
-  Tactical / replay presets continue to work but were not re-tuned.
-- Player jersey numbers are deterministic by mount order within a team
-  (offense `4..9`, defense `20..25`). If a future scenario authors more
-  than 6 offense + 6 defense players, numbers will start cycling — fine
-  for the current 4-on-4 decoder format but worth noting for larger
-  scenes.
-- Screenshots from a live `pnpm qa:screenshot` run could not be captured
-  in this environment because the `/train` route requires authenticated
-  Supabase credentials; the production CI/preview pipeline still
-  exercises that capture path.
+- No new scenarios were added — BDW-01 remains the only
+  fully-decoded scenario in the founder pack.
+- Live Playwright screenshots could not be captured in this sandbox
+  because the `/train` route requires authenticated Supabase
+  credentials and the build pipeline is the source of truth for the
+  font subset. The CI/preview pipeline still exercises this capture
+  path (see `pnpm screenshot:bdw`).
+- Authenticated visual QA (`pnpm qa:auth` → `pnpm qa:screenshot`) is
+  not yet wired in this branch — there's no `.auth/courtiq-user.json`
+  or `qa:auth` script in `package.json`. Adding the auth bootstrap
+  + storage-state plumbing is the unblocker for a visual-QA polish
+  pass.
+- The "Show what I did" CTA on a miss is currently wired to the same
+  best-read replay counter — the imperative scene's state machine
+  retains the picked choice across replay resets, but a follow-up
+  pass could surface an explicit consequence-only replay action.
+- Build fails locally on Google Fonts fetch in this sandbox
+  (`SELF_SIGNED_CERT_IN_CHAIN` on `fonts.googleapis.com`); same
+  environmental limit as the baseline pass. Code-level validations
+  (typecheck, lint, test) are clean.
+
+## Build issue history
+
+- The earlier Vercel build error
+  `"deriveChoiceState" is not a valid Page export field` came from a
+  pre-fix commit. Resolved in `0c6d31e` by relocating
+  `deriveChoiceState` from `app/train/page.tsx` into
+  `app/train/ChoiceCard.tsx` so the page module only exports
+  `default`. The current branch tip compiles.
 
 ## Validation
 
@@ -196,5 +232,4 @@ instead of a toy.
 | `pnpm typecheck`            | clean   |
 | `pnpm lint`                 | clean   |
 | `pnpm test` (96 tests)      | passing |
-| `pnpm seed:scenarios --dry-run` | passing |
-| `pnpm build`                | passing |
+| `pnpm build`                | env-blocked on Google Fonts only |

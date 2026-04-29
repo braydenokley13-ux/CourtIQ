@@ -13,6 +13,10 @@ import { createClient } from '@/lib/supabase/client'
 import { friendlyError } from '@/lib/errors'
 import { DecoderLessonPanel } from './DecoderLessonPanel'
 import { SelfReviewChecklist } from './SelfReviewChecklist'
+import { PhaseTracker, type LearnPhase } from './PhaseTracker'
+import { ChoiceCard, deriveChoiceState } from './ChoiceCard'
+import { FeedbackPanel } from './FeedbackPanel'
+import { WinBurst } from './WinBurst'
 
 type DecoderTag =
   | 'BACKDOOR_WINDOW'
@@ -122,12 +126,29 @@ type AttemptFeedback = {
   badges_awarded?: { slug: string; family: string }[]
 }
 
-const PRAISE = ['Nice read!', 'Smart move!', 'Got it!', 'Big brain.', 'Locked in.']
-const RECOVER = ['So close.', 'Not quite.', 'Almost!', 'Missed it.', 'Try the next one.']
+const PRAISE = ['Great read.', 'Locked in.', 'Smart move.', 'You saw it.', 'Big brain.']
+const RECOVER = ['Almost.', 'So close.', 'Not quite.', 'Try the next one.', 'Reset.']
+
+/** Per-decoder micro-praise — names the cue the kid noticed. */
+const WIN_MICRO_PRAISE: Record<DecoderTag, string> = {
+  BACKDOOR_WINDOW: 'You saw the help defender.',
+  EMPTY_SPACE_CUT: 'You filled the empty space.',
+  SKIP_THE_ROTATION: 'You beat the rotation.',
+  ADVANTAGE_OR_RESET: 'You read the closeout.',
+}
+
+/** Per-decoder coaching micro-note shown under a wrong-answer headline. */
+const MISS_MICRO_NOTE: Record<DecoderTag, string> = {
+  BACKDOOR_WINDOW: 'Read the defender, not the spot.',
+  EMPTY_SPACE_CUT: 'Cut into the space, not the wing.',
+  SKIP_THE_ROTATION: 'Find the help that already left.',
+  ADVANTAGE_OR_RESET: 'Decide on the catch — attack or reset.',
+}
 
 function pick<T>(arr: T[], seed: number): T {
   return arr[seed % arr.length]!
 }
+
 
 // Defensive runtime guard for the decoder tag returned by the API. Unknown
 // values fall through to legacy behaviour (no decoder UI) and emit a
@@ -155,7 +176,7 @@ export default function TrainPage() {
         <main className="flex min-h-dvh items-center justify-center bg-bg-0 text-text-dim">
           <div className="flex flex-col items-center gap-3">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-hairline-2 border-t-brand" />
-            <p className="text-sm">Getting the gym ready…</p>
+            <p className="text-sm">Setting the play…</p>
           </div>
         </main>
       }
@@ -193,6 +214,10 @@ function TrainPageInner() {
   // freeze marker before the user is asked to read it. Legacy scenarios
   // keep the prompt visible from the start (no decoder_tag → no gate).
   const [frozen, setFrozen] = useState(false)
+  // Phase tracker — high-level state of the current rep so the
+  // top-of-page tracker and pacing logic can react. Driven by the
+  // replay controller's `ReplayPhase` and the local UI state.
+  const [scenePhase, setScenePhase] = useState<ReplayPhase>('idle')
 
   const current = scenarios[idx]
   const phase = feedback ? 'feedback' : 'prompt'
@@ -260,16 +285,29 @@ function TrainPageInner() {
     })()
   }, [router, conceptParam, scenarioParam])
 
+  // Settle delay between the freeze beat firing and the timer starting
+  // ticking — gives the kid ~700ms to register the question before the
+  // clock kicks in. Reset alongside the per-scenario UI state.
+  const [timerArmed, setTimerArmed] = useState(false)
+
+  useEffect(() => {
+    if (!questionReady) return
+    const t = setTimeout(() => setTimerArmed(true), 700)
+    return () => clearTimeout(t)
+  }, [questionReady])
+
   useEffect(() => {
     if (phase !== 'prompt') return
-    // Phase G — for decoder scenarios, hold the timer at 8 until the
-    // scene reaches its freeze marker. The pre-freeze playback is part
-    // of the read, not part of the response window.
+    // Phase G — for decoder scenarios, hold the timer until the scene
+    // reaches its freeze marker AND the post-freeze settle window
+    // expires. The pre-freeze playback + settle are part of the read,
+    // not the response window.
     if (!questionReady) return
+    if (!timerArmed) return
     if (timeLeft <= 0) return
     const t = setTimeout(() => setTimeLeft((v) => Math.max(0, Number((v - 0.1).toFixed(1)))), 100)
     return () => clearTimeout(t)
-  }, [phase, timeLeft, questionReady])
+  }, [phase, timeLeft, questionReady, timerArmed])
 
   useEffect(() => {
     setTimeLeft(8)
@@ -278,6 +316,8 @@ function TrainPageInner() {
     setSceneCaption(undefined)
     setReplayCounter(0)
     setFrozen(false)
+    setTimerArmed(false)
+    setScenePhase('idle')
   }, [idx])
 
   // Phase G — react to phase events emitted by the JSX
@@ -288,10 +328,30 @@ function TrainPageInner() {
   // never emit this event and stay on their existing flow.
   const onScenePhase = useMemo(
     () => (next: ReplayPhase) => {
+      setScenePhase(next)
       if (next === 'frozen') setFrozen(true)
     },
     [],
   )
+
+  // Derived phase for the top-of-page learning tracker. The page-level
+  // states map cleanly onto Phase A-E:
+  //   intro / playing → 'watch'
+  //   frozen, no pick → 'read'
+  //   submitting      → 'choose'
+  //   consequence     → 'consequence'
+  //   replaying       → 'replay'
+  //   feedback + done → 'win'
+  const learnPhase: LearnPhase = (() => {
+    if (feedback) {
+      if (scenePhase === 'consequence') return 'consequence'
+      if (scenePhase === 'replaying') return 'replay'
+      return 'win'
+    }
+    if (selected) return 'choose'
+    if (frozen) return 'read'
+    return 'watch'
+  })()
 
   const orderedChoices = useMemo(() => [...(current?.choices ?? [])].sort((a, b) => a.order - b.order), [current])
   const scene = useScenarioSceneData(current ?? null)
@@ -301,7 +361,7 @@ function TrainPageInner() {
       <main className="flex min-h-dvh items-center justify-center bg-bg-0 text-text-dim">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-hairline-2 border-t-brand" />
-          <p className="text-sm">Getting the gym ready…</p>
+          <p className="text-sm">Setting the play…</p>
         </div>
       </main>
     )
@@ -407,23 +467,37 @@ function TrainPageInner() {
   return (
     <main className="min-h-dvh bg-bg-0 text-text pb-8">
       <div className="mx-auto max-w-md space-y-3 px-4 pt-6">
-        {/* Header — clear at-a-glance status */}
+        {/* Header — clear at-a-glance status. XP + IQ live as soft chips
+            so the eye doesn't have to parse three different colors when
+            the streak is hot. */}
         <div className="flex items-center justify-between gap-3">
-          <Link href="/home" className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">
-            ✕ Quit
+          <Link
+            href="/home"
+            className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[1.4px] text-text-dim transition-colors hover:text-text"
+          >
+            <span aria-hidden>✕</span>
+            Quit
           </Link>
-          <div className="flex items-center gap-3 text-xs font-bold tabular-nums">
-            <span className="flex items-center gap-1 text-xp">
+          <div className="flex items-center gap-1.5 text-[11px] font-bold tabular-nums">
+            <span className="inline-flex items-center gap-1 rounded-full border border-hairline-2 bg-bg-2 px-2.5 py-1 text-xp">
               <span aria-hidden>✦</span>
               {xp}
             </span>
-            <span className="text-iq">IQ {iq}</span>
-            {streak > 0 && (
-              <span className="flex items-center gap-0.5 text-xp">
-                {streak}
+            <span className="inline-flex items-center gap-1 rounded-full border border-hairline-2 bg-bg-2 px-2.5 py-1 text-iq">
+              IQ {iq}
+            </span>
+            {streak > 0 ? (
+              <motion.span
+                key={`streak-${streak}`}
+                initial={{ scale: 0.85, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.35, ease: [0.34, 1.56, 0.64, 1] }}
+                className="inline-flex items-center gap-1 rounded-full border border-heat/40 bg-heat/10 px-2.5 py-1 text-heat"
+              >
                 <span aria-hidden>🔥</span>
-              </span>
-            )}
+                {streak}
+              </motion.span>
+            ) : null}
           </div>
         </div>
 
@@ -442,50 +516,72 @@ function TrainPageInner() {
           </span>
         </div>
 
-        {/* Combo flame */}
-        {combo >= 2 && phase === 'prompt' && (
+        {/* Combo flame — only shows during the active prompt so it does
+            not compete with the win burst on feedback. */}
+        {combo >= 2 && phase === 'prompt' ? (
           <motion.div
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-full bg-xp/10 px-3 py-1 text-center text-[11px] font-bold uppercase tracking-[1px] text-xp"
+            key={`combo-${combo}`}
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
+            className="inline-flex items-center justify-center gap-1.5 rounded-full border border-xp/40 bg-xp/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[1.2px] text-xp"
           >
-            {combo} in a row 🔥
+            <span aria-hidden>🔥</span>
+            {combo} in a row
           </motion.div>
-        )}
+        ) : null}
 
-        {/* Timer / question header */}
+        {/* Timer / phase line. Difficulty stays on the left as a quiet
+            anchor; the right side surfaces a status line that adapts to
+            what the user should be paying attention to right now. */}
         <div className="flex items-center justify-between text-[11px] uppercase tracking-[1.5px] text-text-dim">
           <span>Difficulty {current.difficulty}</span>
           {phase === 'prompt' && questionReady ? (
-            <span className={timeLeft < 2 ? 'font-bold text-heat' : 'font-bold text-text-dim'}>
+            <motion.span
+              key="timer"
+              initial={{ opacity: 0, y: -2 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={timeLeft < 2 ? 'font-bold text-heat' : 'font-bold text-text'}
+            >
               {timeLeft.toFixed(1)}s
+            </motion.span>
+          ) : phase === 'prompt' && !questionReady ? (
+            <span className="inline-flex items-center gap-1.5 font-bold text-text-dim">
+              <span aria-hidden className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand/60" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand" />
+              </span>
+              Watch the play
             </span>
           ) : null}
         </div>
 
-        {/* Decoder chip — surfaces the decoder name during the intro / pre-freeze
-            window so the user enters the read with framing. Only present when
-            the scenario carries a decoder_tag (legacy scenarios are unchanged). */}
+        {/* Decoder chip + Phase A-E tracker. The chip frames the read with
+            the decoder name; the tracker shows where the user is in the
+            Watch → Read → Choose → Learn loop. Tracker only renders for
+            decoder scenarios — legacy fixtures don't have a freeze beat. */}
         {decoderLabel ? (
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-2 rounded-full border border-brand/40 bg-brand/15 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[1.6px] text-brand shadow-[0_2px_8px_rgba(59,255,157,0.15)]">
-              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-brand shadow-[0_0_8px_currentColor]" />
-              Decoder · {decoderLabel}
-            </span>
-            {!questionReady ? (
-              <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[1.5px] text-text-dim">
-                <span aria-hidden className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-text-dim/60" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-text-dim" />
-                </span>
-                Reading the play…
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full border border-brand/40 bg-brand/15 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[1.6px] text-brand shadow-[0_2px_8px_rgba(59,255,157,0.15)]">
+                <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-brand shadow-[0_0_8px_currentColor]" />
+                Decoder · {decoderLabel}
               </span>
-            ) : null}
+            </div>
+            {isDecoder ? <PhaseTracker phase={learnPhase} /> : null}
           </div>
         ) : null}
 
-        {/* Court */}
-        <div className="relative overflow-hidden rounded-2xl border border-hairline-2 bg-bg-1">
+        {/* Court — brand ring lights up on the freeze beat so the eye
+            anchors on the play surface during the read window. */}
+        <div
+          className={[
+            'relative overflow-hidden rounded-2xl border bg-bg-1 transition-[box-shadow,border-color] duration-300',
+            learnPhase === 'read' || learnPhase === 'choose'
+              ? 'border-brand/50 shadow-brand-sm'
+              : 'border-hairline-2',
+          ].join(' ')}
+        >
           <Scenario3DView
             height={280}
             scene={scene}
@@ -506,95 +602,116 @@ function TrainPageInner() {
               />
             }
           />
-          {sceneCaption && replayMode === 'answer' ? (
-            <div className="pointer-events-none absolute inset-x-0 bottom-3 mx-auto w-fit max-w-[92%] rounded-2xl border border-brand/30 bg-bg-0/90 px-4 py-2 text-center text-[13px] font-semibold leading-tight text-brand shadow-[0_8px_24px_rgba(0,0,0,0.55)] backdrop-blur-md">
+          {sceneCaption &&
+          (replayMode === 'answer' ||
+            scenePhase === 'replaying' ||
+            scenePhase === 'consequence') ? (
+            <motion.div
+              key={`caption-${sceneCaption}`}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}
+              className={[
+                'pointer-events-none absolute inset-x-0 bottom-3 mx-auto w-fit max-w-[92%] rounded-2xl border px-4 py-2 text-center text-[13px] font-semibold leading-tight shadow-[0_8px_24px_rgba(0,0,0,0.55)] backdrop-blur-md',
+                scenePhase === 'consequence'
+                  ? 'border-heat/40 bg-bg-0/90 text-heat'
+                  : 'border-brand/30 bg-bg-0/90 text-brand',
+              ].join(' ')}
+            >
               {sceneCaption}
-            </div>
+            </motion.div>
           ) : null}
         </div>
 
-        {/* Prompt — held back until the scene reaches its freeze marker for
-            decoder scenarios so the user reads the play before reading the
-            question. Legacy scenarios skip the gate via questionReady=true. */}
-        {questionReady ? (
-          <div>
-            <p className="text-sm text-text-dim">{current.prompt}</p>
-            <p className="mt-1 font-display text-[22px] font-bold leading-tight">What do you do?</p>
-          </div>
-        ) : null}
+        {/* Prompt — held back until the scene reaches its freeze marker
+            for decoder scenarios so the user reads the play before
+            reading the question. Animated in so it lands on the freeze
+            beat instead of jumping. */}
+        <AnimatePresence>
+          {questionReady ? (
+            <motion.div
+              key="prompt"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}
+            >
+              <p className="text-[12px] font-semibold leading-snug text-text-dim">
+                {current.prompt}
+              </p>
+              <p className="mt-1 font-display text-[22px] font-bold leading-tight text-text">
+                What do you do?
+              </p>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
 
-        {/* Choices */}
+        {/* Choices — premium cards with letter pill, hover/tap states,
+            and confidence-colored states after submit. */}
         <div className="space-y-2">
-          {questionReady ? orderedChoices.map((choice, index) => {
-            const letter = String.fromCharCode(65 + index)
-            const isSelected = selected === choice.id
-            const isCorrect = feedback?.correct_choice_id === choice.id
-            const wrongPick = feedback && isSelected && !feedback.is_correct
-            return (
-              <motion.button
-                key={choice.id}
-                onClick={() => void submitChoice(choice.id)}
-                disabled={!!feedback || submitting}
-                whileTap={{ scale: 0.98 }}
-                className="w-full rounded-2xl border-2 bg-bg-1 px-4 py-3.5 text-left transition-colors active:bg-bg-2"
-                style={{
-                  borderColor: isCorrect
-                    ? 'var(--brand)'
-                    : wrongPick
-                      ? 'var(--heat)'
-                      : 'var(--hairline-2)',
-                }}
-              >
-                <span className="mr-3 inline-flex h-6 w-6 items-center justify-center rounded-md bg-bg-2 text-[12px] font-bold text-text-dim">
-                  {letter}
-                </span>
-                <span className="text-[14px] font-medium text-text">{choice.label}</span>
-              </motion.button>
-            )
-          }) : null}
+          {questionReady
+            ? orderedChoices.map((choice, index) => {
+                const letter = String.fromCharCode(65 + index)
+                const state = deriveChoiceState({
+                  choiceId: choice.id,
+                  selected,
+                  feedback,
+                  submitting,
+                })
+                return (
+                  <ChoiceCard
+                    key={choice.id}
+                    letter={letter}
+                    label={choice.label}
+                    state={state}
+                    disabled={!!feedback || submitting}
+                    onSelect={() => void submitChoice(choice.id)}
+                  />
+                )
+              })
+            : null}
         </div>
 
-        {/* Feedback panel */}
+        {/* Win burst — premium celebration when the user nails the read.
+            Surfaces XP / IQ / streak with a quick scale-in. */}
+        <AnimatePresence>
+          {feedback?.is_correct ? (
+            <WinBurst
+              key={`win-${current.id}-${feedback.choice_id}`}
+              triggerKey={feedback.iq_after}
+              xpDelta={feedback.xp_delta}
+              iqDelta={feedback.iq_delta}
+              streak={feedback.streak ?? streak}
+              headline={praise}
+              microPraise={WIN_MICRO_PRAISE[decoderTag ?? 'BACKDOOR_WINDOW']}
+            />
+          ) : null}
+        </AnimatePresence>
+
+        {/* Feedback panel — premium card with "Why" body + dual replay
+            CTAs. Shown for every answer, with the consequence replay
+            available on misses for context. */}
         <AnimatePresence>
           {feedback ? (
+            <FeedbackPanel
+              isCorrect={feedback.is_correct}
+              headline={feedback.is_correct ? praise : praise}
+              microNote={feedback.is_correct ? undefined : MISS_MICRO_NOTE[decoderTag ?? 'BACKDOOR_WINDOW']}
+              whyText={feedback.feedback_text}
+              hasReplay={!!scene && scene.answerDemo.length > 0}
+              onReplay={() => setReplayCounter((n) => n + 1)}
+              onShowMistake={undefined}
+            />
+          ) : null}
+
+          {feedback?.badges_awarded && feedback.badges_awarded.length > 0 ? (
             <motion.div
-              initial={{ opacity: 0, y: 12 }}
+              key="badge"
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="space-y-3 rounded-2xl border-2 bg-bg-1 p-4"
-              style={{ borderColor: feedback.is_correct ? 'var(--brand)' : 'var(--heat)' }}
+              transition={{ delay: 0.15 }}
+              className="rounded-xl border border-brand/40 bg-brand/5 p-3 text-center text-[13px] font-bold text-brand"
             >
-              <div className="flex items-center justify-between">
-                <span
-                  className="font-display text-[18px] font-bold"
-                  style={{ color: feedback.is_correct ? 'var(--brand)' : 'var(--heat)' }}
-                >
-                  {praise}
-                </span>
-                <div className="flex items-center gap-3 text-[13px] font-bold tabular-nums">
-                  <span className="text-xp">+{feedback.xp_delta} XP</span>
-                  <span className="text-iq">
-                    IQ {feedback.iq_delta > 0 ? '+' : ''}
-                    {feedback.iq_delta}
-                  </span>
-                </div>
-              </div>
-              <p className="text-sm text-text-dim">{feedback.feedback_text}</p>
-              {feedback.badges_awarded && feedback.badges_awarded.length > 0 && (
-                <div className="rounded-xl border border-brand/40 bg-brand/5 p-3 text-center text-[13px] font-bold text-brand">
-                  🏅 New badge unlocked!
-                </div>
-              )}
-              {scene && scene.answerDemo.length > 0 ? (
-                <button
-                  onClick={() => setReplayCounter((n) => n + 1)}
-                  className="w-full rounded-xl border border-hairline-2 bg-bg-2 py-2.5 font-display text-[12px] font-bold uppercase tracking-[1px] text-text-dim active:scale-[0.99]"
-                  type="button"
-                >
-                  ▶ Show me again
-                </button>
-              ) : null}
+              New badge unlocked
             </motion.div>
           ) : null}
         </AnimatePresence>
@@ -617,22 +734,32 @@ function TrainPageInner() {
           </>
         ) : null}
 
-        {/* Next-play button surfaces below the lesson hand-off so users see
-            the teaching surface before advancing. Legacy scenarios still see
-            this button immediately under the feedback panel above. */}
+        {/* Next-play button surfaces below the lesson hand-off so users
+            see the teaching surface before advancing. Bigger tap target
+            + brand glow so the win moment leads directly into the next
+            rep. */}
         {feedback ? (
-          <button
+          <motion.button
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35, duration: 0.25 }}
+            whileTap={{ scale: 0.99 }}
             onClick={() => void next()}
-            className="w-full rounded-xl bg-brand py-3.5 font-display text-[14px] font-bold uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm active:scale-[0.99]"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 font-display text-[15px] font-bold uppercase tracking-[1px] text-brand-ink shadow-brand"
           >
-            {idx === scenarios.length - 1 ? 'See your results' : 'Next play →'}
-          </button>
+            {idx === scenarios.length - 1 ? 'See your results' : 'Next rep'}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14M13 5l7 7-7 7" />
+            </svg>
+          </motion.button>
         ) : null}
       </div>
 
-      {/* Floating XP / IQ reward toast */}
+      {/* Floating "keep going" toast — fires only on a miss now that
+          the WinBurst handles the success celebration. Keeps a quick
+          recovery beat without doubling up XP / IQ chrome. */}
       <AnimatePresence>
-        {reward ? (
+        {reward && !reward.correct ? (
           <motion.div
             key={reward.key}
             initial={{ opacity: 0, y: 10, scale: 0.9 }}
@@ -644,21 +771,8 @@ function TrainPageInner() {
               setTimeout(() => setReward((cur) => (cur?.key === reward.key ? null : cur)), 900)
             }
           >
-            <div
-              className="flex items-center gap-2 rounded-full px-4 py-2 font-display text-[14px] font-bold shadow-xp"
-              style={{
-                background: reward.correct ? 'rgba(59,227,131,0.12)' : 'rgba(255,77,109,0.12)',
-                color: reward.correct ? 'var(--brand)' : 'var(--heat)',
-                border: reward.correct ? '1px solid rgba(59,227,131,0.4)' : '1px solid rgba(255,77,109,0.4)',
-              }}
-            >
-              {reward.correct ? `+${reward.xp} XP` : 'Keep going'}
-              {reward.correct && reward.iq !== 0 && (
-                <span className="text-iq">
-                  · IQ {reward.iq > 0 ? '+' : ''}
-                  {reward.iq}
-                </span>
-              )}
+            <div className="flex items-center gap-2 rounded-full border border-heat/40 bg-heat/10 px-4 py-2 font-display text-[13px] font-bold uppercase tracking-[1px] text-heat shadow-heat">
+              Keep going
             </div>
           </motion.div>
         ) : null}
