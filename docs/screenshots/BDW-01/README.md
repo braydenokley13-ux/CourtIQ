@@ -1,3 +1,44 @@
+# BDW-01 — Visual QA Screenshots
+
+## Taking authenticated screenshots
+
+The `/train` route requires a logged-in Supabase session. Follow these steps:
+
+### 1. Start the dev server
+
+```bash
+pnpm dev
+```
+
+### 2. Capture your auth session (once per machine)
+
+```bash
+pnpm qa:auth
+```
+
+A headed Chromium window opens at `http://localhost:3000/login`. Log in
+manually. The browser closes automatically and saves your session to
+`.auth/courtiq-user.json` (git-ignored — never committed).
+
+### 3. Take screenshots
+
+```bash
+pnpm qa:screenshot
+```
+
+Screenshots are written to `docs/screenshots/BDW-01/`:
+- `debug.png` — canvas loaded state
+- `debug-after-play.png` — after 3-second replay delay
+
+To target a different scenario or base URL:
+
+```bash
+SCENARIO=ESC-01 pnpm qa:screenshot
+BASE_URL=http://localhost:3001 pnpm qa:screenshot
+```
+
+---
+
 # BDW-01 — Premium Learning Loop Upgrade
 
 Scope: small-commit upgrade pass that lifts BDW-01 (THE BACKDOOR

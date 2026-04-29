@@ -18,6 +18,7 @@
     "seed:scenarios": "pnpm exec tsx scripts/seed-scenarios.ts",
     "seed:lessons": "pnpm exec tsx scripts/seed-lessons.ts",
     "seed:content": "pnpm seed:scenarios && pnpm seed:lessons",
+    "qa:auth": "pnpm exec tsx scripts/playwright-auth-setup.ts",
     "qa:screenshot": "pnpm exec tsx scripts/screenshot-scenario.ts",
     "screenshot:bdw": "SCENARIO=BDW-01 pnpm exec tsx scripts/screenshot-scenario.ts"
   },

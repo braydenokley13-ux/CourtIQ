@@ -49,3 +49,6 @@ coverage/
 
 # Sentry
 .sentryclirc
+
+# Playwright auth state (contains session cookies — never commit)
+.auth/
