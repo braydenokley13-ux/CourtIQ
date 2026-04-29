@@ -137,48 +137,44 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   root.name = 'imperative-basketball'
   const playerGroups = new Map<string, THREE.Group>()
 
-  // Lighting rig — Packet C (renderer-polish).
+  // Lighting rig — Phase 5 (Section 9) broadcast-clarity tune.
   //
   // The MeshBasic floor/lines/ball use `toneMapped: false` and ignore
   // these lights entirely; the rig exists for the lit
   // MeshStandardMaterial gym shell, hoop, and player figures. With
-  // ACES Filmic tone mapping enabled at the renderer level (see
-  // Scenario3DCanvas.tsx) the rig now follows a standard 3-point setup:
-  //   - Hemisphere: warm sky bounce + cool ground bounce, replaces a
-  //     flat AmbientLight so PBR materials get directional ambient.
-  //   - Key (warm overhead): primary illumination from the main gym
-  //     lights, slightly warm so wood reads inviting.
-  //   - Fill (cool side): softens shadows on player faces / the off
-  //     side of the hoop.
-  //   - Rim (back-overhead, slightly cool): separates players and the
-  //     hoop from the back wall so they don't melt into the gym.
-  // A small AmbientLight is kept at low intensity to lift extreme
-  // shadow valleys without washing the scene.
-  root.add(new THREE.AmbientLight(0xffffff, 0.45))
-  const hemi = new THREE.HemisphereLight(0xfff5e0, 0x1c2330, 1.05)
+  // ACES Filmic tone mapping (exposure 1.18) enabled at the renderer
+  // level (Scenario3DCanvas.tsx), the rig follows a standard
+  // broadcast 3-point setup:
+  //   - Hemisphere: warm sky bounce + lifted ground bounce so the
+  //     under-side of player figures (legs, feet) never reads as
+  //     muddy. Section 9: defender hips and feet must stay readable.
+  //   - Key (warm overhead): primary illumination. Phase 5 dropped
+  //     intensity 1.6 → 1.32 so highlights on the chevron, white
+  //     midsole, and target square no longer blow out under the
+  //     1.18 exposure boost.
+  //   - Fill (cool side): bumped to 0.78 so the shaded side of
+  //     defenders keeps stance readable from broadcast distance.
+  //   - Rim (back-overhead, slightly cool): bumped to 0.65 and
+  //     cooled toward `#C6DCFF` so player silhouettes lift cleanly
+  //     off the gym wall — Section 9: "modest rim light to separate
+  //     players from the floor."
+  //   - Court spot: lowered intensity 0.9 → 0.55 and broadened
+  //     range 60 → 75 so the painted key gets a soft pool rather
+  //     than a single hot spot that erases stance on the wing.
+  root.add(new THREE.AmbientLight(0xffffff, 0.34))
+  const hemi = new THREE.HemisphereLight(0xfff5e0, 0x33384a, 0.95)
   hemi.position.set(0, 40, 0)
   root.add(hemi)
-  // Key — primary warm overhead. Punchier than before so the hardwood
-  // takes on real luminance and players read with strong dimensional
-  // shading instead of flat color blocks.
-  const key = new THREE.DirectionalLight(0xfff1d6, 1.6)
+  const key = new THREE.DirectionalLight(0xfff1d6, 1.32)
   key.position.set(24, 58, 30)
   root.add(key)
-  // Cool fill on the off side to keep the shaded planes from going
-  // muddy; tightens up the player silhouettes.
-  const fill = new THREE.DirectionalLight(0xb8d2ff, 0.65)
+  const fill = new THREE.DirectionalLight(0xb8d2ff, 0.78)
   fill.position.set(-28, 36, 12)
   root.add(fill)
-  // Cool rim from behind/above lifts the silhouette off the back wall
-  // so players never melt into the gym. Slightly more teal than before
-  // for a film-room feel without overwhelming the warm key.
-  const rim = new THREE.DirectionalLight(0xa8c8ff, 0.55)
+  const rim = new THREE.DirectionalLight(0xc6dcff, 0.65)
   rim.position.set(0, 48, -22)
   root.add(rim)
-  // Spot from the rim direction — a soft warm pool of light over the
-  // paint that mimics arena spot lighting on the play area. Cheap and
-  // visually centers the eye on the read.
-  const courtSpot = new THREE.PointLight(0xffd8a0, 0.9, 60, 1.4)
+  const courtSpot = new THREE.PointLight(0xffd8a0, 0.55, 75, 1.6)
   courtSpot.position.set(0, 24, 8)
   root.add(courtSpot)
 
