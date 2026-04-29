@@ -86,7 +86,7 @@
     ],
     "coach_validation": {
       "level": "low",
-      "status": "reviewed",
+      "status": "approved",
       "notes": "Backdoor against denial is universally taught. Later confirm whether the default youth pass should be bounce, lead, or chest-fake-to-bounce."
     },
     "source_research_basis": "Universally taught youth-level read; backdoor against denial is system-independent.",
@@ -135,6 +135,7 @@
           "durationMs": 600
         }
       ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1500 },
       "answerDemo": [
         {
           "id": "user_jab",
@@ -255,7 +256,6 @@
       ],
       "postAnswerOverlays": [
         { "kind": "passing_lane_blocked", "from": "pg", "to": "user" },
-        { "kind": "passing_lane_open", "from": "pg", "to": "user" },
         { "kind": "defender_vision_cone", "playerId": "x2", "targetId": "pg" },
         { "kind": "defender_hip_arrow", "playerId": "x2" },
         { "kind": "defender_foot_arrow", "playerId": "x2" },

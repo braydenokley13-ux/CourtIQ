@@ -129,6 +129,25 @@ function pick<T>(arr: T[], seed: number): T {
   return arr[seed % arr.length]!
 }
 
+// Defensive runtime guard for the decoder tag returned by the API. Unknown
+// values fall through to legacy behaviour (no decoder UI) and emit a
+// console breadcrumb — Sentry's nextjs integration auto-collects
+// console.warn/error calls into its breadcrumb trail.
+function resolveDecoderTag(
+  scenarioId: string | undefined,
+  raw: DecoderTag | string | null,
+): DecoderTag | null {
+  if (!raw) return null
+  if (raw in DECODER_LABELS) return raw as DecoderTag
+  if (typeof console !== 'undefined') {
+    console.warn('[train] unknown decoder_tag — treating as legacy', {
+      scenarioId,
+      decoderTag: raw,
+    })
+  }
+  return null
+}
+
 export default function TrainPage() {
   return (
     <Suspense
@@ -176,7 +195,7 @@ function TrainPageInner() {
 
   const current = scenarios[idx]
   const phase = feedback ? 'feedback' : 'prompt'
-  const decoderTag = current?.decoder_tag ?? null
+  const decoderTag = resolveDecoderTag(current?.id, current?.decoder_tag ?? null)
   const isDecoder = !!decoderTag
   const decoderLabel = decoderTag ? DECODER_LABELS[decoderTag] : null
   // Phase H — decoder scenarios stay on `mode='intro'` for the full
