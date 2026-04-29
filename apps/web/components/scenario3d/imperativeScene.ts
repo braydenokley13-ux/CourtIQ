@@ -26,11 +26,20 @@ import {
 // paint; brighter team colors so jerseys pop against both floor and
 // gym backdrop. The hardwood now has a procedural plank texture that
 // gives the floor honest depth instead of reading as a flat plane.
-const FLOOR_COLOR = '#C77A36'
-const FLOOR_PLANK_DARK = '#9C5821'
+// Phase 4 (Section 8) hardwood retune. The previous tone leaned toward
+// raw orange; broadcast hardwood reads as a warmer, more neutral tan.
+// `FLOOR_COLOR` is now the per-plank tint average; the procedural
+// texture adds the variation. `FLOOR_PLANK_DARK` darkens grain and
+// seam strokes only — the planks themselves never get this dark.
+const FLOOR_COLOR = '#BC7B3A'
+const FLOOR_PLANK_DARK = '#7A4A1E'
 const LINE_COLOR = '#FFFFFF'
-const PAINT_COLOR = '#0B5BD3'
-const PAINT_DEEP = '#063C92'
+// Phase 4 paint retune. Slightly deeper royal blue so the paint
+// anchors the half-court without competing with the user's mint
+// halo or the warm-gold possession ring. `PAINT_DEEP` is the seam
+// shadow at the baseline / free-throw line.
+const PAINT_COLOR = '#0E5BD9'
+const PAINT_DEEP = '#063879'
 // Authentic basketball orange/brown leather (not the neon orange of the
 // previous sphere). The pebble texture darkens this further so the
 // rendered ball reads richer than the flat hex would suggest.
@@ -204,13 +213,15 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
 
   // Soft warm spot under the rim — a faint glow that anchors the eye
   // on the rim/paint area without lighting up the rest of the floor.
+  // Phase 4: tightened radius and lowered opacity so the glow no
+  // longer outshines the painted key.
   const rimGlow = new THREE.Mesh(
-    new THREE.CircleGeometry(11, 64),
+    new THREE.CircleGeometry(8.5, 64),
     new THREE.MeshBasicMaterial({
       color: '#FFB070',
       toneMapped: false,
       transparent: true,
-      opacity: 0.18,
+      opacity: 0.12,
       depthWrite: false,
     }),
   )
@@ -222,13 +233,16 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   // Royal blue paint. Slightly translucent so a hint of the hardwood
   // texture shows through and the painted area reads as actual paint
   // on wood rather than a separate flat decal.
+  // Phase 4: opacity nudged from 0.92 → 0.96 so the painted key reads
+  // as a freshly-finished surface rather than a tinted decal — the
+  // paint is the diagram's center of gravity (Section 8).
   const paint = new THREE.Mesh(
     new THREE.PlaneGeometry(COURT.paintWidthFt, COURT.freeThrowDistFt),
     new THREE.MeshBasicMaterial({
       color: PAINT_COLOR,
       toneMapped: false,
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.96,
     }),
   )
   paint.rotation.x = -Math.PI / 2
@@ -239,6 +253,8 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   // band along the baseline and free-throw line so the paint reads as
   // a freshly-finished court rather than a single flat color. Pure
   // visual decoration, no functional impact.
+  // Phase 4: matching deep-blue band along the free-throw line so the
+  // paint has shadow lines on both ends, not just at the baseline.
   const paintTrim = new THREE.Mesh(
     new THREE.PlaneGeometry(COURT.paintWidthFt, 0.6),
     new THREE.MeshBasicMaterial({
@@ -251,6 +267,19 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   paintTrim.rotation.x = -Math.PI / 2
   paintTrim.position.set(0, FLOOR_LIFT + 0.022, 0.3)
   root.add(paintTrim)
+
+  const paintTrimFar = new THREE.Mesh(
+    new THREE.PlaneGeometry(COURT.paintWidthFt, 0.5),
+    new THREE.MeshBasicMaterial({
+      color: PAINT_DEEP,
+      toneMapped: false,
+      transparent: true,
+      opacity: 0.4,
+    }),
+  )
+  paintTrimFar.rotation.x = -Math.PI / 2
+  paintTrimFar.position.set(0, FLOOR_LIFT + 0.022, COURT.freeThrowDistFt - 0.25)
+  root.add(paintTrimFar)
 
   // Court outline + paint lines.
   const outlineSegments: Array<[THREE.Vector3, THREE.Vector3]> = [
@@ -283,13 +312,26 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
       new THREE.Vector3(COURT.paintWidthFt / 2, LINE_LIFT, COURT.freeThrowDistFt),
     ],
   ]
+  // Phase 4: line weight bumped 0.18 → 0.22 for the rectangular court
+  // outline. Section 8 calls for "slightly thicker than real lines" so
+  // the half-court reads cleanly from the high 3/4 broadcast camera.
   for (const [start, end] of outlineSegments) {
-    root.add(buildTubeLine(start, end, 0.18))
+    root.add(buildTubeLine(start, end, 0.22))
   }
 
   // Three-point arc + free-throw arc (semi-circles around the rim).
-  addArcLines(root, COURT.threePointRadiusFt, Math.PI, LINE_LIFT, 0)
-  addArcLines(root, 6, Math.PI, LINE_LIFT, COURT.freeThrowDistFt)
+  // Arc weight is the second readability lever from Section 8 — many
+  // CourtIQ reads (skip, paint touch, closeout) live on the arc, so
+  // bump it to match the outline weight.
+  addArcLines(root, COURT.threePointRadiusFt, Math.PI, LINE_LIFT, 0, 0.18)
+  addArcLines(root, 6, Math.PI, LINE_LIFT, COURT.freeThrowDistFt, 0.16)
+
+  // Restricted area — 4 ft no-charge arc centered under the rim. Calls
+  // out the rim landing zone for "paint touch" / "baseline cut" reads
+  // (Section 8: rim area / restricted area). Slightly thinner than
+  // the 3pt arc so the eye still reads the 3pt arc as the dominant
+  // boundary line.
+  addArcLines(root, 4, Math.PI, LINE_LIFT, 0, 0.13)
 
   // Hoop (backboard, rim, stanchion, padding, net).
   root.add(buildHoopAssembly())
@@ -2412,8 +2454,11 @@ function makeVerticalDarkenTexture(): THREE.CanvasTexture | null {
 function makeHardwoodTexture(): THREE.CanvasTexture | null {
   if (typeof document === 'undefined') return null
   const canvas = document.createElement('canvas')
-  canvas.width = 512
-  canvas.height = 512
+  // Phase 4: bumped 512 → 1024 so plank seams stay crisp from the
+  // default broadcast distance. Texture is still cheap (one canvas
+  // generated at scene-build time, mipmapped, anisotropy 8).
+  canvas.width = 1024
+  canvas.height = 1024
   const ctx = canvas.getContext('2d')
   if (!ctx) return null
 
@@ -2421,29 +2466,46 @@ function makeHardwoodTexture(): THREE.CanvasTexture | null {
   ctx.fillStyle = FLOOR_COLOR
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-  // Vertical planks. Each plank gets a slightly varied base tone and
-  // a few horizontal grain streaks.
-  const plankCount = 8
+  // Phase 4 hardwood retune. The previous texture had high-frequency
+  // grain streaks that competed with painted court lines from the
+  // default camera (Section 8 anti-pattern: "no noisy wood texture
+  // that fights court lines"). The retune:
+  //   - lowers grain count from 14 → 6 streaks per plank
+  //   - drops grain alpha from 0.18 → 0.09 so the streaks read as
+  //     subtle character, not as floor noise
+  //   - keeps the per-plank base-tone variation but tightens its
+  //     amplitude so the floor reads as one continuous court rather
+  //     than a checkerboard of differently-finished planks
+  //   - adds a second cross-grain highlight sweep so the lacquered
+  //     finish reads from any default camera mode
+  const plankCount = 10
   const plankWidth = canvas.width / plankCount
   for (let i = 0; i < plankCount; i++) {
     const x = i * plankWidth
-    // Slight per-plank tone variation so planks read as individual
-    // pieces of wood rather than a single wash.
-    const variation = Math.sin(i * 12.3) * 18
-    const r = 199 + variation
-    const g = 122 + variation * 0.6
-    const b = 54 + variation * 0.3
+    const variation = Math.sin(i * 12.3) * 10
+    const r = 188 + variation
+    const g = 123 + variation * 0.55
+    const b = 58 + variation * 0.3
     ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
     ctx.fillRect(x, 0, plankWidth, canvas.height)
 
-    // Grain — short horizontal streaks at random heights.
+    // Soft per-plank shadow on the left edge — sells "edge of board"
+    // without a full dark seam line.
+    const edgeGrad = ctx.createLinearGradient(x, 0, x + plankWidth * 0.12, 0)
+    edgeGrad.addColorStop(0, 'rgba(70, 38, 14, 0.22)')
+    edgeGrad.addColorStop(1, 'rgba(70, 38, 14, 0)')
+    ctx.fillStyle = edgeGrad
+    ctx.fillRect(x, 0, plankWidth * 0.12, canvas.height)
+
+    // Grain — fewer, longer, lower-alpha streaks so the wood reads
+    // as wood without out-shouting the painted court lines above it.
     ctx.strokeStyle = FLOOR_PLANK_DARK
-    ctx.globalAlpha = 0.18
+    ctx.globalAlpha = 0.09
     ctx.lineWidth = 1
-    for (let g = 0; g < 14; g++) {
+    for (let g = 0; g < 6; g++) {
       const gy = Math.floor((Math.sin(i * 47 + g * 11.7) * 0.5 + 0.5) * canvas.height)
       const gx = x + Math.floor((Math.cos(i * 31 + g * 7.3) * 0.5 + 0.5) * plankWidth * 0.6)
-      const len = 30 + Math.floor((Math.sin(g * 3.1) * 0.5 + 0.5) * 60)
+      const len = 80 + Math.floor((Math.sin(g * 3.1) * 0.5 + 0.5) * 120)
       ctx.beginPath()
       ctx.moveTo(gx, gy)
       ctx.lineTo(gx + len, gy + (Math.sin(g) * 0.5))
@@ -2452,8 +2514,10 @@ function makeHardwoodTexture(): THREE.CanvasTexture | null {
     ctx.globalAlpha = 1
 
     // Plank seam — thin dark line on the right edge of every plank.
-    ctx.strokeStyle = 'rgba(60, 30, 8, 0.55)'
-    ctx.lineWidth = 1.4
+    // Slightly less aggressive alpha than before so seams read as
+    // wood joints rather than as painted lines.
+    ctx.strokeStyle = 'rgba(60, 32, 10, 0.42)'
+    ctx.lineWidth = 1.6
     ctx.beginPath()
     ctx.moveTo(x + plankWidth, 0)
     ctx.lineTo(x + plankWidth, canvas.height)
@@ -2461,13 +2525,22 @@ function makeHardwoodTexture(): THREE.CanvasTexture | null {
   }
 
   // Soft varnish highlight — a single broad diagonal sweep that
-  // suggests a lacquered finish.
+  // suggests a lacquered finish. Phase 4: paired with a perpendicular
+  // sweep so the highlight reads from both broadcast and tactical
+  // camera modes.
   const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
-  grad.addColorStop(0, 'rgba(255, 226, 176, 0.0)')
-  grad.addColorStop(0.45, `rgba(255, 226, 176, 0.10)`)
-  grad.addColorStop(0.55, `rgba(255, 226, 176, 0.10)`)
-  grad.addColorStop(1, 'rgba(255, 226, 176, 0.0)')
+  grad.addColorStop(0, 'rgba(244, 217, 168, 0.0)')
+  grad.addColorStop(0.45, `rgba(244, 217, 168, 0.12)`)
+  grad.addColorStop(0.55, `rgba(244, 217, 168, 0.12)`)
+  grad.addColorStop(1, 'rgba(244, 217, 168, 0.0)')
   ctx.fillStyle = grad
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+  const grad2 = ctx.createLinearGradient(canvas.width, 0, 0, canvas.height)
+  grad2.addColorStop(0, 'rgba(244, 217, 168, 0.0)')
+  grad2.addColorStop(0.5, `rgba(244, 217, 168, 0.06)`)
+  grad2.addColorStop(1, 'rgba(244, 217, 168, 0.0)')
+  ctx.fillStyle = grad2
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 
   const tex = new THREE.CanvasTexture(canvas)
@@ -2479,7 +2552,7 @@ function makeHardwoodTexture(): THREE.CanvasTexture | null {
   tex.repeat.set(2, 1)
   tex.minFilter = THREE.LinearMipMapLinearFilter
   tex.magFilter = THREE.LinearFilter
-  tex.anisotropy = 4
+  tex.anisotropy = 8
   tex.needsUpdate = true
   return tex
 }
@@ -3590,6 +3663,7 @@ function addArcLines(
   sweep: number,
   y: number,
   z: number,
+  thickness: number = 0.14,
 ): void {
   const segments = 64
   const start = -sweep / 2
@@ -3604,7 +3678,7 @@ function addArcLines(
     const b = points[i + 1]
     const startV = new THREE.Vector3(a[0], y, a[1] + z)
     const endV = new THREE.Vector3(b[0], y, b[1] + z)
-    parent.add(buildTubeLine(startV, endV, 0.14))
+    parent.add(buildTubeLine(startV, endV, thickness))
   }
 }
 
