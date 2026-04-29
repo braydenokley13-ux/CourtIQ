@@ -1,4 +1,5 @@
 import { chromium } from "@playwright/test";
+import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
@@ -6,14 +7,22 @@ const SCENARIO = process.env.SCENARIO ?? "BDW-01";
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
 const URL = `${BASE_URL}/train?scenario=${SCENARIO}`;
 const OUT_DIR = path.resolve(process.cwd(), "docs/screenshots", SCENARIO);
+const AUTH_FILE = path.resolve(process.cwd(), ".auth/courtiq-user.json");
 
 async function main() {
+  if (!existsSync(AUTH_FILE)) {
+    console.error(`Error: auth state not found at ${AUTH_FILE}`);
+    console.error("Run pnpm qa:auth first.");
+    process.exit(1);
+  }
+
   await mkdir(OUT_DIR, { recursive: true });
 
   const browser = await chromium.launch();
   const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
     deviceScaleFactor: 1,
+    storageState: AUTH_FILE,
   });
   const page = await context.newPage();
 
