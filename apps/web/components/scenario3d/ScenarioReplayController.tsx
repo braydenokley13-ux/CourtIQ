@@ -7,7 +7,23 @@ import type { Scene3D, SceneMovement } from '@/lib/scenario3d/scene'
 import { buildTimeline, resolveBallStart, samplePlayer, type Timeline } from '@/lib/scenario3d/timeline'
 
 export type ReplayMode = 'static' | 'intro' | 'answer'
-export type ReplayPhase = 'idle' | 'playing' | 'done'
+
+/**
+ * Phase D — replay phase enum. The legacy JSX controller in this file
+ * still emits the original three (`idle | playing | done`) for scenes
+ * without a freeze marker; the imperative `ReplayStateMachine` in
+ * `imperativeScene.ts` extends the same enum with `setup | frozen |
+ * consequence | replaying` for decoder scenes. Callers that switch on
+ * this type should treat the legacy three as a subset.
+ */
+export type ReplayPhase =
+  | 'idle'
+  | 'setup'
+  | 'playing'
+  | 'frozen'
+  | 'consequence'
+  | 'replaying'
+  | 'done'
 
 export interface ReplayHandle {
   /** Restart the current movement list from t=0. */
@@ -79,6 +95,15 @@ export function ScenarioReplayController({
     firedMovementsRef.current.clear()
   }, [scene.id, mode, resetCounter])
 
+  // Phase D — when the scene has an authored freeze cue, the legacy
+  // JSX controller clamps the visible t at that value and emits the
+  // 'frozen' phase exactly once. Scenes without a freezeAtMs keep the
+  // original 'idle' → 'playing' → 'done' flow.
+  const freezeCapMs =
+    mode === 'intro' && typeof scene.freezeAtMs === 'number' && scene.freezeAtMs >= 0
+      ? Math.min(scene.freezeAtMs, timeline.totalMs)
+      : null
+
   useFrame((state) => {
     if (mode === 'static' || timeline.totalMs === 0) {
       // Snap to start positions for everyone.
@@ -96,8 +121,9 @@ export function ScenarioReplayController({
       onPhase?.('playing')
     }
 
+    const cap = freezeCapMs ?? timeline.totalMs
     const elapsed = state.clock.getElapsedTime() * 1000 - startedAtRef.current
-    const t = Math.max(0, Math.min(elapsed, timeline.totalMs))
+    const t = Math.max(0, Math.min(elapsed, cap))
 
     // Fire onMovement for each movement as it crosses its start time.
     if (onMovement) {
@@ -130,7 +156,28 @@ export function ScenarioReplayController({
       onCaption?.(caption || undefined)
     }
 
-    if (elapsed >= timeline.totalMs && phaseRef.current !== 'done') {
+    // Phase D — freeze before completion. When the scene authors a
+    // freezeAtMs and the timeline crosses it, hold at 'frozen' instead
+    // of advancing to 'done'. The state machine layer (imperative
+    // ReplayStateMachine in imperativeScene.ts) handles the
+    // consequence / replay transitions; this controller only emits the
+    // freeze edge so callers using the JSX path see the same cue.
+    if (
+      freezeCapMs !== null &&
+      elapsed >= freezeCapMs &&
+      phaseRef.current !== 'frozen' &&
+      phaseRef.current !== 'done'
+    ) {
+      phaseRef.current = 'frozen'
+      onPhase?.('frozen')
+      return
+    }
+
+    if (
+      freezeCapMs === null &&
+      elapsed >= timeline.totalMs &&
+      phaseRef.current !== 'done'
+    ) {
       phaseRef.current = 'done'
       onPhase?.('done')
     }

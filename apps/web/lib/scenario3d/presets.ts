@@ -30,6 +30,7 @@ function preset(
     ball,
     movements,
     answerDemo,
+    wrongDemos: [],
     freezeAtMs: null,
     synthetic: false,
   }

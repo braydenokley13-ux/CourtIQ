@@ -13,6 +13,7 @@ const scene: Scene3D = {
   ball: { start: { x: 5, z: 20 }, holderId: 'pg' },
   movements: [],
   answerDemo: [],
+  wrongDemos: [],
   freezeAtMs: null,
   synthetic: false,
 }

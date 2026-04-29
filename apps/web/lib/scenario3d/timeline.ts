@@ -21,13 +21,30 @@ export interface Timeline {
 
 const DEFAULT_DURATION_MS = 700
 
+export interface BuildTimelineOptions {
+  /**
+   * Phase D — overrides each player's "start position" for this leg.
+   * The consequence and replay legs of the state machine resume from the
+   * freeze snapshot, not from the scene's authored player.start. Pass a
+   * map of `playerId → CourtPoint` (and optionally `ball → CourtPoint`)
+   * to seed the chained-movement math from the snapshot positions
+   * instead of `scene.players[*].start` / `resolveBallStart(scene)`.
+   * Missing entries fall back to the scene defaults.
+   */
+  startOverrides?: ReadonlyMap<string, CourtPoint>
+}
+
 /**
  * Resolves a scene's movement list into a timeline that can be sampled by
  * elapsed milliseconds. Movements run in their declared order; each movement
  * starts after the previous one for the same player ends, plus its declared
  * `delayMs`.
  */
-export function buildTimeline(scene: Scene3D, movements: SceneMovement[]): Timeline {
+export function buildTimeline(
+  scene: Scene3D,
+  movements: SceneMovement[],
+  options?: BuildTimelineOptions,
+): Timeline {
   const byPlayer = new Map<string, ResolvedMovement[]>()
   const resolved: ResolvedMovement[] = []
   let totalMs = 0
@@ -36,9 +53,9 @@ export function buildTimeline(scene: Scene3D, movements: SceneMovement[]): Timel
   // movements know where to start from.
   const lastPosition = new Map<string, CourtPoint>()
   for (const p of scene.players) {
-    lastPosition.set(p.id, p.start)
+    lastPosition.set(p.id, options?.startOverrides?.get(p.id) ?? p.start)
   }
-  lastPosition.set('ball', resolveBallStart(scene))
+  lastPosition.set('ball', options?.startOverrides?.get('ball') ?? resolveBallStart(scene))
 
   // Track the next available start time per player.
   const nextStart = new Map<string, number>()
@@ -124,6 +141,27 @@ export function samplePlayer(
   }
 
   return last?.to ?? list[0]!.from
+}
+
+/**
+ * Phase D — snapshots every player (plus 'ball') at elapsed `t` ms by
+ * delegating to `samplePlayer` for each known mover. Returns a map keyed
+ * by playerId / 'ball'. The state machine uses this to capture the
+ * frozen pose, then feeds the snapshot back into `buildTimeline` via
+ * `startOverrides` so the consequence and replay legs resume from the
+ * freeze pose rather than the scene's authored start positions.
+ */
+export function samplePositionsAt(
+  scene: Scene3D,
+  timeline: Timeline,
+  t: number,
+): Map<string, CourtPoint> {
+  const snapshot = new Map<string, CourtPoint>()
+  for (const p of scene.players) {
+    snapshot.set(p.id, samplePlayer(scene, timeline, p.id, t))
+  }
+  snapshot.set('ball', samplePlayer(scene, timeline, 'ball', t))
+  return snapshot
 }
 
 function lerp(a: CourtPoint, b: CourtPoint, u: number): CourtPoint {

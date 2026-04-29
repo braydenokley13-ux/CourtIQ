@@ -72,6 +72,18 @@ export type SceneCameraPreset =
   // Phase E/G; today the canvas falls back to its existing framing.
   | 'passer_side_three_quarter'
 
+/**
+ * Phase D — per-choice consequence demo. Plays the chosen wrong / acceptable
+ * read after the freeze, before the answer-demo replay. Empty for legacy
+ * scenes; populated from the authored `scene.wrongDemos[]` block (Phase B
+ * Zod schema).
+ */
+export interface SceneWrongDemo {
+  choiceId: string
+  movements: SceneMovement[]
+  caption?: string
+}
+
 export interface Scene3D {
   /** Stable identifier for memoising frames. */
   id: string
@@ -82,6 +94,11 @@ export interface Scene3D {
   ball: SceneBall
   movements: SceneMovement[]
   answerDemo: SceneMovement[]
+  /**
+   * Phase D — consequence demos keyed by choiceId. Empty for legacy
+   * scenes (no authored wrongDemos block).
+   */
+  wrongDemos: SceneWrongDemo[]
   /**
    * Phase B — resolved freeze cue, in ms from the start of `movements`.
    * `null` means "no freeze authored" (renderer treats this as "freeze at
@@ -111,6 +128,7 @@ interface AuthoredScene {
   ball?: SceneBall
   movements?: SceneMovement[]
   answerDemo?: SceneMovement[]
+  wrongDemos?: SceneWrongDemo[]
   freezeMarker?: FreezeMarker
 }
 
@@ -186,6 +204,7 @@ function normaliseAuthoredScene(id: string, scene: AuthoredScene): Scene3D {
     ball: scene.ball ?? { start: { x: 0, z: 0 } },
     movements,
     answerDemo: scene.answerDemo ?? [],
+    wrongDemos: scene.wrongDemos ?? [],
     freezeAtMs,
     synthetic: false,
   }
@@ -215,6 +234,7 @@ function resolveFreezeFromAuthored(
     ball: ball ?? { start: { x: 0, z: 0 } },
     movements,
     answerDemo: [],
+    wrongDemos: [],
     freezeAtMs: null,
     synthetic: false,
   }
@@ -280,6 +300,7 @@ function synthesiseSceneFromCourtState(
     ball: { start: ballPoint, holderId: holder?.id },
     movements: [],
     answerDemo: [],
+    wrongDemos: [],
     freezeAtMs: null,
     synthetic: true,
   }
@@ -300,6 +321,7 @@ export function createDefaultScene(id = 'default_3d_scene'): Scene3D {
     ball: { start: { x: 0, z: 22 }, holderId: 'you' },
     movements: [],
     answerDemo: [],
+    wrongDemos: [],
     freezeAtMs: null,
     synthetic: true,
   }
@@ -357,12 +379,24 @@ function sanitiseScene(scene: Scene3D): Scene3D {
       }))
   }
 
+  const cleanWrongDemos = (list: SceneWrongDemo[] | undefined): SceneWrongDemo[] => {
+    if (!Array.isArray(list)) return []
+    return list
+      .filter((d) => d && typeof d.choiceId === 'string')
+      .map((d) => ({
+        choiceId: d.choiceId,
+        movements: cleanMovements(d.movements),
+        caption: d.caption,
+      }))
+  }
+
   return {
     ...scene,
     players,
     ball,
     movements: cleanMovements(scene.movements),
     answerDemo: cleanMovements(scene.answerDemo),
+    wrongDemos: cleanWrongDemos(scene.wrongDemos),
   }
 }
 
