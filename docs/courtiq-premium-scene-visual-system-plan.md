@@ -1460,3 +1460,100 @@ The plan's Phase 2 → 7 order is preserved. Within that:
   Phase 2 should baseline this before adding geometry.
 
 ---
+
+## 18. Phase 7 QA / Performance Record
+
+### 18.1 Scope
+
+Phase 7 is the final QA / performance / tuning pass for the visual
+system after Phases 2–6 land. Only BDW-01 is authored today, so the
+QA checklist runs end-to-end against BDW-01 and the other three
+founder decoders (ESC-01, AOR-01, SKR-01) get static-readiness
+checks against the renderer only. This phase does **not** author
+missing scenario JSON; that is pack-authoring work, not visual
+tuning.
+
+### 18.2 Validation Summary
+
+| Check | Result |
+|---|---|
+| `pnpm lint` (apps/web) | clean — 0 warnings |
+| `pnpm test` (apps/web) | 96 passing / 0 failing |
+| `pnpm typecheck` (apps/web) | clean — 0 errors |
+| Code tuning diff | none needed — every testable QA item passed via static inspection of the Phases 2–6 output |
+
+### 18.3 Section 15 QA Checklist — BDW-01
+
+| QA Item | Status | Notes |
+|---|---|---|
+| 1. User identifiable instantly | Pass | Mint chevron above the head, brighter mint team ring, outer halo + soft halo on the floor; user color (`#3BFF9D`) is the brightest jersey on the floor. |
+| 2. Ball-handler identifiable instantly | Pass | Warm-gold possession ring (`#FFCB44`) sits outside the team ring; held ball renders on the player resolved from `scene.ball.holderId`. |
+| 3. Offense vs defense readable | Pass | High-saturation team palette (`#2D8AFF` vs `#FF3046`) plus distinct trim colors; no jersey-number band collision. |
+| 4. Defender body angle readable | Pass | Stance system produces hip gap, foot stagger, shoulder yoke, and per-stance arm pose; `computePlayerYaw` faces defenders toward the ball-handler / user. |
+| 5. Open window visible before reveal | Pass | Pre-answer overlays show defender stance (vision cone, hip / foot / chest / hand) plus a help_pulse on the low-man — the user reads x2 denying and x4 helping; the back-cut window is implied by stance, not painted as the answer. |
+| 6. Overlays sparse before choice | Pass | `PRE_ANSWER_OVERLAY_KINDS` allow-list enforced in `schema.ts`; only stance-reading kinds + `help_pulse` + `label` are permitted pre-decision. Pre-answer help_pulse uses `baseOpacity = 0.4`, post is `0.7`. |
+| 7. Overlays explanatory after choice | Pass | Post-answer set adds `passing_lane_blocked`, `open_space_region`, and `drive_cut_preview` so the closed pass and the back-cut path read end-to-end during replay. |
+| 8. Court premium but not distracting | Pass | Phase 4 hardwood / paint / arc retune; `MeshBasicMaterial` for floor / lines / paint with `toneMapped: false` keeps line crispness; broadcast camera is high 3/4. |
+| 9. Scene performance acceptable | Pass (static) | FPS guard active above the `low` tier (33ms slow-frame threshold, 2s window, 60% slow-fraction triggers degrade); dust motes mount only on `high` tier (110 additive points, deterministic seeding, no per-frame allocation); ACES tone mapping fixed in `Scenario3DCanvas`. Browser-side Mac frame-rate verification not run from this sandbox. |
+| 10. Works for BDW-01 with no scenario-specific hacks | Pass | The renderer reads BDW-01 via the same `Scene3D` → `buildBasketballGroup` path as any other scenario; no BDW-only branches exist in `imperativeScene.ts` or `imperativeTeachingOverlay.ts`. |
+
+### 18.4 Static Readiness for ESC-01, AOR-01, SKR-01
+
+These three founder decoders are referenced as `decoder_tag`
+identifiers and copy strings but are **not yet authored as JSON
+packs** (see 17.9). End-to-end QA cannot run until the packs land.
+Static read of the renderer + overlay primitives:
+
+| Scenario | Visual system needed | Renderer status |
+|---|---|---|
+| ESC-01 — Empty Corner Baseline Sneak | Empty-corner geometry visible, helper-step readable, baseline cut lane clear post-decision, weak-side helper in frame. | No obvious renderer blocker. Empty corners render as absence of a player marker; `help_pulse` covers the helper read; `drive_cut_preview` covers the baseline cut. **Flag:** the `denyDefenderId` heuristic in `imperativeScene.ts` (~L362–376) hard-codes a `denial` stance on the closest defender to the user; for ESC-01 that defender is not denying. Likely needs a stance-routing tweak when the pack lands so the helper reads as `defensive` (or a future `cut`/`shrink` stance), not `denial`. |
+| AOR-01 — No Gap Go Now | Closeout distance readable, defender momentum readable, empty baseline lane obvious, urgent first-touch animation. | No obvious renderer blocker. `drive_cut_preview` covers the drive lane. **Flag:** same `denyDefenderId` issue — for AOR-01 the closest defender is the closeout defender, which would currently render as `denial` (raised hand) rather than the desired `closeout` (off-balance). Adding a `closeout` stance in a follow-up resolves this. |
+| SKR-01 — Paint Touch Opposite Corner | Weak-side shrink readable, opposite-corner shooter visible, over-help pulse, skip lane animates clean post-decision. | No obvious renderer blocker. `help_pulse` role `overhelp` exists in the schema; `passing_lane_blocked` / `passing_lane_open` / `drive_cut_preview` cover the skip path. **Flag:** stance routing again — the over-helper should read as `defensive` (or a future `sag` / `shrink` stance), not `denial`. |
+
+Common reopen item across the three: the closest-defender-to-user
+stance heuristic was introduced in Phase 2 to sell BDW-01's denial
+read. Once the other packs author, that heuristic should either
+become scenario-aware (drive stance from `player.role`) or be
+overridden by an authored stance hint in the scene JSON. That is a
+schema + small renderer change, not a Phase 7 tuning task.
+
+### 18.5 Performance Notes
+
+- **No new geometry, materials, lights, or post effects added in
+  Phase 7.** The phase is a docs-only audit.
+- **No new per-frame allocations.** Existing pulse loops
+  (`HELP_PULSE_HZ = 1.0`, `FOCUS_MARK_PULSE_HZ = 0.7`,
+  `FEEDBACK_PULSE_HZ = 1.5`) are parameter sweeps over preallocated
+  materials; no new closures or vector allocations per frame.
+- **FPS guard behavior unchanged.** Warmup 30 frames, window 120
+  frames, slow-frame threshold 33ms, slow fraction 0.6, cooldown
+  active. Disabled on `low` tier so we never auto-degrade below the
+  floor tier.
+- **Dust-mote quality-tier behavior unchanged.** Mounts only on
+  `high` (110 additive points, alpha-mapped soft circles); skipped
+  on `medium` and `low`. Disposal traversal owns the geometry,
+  material, and alpha-map texture.
+- **Performance-safe polish preserved.** Section 14 invariants hold:
+  no realtime cloth, no SSAO / bloom / DOF, one soft contact shadow
+  per player, indicators are shared lightweight primitives.
+
+### 18.6 Reopen Criteria
+
+Phase 7 is **complete for the content authored today (BDW-01).** It
+should reopen when any of the following lands:
+
+- **ESC-01, AOR-01, or SKR-01 scene packs are authored.** Re-run the
+  Section 15 checklist end-to-end against each, then resolve the
+  stance-routing flag in 18.4.
+- **Screenshots / manual browser QA on Mac reveal readability
+  issues** the static checks could not catch (specular blow-out on
+  chevron, dust density too loud at retina DPR, etc.).
+- **Mac frame-rate regresses** in any scenario — the FPS guard will
+  auto-degrade, but a sustained degrade from `high` → `medium` →
+  `low` is itself a regression and should be investigated.
+- **Indicator / overlay tuning needs scenario-specific adjustment.**
+  Today the cue palette is shared across all decoders; future
+  scenario-specific tuning lands as a Phase 7+ ticket against the
+  constants in `imperativeTeachingOverlay.ts`, not as new geometry.
+
+---
