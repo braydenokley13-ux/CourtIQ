@@ -22,28 +22,37 @@ import {
   type Timeline,
 } from '@/lib/scenario3d/timeline'
 
-const FLOOR_COLOR = '#D69453'
+// Visual upgrade pass: warmer, richer hardwood; deeper, more saturated
+// paint; brighter team colors so jerseys pop against both floor and
+// gym backdrop. The hardwood now has a procedural plank texture that
+// gives the floor honest depth instead of reading as a flat plane.
+const FLOOR_COLOR = '#C77A36'
+const FLOOR_PLANK_DARK = '#9C5821'
 const LINE_COLOR = '#FFFFFF'
-const PAINT_COLOR = '#0E5DC5'
+const PAINT_COLOR = '#0B5BD3'
+const PAINT_DEEP = '#063C92'
 // Authentic basketball orange/brown leather (not the neon orange of the
 // previous sphere). The pebble texture darkens this further so the
 // rendered ball reads richer than the flat hex would suggest.
 const BALL_COLOR = '#D26B26'
 const BALL_SEAM_COLOR = '#0E0F10'
-const RIM_COLOR = '#F26B1F'
+const RIM_COLOR = '#FF6A1F'
 const BACKBOARD_GLASS_TINT = '#9FD8FF'
-const BACKBOARD_FRAME_COLOR = '#1B1F2A'
+const BACKBOARD_FRAME_COLOR = '#0F1320'
 const BACKBOARD_TARGET_COLOR = '#FFFFFF'
-const POLE_COLOR = '#2A3344'
-const PADDING_COLOR = '#1A1A1A'
-const NET_COLOR = '#F0F0F0'
-// Packet D (renderer-polish) deepened offense/defense and lifted the
-// user color so all three jerseys hold contrast against both the warm
-// hardwood and the new mid-gray gym walls. The user's mint stays the
-// brightest of the three so the eye lands on it first.
-const OFFENSE_COLOR = '#3D9CFF'
-const DEFENSE_COLOR = '#FF3F58'
-const USER_COLOR = '#46FFA8'
+const POLE_COLOR = '#1F2733'
+const PADDING_COLOR = '#0F1218'
+const NET_COLOR = '#FAFAFA'
+// Visual upgrade — pushed offense/defense saturation and lifted the
+// user mint so all three jerseys read clearly against both the warm
+// hardwood and the gym backdrop. User's mint is the brightest of the
+// three so the eye lands on YOU first.
+const OFFENSE_COLOR = '#2D8AFF'
+const OFFENSE_TRIM = '#0A4FB8'
+const DEFENSE_COLOR = '#FF3046'
+const DEFENSE_TRIM = '#A10F22'
+const USER_COLOR = '#3BFF9D'
+const USER_TRIM = '#0F8C4E'
 // Possession ring — warm gold so it reads as "ball" without competing
 // with any of the team colors. Used on the floor under whichever
 // player held the ball when the scene was built.
@@ -136,19 +145,33 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   //     hoop from the back wall so they don't melt into the gym.
   // A small AmbientLight is kept at low intensity to lift extreme
   // shadow valleys without washing the scene.
-  root.add(new THREE.AmbientLight(0xffffff, 0.35))
-  const hemi = new THREE.HemisphereLight(0xfff1d6, 0x2a3140, 0.95)
+  root.add(new THREE.AmbientLight(0xffffff, 0.45))
+  const hemi = new THREE.HemisphereLight(0xfff5e0, 0x1c2330, 1.05)
   hemi.position.set(0, 40, 0)
   root.add(hemi)
-  const key = new THREE.DirectionalLight(0xfff0d4, 1.35)
-  key.position.set(28, 55, 32)
+  // Key — primary warm overhead. Punchier than before so the hardwood
+  // takes on real luminance and players read with strong dimensional
+  // shading instead of flat color blocks.
+  const key = new THREE.DirectionalLight(0xfff1d6, 1.6)
+  key.position.set(24, 58, 30)
   root.add(key)
-  const fill = new THREE.DirectionalLight(0xc6dcff, 0.55)
-  fill.position.set(-26, 38, 14)
+  // Cool fill on the off side to keep the shaded planes from going
+  // muddy; tightens up the player silhouettes.
+  const fill = new THREE.DirectionalLight(0xb8d2ff, 0.65)
+  fill.position.set(-28, 36, 12)
   root.add(fill)
-  const rim = new THREE.DirectionalLight(0xdfe6ff, 0.45)
-  rim.position.set(0, 45, -18)
+  // Cool rim from behind/above lifts the silhouette off the back wall
+  // so players never melt into the gym. Slightly more teal than before
+  // for a film-room feel without overwhelming the warm key.
+  const rim = new THREE.DirectionalLight(0xa8c8ff, 0.55)
+  rim.position.set(0, 48, -22)
   root.add(rim)
+  // Spot from the rim direction — a soft warm pool of light over the
+  // paint that mimics arena spot lighting on the play area. Cheap and
+  // visually centers the eye on the read.
+  const courtSpot = new THREE.PointLight(0xffd8a0, 0.9, 60, 1.4)
+  courtSpot.position.set(0, 24, 8)
+  root.add(courtSpot)
 
   const halfW = COURT.halfWidthFt
   const halfL = COURT.halfLengthFt
@@ -159,23 +182,75 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   // court floor so the court paints over the OOB extension.
   root.add(buildGymShell())
 
-  // Floor plane.
+  // Floor plane. The hardwood gets a procedural plank texture so the
+  // floor reads as real wood from any camera angle instead of a flat
+  // orange plane. Texture is owned by the floor mesh's material and is
+  // freed via disposeMaterialTextures() on unmount.
+  const hardwoodTex = makeHardwoodTexture()
+  const floorMat = hardwoodTex
+    ? new THREE.MeshBasicMaterial({
+        map: hardwoodTex,
+        color: FLOOR_COLOR,
+        toneMapped: false,
+      })
+    : new THREE.MeshBasicMaterial({ color: FLOOR_COLOR, toneMapped: false })
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(halfW * 2, halfL),
-    new THREE.MeshBasicMaterial({ color: FLOOR_COLOR, toneMapped: false }),
+    floorMat,
   )
   floor.rotation.x = -Math.PI / 2
   floor.position.set(0, FLOOR_LIFT, courtCenterZ)
   root.add(floor)
 
-  // Royal blue paint.
+  // Soft warm spot under the rim — a faint glow that anchors the eye
+  // on the rim/paint area without lighting up the rest of the floor.
+  const rimGlow = new THREE.Mesh(
+    new THREE.CircleGeometry(11, 64),
+    new THREE.MeshBasicMaterial({
+      color: '#FFB070',
+      toneMapped: false,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+    }),
+  )
+  rimGlow.rotation.x = -Math.PI / 2
+  rimGlow.position.set(0, FLOOR_LIFT + 0.005, 1.5)
+  rimGlow.renderOrder = -2
+  root.add(rimGlow)
+
+  // Royal blue paint. Slightly translucent so a hint of the hardwood
+  // texture shows through and the painted area reads as actual paint
+  // on wood rather than a separate flat decal.
   const paint = new THREE.Mesh(
     new THREE.PlaneGeometry(COURT.paintWidthFt, COURT.freeThrowDistFt),
-    new THREE.MeshBasicMaterial({ color: PAINT_COLOR, toneMapped: false }),
+    new THREE.MeshBasicMaterial({
+      color: PAINT_COLOR,
+      toneMapped: false,
+      transparent: true,
+      opacity: 0.92,
+    }),
   )
   paint.rotation.x = -Math.PI / 2
   paint.position.set(0, FLOOR_LIFT + 0.02, COURT.freeThrowDistFt / 2)
   root.add(paint)
+
+  // Subtle painted gradient at the front of the paint — a thin darker
+  // band along the baseline and free-throw line so the paint reads as
+  // a freshly-finished court rather than a single flat color. Pure
+  // visual decoration, no functional impact.
+  const paintTrim = new THREE.Mesh(
+    new THREE.PlaneGeometry(COURT.paintWidthFt, 0.6),
+    new THREE.MeshBasicMaterial({
+      color: PAINT_DEEP,
+      toneMapped: false,
+      transparent: true,
+      opacity: 0.55,
+    }),
+  )
+  paintTrim.rotation.x = -Math.PI / 2
+  paintTrim.position.set(0, FLOOR_LIFT + 0.022, 0.3)
+  root.add(paintTrim)
 
   // Court outline + paint lines.
   const outlineSegments: Array<[THREE.Vector3, THREE.Vector3]> = [
@@ -235,6 +310,34 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
 
   // Players. Each player is a lightweight humanoid figure rotated so
   // offense faces the rim and defense faces back toward the offense.
+  // A stable jersey number is derived from the player id so the same
+  // scene always renders the same numbers (deterministic by id, not
+  // by mount order). Defenders can pose in a denial stance when they
+  // are the primary threat, which the BDW-01 backdoor read needs to
+  // sell the "sitting on the pass" lesson visually.
+  let offenseIdx = 0
+  let defenseIdx = 0
+  // Mark the most-imminent denying defender — by convention this is
+  // the defender closest to the user (or the ball-handler) and on the
+  // ball-handler's side. For simple decoder scenes this is a useful
+  // visual cue without authoring overhead.
+  const userPlayer = scene.players.find((p) => p.isUser)
+  const denyTarget = userPlayer ?? scene.players.find((p) => p.hasBall) ?? null
+  let denyDefenderId: string | null = null
+  if (denyTarget) {
+    let bestDist = Infinity
+    for (const dp of scene.players) {
+      if (dp.team !== 'defense') continue
+      const dx = dp.start.x - denyTarget.start.x
+      const dz = dp.start.z - denyTarget.start.z
+      const dist = Math.hypot(dx, dz)
+      if (dist < bestDist) {
+        bestDist = dist
+        denyDefenderId = dp.id
+      }
+    }
+  }
+
   for (const p of scene.players) {
     const teamColor = p.color
       ? p.color
@@ -243,11 +346,31 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
         : p.team === 'offense'
           ? OFFENSE_COLOR
           : DEFENSE_COLOR
+    const trimColor = p.isUser
+      ? USER_TRIM
+      : p.team === 'offense'
+        ? OFFENSE_TRIM
+        : DEFENSE_TRIM
+
+    // Jersey number: deterministic per player slot. User always wears
+    // 0 to match the "you are the read" framing; teammates take 4..11
+    // on offense, defenders take a separate band so the two teams
+    // never collide on numbers.
+    const jerseyNumber = p.isUser
+      ? '0'
+      : p.team === 'offense'
+        ? String(4 + (offenseIdx++ % 6))
+        : String(20 + (defenseIdx++ % 6))
+
+    const denying = p.id === denyDefenderId
 
     const playerGroup = buildPlayerFigure(
       teamColor,
+      trimColor,
       p.isUser ?? false,
       p.id === initialHolderId,
+      jerseyNumber,
+      denying,
     )
     playerGroup.position.set(p.start.x, PLAYER_LIFT, p.start.z)
     playerGroup.rotation.y = computePlayerYaw(p.team, p.start.x, p.start.z)
@@ -2269,6 +2392,142 @@ function makeVerticalDarkenTexture(): THREE.CanvasTexture | null {
   return tex
 }
 
+/**
+ * Generates a procedural hardwood texture for the court floor. Paints
+ * vertical planks with subtle grain noise and inter-plank seams. Tiled
+ * across the floor plane so the floor reads as actual hardwood from
+ * any camera angle instead of a flat orange rectangle. Owned by the
+ * floor mesh's material; freed via disposeMaterialTextures().
+ */
+function makeHardwoodTexture(): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 512
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+
+  // Base wood tone.
+  ctx.fillStyle = FLOOR_COLOR
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+  // Vertical planks. Each plank gets a slightly varied base tone and
+  // a few horizontal grain streaks.
+  const plankCount = 8
+  const plankWidth = canvas.width / plankCount
+  for (let i = 0; i < plankCount; i++) {
+    const x = i * plankWidth
+    // Slight per-plank tone variation so planks read as individual
+    // pieces of wood rather than a single wash.
+    const variation = Math.sin(i * 12.3) * 18
+    const r = 199 + variation
+    const g = 122 + variation * 0.6
+    const b = 54 + variation * 0.3
+    ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
+    ctx.fillRect(x, 0, plankWidth, canvas.height)
+
+    // Grain — short horizontal streaks at random heights.
+    ctx.strokeStyle = FLOOR_PLANK_DARK
+    ctx.globalAlpha = 0.18
+    ctx.lineWidth = 1
+    for (let g = 0; g < 14; g++) {
+      const gy = Math.floor((Math.sin(i * 47 + g * 11.7) * 0.5 + 0.5) * canvas.height)
+      const gx = x + Math.floor((Math.cos(i * 31 + g * 7.3) * 0.5 + 0.5) * plankWidth * 0.6)
+      const len = 30 + Math.floor((Math.sin(g * 3.1) * 0.5 + 0.5) * 60)
+      ctx.beginPath()
+      ctx.moveTo(gx, gy)
+      ctx.lineTo(gx + len, gy + (Math.sin(g) * 0.5))
+      ctx.stroke()
+    }
+    ctx.globalAlpha = 1
+
+    // Plank seam — thin dark line on the right edge of every plank.
+    ctx.strokeStyle = 'rgba(60, 30, 8, 0.55)'
+    ctx.lineWidth = 1.4
+    ctx.beginPath()
+    ctx.moveTo(x + plankWidth, 0)
+    ctx.lineTo(x + plankWidth, canvas.height)
+    ctx.stroke()
+  }
+
+  // Soft varnish highlight — a single broad diagonal sweep that
+  // suggests a lacquered finish.
+  const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
+  grad.addColorStop(0, 'rgba(255, 226, 176, 0.0)')
+  grad.addColorStop(0.45, `rgba(255, 226, 176, 0.10)`)
+  grad.addColorStop(0.55, `rgba(255, 226, 176, 0.10)`)
+  grad.addColorStop(1, 'rgba(255, 226, 176, 0.0)')
+  ctx.fillStyle = grad
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.RepeatWrapping
+  // Repeat horizontally so planks tile across the full court width but
+  // don't squish vertically — one full repetition along the length.
+  tex.repeat.set(2, 1)
+  tex.minFilter = THREE.LinearMipMapLinearFilter
+  tex.magFilter = THREE.LinearFilter
+  tex.anisotropy = 4
+  tex.needsUpdate = true
+  return tex
+}
+
+/**
+ * Generates a square jersey-front canvas texture: a numeric label
+ * centered on the team color, with a thin contrasting outline so the
+ * digit reads from broadcast distance. Used as a small panel applied
+ * to the front of each player's torso so jerseys read as authentic
+ * basketball uniforms instead of plain colored boxes.
+ *
+ * Returns null on SSR / non-DOM contexts; caller falls back to the
+ * untextured jersey block.
+ */
+function makeJerseyNumberTexture(
+  number: string,
+  jerseyColor: string,
+  trimColor: string,
+): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null
+  const canvas = document.createElement('canvas')
+  canvas.width = 256
+  canvas.height = 256
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+
+  ctx.fillStyle = jerseyColor
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+  // Subtle vertical accent stripes on the sides.
+  ctx.fillStyle = trimColor
+  ctx.globalAlpha = 0.5
+  ctx.fillRect(0, 0, 14, canvas.height)
+  ctx.fillRect(canvas.width - 14, 0, 14, canvas.height)
+  ctx.globalAlpha = 1
+
+  // Jersey number — bold sans-serif, white with thin dark outline.
+  ctx.font = 'bold 168px "Inter", "Helvetica Neue", system-ui, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+
+  // Outline.
+  ctx.lineWidth = 14
+  ctx.strokeStyle = trimColor
+  ctx.strokeText(number, canvas.width / 2, canvas.height / 2 + 8)
+
+  // Fill.
+  ctx.fillStyle = '#FFFFFF'
+  ctx.fillText(number, canvas.width / 2, canvas.height / 2 + 8)
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.minFilter = THREE.LinearFilter
+  tex.magFilter = THREE.LinearFilter
+  tex.needsUpdate = true
+  return tex
+}
+
 // ----- Packet H — gym realism props -----
 
 const SCOREBOARD_BODY_COLOR = '#101620'
@@ -2716,40 +2975,49 @@ function computePlayerYaw(team: SceneTeam, x: number, z: number): number {
  */
 function buildPlayerFigure(
   teamColor: string,
+  trimColor: string,
   isUser: boolean,
   hasBall: boolean,
+  jerseyNumber: string,
+  denying: boolean,
 ): THREE.Group {
   const figure = new THREE.Group()
   figure.name = 'player-figure'
 
   const jerseyMat = new THREE.MeshStandardMaterial({
     color: teamColor,
-    roughness: 0.65,
-    metalness: 0.05,
+    roughness: 0.6,
+    metalness: 0.06,
   })
   const shortsMat = new THREE.MeshStandardMaterial({
     color: darkenHex(teamColor, SHORTS_DARKEN),
-    roughness: 0.75,
+    roughness: 0.78,
     metalness: 0,
   })
   const skinMat = new THREE.MeshStandardMaterial({
     color: SKIN_COLOR,
-    roughness: 0.7,
+    roughness: 0.72,
     metalness: 0,
   })
   const shoeMat = new THREE.MeshStandardMaterial({
     color: SHOE_COLOR,
-    roughness: 0.5,
-    metalness: 0.15,
+    roughness: 0.45,
+    metalness: 0.18,
   })
   const accentMat = new THREE.MeshStandardMaterial({
     color: ACCENT_COLOR,
     roughness: 0.6,
     metalness: 0,
   })
+  const trimMat = new THREE.MeshStandardMaterial({
+    color: trimColor,
+    roughness: 0.55,
+    metalness: 0.1,
+  })
 
   // Shoes — slightly forward-biased (-z) so the silhouette reads as
-  // facing forward rather than as a featureless box.
+  // facing forward rather than as a featureless box. White midsole
+  // stripe sells the "athletic shoe" silhouette without extra meshes.
   for (const sx of [-HIP_GAP / 2, HIP_GAP / 2]) {
     const shoe = new THREE.Mesh(
       new THREE.BoxGeometry(SHOE_WIDTH, SHOE_HEIGHT, SHOE_DEPTH),
@@ -2759,13 +3027,21 @@ function buildPlayerFigure(
     shoe.castShadow = true
     shoe.receiveShadow = true
     figure.add(shoe)
+
+    // Midsole stripe — a thin white band at the bottom of the shoe.
+    const sole = new THREE.Mesh(
+      new THREE.BoxGeometry(SHOE_WIDTH + 0.02, 0.12, SHOE_DEPTH + 0.02),
+      accentMat,
+    )
+    sole.position.set(sx, 0.06, -0.05)
+    figure.add(sole)
   }
 
-  // Lower-body legs (calves + thighs as a single tapered cylinder per leg
-  // for cheapness; shorts hide the upper portion).
+  // Lower-body legs — tapered cylinder (thicker at thigh, thinner at
+  // calf) for a more athletic silhouette. Shorts hide the very top.
   for (const lx of [-HIP_GAP / 2, HIP_GAP / 2]) {
     const leg = new THREE.Mesh(
-      new THREE.CylinderGeometry(LEG_RADIUS, LEG_RADIUS * 1.15, LEG_HEIGHT, 12),
+      new THREE.CylinderGeometry(LEG_RADIUS * 0.95, LEG_RADIUS * 1.25, LEG_HEIGHT, 14),
       skinMat,
     )
     leg.position.set(lx, LEG_Y, 0)
@@ -2773,79 +3049,150 @@ function buildPlayerFigure(
     figure.add(leg)
   }
 
-  // Shorts — single block, rounded by softening the box's prominent
-  // edges through a slim accent stripe.
+  // Shorts — capsule-shaped via a slightly tapered cylinder so the
+  // bottom is wider than the top (athletic basketball shorts). Side
+  // accent stripes in trim color sell the uniform.
   const shorts = new THREE.Mesh(
-    new THREE.BoxGeometry(SHORTS_WIDTH, SHORTS_HEIGHT, SHORTS_DEPTH),
+    new THREE.CylinderGeometry(SHORTS_WIDTH * 0.5, SHORTS_WIDTH * 0.55, SHORTS_HEIGHT, 16),
     shortsMat,
   )
   shorts.position.set(0, SHORTS_Y, 0)
   shorts.castShadow = true
   shorts.receiveShadow = true
+  shorts.scale.set(1, 1, 0.85)
   figure.add(shorts)
 
-  const shortsStripe = new THREE.Mesh(
-    new THREE.BoxGeometry(0.05, SHORTS_HEIGHT * 0.85, SHORTS_DEPTH + 0.02),
-    accentMat,
-  )
-  shortsStripe.position.set(SHORTS_WIDTH / 2 + 0.001, SHORTS_Y, 0)
-  figure.add(shortsStripe)
+  // Side stripes on the shorts — thin trim-color bands hugging both
+  // hips. Two bands instead of one so the player reads symmetrically
+  // from the broadcast camera regardless of yaw.
+  for (const sign of [-1, 1]) {
+    const stripe = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06, SHORTS_HEIGHT * 0.9, SHORTS_DEPTH * 0.85),
+      trimMat,
+    )
+    stripe.position.set(sign * (SHORTS_WIDTH / 2 + 0.001), SHORTS_Y, 0)
+    figure.add(stripe)
+  }
 
-  // Torso — jersey-colored block. A small accent stripe across the
-  // chest hints at a uniform without being noisy.
+  // Torso — capsule for a more natural torso silhouette than a box.
+  // The capsule's rounded top blends into the neck without a visible
+  // seam at any reasonable camera angle.
   const torso = new THREE.Mesh(
-    new THREE.BoxGeometry(TORSO_WIDTH, TORSO_HEIGHT, TORSO_DEPTH),
+    new THREE.CapsuleGeometry(TORSO_WIDTH * 0.46, TORSO_HEIGHT * 0.6, 6, 16),
     jerseyMat,
   )
   torso.position.set(0, TORSO_Y, 0)
   torso.castShadow = true
   torso.receiveShadow = true
+  // Slight depth scale so the torso is shallower than wide (typical
+  // basketball jersey silhouette from the broadcast camera).
+  torso.scale.set(1, 1, 0.75)
   figure.add(torso)
 
+  // Jersey number panel — flat plane on the chest with the number
+  // canvas texture. Sits a hair in front of the torso so depth-write
+  // doesn't z-fight at glancing angles.
+  const numberTex = makeJerseyNumberTexture(jerseyNumber, teamColor, trimColor)
+  if (numberTex) {
+    const numberMat = new THREE.MeshBasicMaterial({
+      map: numberTex,
+      toneMapped: false,
+      transparent: false,
+    })
+    const numberPanel = new THREE.Mesh(
+      new THREE.PlaneGeometry(TORSO_WIDTH * 0.85, TORSO_HEIGHT * 0.7),
+      numberMat,
+    )
+    numberPanel.position.set(0, TORSO_Y, -TORSO_DEPTH * 0.36)
+    numberPanel.rotation.y = Math.PI
+    figure.add(numberPanel)
+
+    // Mirror panel on the back so the number reads from any angle.
+    const backPanel = new THREE.Mesh(
+      new THREE.PlaneGeometry(TORSO_WIDTH * 0.85, TORSO_HEIGHT * 0.7),
+      numberMat,
+    )
+    backPanel.position.set(0, TORSO_Y, TORSO_DEPTH * 0.36)
+    figure.add(backPanel)
+  }
+
+  // Chest accent stripe across the top of the jersey.
   const chestStripe = new THREE.Mesh(
-    new THREE.BoxGeometry(TORSO_WIDTH + 0.02, 0.12, TORSO_DEPTH + 0.02),
-    accentMat,
+    new THREE.BoxGeometry(TORSO_WIDTH + 0.02, 0.1, TORSO_DEPTH * 0.78),
+    trimMat,
   )
-  chestStripe.position.set(0, TORSO_Y + TORSO_HEIGHT / 2 - 0.18, 0)
+  chestStripe.position.set(0, TORSO_Y + TORSO_HEIGHT / 2 - 0.12, 0)
   figure.add(chestStripe)
 
-  // Arms — slight outward tilt at the shoulders so the figure does not
-  // read as a stiff T-pose.
+  // Arms — capsule limbs angled differently for offense (relaxed,
+  // hands-down) and defense (active hands when denying). The denying
+  // pose sells the BDW-01 "sitting on the pass" read at a glance.
   for (const ax of [-ARM_OFFSET, ARM_OFFSET]) {
     const arm = new THREE.Mesh(
-      new THREE.CylinderGeometry(ARM_RADIUS, ARM_RADIUS * 0.9, ARM_LENGTH, 12),
+      new THREE.CapsuleGeometry(ARM_RADIUS, ARM_LENGTH * 0.9, 4, 10),
       skinMat,
     )
     arm.position.set(ax, ARM_Y, 0)
-    arm.rotation.z = ax < 0 ? 0.18 : -0.18
+
+    if (denying) {
+      // Outside arm raised toward the rim side, inside arm low. This
+      // produces the asymmetric "denial" silhouette the user must
+      // recognize. ax sign tells us left/right; raise whichever arm
+      // is closest to the rim direction (-z = facing rim).
+      const raise = ax < 0 ? 1.0 : 1.1
+      arm.rotation.z = ax < 0 ? 0.22 : -0.22
+      arm.rotation.x = -raise
+      arm.position.y = ARM_Y + 0.55
+      arm.position.z = -0.45
+    } else {
+      arm.rotation.z = ax < 0 ? 0.22 : -0.22
+    }
     arm.castShadow = true
     figure.add(arm)
   }
 
   // Neck.
   const neck = new THREE.Mesh(
-    new THREE.CylinderGeometry(NECK_RADIUS, NECK_RADIUS, NECK_HEIGHT, 10),
+    new THREE.CylinderGeometry(NECK_RADIUS, NECK_RADIUS * 1.1, NECK_HEIGHT, 12),
     skinMat,
   )
   neck.position.set(0, NECK_Y, 0)
   figure.add(neck)
 
-  // Head.
+  // Head — slightly squashed sphere for better proportions.
   const head = new THREE.Mesh(
-    new THREE.SphereGeometry(HEAD_RADIUS, 18, 16),
+    new THREE.SphereGeometry(HEAD_RADIUS, 24, 20),
     skinMat,
   )
   head.position.set(0, HEAD_Y, 0)
+  head.scale.set(1, 1.05, 0.95)
   head.castShadow = true
   figure.add(head)
+
+  // Hair cap — darker hemisphere on top of the head so heads don't
+  // read as featureless pink balls. Same skin-toned hair for all
+  // figures keeps the team color the dominant signal; the cap exists
+  // only to sell "this is a person", not identity.
+  const hairMat = new THREE.MeshStandardMaterial({
+    color: '#1B1208',
+    roughness: 0.85,
+    metalness: 0,
+  })
+  const hair = new THREE.Mesh(
+    new THREE.SphereGeometry(HEAD_RADIUS * 1.02, 24, 14, 0, Math.PI * 2, 0, Math.PI * 0.55),
+    hairMat,
+  )
+  hair.position.set(0, HEAD_Y + 0.02, 0)
+  hair.castShadow = true
+  figure.add(hair)
 
   // Tiny "front" wedge on the head front (negative-z side) so the
   // facing direction reads even at distance. Cheap nose stand-in.
   const facingMarker = new THREE.Mesh(
-    new THREE.BoxGeometry(0.18, 0.12, 0.12),
+    new THREE.BoxGeometry(0.16, 0.1, 0.12),
     skinMat,
   )
-  facingMarker.position.set(0, HEAD_Y, -HEAD_RADIUS - 0.04)
+  facingMarker.position.set(0, HEAD_Y - 0.05, -HEAD_RADIUS - 0.04)
   figure.add(facingMarker)
 
   // Soft contact shadow — anchors the figure to the hardwood so it
@@ -2891,52 +3238,102 @@ function buildPlayerFigure(
   // The user's ring is wider and brighter, with a faint outer halo for
   // an additional "this is YOU" cue from broadcast distance.
   const ringInner = PLAYER_RADIUS + 0.2
-  const ringOuter = isUser ? PLAYER_RADIUS + 0.6 : PLAYER_RADIUS + 0.5
+  const ringOuter = isUser ? PLAYER_RADIUS + 0.7 : PLAYER_RADIUS + 0.55
   const ring = new THREE.Mesh(
-    new THREE.RingGeometry(ringInner, ringOuter, 48),
+    new THREE.RingGeometry(ringInner, ringOuter, 64),
     new THREE.MeshBasicMaterial({
       color: teamColor,
       toneMapped: false,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: isUser ? 1 : 0.78,
+      opacity: isUser ? 1 : 0.85,
     }),
   )
   ring.rotation.x = -Math.PI / 2
   ring.position.y = 0.05
   figure.add(ring)
 
+  // Inner ring outline — a thin bright ring just inside the team
+  // ring. Adds a clean edge so the ring reads as a lit disc, not as
+  // a fuzzy color blob.
+  const innerOutline = new THREE.Mesh(
+    new THREE.RingGeometry(ringInner - 0.07, ringInner, 64),
+    new THREE.MeshBasicMaterial({
+      color: '#FFFFFF',
+      toneMapped: false,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.5,
+    }),
+  )
+  innerOutline.rotation.x = -Math.PI / 2
+  innerOutline.position.y = 0.052
+  figure.add(innerOutline)
+
   if (isUser) {
-    // Outer halo — a wider, faint mint band around the team ring so
-    // the user's player reads even when the camera is pulled out.
+    // Outer halo — a wider, brighter mint band around the team ring
+    // so the user's player reads even when the camera is pulled out.
     const halo = new THREE.Mesh(
-      new THREE.RingGeometry(ringOuter + 0.05, ringOuter + 0.45, 48),
+      new THREE.RingGeometry(ringOuter + 0.05, ringOuter + 0.6, 64),
       new THREE.MeshBasicMaterial({
         color: USER_COLOR,
         toneMapped: false,
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.32,
+        opacity: 0.4,
       }),
     )
     halo.rotation.x = -Math.PI / 2
     halo.position.y = 0.046
     figure.add(halo)
 
+    // Soft outer fade — a very faint, wide ring that creates a
+    // "spotlight" feel under the user without being a hard edge.
+    const softHalo = new THREE.Mesh(
+      new THREE.RingGeometry(ringOuter + 0.65, ringOuter + 1.4, 64),
+      new THREE.MeshBasicMaterial({
+        color: USER_COLOR,
+        toneMapped: false,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.16,
+      }),
+    )
+    softHalo.rotation.x = -Math.PI / 2
+    softHalo.position.y = 0.044
+    figure.add(softHalo)
+
     // Floating "YOU" chevron — a small downward-pointing cone in mint
     // that hovers above the head. Uses ConeGeometry rotated so the
     // tip points down at the player; toneMapped: false so it stays
     // bright independent of lighting.
     const chevron = new THREE.Mesh(
-      new THREE.ConeGeometry(0.32, 0.65, 16),
+      new THREE.ConeGeometry(0.42, 0.85, 24),
       new THREE.MeshBasicMaterial({
         color: USER_COLOR,
         toneMapped: false,
       }),
     )
     chevron.rotation.x = Math.PI
-    chevron.position.set(0, HEAD_Y + HEAD_RADIUS + 0.95, 0)
+    chevron.position.set(0, HEAD_Y + HEAD_RADIUS + 1.1, 0)
     figure.add(chevron)
+
+    // Chevron outline — thin dark cone behind the mint cone so the
+    // floating marker reads against the bright gym walls without
+    // fading out.
+    const chevronOutline = new THREE.Mesh(
+      new THREE.ConeGeometry(0.5, 1.0, 24),
+      new THREE.MeshBasicMaterial({
+        color: '#062118',
+        toneMapped: false,
+        transparent: true,
+        opacity: 0.7,
+      }),
+    )
+    chevronOutline.rotation.x = Math.PI
+    chevronOutline.position.set(0, HEAD_Y + HEAD_RADIUS + 1.1, 0)
+    chevronOutline.renderOrder = -1
+    figure.add(chevronOutline)
   }
 
   return figure
@@ -3026,20 +3423,53 @@ function buildBasketball(): THREE.Group {
   const group = new THREE.Group()
   group.name = 'basketball'
 
-  const surfaceTex = generateBasketballSurfaceTexture(256)
+  const surfaceTex = generateBasketballSurfaceTexture(384)
 
   const body = new THREE.Mesh(
-    new THREE.SphereGeometry(BALL_RADIUS, 32, 32),
+    new THREE.SphereGeometry(BALL_RADIUS, 36, 36),
     new THREE.MeshStandardMaterial({
       color: '#FFFFFF',
       map: surfaceTex,
-      roughness: 0.78,
+      roughness: 0.72,
       metalness: 0,
     }),
   )
   body.castShadow = true
   body.receiveShadow = true
   group.add(body)
+
+  // Soft contact shadow under the ball — a small dark disc that
+  // grounds the ball to the floor without depending on the directional
+  // light's shadow map. Cheap and always reads correctly.
+  const ballShadow = new THREE.Mesh(
+    new THREE.CircleGeometry(BALL_RADIUS * 1.2, 24),
+    new THREE.MeshBasicMaterial({
+      color: '#000000',
+      toneMapped: false,
+      transparent: true,
+      opacity: 0.4,
+      depthWrite: false,
+    }),
+  )
+  ballShadow.rotation.x = -Math.PI / 2
+  ballShadow.position.y = -BALL_RADIUS - 0.18
+  ballShadow.renderOrder = -1
+  group.add(ballShadow)
+
+  // Subtle bright highlight halo — a faint orange ring around the
+  // ball makes it pop from the broadcast camera so the eye finds the
+  // ball even when it sits next to a player.
+  const halo = new THREE.Mesh(
+    new THREE.SphereGeometry(BALL_RADIUS * 1.45, 16, 16),
+    new THREE.MeshBasicMaterial({
+      color: '#FFB070',
+      toneMapped: false,
+      transparent: true,
+      opacity: 0.14,
+      depthWrite: false,
+    }),
+  )
+  group.add(halo)
 
   const seamMat = new THREE.MeshStandardMaterial({
     color: BALL_SEAM_COLOR,
