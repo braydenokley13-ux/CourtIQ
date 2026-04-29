@@ -51,3 +51,78 @@ body {
   font-family: var(--font-ui, 'Inter', system-ui, -apple-system, sans-serif);
   min-height: 100dvh;
 }
+
+/* Phase 6 — Module shell glass tokens. Single set of values so every
+   surface around the scenario canvas (decoder pill, step row, scene
+   chips, transport, answer cards, feedback) reads as one broadcast
+   graphics package. Tweak here, ripple everywhere. */
+@layer components {
+  /* Outer module panel — wraps decoder pill + step row + canvas. The
+     hardwood-warm rim glow is faint enough that the eye still treats
+     the canvas as the bright object inside the frame. */
+  .ciq-module-panel {
+    border-radius: 22px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    background:
+      radial-gradient(120% 80% at 50% 0%, rgba(255, 169, 96, 0.05), transparent 60%),
+      linear-gradient(180deg, rgba(28, 31, 38, 0.7) 0%, rgba(19, 21, 26, 0.55) 100%);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.04) inset,
+      0 18px 48px -24px rgba(0, 0, 0, 0.7),
+      0 2px 12px -6px rgba(255, 169, 96, 0.06);
+  }
+
+  /* Inset frame for the canvas itself — gives the court a clear "screen
+     in a panel" read without competing with on-court overlays. */
+  .ciq-canvas-inset {
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.45) inset,
+      0 1px 0 rgba(255, 255, 255, 0.05) inset,
+      0 12px 28px -12px rgba(0, 0, 0, 0.7);
+  }
+
+  .ciq-canvas-inset[data-attention='on'] {
+    border-color: rgba(59, 227, 131, 0.42);
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.45) inset,
+      0 1px 0 rgba(255, 255, 255, 0.05) inset,
+      0 12px 28px -12px rgba(0, 0, 0, 0.7),
+      0 0 24px -6px rgba(59, 227, 131, 0.4);
+  }
+
+  /* Broadcast-graphics chip — paths toggle, replay badge, camera
+     selector, transport pill. One blur + border + shadow recipe so the
+     scene chrome reads as a single package above the court. */
+  .ciq-broadcast-chip {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: linear-gradient(180deg, rgba(8, 9, 12, 0.78) 0%, rgba(8, 9, 12, 0.62) 100%);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.06) inset,
+      0 4px 14px rgba(0, 0, 0, 0.45);
+  }
+
+  .ciq-broadcast-chip[data-active='true'] {
+    border-color: rgba(59, 255, 157, 0.55);
+    background: linear-gradient(180deg, rgba(6, 33, 24, 0.92) 0%, rgba(6, 33, 24, 0.78) 100%);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.08) inset,
+      0 4px 14px rgba(0, 0, 0, 0.45),
+      0 0 18px -4px rgba(59, 255, 157, 0.45);
+  }
+
+  /* Surface for shell cards beneath the canvas — feedback, decoder
+     hand-off, self-review. Same glass recipe at slightly higher
+     contrast so they read as part of the module. */
+  .ciq-shell-card {
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: linear-gradient(180deg, rgba(28, 31, 38, 0.72) 0%, rgba(19, 21, 26, 0.85) 100%);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.04) inset,
+      0 12px 30px -16px rgba(0, 0, 0, 0.7);
+  }
+}
