@@ -19,7 +19,9 @@ import {
   disposeGroup,
   fitCameraToScene,
   MotionController,
+  ReplayStateMachine,
   type CameraMode,
+  type ReplayState,
 } from './imperativeScene'
 import { TeachingOverlayController } from './imperativeTeachingOverlay'
 import {
@@ -29,7 +31,6 @@ import {
   isDebug3D,
   isEmergencyScene,
   isOrbitDebug,
-  isSimpleScene,
   readSimpleSceneOverride,
 } from '@/lib/scenario3d/feature'
 import { useReducedMotion } from '@/lib/scenario3d/useReducedMotion'
@@ -189,6 +190,14 @@ export function Scenario3DCanvas({
   // Same lifetime as the imperative scene group: rebuilt on scene/mode
   // change, ticked from the parent rAF loop, cleared on unmount.
   const motionControllerRef = useRef<MotionController | null>(null)
+  // Decoder freeze + consequence + replay state machine. Wraps the
+  // motion controller; created only when the scene has an authored
+  // freeze marker (`scene.freezeAtMs !== null`) so legacy scenes
+  // without a freeze stay on the simple `idle → playing → done` flow.
+  // Subscribes once per mount and pushes state-machine transitions
+  // through the parent's `onPhase` callback.
+  const stateMachineRef = useRef<ReplayStateMachine | null>(null)
+  const consumedChoiceRef = useRef<string | null>(null)
   // Packet E (renderer-polish, learning overlays). Owns the imperative
   // teaching overlay group (paths, defender cues, spacing labels). Same
   // lifetime as the imperative scene group: built when the scene mounts,
@@ -216,23 +225,24 @@ export function Scenario3DCanvas({
   const [debugMode, setDebugMode] = useState(false)
   const [emergencyMode, setEmergencyMode] = useState(false)
   const [orbitMode, setOrbitMode] = useState(false)
+  // Always pin to the simple imperative path — the JSX Court3D +
+  // ScenarioScene3D tree relies on R3F's reconciler to attach meshes to
+  // the canvas scene, and that reconciler has been observed to silently
+  // drop every child in production (see comment on the imperative-scene
+  // mount effect below). The imperative path adds geometry directly to
+  // threeSceneRef.current and is immune to that failure. Decoder
+  // scenarios still get the freeze + consequence + replay flow via the
+  // imperative `ReplayStateMachine` wired up in the same effect.
+  // URL `?simple=0` is honored as an escape hatch for diagnostics.
   const [simpleMode, setSimpleMode] = useState(() => {
-    // Decoder scenarios pass `forceFullPath: true` so the JSX
-    // Court3D + ScenarioScene3D tree mounts directly on the first
-    // render. Initializing here (instead of in a useEffect) avoids
-    // a mount → unmount → remount race that left the canvas empty
-    // when the very first scene of a session was a decoder scenario.
-    // The first effect below still re-syncs against the URL `?simple=`
-    // override.
-    if (typeof window === 'undefined') return !forceFullPath
+    if (typeof window === 'undefined') return true
     try {
       const raw = new URLSearchParams(window.location.search).get('simple')
       if (raw === '0') return false
-      if (raw === '1') return true
     } catch {
       // ignore
     }
-    return !forceFullPath
+    return true
   })
   const [autoFitMode, setAutoFitMode] = useState(true)
   const [canvasSize, setCanvasSize] = useState<{ width: number; height: number } | null>(null)
@@ -275,8 +285,14 @@ export function Scenario3DCanvas({
     // emit the freeze edge. URL `?simple=1` still wins so testers can
     // force the simple path; URL `?simple=0` and the prop both push
     // the canvas onto the full path.
+    // Pin to the imperative path. URL `?simple=0` still wins as an
+    // escape hatch; `forceFullPath` is intentionally ignored here
+    // because the JSX full path doesn't reliably mount its meshes
+    // (R3F reconciler drops children — see imperative mount comment).
+    // Decoder freeze events flow through the imperative
+    // `ReplayStateMachine` set up in the imperative-scene mount effect.
     const explicit = readSimpleSceneOverride()
-    const simple = explicit ?? (forceFullPath ? false : isSimpleScene())
+    const simple = explicit === false ? false : true
     const autofit = isAutoFitCamera()
     setDebugMode(debug)
     setEmergencyMode(emergency)
@@ -301,14 +317,14 @@ export function Scenario3DCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Phase G — keep simpleMode in sync with `forceFullPath` so a parent
-  // can flip a decoder scenario into the full path mid-session without
-  // remounting the canvas. URL `?simple=` still wins when explicit so
-  // testers can pin either path.
+  // Pin to the imperative path; URL `?simple=0` is the only opt-out.
+  // `forceFullPath` no longer flips this — decoder freeze events come
+  // from the imperative `ReplayStateMachine` instead of the JSX
+  // ScenarioReplayController, so the JSX full path is unused unless
+  // explicitly requested with `?simple=0`.
   useEffect(() => {
     const explicit = readSimpleSceneOverride()
-    const next = explicit ?? (forceFullPath ? false : isSimpleScene())
-    setSimpleMode(next)
+    setSimpleMode(explicit === false ? false : true)
   }, [forceFullPath])
 
   // Resolve quality settings on mount and whenever the prop changes.
@@ -405,6 +421,11 @@ export function Scenario3DCanvas({
           const motion = motionControllerRef.current
           const nowMs = performance.now()
           if (motion) motion.tick(nowMs)
+          // Decoder state machine — drives freeze / consequence / replay
+          // transitions off the same motion controller. tick() is a
+          // pure event poll; safe to call every frame even when the
+          // machine is in `idle` or `done`.
+          stateMachineRef.current?.tick(nowMs)
 
           // Packet E — animate teaching overlay (dash pulse, denial
           // pulse rings, pressure halo). tick() returns immediately when
@@ -628,6 +649,29 @@ export function Scenario3DCanvas({
             motion.setPaused(true)
           }
           motionControllerRef.current = motion
+
+          // Decoder freeze pipeline. Wire up the state machine when the
+          // scene has an authored freeze marker so the train flow can
+          // gate its question UI on the `'frozen'` event. Legacy scenes
+          // without a freeze marker skip this entirely and continue to
+          // emit nothing (their flow doesn't need a freeze edge).
+          if (visibleScene.freezeAtMs !== null) {
+            const machine = new ReplayStateMachine(motion, visibleScene)
+            stateMachineRef.current = machine
+            const phaseListener = onPhase
+            const unsubscribe = machine.subscribe(({ state }) => {
+              // ReplayState matches ReplayPhase 1:1 for the values the
+              // train flow cares about; cast and forward.
+              phaseListener?.(state as ReplayState as ReplayPhase)
+            })
+            // Stash the unsubscribe on the ref so the cleanup below
+            // can release it without re-importing the listener.
+            ;(machine as unknown as { __unsubscribe: () => void }).__unsubscribe = unsubscribe
+            machine.start()
+          } else {
+            stateMachineRef.current = null
+          }
+          consumedChoiceRef.current = null
         } catch (error) {
           // eslint-disable-next-line no-console
           console.error('[scenario3d] camera/motion init failed', error)
@@ -699,6 +743,16 @@ export function Scenario3DCanvas({
     return () => {
       cancelled = true
       window.cancelAnimationFrame(pollId)
+      // Tear down the state machine first so its listener stops
+      // firing onPhase before motion / overlays disappear.
+      const machine = stateMachineRef.current
+      if (machine) {
+        const off = (machine as unknown as { __unsubscribe?: () => void })
+          .__unsubscribe
+        if (typeof off === 'function') off()
+        stateMachineRef.current = null
+      }
+      consumedChoiceRef.current = null
       // Dispose the dust-mote GPU resources before the parent group is
       // disposed. disposeGroup() walks the descendants and frees the
       // points geometry+material, but the canvas-generated alpha map
@@ -757,6 +811,21 @@ export function Scenario3DCanvas({
     const ctrl = cameraControllerRef.current
     if (ctrl) ctrl.setScene(visibleScene)
   }, [visibleScene])
+
+  // Decoder pick handoff. When the parent passes a `pickedChoiceId`
+  // and the state machine is in `frozen`, dispatch the consequence
+  // (or short-circuit to replay) leg. Treated as a one-shot per id —
+  // re-renders with the same id are ignored, and a scene swap clears
+  // the consumed-id ref so a new scenario's picks fire correctly.
+  useEffect(() => {
+    if (!pickedChoiceId) return
+    if (consumedChoiceRef.current === pickedChoiceId) return
+    const machine = stateMachineRef.current
+    if (!machine) return
+    if (machine.getSnapshot().state !== 'frozen') return
+    consumedChoiceRef.current = pickedChoiceId
+    machine.pickChoice(pickedChoiceId)
+  }, [pickedChoiceId])
 
   // External replay reset: when the parent bumps resetCounter, drop
   // the motion controller's playback anchor so the timeline restarts
