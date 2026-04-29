@@ -12,10 +12,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const body = await request.json().catch(() => ({})) as { n?: number; concept?: string }
+  const body = await request.json().catch(() => ({})) as {
+    n?: number
+    concept?: string
+    scenarioId?: string
+  }
   const url = new URL(request.url)
   const conceptRaw = body.concept ?? url.searchParams.get('concept') ?? null
   const concept = conceptRaw && conceptRaw.trim().length > 0 ? conceptRaw.trim() : null
+  const scenarioIdRaw = body.scenarioId ?? url.searchParams.get('scenario') ?? null
+  const scenarioId =
+    scenarioIdRaw && scenarioIdRaw.trim().length > 0 ? scenarioIdRaw.trim() : null
 
   await prisma.user.upsert({
     where: { id: user.id },
@@ -53,7 +60,10 @@ export async function POST(request: Request) {
     )
   }
 
-  const bundle = await generateSessionBundle(user.id, body.n ?? 5, { concept })
+  const bundle = await generateSessionBundle(user.id, scenarioId ? 1 : body.n ?? 5, {
+    concept,
+    scenarioId,
+  })
 
   captureServerEvent('session_started', {
     session_run_id: bundle.session_run_id,

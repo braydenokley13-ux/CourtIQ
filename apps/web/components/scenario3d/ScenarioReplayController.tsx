@@ -191,6 +191,17 @@ export function ScenarioReplayController({
       onPhase?.('consequence')
       if (wrongDemo.caption) onCaption?.(wrongDemo.caption)
     } else {
+      // Best-read short-circuits silently. Any other choiceId reaching
+      // here is a missing-wrongDemos authoring fault — emit a
+      // breadcrumb (Sentry's nextjs auto-instruments console.warn) so
+      // the canvas degrades gracefully without losing the signal.
+      if (scene.wrongDemos.length > 0 && typeof console !== 'undefined') {
+        console.warn('[scenario3d] no wrongDemos entry for choice; falling back to replay leg', {
+          sceneId: scene.id,
+          choiceId: pickedChoiceId,
+          authoredChoiceIds: scene.wrongDemos.map((d) => d.choiceId),
+        })
+      }
       enterReplayLegFromSnapshot()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
