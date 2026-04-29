@@ -169,6 +169,7 @@ function TrainPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const conceptParam = searchParams.get('concept')
+  const scenarioParam = searchParams.get('scenario')
   const [userId, setUserId] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [scenarios, setScenarios] = useState<SessionScenario[]>([])
@@ -227,7 +228,11 @@ function TrainPageInner() {
         const res = await fetch('/api/session/start', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ n: 5, concept: conceptParam ?? undefined }),
+          body: JSON.stringify({
+            n: scenarioParam ? 1 : 5,
+            concept: conceptParam ?? undefined,
+            scenarioId: scenarioParam ?? undefined,
+          }),
         })
         const body = await res.json().catch(() => ({})) as {
           error?: string
@@ -253,7 +258,7 @@ function TrainPageInner() {
         setLoading(false)
       }
     })()
-  }, [router, conceptParam])
+  }, [router, conceptParam, scenarioParam])
 
   useEffect(() => {
     if (phase !== 'prompt') return
