@@ -197,7 +197,7 @@ export default function TrainPage() {
         <main className="flex min-h-dvh items-center justify-center bg-bg-0 text-text-dim">
           <div className="flex flex-col items-center gap-3">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-hairline-2 border-t-brand" />
-            <p className="text-sm">Getting the gym ready…</p>
+            <p className="text-sm">Setting the play…</p>
           </div>
         </main>
       }
@@ -367,7 +367,7 @@ function TrainPageInner() {
       <main className="flex min-h-dvh items-center justify-center bg-bg-0 text-text-dim">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-hairline-2 border-t-brand" />
-          <p className="text-sm">Getting the gym ready…</p>
+          <p className="text-sm">Setting the play…</p>
         </div>
       </main>
     )
@@ -522,16 +522,20 @@ function TrainPageInner() {
           </span>
         </div>
 
-        {/* Combo flame */}
-        {combo >= 2 && phase === 'prompt' && (
+        {/* Combo flame — only shows during the active prompt so it does
+            not compete with the win burst on feedback. */}
+        {combo >= 2 && phase === 'prompt' ? (
           <motion.div
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-full bg-xp/10 px-3 py-1 text-center text-[11px] font-bold uppercase tracking-[1px] text-xp"
+            key={`combo-${combo}`}
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
+            className="inline-flex items-center justify-center gap-1.5 rounded-full border border-xp/40 bg-xp/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[1.2px] text-xp"
           >
-            {combo} in a row 🔥
+            <span aria-hidden>🔥</span>
+            {combo} in a row
           </motion.div>
-        )}
+        ) : null}
 
         {/* Timer / phase line. Difficulty stays on the left as a quiet
             anchor; the right side surfaces a status line that adapts to
