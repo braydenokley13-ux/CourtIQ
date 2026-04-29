@@ -15,6 +15,8 @@ import { DecoderLessonPanel } from './DecoderLessonPanel'
 import { SelfReviewChecklist } from './SelfReviewChecklist'
 import { PhaseTracker, type LearnPhase } from './PhaseTracker'
 import { ChoiceCard, type ChoiceState } from './ChoiceCard'
+import { FeedbackPanel } from './FeedbackPanel'
+import { WinBurst } from './WinBurst'
 
 type DecoderTag =
   | 'BACKDOOR_WINDOW'
@@ -124,8 +126,24 @@ type AttemptFeedback = {
   badges_awarded?: { slug: string; family: string }[]
 }
 
-const PRAISE = ['Nice read!', 'Smart move!', 'Got it!', 'Big brain.', 'Locked in.']
-const RECOVER = ['So close.', 'Not quite.', 'Almost!', 'Missed it.', 'Try the next one.']
+const PRAISE = ['Great read.', 'Locked in.', 'Smart move.', 'You saw it.', 'Big brain.']
+const RECOVER = ['Almost.', 'So close.', 'Not quite.', 'Try the next one.', 'Reset.']
+
+/** Per-decoder micro-praise — names the cue the kid noticed. */
+const WIN_MICRO_PRAISE: Record<DecoderTag, string> = {
+  BACKDOOR_WINDOW: 'You saw the help defender.',
+  EMPTY_SPACE_CUT: 'You filled the empty space.',
+  SKIP_THE_ROTATION: 'You beat the rotation.',
+  ADVANTAGE_OR_RESET: 'You read the closeout.',
+}
+
+/** Per-decoder coaching micro-note shown under a wrong-answer headline. */
+const MISS_MICRO_NOTE: Record<DecoderTag, string> = {
+  BACKDOOR_WINDOW: 'Read the defender, not the spot.',
+  EMPTY_SPACE_CUT: 'Cut into the space, not the wing.',
+  SKIP_THE_ROTATION: 'Find the help that already left.',
+  ADVANTAGE_OR_RESET: 'Decide on the catch — attack or reset.',
+}
 
 function pick<T>(arr: T[], seed: number): T {
   return arr[seed % arr.length]!
@@ -592,47 +610,47 @@ function TrainPageInner() {
             : null}
         </div>
 
-        {/* Feedback panel */}
+        {/* Win burst — premium celebration when the user nails the read.
+            Surfaces XP / IQ / streak with a quick scale-in. */}
+        <AnimatePresence>
+          {feedback?.is_correct ? (
+            <WinBurst
+              key={`win-${current.id}-${feedback.choice_id}`}
+              triggerKey={feedback.iq_after}
+              xpDelta={feedback.xp_delta}
+              iqDelta={feedback.iq_delta}
+              streak={feedback.streak ?? streak}
+              headline={praise}
+              microPraise={WIN_MICRO_PRAISE[decoderTag ?? 'BACKDOOR_WINDOW']}
+            />
+          ) : null}
+        </AnimatePresence>
+
+        {/* Feedback panel — premium card with "Why" body + dual replay
+            CTAs. Shown for every answer, with the consequence replay
+            available on misses for context. */}
         <AnimatePresence>
           {feedback ? (
+            <FeedbackPanel
+              isCorrect={feedback.is_correct}
+              headline={feedback.is_correct ? praise : praise}
+              microNote={feedback.is_correct ? undefined : MISS_MICRO_NOTE[decoderTag ?? 'BACKDOOR_WINDOW']}
+              whyText={feedback.feedback_text}
+              hasReplay={!!scene && scene.answerDemo.length > 0}
+              onReplay={() => setReplayCounter((n) => n + 1)}
+              onShowMistake={undefined}
+            />
+          ) : null}
+
+          {feedback?.badges_awarded && feedback.badges_awarded.length > 0 ? (
             <motion.div
-              initial={{ opacity: 0, y: 12 }}
+              key="badge"
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="space-y-3 rounded-2xl border-2 bg-bg-1 p-4"
-              style={{ borderColor: feedback.is_correct ? 'var(--brand)' : 'var(--heat)' }}
+              transition={{ delay: 0.15 }}
+              className="rounded-xl border border-brand/40 bg-brand/5 p-3 text-center text-[13px] font-bold text-brand"
             >
-              <div className="flex items-center justify-between">
-                <span
-                  className="font-display text-[18px] font-bold"
-                  style={{ color: feedback.is_correct ? 'var(--brand)' : 'var(--heat)' }}
-                >
-                  {praise}
-                </span>
-                <div className="flex items-center gap-3 text-[13px] font-bold tabular-nums">
-                  <span className="text-xp">+{feedback.xp_delta} XP</span>
-                  <span className="text-iq">
-                    IQ {feedback.iq_delta > 0 ? '+' : ''}
-                    {feedback.iq_delta}
-                  </span>
-                </div>
-              </div>
-              <p className="text-sm text-text-dim">{feedback.feedback_text}</p>
-              {feedback.badges_awarded && feedback.badges_awarded.length > 0 && (
-                <div className="rounded-xl border border-brand/40 bg-brand/5 p-3 text-center text-[13px] font-bold text-brand">
-                  🏅 New badge unlocked!
-                </div>
-              )}
-              {scene && scene.answerDemo.length > 0 ? (
-                <button
-                  onClick={() => setReplayCounter((n) => n + 1)}
-                  className="w-full rounded-xl border border-hairline-2 bg-bg-2 py-2.5 font-display text-[12px] font-bold uppercase tracking-[1px] text-text-dim active:scale-[0.99]"
-                  type="button"
-                >
-                  ▶ Show me again
-                </button>
-              ) : null}
+              New badge unlocked
             </motion.div>
           ) : null}
         </AnimatePresence>
