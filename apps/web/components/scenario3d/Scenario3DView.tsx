@@ -26,6 +26,15 @@ interface Scenario3DViewProps {
    *  'auto', which picks a tier from the device's hardware signals and
    *  may auto-degrade at runtime via the in-loop FPS guard. */
   quality?: QualityMode
+  /**
+   * Phase G — opts the canvas into the full Court3D + ScenarioScene3D
+   * tree, which mounts the JSX `ScenarioReplayController` and emits
+   * `onPhase('frozen')` when the authored freeze marker is reached.
+   * `/train` passes this for decoder scenarios so the question UI can
+   * mount on the freeze edge. Legacy callers omit it and stay on the
+   * default path (URL `?simple=` still wins when explicit).
+   */
+  forceFullPath?: boolean
 }
 
 /**

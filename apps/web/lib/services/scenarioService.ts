@@ -1,4 +1,4 @@
-import type { Scenario, ScenarioChoice } from '@prisma/client'
+import type { DecoderTag, Scenario, ScenarioChoice } from '@prisma/client'
 import { prisma } from '@/lib/db/prisma'
 
 interface SanitizedChoice {
@@ -15,6 +15,7 @@ export interface SessionScenario {
   scene: Scenario['scene']
   user_role: string
   concept_tags: string[]
+  decoder_tag: DecoderTag | null
   choices: SanitizedChoice[]
   render_tier: number
 }
@@ -51,6 +52,7 @@ function sanitizeScenario(s: ScenarioWithChoices): SessionScenario {
     scene: s.scene,
     user_role: s.user_role,
     concept_tags: s.concept_tags,
+    decoder_tag: s.decoder_tag,
     render_tier: s.render_tier,
     choices: [...s.choices]
       .sort((a, b) => a.order - b.order)
