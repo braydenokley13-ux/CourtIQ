@@ -216,7 +216,24 @@ export function Scenario3DCanvas({
   const [debugMode, setDebugMode] = useState(false)
   const [emergencyMode, setEmergencyMode] = useState(false)
   const [orbitMode, setOrbitMode] = useState(false)
-  const [simpleMode, setSimpleMode] = useState(true)
+  const [simpleMode, setSimpleMode] = useState(() => {
+    // Decoder scenarios pass `forceFullPath: true` so the JSX
+    // Court3D + ScenarioScene3D tree mounts directly on the first
+    // render. Initializing here (instead of in a useEffect) avoids
+    // a mount → unmount → remount race that left the canvas empty
+    // when the very first scene of a session was a decoder scenario.
+    // The first effect below still re-syncs against the URL `?simple=`
+    // override.
+    if (typeof window === 'undefined') return !forceFullPath
+    try {
+      const raw = new URLSearchParams(window.location.search).get('simple')
+      if (raw === '0') return false
+      if (raw === '1') return true
+    } catch {
+      // ignore
+    }
+    return !forceFullPath
+  })
   const [autoFitMode, setAutoFitMode] = useState(true)
   const [canvasSize, setCanvasSize] = useState<{ width: number; height: number } | null>(null)
   const [dpr, setDpr] = useState<number | null>(null)
