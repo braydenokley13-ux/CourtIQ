@@ -11,6 +11,8 @@ import { useScenarioSceneData } from '@/lib/scenario3d/useScenarioSceneData'
 import type { ReplayPhase } from '@/components/scenario3d/ScenarioReplayController'
 import { createClient } from '@/lib/supabase/client'
 import { friendlyError } from '@/lib/errors'
+import { DecoderLessonPanel } from './DecoderLessonPanel'
+import { SelfReviewChecklist } from './SelfReviewChecklist'
 
 type DecoderTag =
   | 'BACKDOOR_WINDOW'
@@ -36,6 +38,72 @@ const DECODER_LABELS: Record<DecoderTag, string> = {
   EMPTY_SPACE_CUT: 'The Empty-Space Cut',
   SKIP_THE_ROTATION: 'Skip the Rotation',
   ADVANTAGE_OR_RESET: 'Advantage or Reset',
+}
+
+/**
+ * Phase I — per-decoder lesson hand-off + self-review copy. Mirrors
+ * Section 7.10 / 7.12 of the planning doc for `BACKDOOR_WINDOW`; the
+ * other three are placeholders that ship alongside their pack content
+ * in Phase K so the lesson panel works the moment a scenario is added.
+ *
+ * `lessonSlug` must match a `module_slug` in `packages/db/seed/lessons/`
+ * — Phase I seeds all four (`backdoor-window`, `empty-space-cut`,
+ * `skip-the-rotation`, `advantage-or-reset`).
+ */
+const DECODER_HANDOFF: Record<
+  DecoderTag,
+  {
+    teachingPoint: string
+    lessonConnection: string
+    lessonSlug: string
+    selfReviewChecklist: readonly string[]
+  }
+> = {
+  BACKDOOR_WINDOW: {
+    teachingPoint:
+      'When your defender sits in the passing lane, the basket is open behind them.',
+    lessonConnection: 'Read the defender, not the spot.',
+    lessonSlug: 'backdoor-window',
+    selfReviewChecklist: [
+      'Did I see the hand-and-foot denial?',
+      'Did I plant and go behind, not in front?',
+      'Did I cut hard enough to make it a scoring cut?',
+      'Did I show target hands at the rim?',
+    ],
+  },
+  EMPTY_SPACE_CUT: {
+    teachingPoint:
+      'When your teammate drives, your job is to fill the space their defender just abandoned.',
+    lessonConnection: 'Cut into the space your teammate just created.',
+    lessonSlug: 'empty-space-cut',
+    selfReviewChecklist: [
+      'Did I see the helper commit before I cut?',
+      'Did I cut along the baseline, not up to the wing?',
+      'Did I show target hands for a baseline drop-off?',
+    ],
+  },
+  SKIP_THE_ROTATION: {
+    teachingPoint:
+      'When the defense is rotating, throw the ball to the spot they can’t get to in time.',
+    lessonConnection: 'Beat the rotation with the cross-court pass.',
+    lessonSlug: 'skip-the-rotation',
+    selfReviewChecklist: [
+      'Did I see the help commit before I skipped?',
+      'Did I throw it on a line, not a rainbow?',
+      'Did I trust my teammate to make the next read?',
+    ],
+  },
+  ADVANTAGE_OR_RESET: {
+    teachingPoint:
+      'The first move on the catch is the read: either there is an advantage to take, or there isn’t.',
+    lessonConnection: 'If the advantage is there, take it. If not, reset.',
+    lessonSlug: 'advantage-or-reset',
+    selfReviewChecklist: [
+      'Did I read the closeout’s feet before I moved?',
+      'If I attacked, did I commit fully?',
+      'If I reset, did I move the ball quickly?',
+    ],
+  },
 }
 
 type AttemptFeedback = {
@@ -498,15 +566,39 @@ function TrainPageInner() {
                   ▶ Show me again
                 </button>
               ) : null}
-              <button
-                onClick={() => void next()}
-                className="w-full rounded-xl bg-brand py-3.5 font-display text-[14px] font-bold uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm active:scale-[0.99]"
-              >
-                {idx === scenarios.length - 1 ? 'See your results' : 'Next play →'}
-              </button>
             </motion.div>
           ) : null}
         </AnimatePresence>
+
+        {/* Phase I — decoder lesson hand-off + self-review surface after the
+            best-read replay. Both panels render only for decoder scenarios
+            (legacy fixtures have no decoder_tag and are unchanged). */}
+        {feedback && isDecoder && decoderTag ? (
+          <>
+            <DecoderLessonPanel
+              decoderName={DECODER_LABELS[decoderTag]}
+              teachingPoint={DECODER_HANDOFF[decoderTag].teachingPoint}
+              lessonConnection={DECODER_HANDOFF[decoderTag].lessonConnection}
+              lessonSlug={DECODER_HANDOFF[decoderTag].lessonSlug}
+            />
+            <SelfReviewChecklist
+              scenarioId={current.id}
+              items={DECODER_HANDOFF[decoderTag].selfReviewChecklist}
+            />
+          </>
+        ) : null}
+
+        {/* Next-play button surfaces below the lesson hand-off so users see
+            the teaching surface before advancing. Legacy scenarios still see
+            this button immediately under the feedback panel above. */}
+        {feedback ? (
+          <button
+            onClick={() => void next()}
+            className="w-full rounded-xl bg-brand py-3.5 font-display text-[14px] font-bold uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm active:scale-[0.99]"
+          >
+            {idx === scenarios.length - 1 ? 'See your results' : 'Next play →'}
+          </button>
+        ) : null}
       </div>
 
       {/* Floating XP / IQ reward toast */}
