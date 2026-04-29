@@ -111,38 +111,42 @@ export function ChoiceCard({
   )
 }
 
+// Phase 6 — answer cards share the module glass treatment so they feel
+// like the same product as the upgraded scene. The base surface is the
+// .ciq-shell-card recipe (subtle gradient + hairline + soft drop) with
+// per-state ring + accent layered on top via Tailwind utilities.
 const STATE_STYLES: Record<
   ChoiceState,
   { shell: string; pill: string; label: string }
 > = {
   idle: {
     shell:
-      'border-hairline-2 bg-bg-1 hover:border-brand/40 hover:bg-bg-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60',
-    pill: 'bg-bg-2 text-text-dim group-hover:bg-brand/15 group-hover:text-brand',
+      'ciq-shell-card border-hairline-2 hover:border-brand/45 hover:shadow-[0_0_0_1px_rgba(59,227,131,0.18)_inset,0_14px_30px_-16px_rgba(0,0,0,0.7)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60',
+    pill: 'bg-bg-2 text-text-dim group-hover:bg-brand/20 group-hover:text-brand',
     label: 'text-text',
   },
   selected: {
-    shell: 'border-brand bg-brand/10',
-    pill: 'bg-brand text-brand-ink',
+    shell: 'ciq-shell-card border-brand bg-brand/10 shadow-brand-sm',
+    pill: 'bg-brand text-brand-ink shadow-[0_0_10px_-2px_rgba(59,227,131,0.55)]',
     label: 'text-text',
   },
   correct: {
-    shell: 'border-brand bg-brand/10 shadow-brand-sm',
-    pill: 'bg-brand text-brand-ink',
+    shell: 'ciq-shell-card border-brand bg-brand/10 shadow-brand-sm',
+    pill: 'bg-brand text-brand-ink shadow-[0_0_10px_-2px_rgba(59,227,131,0.55)]',
     label: 'text-text',
   },
   wrong: {
-    shell: 'border-heat bg-heat/10',
+    shell: 'ciq-shell-card border-heat bg-heat/10',
     pill: 'bg-heat text-white',
     label: 'text-text',
   },
   'reveal-correct': {
-    shell: 'border-brand bg-brand/10 shadow-brand-sm',
-    pill: 'bg-brand text-brand-ink',
+    shell: 'ciq-shell-card border-brand bg-brand/10 shadow-brand-sm',
+    pill: 'bg-brand text-brand-ink shadow-[0_0_10px_-2px_rgba(59,227,131,0.55)]',
     label: 'text-text',
   },
   dimmed: {
-    shell: 'border-hairline bg-bg-1 opacity-55',
+    shell: 'ciq-shell-card border-hairline opacity-55',
     pill: 'bg-bg-2 text-text-mute',
     label: 'text-text-dim',
   },

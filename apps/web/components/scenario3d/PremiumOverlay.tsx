@@ -140,7 +140,7 @@ export function PremiumOverlay({
         <div
           role="toolbar"
           aria-label="Replay controls"
-          className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-white/10 bg-black/60 px-1.5 py-1 text-white shadow-[0_4px_16px_rgba(0,0,0,0.45)] backdrop-blur-md transition-opacity duration-200 [opacity:0.7] hover:[opacity:1] focus-within:[opacity:1] group-data-[attention=on]/overlay:[opacity:1]"
+          className="ciq-broadcast-chip pointer-events-auto flex items-center gap-0.5 rounded-full px-1.5 py-1 text-white transition-opacity duration-200 [opacity:0.7] hover:[opacity:1] focus-within:[opacity:1] group-data-[attention=on]/overlay:[opacity:1]"
         >
           <IconButton
             label="Restart replay"
@@ -179,7 +179,7 @@ function IconButton({ label, onClick, children, kind = 'ghost' }: IconButtonProp
     'inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70'
   const styles =
     kind === 'primary'
-      ? 'bg-[#3BFF9D] text-[#062118] hover:bg-[#5cffae] active:scale-[0.96]'
+      ? 'bg-[#3BFF9D] text-[#062118] shadow-[0_0_12px_-2px_rgba(59,255,157,0.55)] hover:bg-[#5cffae] active:scale-[0.96]'
       : 'text-white/85 hover:bg-white/10 hover:text-white active:scale-[0.96]'
   return (
     <button
@@ -216,9 +216,9 @@ function SpeedSelector({
             role="radio"
             aria-checked={active}
             onClick={() => onChange(opt)}
-            className={`min-w-[32px] rounded-full px-2 py-0.5 text-[10px] font-bold tracking-[0.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70 ${
+            className={`min-w-[32px] rounded-full px-2 py-0.5 font-display text-[10px] font-bold tabular-nums tracking-[0.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70 ${
               active
-                ? 'bg-white text-[#0a0d12] shadow-sm'
+                ? 'bg-[#3BFF9D]/15 text-[#3BFF9D] shadow-[inset_0_0_0_1px_rgba(59,255,157,0.45)]'
                 : 'text-white/70 hover:text-white'
             }`}
           >

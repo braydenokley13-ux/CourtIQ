@@ -40,7 +40,7 @@ export function SelfReviewChecklist({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: [0.2, 0.8, 0.2, 1] }}
-      className="space-y-3 rounded-2xl border border-hairline-2 bg-bg-1 p-4"
+      className="ciq-shell-card space-y-3 border p-4"
     >
       <div className="flex items-center justify-between">
         <div>
