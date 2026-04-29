@@ -82,8 +82,8 @@ export function PremiumOverlay({
           ~55% so the chip never competes with the court; comes back to
           full when the overlay is engaged. */}
       {concept ? (
-        <div className="pointer-events-none absolute left-3 top-3 flex max-w-[55%] items-center gap-2 rounded-full border border-white/10 bg-black/50 px-3 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-white/80 shadow-[0_2px_8px_rgba(0,0,0,0.35)] backdrop-blur-md transition-opacity duration-200 [opacity:0.6] group-hover/overlay:[opacity:1] group-focus-within/overlay:[opacity:1] group-data-[attention=on]/overlay:[opacity:1]">
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#3BFF9D] shadow-[0_0_6px_#3BFF9D]" />
+        <div className="pointer-events-none absolute left-3 top-3 flex max-w-[55%] items-center gap-2 rounded-full border border-white/15 bg-black/55 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[1.6px] text-white/90 shadow-[0_4px_14px_rgba(0,0,0,0.5)] backdrop-blur-md transition-opacity duration-200 [opacity:0.65] group-hover/overlay:[opacity:1] group-focus-within/overlay:[opacity:1] group-data-[attention=on]/overlay:[opacity:1]">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#3BFF9D] shadow-[0_0_8px_#3BFF9D]" />
           <span className="truncate">{concept}</span>
         </div>
       ) : null}

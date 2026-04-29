@@ -468,12 +468,17 @@ function TrainPageInner() {
             the scenario carries a decoder_tag (legacy scenarios are unchanged). */}
         {decoderLabel ? (
           <div className="flex items-center gap-2">
-            <span className="rounded-full border border-brand/40 bg-brand/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-brand">
+            <span className="inline-flex items-center gap-2 rounded-full border border-brand/40 bg-brand/15 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[1.6px] text-brand shadow-[0_2px_8px_rgba(59,255,157,0.15)]">
+              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-brand shadow-[0_0_8px_currentColor]" />
               Decoder · {decoderLabel}
             </span>
             {!questionReady ? (
-              <span className="text-[11px] uppercase tracking-[1.5px] text-text-dim">
-                Reading…
+              <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[1.5px] text-text-dim">
+                <span aria-hidden className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-text-dim/60" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-text-dim" />
+                </span>
+                Reading the play…
               </span>
             ) : null}
           </div>
@@ -502,7 +507,7 @@ function TrainPageInner() {
             }
           />
           {sceneCaption && replayMode === 'answer' ? (
-            <div className="pointer-events-none absolute inset-x-0 bottom-2 mx-auto w-fit max-w-[90%] rounded-full bg-bg-0/85 px-3 py-1 text-center text-[12px] font-semibold text-brand">
+            <div className="pointer-events-none absolute inset-x-0 bottom-3 mx-auto w-fit max-w-[92%] rounded-2xl border border-brand/30 bg-bg-0/90 px-4 py-2 text-center text-[13px] font-semibold leading-tight text-brand shadow-[0_8px_24px_rgba(0,0,0,0.55)] backdrop-blur-md">
               {sceneCaption}
             </div>
           ) : null}
