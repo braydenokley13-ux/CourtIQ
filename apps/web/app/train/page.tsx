@@ -13,6 +13,8 @@ import { createClient } from '@/lib/supabase/client'
 import { friendlyError } from '@/lib/errors'
 import { DecoderLessonPanel } from './DecoderLessonPanel'
 import { SelfReviewChecklist } from './SelfReviewChecklist'
+import { PhaseTracker, type LearnPhase } from './PhaseTracker'
+import { ChoiceCard, type ChoiceState } from './ChoiceCard'
 
 type DecoderTag =
   | 'BACKDOOR_WINDOW'
@@ -129,6 +131,28 @@ function pick<T>(arr: T[], seed: number): T {
   return arr[seed % arr.length]!
 }
 
+/**
+ * Compute the visual state of an answer card given the user's pick and
+ * the server feedback. Lives near the page so the wiring is obvious
+ * when the choice column is rewritten in a follow-up patch.
+ */
+export function deriveChoiceState(input: {
+  choiceId: string
+  selected: string | null
+  feedback: { is_correct: boolean; correct_choice_id: string } | null
+  submitting: boolean
+}): ChoiceState {
+  const { choiceId, selected, feedback, submitting } = input
+  if (!feedback) {
+    if (submitting && selected === choiceId) return 'selected'
+    return 'idle'
+  }
+  if (feedback.is_correct && selected === choiceId) return 'correct'
+  if (!feedback.is_correct && selected === choiceId) return 'wrong'
+  if (feedback.correct_choice_id === choiceId) return 'reveal-correct'
+  return 'dimmed'
+}
+
 // Defensive runtime guard for the decoder tag returned by the API. Unknown
 // values fall through to legacy behaviour (no decoder UI) and emit a
 // console breadcrumb — Sentry's nextjs integration auto-collects
@@ -193,6 +217,10 @@ function TrainPageInner() {
   // freeze marker before the user is asked to read it. Legacy scenarios
   // keep the prompt visible from the start (no decoder_tag → no gate).
   const [frozen, setFrozen] = useState(false)
+  // Phase tracker — high-level state of the current rep so the
+  // top-of-page tracker and pacing logic can react. Driven by the
+  // replay controller's `ReplayPhase` and the local UI state.
+  const [scenePhase, setScenePhase] = useState<ReplayPhase>('idle')
 
   const current = scenarios[idx]
   const phase = feedback ? 'feedback' : 'prompt'
@@ -288,10 +316,30 @@ function TrainPageInner() {
   // never emit this event and stay on their existing flow.
   const onScenePhase = useMemo(
     () => (next: ReplayPhase) => {
+      setScenePhase(next)
       if (next === 'frozen') setFrozen(true)
     },
     [],
   )
+
+  // Derived phase for the top-of-page learning tracker. The page-level
+  // states map cleanly onto Phase A-E:
+  //   intro / playing → 'watch'
+  //   frozen, no pick → 'read'
+  //   submitting      → 'choose'
+  //   consequence     → 'consequence'
+  //   replaying       → 'replay'
+  //   feedback + done → 'win'
+  const learnPhase: LearnPhase = (() => {
+    if (feedback) {
+      if (scenePhase === 'consequence') return 'consequence'
+      if (scenePhase === 'replaying') return 'replay'
+      return 'win'
+    }
+    if (selected) return 'choose'
+    if (frozen) return 'read'
+    return 'watch'
+  })()
 
   const orderedChoices = useMemo(() => [...(current?.choices ?? [])].sort((a, b) => a.order - b.order), [current])
   const scene = useScenarioSceneData(current ?? null)
@@ -463,24 +511,19 @@ function TrainPageInner() {
           ) : null}
         </div>
 
-        {/* Decoder chip — surfaces the decoder name during the intro / pre-freeze
-            window so the user enters the read with framing. Only present when
-            the scenario carries a decoder_tag (legacy scenarios are unchanged). */}
+        {/* Decoder chip + Phase A-E tracker. The chip frames the read with
+            the decoder name; the tracker shows where the user is in the
+            Watch → Read → Choose → Learn loop. Tracker only renders for
+            decoder scenarios — legacy fixtures don't have a freeze beat. */}
         {decoderLabel ? (
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-2 rounded-full border border-brand/40 bg-brand/15 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[1.6px] text-brand shadow-[0_2px_8px_rgba(59,255,157,0.15)]">
-              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-brand shadow-[0_0_8px_currentColor]" />
-              Decoder · {decoderLabel}
-            </span>
-            {!questionReady ? (
-              <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[1.5px] text-text-dim">
-                <span aria-hidden className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-text-dim/60" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-text-dim" />
-                </span>
-                Reading the play…
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full border border-brand/40 bg-brand/15 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[1.6px] text-brand shadow-[0_2px_8px_rgba(59,255,157,0.15)]">
+                <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-brand shadow-[0_0_8px_currentColor]" />
+                Decoder · {decoderLabel}
               </span>
-            ) : null}
+            </div>
+            {isDecoder ? <PhaseTracker phase={learnPhase} /> : null}
           </div>
         ) : null}
 
@@ -523,35 +566,30 @@ function TrainPageInner() {
           </div>
         ) : null}
 
-        {/* Choices */}
+        {/* Choices — premium cards with letter pill, hover/tap states,
+            and confidence-colored states after submit. */}
         <div className="space-y-2">
-          {questionReady ? orderedChoices.map((choice, index) => {
-            const letter = String.fromCharCode(65 + index)
-            const isSelected = selected === choice.id
-            const isCorrect = feedback?.correct_choice_id === choice.id
-            const wrongPick = feedback && isSelected && !feedback.is_correct
-            return (
-              <motion.button
-                key={choice.id}
-                onClick={() => void submitChoice(choice.id)}
-                disabled={!!feedback || submitting}
-                whileTap={{ scale: 0.98 }}
-                className="w-full rounded-2xl border-2 bg-bg-1 px-4 py-3.5 text-left transition-colors active:bg-bg-2"
-                style={{
-                  borderColor: isCorrect
-                    ? 'var(--brand)'
-                    : wrongPick
-                      ? 'var(--heat)'
-                      : 'var(--hairline-2)',
-                }}
-              >
-                <span className="mr-3 inline-flex h-6 w-6 items-center justify-center rounded-md bg-bg-2 text-[12px] font-bold text-text-dim">
-                  {letter}
-                </span>
-                <span className="text-[14px] font-medium text-text">{choice.label}</span>
-              </motion.button>
-            )
-          }) : null}
+          {questionReady
+            ? orderedChoices.map((choice, index) => {
+                const letter = String.fromCharCode(65 + index)
+                const state = deriveChoiceState({
+                  choiceId: choice.id,
+                  selected,
+                  feedback,
+                  submitting,
+                })
+                return (
+                  <ChoiceCard
+                    key={choice.id}
+                    letter={letter}
+                    label={choice.label}
+                    state={state}
+                    disabled={!!feedback || submitting}
+                    onSelect={() => void submitChoice(choice.id)}
+                  />
+                )
+              })
+            : null}
         </div>
 
         {/* Feedback panel */}
