@@ -507,8 +507,8 @@ export function fitCameraToScene(
   camera: THREE.PerspectiveCamera,
   scene: Scene3D,
   aspect: number,
-  pitchDeg = 28,
-  padding = 1.18,
+  pitchDeg = 30,
+  padding = 1.14,
 ): void {
   const target = computeAutoTarget(scene, aspect, camera.fov, pitchDeg, padding)
   if (!target) return
@@ -552,24 +552,41 @@ export interface CameraTarget {
 // Court spans x ∈ [-25, 25], z ∈ [0, 47], rim sits at the origin (0,
 // y≈10, 0). Half-court is at z = 47.
 //
-// All presets were re-tuned in Packet B (renderer-polish) to push the
-// court toward the centre of the frame and shrink the empty black
-// space that previously dominated the canvas. Lower height, closer
-// distance, and a slightly tighter FOV move from "stadium upper deck"
-// to "coaching film".
-const SCENE_FOCUS = new THREE.Vector3(0, 3, 20)
-const BROADCAST_POSITION = new THREE.Vector3(2, 18, 48)
-const BROADCAST_LOOKAT = new THREE.Vector3(0, 3, 20)
-const BROADCAST_FOV = 42
-const TACTICAL_POSITION = new THREE.Vector3(0, 52, 26)
-const TACTICAL_LOOKAT = new THREE.Vector3(0, 0, 22)
-const TACTICAL_FOV = 38
-const REPLAY_POSITION = new THREE.Vector3(-22, 8, 30)
-const REPLAY_LOOKAT = new THREE.Vector3(2, 4, 12)
-const REPLAY_FOV = 34
-const FOLLOW_LIFT_Y = 8
-const FOLLOW_TRAIL_DIST = 12
-const FOLLOW_LOOK_HEIGHT = 3.5
+// Phase 5 (Section 9) re-tune. The previous presets read more like
+// "broadcast stage" than "film room"; the new defaults sit higher,
+// pull a touch closer, and drop FOV slightly so the user lands on
+// a coach's-film angle that reads spacing AND defender stance from
+// the same shot. All four founder scenarios were hand-walked
+// against Section 13: BDW-01 wing denial, ESC-01 weak-side helper,
+// AOR-01 closeout momentum, SKR-01 opposite corner — each stays in
+// frame end-to-end.
+const SCENE_FOCUS = new THREE.Vector3(0, 4, 18)
+// Broadcast: high 3/4 film-room. Camera at 22 ft (was 18) sits high
+// enough to read paint spacing without flattening hips/feet, slight
+// off-axis (+3x) so the sideline doesn't hide the wing, and the
+// look-at is at chest height so player silhouettes read above the
+// court rather than against it.
+const BROADCAST_POSITION = new THREE.Vector3(3, 22, 46)
+const BROADCAST_LOOKAT = new THREE.Vector3(0, 4, 18)
+const BROADCAST_FOV = 40
+// Tactical: lifted off the previous near-top-down (52 ft was too
+// abstract per Section 9: "Top-down is too abstract"). 42 ft still
+// gives a tactical board feel without collapsing the floor.
+const TACTICAL_POSITION = new THREE.Vector3(0, 42, 28)
+const TACTICAL_LOOKAT = new THREE.Vector3(0, 0, 20)
+const TACTICAL_FOV = 36
+// Replay: slightly wider hold (Section 9: "a slightly wider hold
+// for feedback"). Lifted from 8 → 12 ft and pulled wider on x so
+// the post-decision overlay (cut path / closed lane) reads
+// end-to-end without occluding defender stance.
+const REPLAY_POSITION = new THREE.Vector3(-24, 12, 32)
+const REPLAY_LOOKAT = new THREE.Vector3(1, 3, 14)
+const REPLAY_FOV = 36
+// Follow: lift + trail distance bumped so the ball-handler stays
+// on screen with their nearest defender's stance still readable.
+const FOLLOW_LIFT_Y = 10
+const FOLLOW_TRAIL_DIST = 14
+const FOLLOW_LOOK_HEIGHT = 4
 
 /**
  * Computes a camera target for the given mode. Returns null only if the
@@ -672,7 +689,10 @@ function followTarget(scene: Scene3D): CameraTarget | null {
       tz + uz * FOLLOW_TRAIL_DIST,
     ),
     lookAt: new THREE.Vector3(tx, FOLLOW_LOOK_HEIGHT, tz),
-    fov: 50,
+    // Phase 5: FOV 50 → 46 so the follow shot doesn't distort
+    // defender hip / shoulder angles when the ball-handler runs
+    // past a defender at close range.
+    fov: 46,
     near: 0.5,
     far: 400,
   }
@@ -698,8 +718,13 @@ function computeAutoTarget(
   scene: Scene3D,
   aspect: number,
   fov: number,
-  pitchDeg = 28,
-  padding = 1.18,
+  // Phase 5: pitch 28° → 30°. Steeper pitch reads paint / arc /
+  // baseline spacing without flattening defender hips & feet
+  // (Section 9 high 3/4 baseline). Padding 1.18 → 1.14 brings the
+  // action closer so the ESC-01 / SKR-01 weak-side helpers don't
+  // get pushed to the edge by movement endpoints.
+  pitchDeg = 30,
+  padding = 1.14,
 ): CameraTarget | null {
   const points: THREE.Vector3[] = []
   for (const p of scene.players) {
