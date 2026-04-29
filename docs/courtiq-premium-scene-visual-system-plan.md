@@ -673,3 +673,240 @@ answer.**
 > **Every highlight has a teaching job.**
 
 ---
+
+## 11. Module Shell UI Plan
+
+The scenario module shell is the immediate UI around the 3D scene:
+the top decoder pill, the step progress row, the scene control chips,
+the playback controls, and the answer cards. Today they are
+functional, but they do not yet feel like one product with the court.
+
+This section is **scoped to the scenario module**. It is not an app-
+wide redesign.
+
+### Top decoder pill
+
+- Quiet, broadcast-style chip at the top of the scene that names the
+  scenario family (e.g., "Denied Wing Backdoor"). Reads as a TV
+  graphic, not as a UI label.
+- Color and weight tuned to the upgraded court palette — never
+  fighting the floor for attention.
+
+### Step progress row
+
+- Compact row showing the user's place in the scenario flow. Subtle,
+  consistent across scenarios.
+- Small enough to live above or below the scene without taking
+  pixels from the read.
+
+### Scene control chips
+
+- Group of small chips for scene controls (paths on/off, cue on/off,
+  reset). Glass / panel treatment that matches the upgraded scene
+  feel.
+- Default state: **chips are quiet during live decision**, slightly
+  more present during feedback / replay. The shell should breathe
+  with the overlay state machine.
+
+### Playback controls
+
+- Clean playback bar (e.g., 0.5x / 1x / 2x, scrub, play/pause). Lives
+  off the live action area, anchored to a predictable corner so it
+  never drifts.
+- Visible only when meaningful — during replay, during feedback —
+  faded during the pre-decision moment so the user is not tempted to
+  scrub the cue away.
+
+### Answer cards
+
+- Cards must visually defer to the court. They are choices, not
+  spectacle. Typography clean, hierarchy obvious, hover/active states
+  consistent.
+- Card content order follows the on-court read: the option being
+  taught is never first, never visually highlighted before the user
+  chooses.
+
+### Spacing and hierarchy
+
+- Generous padding around the canvas. The court should never feel
+  pinched.
+- Consistent vertical rhythm between decoder pill, scene, controls,
+  and answer cards.
+- The eye path: scene first, cue second, answer cards third. The
+  shell must enforce that order with size and contrast.
+
+### Glass / panel treatment
+
+- A consistent glass / panel material for chips, pills, and the
+  playback bar. Same blur, same border, same corner radius.
+- Tuned so panels feel **above** the court but not on top of it.
+  Subtle, not fighting the scene.
+
+### Consistency with the upgraded court
+
+- Shell colors derived from the court palette (paint tone, line
+  tone, hardwood warmth). Shell should look like it belongs on the
+  same broadcast graphics package as the floor.
+- Shell motion (chips appearing, panels sliding) should match the
+  scene's quiet personality. No bouncy easing, no aggressive slides.
+
+### Anti-patterns
+
+- No app-wide nav redesign in this scope.
+- No new dashboard / home / settings work as part of this plan.
+- No shell elements that block the read area on smaller windows.
+
+---
+
+## 12. Phase Plan
+
+The implementation work is broken into seven sequential phases. Each
+phase is small enough to ship as one or two commits, leaves the
+renderer in a working state, and has a clear acceptance criterion.
+
+### Phase 1 — Audit Current Scene Architecture
+
+- **Goal.** Find the files controlling player geometry, court
+  geometry, indicators, overlays, lighting, camera, and module shell.
+- **What changes.** Nothing in the renderer. This phase is read-only
+  research.
+- **Why it matters for CourtIQ.** Future phases must edit precisely.
+  An accurate file map prevents drive-by refactors and protects the
+  imperative renderer rules already established in
+  `docs/courtiq-realistic-renderer-plan.md`.
+- **Files likely involved.** Imperative scene builder for `/train`,
+  player builder helper, court builder, hoop / stanchion builder,
+  indicator helpers, overlay helpers, lighting setup, camera setup,
+  module shell components around the canvas.
+- **Risks.** Missing a hidden state owner; assuming JSX scene
+  composition where the renderer is actually imperative.
+- **Acceptance criteria.** A written file map plus risk notes,
+  enough that any later phase can locate its targets without
+  re-exploring the codebase.
+- **Suggested commit name.**
+  `docs: audit current CourtIQ scene architecture for visual upgrade`
+- **Deliverable.** A file map and risk notes.
+
+### Phase 2 — Player Visual Foundation
+
+- **Goal.** Improve player model quality, silhouette, stance, and
+  readability per Section 6.
+- **What changes.** The player builder, its parameters, and its
+  default stances. No indicator changes, no court changes.
+- **Why it matters for CourtIQ.** Stance-first players are the
+  single biggest lever for **read the defender, not the spot.**
+- **Files likely involved.** The player builder helper identified in
+  Phase 1, any pose / stance setter, materials used by player
+  primitives.
+- **Risks.** Geometry growth that hurts Mac performance; new pose
+  states that break existing scenario playback.
+- **Acceptance criteria.** Players no longer look like placeholders;
+  offense / defense / closeout stances are visibly distinct from the
+  default camera; tri count stays within budget.
+- **Suggested commit name.**
+  `feat(scene): upgrade CourtIQ player silhouette and stances`
+- **Deliverable.** Players no longer look like placeholders.
+
+### Phase 3 — Player Role UI / Indicator System
+
+- **Goal.** Build the layered state system from Section 7 — base,
+  user, possession, focus, feedback.
+- **What changes.** Indicator helpers; introduction of the five
+  layers; wiring lessons / overlays into the focus and feedback
+  layers.
+- **Why it matters for CourtIQ.** Without this, premium players are
+  wasted: the user still cannot see themselves at a glance.
+- **Files likely involved.** Indicator helpers, lesson / scenario
+  state hooks that set focus and feedback marks.
+- **Risks.** Layer collisions that produce noisy frames; over-
+  pulsing; user identity getting lost when focus is active.
+- **Acceptance criteria.** A user can identify themselves, the ball-
+  handler, offense vs defense, and the focus player in under one
+  second on every founder scenario.
+- **Suggested commit name.**
+  `feat(scene): introduce CourtIQ layered role and state indicator system`
+- **Deliverable.** CourtIQ has a more productized visual language.
+
+### Phase 4 — Court / Hoop / Material Polish
+
+- **Goal.** Upgrade the court, hoop, rim, net, stanchion, and
+  material quality per Section 8.
+- **What changes.** Hardwood material, court line crispness, paint
+  tone, arc weight, hoop / backboard / rim / net / stanchion
+  geometry and materials.
+- **Why it matters for CourtIQ.** This is the **teaching stage**.
+  Premium hardwood + crisp lines is what makes the product feel
+  **coach-respectable** in screenshots.
+- **Files likely involved.** Court builder, hoop / stanchion
+  builder, shared materials.
+- **Risks.** Texture noise that competes with court lines; specular
+  highlights that erase player silhouettes; geometry creep on the
+  hoop.
+- **Acceptance criteria.** Court reads as polished hardwood; lines,
+  paint, and arc are crisp; hoop / rim / net / stanchion feel
+  premium without distracting.
+- **Suggested commit name.**
+  `feat(scene): polish CourtIQ court hoop and materials`
+- **Deliverable.** The court feels like a premium teaching stage.
+
+### Phase 5 — Lighting / Camera / Scene Polish
+
+- **Goal.** Improve contrast, clarity, camera framing, and overall
+  scene presentation per Section 9.
+- **What changes.** Lighting setup, camera defaults, optional minor
+  per-scenario framing nudges, minimal post-processing.
+- **Why it matters for CourtIQ.** Lighting and camera are the final
+  10% that turns "nice scene" into **sports-broadcast clarity**.
+- **Files likely involved.** Lighting setup, camera setup, scenario-
+  to-camera mapping, any vignette / post helper.
+- **Risks.** Muddy shadows hiding defender stance; cinematic moves
+  that distract during live decisions.
+- **Acceptance criteria.** Spacing and stance are readable from the
+  default camera; lighting is clean; no camera move competes with
+  the user's read.
+- **Suggested commit name.**
+  `feat(scene): tune CourtIQ lighting and broadcast camera framing`
+- **Deliverable.** The scene feels premium but still readable.
+
+### Phase 6 — Module Shell UI Polish
+
+- **Goal.** Make the surrounding scenario module UI feel integrated
+  with the upgraded scene per Section 11.
+- **What changes.** Decoder pill, step row, scene control chips,
+  playback bar, answer cards, spacing, glass treatment.
+- **Why it matters for CourtIQ.** The product is a **whole
+  scenario screen**, not just a canvas. Shell polish closes the gap
+  between scene and product.
+- **Files likely involved.** The scenario module shell components
+  immediately surrounding the canvas.
+- **Risks.** Scope creep into app-wide redesign; shell elements
+  blocking the read area on small windows.
+- **Acceptance criteria.** Shell colors / motion / glass match the
+  upgraded scene; eye path goes scene → cue → answer cards on every
+  founder scenario; shell defers to the court at all times.
+- **Suggested commit name.**
+  `feat(ui): align CourtIQ scenario module shell with upgraded scene`
+- **Deliverable.** The whole scenario screen feels cohesive.
+
+### Phase 7 — QA / Performance / Tuning
+
+- **Goal.** Check Mac performance, overlay readability, scenario
+  compatibility, and code cleanliness across BDW-01, ESC-01, AOR-01,
+  and SKR-01.
+- **What changes.** Targeted tuning only — no new features. Possibly
+  geometry budget tweaks, material tone tweaks, indicator intensity
+  tweaks.
+- **Why it matters for CourtIQ.** **Performance-safe polish.** The
+  product must run smoothly on Mac and read cleanly on every founder
+  scenario before this plan is considered complete.
+- **Files likely involved.** Any file touched in Phases 2–6, plus
+  any perf instrumentation.
+- **Risks.** Late regressions; tuning that helps one scenario at the
+  cost of another.
+- **Acceptance criteria.** All QA checklist items in Section 15
+  pass; Mac frame rate stable; no scenario regresses.
+- **Suggested commit name.**
+  `chore(scene): final QA and performance tuning for visual system`
+- **Deliverable.** Ready-to-implement final polish list.
+
+---
