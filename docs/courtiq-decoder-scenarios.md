@@ -377,3 +377,19 @@ The freeze must clearly show: D4 + D5 = two paint bodies; O5 alone in the weak c
 | 1.4s | O5 rises and shoots | D5 contests with hand up but late | Open or near-open three |
 
 **Outcome:** A clean (or barely contested) corner three. The highest-value shot in the half-court.
+
+### Timeline B — Wrong Read (Force the Layup or Kick to Strong Side)
+
+#### B1 — Force the layup
+| t | What you do | What the defense does | Result |
+| --- | --- | --- | --- |
+| 0.0s | Lower shoulder, attack the rim | D4 closes from behind, D5 walls up | Two bodies collide with you |
+| 0.4s | Forced floater / contested layup | Both defenders contest | Block, charge, or tough miss |
+
+#### B2 — Kick to strong-side corner
+| t | What you do | What the defense does | Result |
+| --- | --- | --- | --- |
+| 0.0s | Pass to strong (right) corner — O2 | D2 was tight on O2 the whole time, never helped | Hand in face on closeout |
+| 0.4s | O2 catches with no space | D2 contests the shot | Forced or passed-up shot, possession risk |
+
+**Outcome:** Either a turnover/block (B1) or a contested low-value shot (B2). The skip pass was the only high-value option.
