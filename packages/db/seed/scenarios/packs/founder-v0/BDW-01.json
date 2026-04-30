@@ -29,35 +29,35 @@
       ],
       "ball_location": { "x": 160, "y": 140 }
     },
-    "prompt": "Your defender is sitting on the reversal. What is the smartest move right now?",
+    "prompt": "Your defender is blocking the pass.",
     "choices": [
       {
         "id": "c1",
-        "label": "Cut backdoor behind the defender.",
+        "label": "Cut behind him to the basket.",
         "quality": "best",
-        "feedback_text": "Best read. The defender is guarding the pass, not the basket — punish that with a plant-and-go.",
+        "feedback_text": "Best read. The defender is blocking the pass, so the basket is open. Cut behind him.",
         "order": 1
       },
       {
         "id": "c2",
-        "label": "V-cut out to a deeper catch point.",
+        "label": "Step back out and ask for the ball.",
         "quality": "acceptable",
-        "feedback_text": "Acceptable. The V-cut keeps possession alive, but you traded a layup window for a contested perimeter catch.",
-        "partial_feedback_text": "Re-spacing keeps the play alive — the cleaner answer is the layup window behind the denying defender.",
+        "feedback_text": "Okay. You kept the play alive, but you missed the open layup behind your defender.",
+        "partial_feedback_text": "Stepping back keeps the play alive. The better read was to cut behind him for the layup.",
         "order": 2
       },
       {
         "id": "c3",
-        "label": "Stay on the wing and call for the ball.",
+        "label": "Stay still and call for the ball.",
         "quality": "wrong",
-        "feedback_text": "Wrong. The defender is already in the lane — forcing the reversal is a deflection or turnover.",
+        "feedback_text": "Not yet. Your defender is in the way. If you stand still, he steals the pass.",
         "order": 3
       },
       {
         "id": "c4",
-        "label": "Slowly cut in front of the defender.",
+        "label": "Cut in front of the defender.",
         "quality": "wrong",
-        "feedback_text": "Wrong. Cutting in front lets the defender ride your route — go behind them, not through them.",
+        "feedback_text": "Not yet. Cutting in front lets him follow you. Cut behind him instead.",
         "order": 4
       }
     ],
@@ -71,18 +71,18 @@
     ],
     "common_miss_reason": "Loyalty to the spot. Wings keep fighting for the assigned catch even after the defender has visibly given up the basket to take away the pass.",
     "why_best_read_works": "The defender is guarding the pass, not the basket. The denial removes the wing catch but opens the layup window behind it — the back-cut punishes the very stance that denied the reversal.",
-    "decoder_teaching_point": "When your defender sits in the passing lane, the basket is open behind them.",
+    "decoder_teaching_point": "When your defender blocks the pass, the space behind him is open. Cut there.",
     "lesson_connection": "backdoor-window",
     "feedback": {
-      "correct": "Good read. You punished the denial instead of fighting for the catch.",
-      "partial": "Re-spacing can keep the play alive, but the cleaner answer was the layup window behind the defender.",
-      "wrong": "You stayed loyal to the spot instead of the cue. If they deny the pass, cut behind them."
+      "correct": "Good read. Your defender blocked the pass, so the space behind him was open. You took the layup.",
+      "partial": "Stepping back kept the play alive. Next time, watch his body. If he is blocking the pass, cut behind him for the layup.",
+      "wrong": "Watch his body. If your defender is blocking the pass, the space behind him is open. Cut behind him."
     },
     "self_review_checklist": [
-      "Did I see the hand-and-foot denial?",
-      "Did I plant and go behind, not in front?",
-      "Did I cut hard enough to make it a scoring cut?",
-      "Did I show target hands at the rim?"
+      "Did I see his hand and foot blocking the pass?",
+      "Did I cut behind him, not in front?",
+      "Did I cut hard, like I wanted the layup?",
+      "Did I show my hands at the rim?"
     ],
     "coach_validation": {
       "level": "low",
@@ -94,7 +94,7 @@
       "unlocks": [],
       "prerequisites": []
     },
-    "explanation_md": "**The Backdoor Window.** Your defender is denying the reversal — hand and foot in the lane, chest between ball and receiver, hips opened toward the sideline. That stance gives up the basket to take away the pass. The plant-and-go back-cut punishes the denial: jab the outside foot to commit the defender's hips, then explode behind them to the front of the rim before x4 can rotate. Read the defender, not the spot.",
+    "explanation_md": "**The Backdoor Window.** Your defender has his hand and foot in the way of the pass. That means he is blocking the pass, not the basket. The space behind him is open. Take a hard step toward the ball, then cut behind him to the rim. Show your hands so your teammate can pass it. Watch his body, not your spot.",
     "xp_reward": 12,
     "mastery_weight": 1.0,
     "render_tier": 1,
@@ -173,7 +173,7 @@
       "wrongDemos": [
         {
           "choiceId": "c2",
-          "caption": "Possession kept, layup window missed.",
+          "caption": "You kept the ball. You missed the open layup.",
           "movements": [
             {
               "id": "user_v_cut",
@@ -195,7 +195,7 @@
         },
         {
           "choiceId": "c3",
-          "caption": "Defender deflects the reversal.",
+          "caption": "The defender stole the pass.",
           "movements": [
             {
               "id": "pg_force_pass",
@@ -225,7 +225,7 @@
         },
         {
           "choiceId": "c4",
-          "caption": "Defender rides the cut. Window closes.",
+          "caption": "The defender followed your cut. No layup.",
           "movements": [
             {
               "id": "user_front_cut",

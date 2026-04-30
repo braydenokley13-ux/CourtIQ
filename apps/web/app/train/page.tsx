@@ -65,14 +65,14 @@ const DECODER_HANDOFF: Record<
 > = {
   BACKDOOR_WINDOW: {
     teachingPoint:
-      'When your defender sits in the passing lane, the basket is open behind them.',
-    lessonConnection: 'Read the defender, not the spot.',
+      'When your defender blocks the pass, the space behind him is open. Cut there.',
+    lessonConnection: 'Cut behind him when he blocks the pass.',
     lessonSlug: 'backdoor-window',
     selfReviewChecklist: [
-      'Did I see the hand-and-foot denial?',
-      'Did I plant and go behind, not in front?',
-      'Did I cut hard enough to make it a scoring cut?',
-      'Did I show target hands at the rim?',
+      'Did I see his hand and foot blocking the pass?',
+      'Did I cut behind him, not in front?',
+      'Did I cut hard, like I wanted the layup?',
+      'Did I show my hands at the rim?',
     ],
   },
   EMPTY_SPACE_CUT: {
@@ -126,12 +126,12 @@ type AttemptFeedback = {
   badges_awarded?: { slug: string; family: string }[]
 }
 
-const PRAISE = ['Great read.', 'Locked in.', 'Smart move.', 'You saw it.', 'Big brain.']
-const RECOVER = ['Almost.', 'So close.', 'Not quite.', 'Try the next one.', 'Reset.']
+const PRAISE = ['Good read.', 'Nice cut.', 'You got it.', 'You saw it.', 'Smart move.']
+const RECOVER = ['Almost.', 'So close.', 'Not yet.', 'Try again.', 'Reset.']
 
 /** Per-decoder micro-praise — names the cue the kid noticed. */
 const WIN_MICRO_PRAISE: Record<DecoderTag, string> = {
-  BACKDOOR_WINDOW: 'You saw the help defender.',
+  BACKDOOR_WINDOW: 'You saw the open space behind the defender.',
   EMPTY_SPACE_CUT: 'You filled the empty space.',
   SKIP_THE_ROTATION: 'You beat the rotation.',
   ADVANTAGE_OR_RESET: 'You read the closeout.',
@@ -139,7 +139,7 @@ const WIN_MICRO_PRAISE: Record<DecoderTag, string> = {
 
 /** Per-decoder coaching micro-note shown under a wrong-answer headline. */
 const MISS_MICRO_NOTE: Record<DecoderTag, string> = {
-  BACKDOOR_WINDOW: 'Read the defender, not the spot.',
+  BACKDOOR_WINDOW: 'Watch the defender. If he blocks the pass, cut behind him.',
   EMPTY_SPACE_CUT: 'Cut into the space, not the wing.',
   SKIP_THE_ROTATION: 'Find the help that already left.',
   ADVANTAGE_OR_RESET: 'Decide on the catch — attack or reset.',
