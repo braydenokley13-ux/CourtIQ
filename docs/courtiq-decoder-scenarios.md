@@ -345,3 +345,23 @@ Coordinates in feet, origin at rim, +x = right, +z = toward half-court. You are 
 | D3 | On O3 | -15 | 9 | Ball-watching, still on their player |
 | D4 | Trailing you | 7 | 13 | **First body in paint** — behind your hip |
 | **D5** | **Stunting from weak corner** | -12 | 6 | **Second body in paint** — left O5 to over-help |
+
+### Camera Angle
+
+**Primary cam:** Elevated "driver POV" — slightly behind and over the right shoulder of O4, tilted slightly down so the entire weak-side floor is visible.
+- Position: ~ (12, 12, 18) — behind/right of O4 looking diagonally toward the weak-side corner.
+- Critical: this is the first scenario where the user must **see across the whole court**. Camera framing must include both the paint (D4 + D5) AND the weak-side corner (O5 alone) in the same shot.
+- The whole story has to fit on one screen: 2 in the paint, 1 open corner.
+
+**Secondary cam (replay only):** Top-down 3/4 from the strong-side corner — confirms the geometry of "two in the paint, one open opposite."
+
+### Freeze-Frame Moment
+
+The play runs for ~2.4 seconds:
+1. O4 catches on the right wing (~0.3s).
+2. O4 rips and beats their defender D4 with one dribble (~0.5s).
+3. Second dribble, attacking the elbow (~0.4s).
+4. As O4 crosses the elbow, D5 stunts hard from the weak corner; D4 trails in O4's right-rear.
+5. **FREEZE** at 1.5s — both feet of D5 are inside the paint, D4 is right behind O4, and the weak corner is unmistakably empty.
+
+The freeze must clearly show: D4 + D5 = two paint bodies; O5 alone in the weak corner; no defender in the skip-pass arc above ~10 ft of air.
