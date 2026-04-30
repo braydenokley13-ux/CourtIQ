@@ -3902,15 +3902,91 @@ function buildPlayerFigureLegacy(
   return figure
 }
 
+// =====================================================================
+// Phase F — Athlete builder (Option B)
+// =====================================================================
+//
+// Code-built, low-poly stylized basketball-player mesh. No skeletal
+// rig, no SkinnedMesh, no AnimationMixer; stance is a per-stance pose
+// lookup table on rigid named sub-groups. Six shared
+// MeshStandardMaterials per figure (jersey, shorts, skin, shoe,
+// accent, trim) so per-figure dispose stays cheap and identical to
+// the legacy builder. The builder lives entirely inside this file
+// per the recovery plan §17.5 / §6 constraint.
+//
+// Sub-group taxonomy (E4 §3):
+//   root
+//     pelvis
+//       leftLeg
+//         thigh / calf / foot
+//       rightLeg
+//         thigh / calf / foot
+//     torso
+//       leftArm
+//         upperArm / foreArm
+//       rightArm
+//         upperArm / foreArm
+//       neckHead
+//     shoes (z-grouping anchor for both feet)
+//   indicator-layer-base / -user / -possession (existing contract)
+//   upperBody (legacy crouch anchor — reused so the userHead
+//              indicator chevron rides the upper body the same way it
+//              does on the legacy builder).
+
+// Athletic proportions — feet are in court units (~ft). Tuned so the
+// figure reads as a 6-ft athlete from broadcast: legs are roughly
+// half the standing height, V-tapered torso, distinct knee + elbow
+// pivots, broadcast-readable shoulders.
+const ATH_TOTAL_HEIGHT = 5.95
+const ATH_FOOT_HEIGHT = 0.18
+const ATH_FOOT_LENGTH = 1.05
+const ATH_FOOT_WIDTH = 0.46
+const ATH_CALF_LENGTH = 1.25
+const ATH_CALF_TOP_R = 0.18
+const ATH_CALF_BOT_R = 0.13
+const ATH_THIGH_LENGTH = 1.45
+const ATH_THIGH_TOP_R = 0.24
+const ATH_THIGH_BOT_R = 0.19
+const ATH_PELVIS_HEIGHT = 0.55
+const ATH_PELVIS_WIDTH = 1.0
+const ATH_PELVIS_DEPTH = 0.78
+const ATH_TORSO_HEIGHT = 1.55
+const ATH_TORSO_TOP_W = 1.25
+const ATH_TORSO_BOT_W = 0.95
+const ATH_TORSO_DEPTH = 0.78
+const ATH_NECK_LENGTH = 0.22
+const ATH_NECK_R = 0.14
+const ATH_HEAD_R = 0.42
+const ATH_UPPER_ARM_LENGTH = 0.95
+const ATH_UPPER_ARM_R = 0.13
+const ATH_FORE_ARM_LENGTH = 0.95
+const ATH_FORE_ARM_R = 0.11
+const ATH_HIP_GAP = 0.46
+const ATH_SHOULDER_WIDTH = 1.35
+
+// Anchor heights derived once from the proportions above. `_Y` is the
+// world-space y of the *anchor pivot* on the figure root (origin =
+// floor between the feet).
+const ATH_FOOT_Y = ATH_FOOT_HEIGHT * 0.5
+const ATH_KNEE_Y = ATH_FOOT_HEIGHT + ATH_CALF_LENGTH
+const ATH_HIP_Y = ATH_KNEE_Y + ATH_THIGH_LENGTH
+const ATH_TORSO_BOTTOM_Y = ATH_HIP_Y + ATH_PELVIS_HEIGHT * 0.3
+const ATH_SHOULDER_Y = ATH_TORSO_BOTTOM_Y + ATH_TORSO_HEIGHT * 0.85
+const ATH_NECK_Y = ATH_TORSO_BOTTOM_Y + ATH_TORSO_HEIGHT
+const ATH_HEAD_Y = ATH_NECK_Y + ATH_NECK_LENGTH + ATH_HEAD_R
+
 /**
  * Phase F — code-built low-poly stylized-athlete builder. Replaces the
  * primitive-stack legacy builder when `USE_ATHLETE_BUILDER` is true.
  *
- * Phase F1A — scaffold stub. Delegates to the legacy builder so the
- * dispatcher compiles end-to-end while the real geometry, sub-group
- * taxonomy, and stance table are introduced in subsequent atomic
- * commits (F1A.3 onward). Same public signature as
- * `buildPlayerFigure`.
+ * Constraints (recovery plan §16 E4): no skeletal rig, no
+ * SkinnedMesh, no imported assets, no per-frame geometry mutation,
+ * tri count ≤ 1500 (target ~900–1100), six shared materials per
+ * figure, every owned resource reachable via the figure root for
+ * `disposeGroup`. Stance is applied at build time via rigid sub-group
+ * rotation deltas (F2 introduces the lookup table).
+ *
+ * Same public signature as `buildPlayerFigure`.
  */
 function buildAthleteFigure(
   teamColor: string,
@@ -3920,7 +3996,317 @@ function buildAthleteFigure(
   jerseyNumber: string,
   stance: PlayerStance,
 ): THREE.Group {
-  return buildPlayerFigureLegacy(teamColor, trimColor, isUser, hasBall, jerseyNumber, stance)
+  const figure = new THREE.Group()
+  figure.name = 'player-figure'
+
+  // --- Six shared materials per figure (E4 §5). Mirrors the
+  // existing builder so per-figure dispose count stays constant.
+  const jerseyMat = new THREE.MeshStandardMaterial({
+    color: teamColor,
+    roughness: 0.6,
+    metalness: 0.06,
+  })
+  const shortsMat = new THREE.MeshStandardMaterial({
+    color: darkenHex(teamColor, SHORTS_DARKEN),
+    roughness: 0.78,
+    metalness: 0,
+  })
+  const skinMat = new THREE.MeshStandardMaterial({
+    color: SKIN_COLOR,
+    roughness: 0.72,
+    metalness: 0,
+  })
+  const shoeMat = new THREE.MeshStandardMaterial({
+    color: SHOE_COLOR,
+    roughness: 0.45,
+    metalness: 0.18,
+  })
+  const accentMat = new THREE.MeshStandardMaterial({
+    color: ACCENT_COLOR,
+    roughness: 0.6,
+    metalness: 0,
+  })
+  const trimMat = new THREE.MeshStandardMaterial({
+    color: trimColor,
+    roughness: 0.55,
+    metalness: 0.1,
+  })
+
+  // --- Sub-group taxonomy (E4 §3). Constructed empty here; geometry
+  // is attached in subsequent atomic commits (F1A.4 — torso/pelvis,
+  // F1A.5 — legs, F1A.6 — arms, F1A.7 — shoes/finalize).
+  const pelvis = new THREE.Group()
+  pelvis.name = 'pelvis'
+  pelvis.position.set(0, ATH_HIP_Y, 0)
+
+  const torso = new THREE.Group()
+  torso.name = 'torso'
+  torso.position.set(0, ATH_TORSO_BOTTOM_Y, 0)
+
+  const neckHead = new THREE.Group()
+  neckHead.name = 'neckHead'
+  neckHead.position.set(0, ATH_NECK_Y, 0)
+
+  const leftLeg = new THREE.Group()
+  leftLeg.name = 'leftLeg'
+  leftLeg.position.set(-ATH_HIP_GAP / 2, 0, 0)
+  const leftThigh = new THREE.Group()
+  leftThigh.name = 'thigh'
+  const leftCalf = new THREE.Group()
+  leftCalf.name = 'calf'
+  leftCalf.position.set(0, -ATH_THIGH_LENGTH, 0)
+  const leftFoot = new THREE.Group()
+  leftFoot.name = 'foot'
+  leftFoot.position.set(0, -ATH_CALF_LENGTH, 0)
+  leftCalf.add(leftFoot)
+  leftThigh.add(leftCalf)
+  leftLeg.add(leftThigh)
+
+  const rightLeg = new THREE.Group()
+  rightLeg.name = 'rightLeg'
+  rightLeg.position.set(ATH_HIP_GAP / 2, 0, 0)
+  const rightThigh = new THREE.Group()
+  rightThigh.name = 'thigh'
+  const rightCalf = new THREE.Group()
+  rightCalf.name = 'calf'
+  rightCalf.position.set(0, -ATH_THIGH_LENGTH, 0)
+  const rightFoot = new THREE.Group()
+  rightFoot.name = 'foot'
+  rightFoot.position.set(0, -ATH_CALF_LENGTH, 0)
+  rightCalf.add(rightFoot)
+  rightThigh.add(rightCalf)
+  rightLeg.add(rightThigh)
+
+  pelvis.add(leftLeg)
+  pelvis.add(rightLeg)
+
+  const leftArm = new THREE.Group()
+  leftArm.name = 'leftArm'
+  leftArm.position.set(-ATH_SHOULDER_WIDTH / 2, ATH_SHOULDER_Y - ATH_TORSO_BOTTOM_Y, 0)
+  const leftUpperArm = new THREE.Group()
+  leftUpperArm.name = 'upperArm'
+  const leftForeArm = new THREE.Group()
+  leftForeArm.name = 'foreArm'
+  leftForeArm.position.set(0, -ATH_UPPER_ARM_LENGTH, 0)
+  leftUpperArm.add(leftForeArm)
+  leftArm.add(leftUpperArm)
+
+  const rightArm = new THREE.Group()
+  rightArm.name = 'rightArm'
+  rightArm.position.set(ATH_SHOULDER_WIDTH / 2, ATH_SHOULDER_Y - ATH_TORSO_BOTTOM_Y, 0)
+  const rightUpperArm = new THREE.Group()
+  rightUpperArm.name = 'upperArm'
+  const rightForeArm = new THREE.Group()
+  rightForeArm.name = 'foreArm'
+  rightForeArm.position.set(0, -ATH_UPPER_ARM_LENGTH, 0)
+  rightUpperArm.add(rightForeArm)
+  rightArm.add(rightUpperArm)
+
+  torso.add(leftArm)
+  torso.add(rightArm)
+  torso.add(neckHead)
+
+  // Group that holds both feet so callers / future stance code can
+  // query a single "shoes" handle. Visuals live on the per-foot
+  // sub-groups; this group is a structural marker only.
+  const shoes = new THREE.Group()
+  shoes.name = 'shoes'
+  shoes.add(leftFoot)
+  shoes.add(rightFoot)
+
+  // upperBody is the legacy crouch anchor that the existing
+  // userHead chevron parents to. Phase F preserves the contract: we
+  // pin pelvis + torso to figure root and let `upperBody` carry the
+  // chevron only. Crouch translation is a no-op here in F1A; F2 may
+  // shift it for stance translation if needed.
+  const upperBody = new THREE.Group()
+  upperBody.name = 'player-upper'
+  figure.add(upperBody)
+
+  figure.add(pelvis)
+  figure.add(torso)
+
+  // --- Per-stance pose hook. Real stance application lands in F2.
+  // The early reference here keeps the unused-arg lint clean and
+  // documents intent.
+  void stance
+
+  // --- Indicator layers — same contract as the legacy builder
+  // (E4 §7 / recovery plan §16). Same Y heights, same materials,
+  // same visibility rules.
+  const baseLayer = new THREE.Group()
+  baseLayer.name = 'indicator-layer-base'
+  const userLayer = new THREE.Group()
+  userLayer.name = 'indicator-layer-user'
+  userLayer.visible = isUser
+  const possessionLayer = new THREE.Group()
+  possessionLayer.name = 'indicator-layer-possession'
+  possessionLayer.visible = hasBall
+  const userHeadLayer = new THREE.Group()
+  userHeadLayer.name = 'indicator-layer-user-head'
+  userHeadLayer.visible = isUser
+
+  const possession = new THREE.Mesh(
+    new THREE.RingGeometry(PLAYER_RADIUS + 0.55, PLAYER_RADIUS + 0.85, 48),
+    new THREE.MeshBasicMaterial({
+      color: POSSESSION_RING_COLOR,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.95,
+    }),
+  )
+  possession.rotation.x = -Math.PI / 2
+  possession.position.y = 0.045
+  possessionLayer.add(possession)
+
+  const ringInner = PLAYER_RADIUS + 0.2
+  const ringOuter = isUser ? PLAYER_RADIUS + 0.7 : PLAYER_RADIUS + 0.55
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(ringInner, ringOuter, 64),
+    new THREE.MeshBasicMaterial({
+      color: teamColor,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: isUser ? 1 : 0.85,
+    }),
+  )
+  ring.rotation.x = -Math.PI / 2
+  ring.position.y = 0.05
+  baseLayer.add(ring)
+
+  const innerOutline = new THREE.Mesh(
+    new THREE.RingGeometry(ringInner - 0.07, ringInner, 64),
+    new THREE.MeshBasicMaterial({
+      color: '#FFFFFF',
+      toneMapped: false,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.5,
+    }),
+  )
+  innerOutline.rotation.x = -Math.PI / 2
+  innerOutline.position.y = 0.052
+  baseLayer.add(innerOutline)
+
+  if (isUser) {
+    const halo = new THREE.Mesh(
+      new THREE.RingGeometry(ringOuter + 0.05, ringOuter + 0.6, 64),
+      new THREE.MeshBasicMaterial({
+        color: USER_COLOR,
+        toneMapped: false,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.4,
+      }),
+    )
+    halo.rotation.x = -Math.PI / 2
+    halo.position.y = 0.046
+    userLayer.add(halo)
+
+    const softHalo = new THREE.Mesh(
+      new THREE.RingGeometry(ringOuter + 0.65, ringOuter + 1.4, 64),
+      new THREE.MeshBasicMaterial({
+        color: USER_COLOR,
+        toneMapped: false,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.16,
+      }),
+    )
+    softHalo.rotation.x = -Math.PI / 2
+    softHalo.position.y = 0.044
+    userLayer.add(softHalo)
+
+    const chevron = new THREE.Mesh(
+      new THREE.ConeGeometry(0.42, 0.85, 24),
+      new THREE.MeshBasicMaterial({
+        color: USER_COLOR,
+        toneMapped: false,
+      }),
+    )
+    chevron.rotation.x = Math.PI
+    chevron.position.set(0, ATH_HEAD_Y + ATH_HEAD_R + 1.1, 0)
+    userHeadLayer.add(chevron)
+
+    const chevronOutline = new THREE.Mesh(
+      new THREE.ConeGeometry(0.5, 1.0, 24),
+      new THREE.MeshBasicMaterial({
+        color: '#062118',
+        toneMapped: false,
+        transparent: true,
+        opacity: 0.7,
+      }),
+    )
+    chevronOutline.rotation.x = Math.PI
+    chevronOutline.position.set(0, ATH_HEAD_Y + ATH_HEAD_R + 1.1, 0)
+    chevronOutline.renderOrder = -1
+    userHeadLayer.add(chevronOutline)
+  }
+
+  // Soft contact shadow under the figure (matches the legacy
+  // builder so the floor weight is identical between paths).
+  const contactShadow = new THREE.Mesh(
+    new THREE.CircleGeometry(PLAYER_RADIUS + 0.55, 32),
+    new THREE.MeshBasicMaterial({
+      color: CONTACT_SHADOW_COLOR,
+      toneMapped: false,
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+    }),
+  )
+  contactShadow.rotation.x = -Math.PI / 2
+  contactShadow.position.y = 0.02
+  contactShadow.renderOrder = -1
+  figure.add(contactShadow)
+
+  figure.add(baseLayer)
+  figure.add(userLayer)
+  figure.add(possessionLayer)
+  upperBody.add(userHeadLayer)
+  // shoes group is added last so future stance work can re-parent
+  // feet onto it without rewiring leg sub-groups.
+  figure.add(shoes)
+
+  const indicatorLayers: PlayerIndicatorLayers = {
+    base: baseLayer,
+    user: userLayer,
+    userHead: userHeadLayer,
+    possession: possessionLayer,
+  }
+  ;(figure.userData as Record<string, unknown>).indicatorLayers = indicatorLayers
+
+  // Materials and proportional constants are referenced by sub-group
+  // geometry attached in F1A.4 onward. Suppress the unused-binding
+  // lint here so the scaffold compiles before the body parts ship.
+  void jerseyMat
+  void shortsMat
+  void skinMat
+  void shoeMat
+  void accentMat
+  void trimMat
+  void jerseyNumber
+  void ATH_TOTAL_HEIGHT
+  void ATH_FOOT_LENGTH
+  void ATH_FOOT_WIDTH
+  void ATH_CALF_TOP_R
+  void ATH_CALF_BOT_R
+  void ATH_THIGH_TOP_R
+  void ATH_THIGH_BOT_R
+  void ATH_PELVIS_WIDTH
+  void ATH_PELVIS_DEPTH
+  void ATH_TORSO_TOP_W
+  void ATH_TORSO_BOT_W
+  void ATH_TORSO_DEPTH
+  void ATH_NECK_R
+  void ATH_UPPER_ARM_R
+  void ATH_FORE_ARM_LENGTH
+  void ATH_FORE_ARM_R
+  void ATH_FOOT_Y
+
+  return figure
 }
 
 /**
