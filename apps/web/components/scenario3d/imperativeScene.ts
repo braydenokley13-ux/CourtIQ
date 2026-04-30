@@ -3720,20 +3720,23 @@ function buildAthleteFigure(
   headMesh.scale.set(1, 1.04, 0.97)
   headMesh.castShadow = true
   neckHead.add(headMesh)
-  // Hair cap — dark hemisphere on the top of the head so the
-  // figure reads as a person, not a flesh-tone ball. Stylized; no
-  // hair systems, no facial features per the recovery plan.
+  // Hair cap — Phase L9 lifts the hair from `#1B1208` (near-black,
+  // read as a void cap at gameplay distance) to `#2C1E12` (warm
+  // dark brown) and extends the coverage from `Math.PI * 0.55` to
+  // `Math.PI * 0.62` so the hairline reaches past the temples
+  // instead of perching on the crown like a beanie. Hair sphere is
+  // also pulled down 0.04 so it sits flush against the brow line.
   const hairMat = new THREE.MeshStandardMaterial({
-    color: '#1B1208',
-    roughness: 0.85,
+    color: '#2C1E12',
+    roughness: 0.78,
     metalness: 0,
   })
   const hairMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(ATH_HEAD_R * 1.02, 8, 4, 0, Math.PI * 2, 0, Math.PI * 0.55),
+    new THREE.SphereGeometry(ATH_HEAD_R * 1.04, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.62),
     hairMat,
   )
-  hairMesh.position.y = ATH_NECK_LENGTH + ATH_HEAD_R + 0.02
-  hairMesh.scale.set(1, 1.04, 0.97)
+  hairMesh.position.y = ATH_NECK_LENGTH + ATH_HEAD_R - 0.02
+  hairMesh.scale.set(1.02, 1.06, 0.99)
   hairMesh.castShadow = true
   neckHead.add(hairMesh)
 
@@ -4526,6 +4529,31 @@ function upgradePremiumHeadAndShoulders(figure: THREE.Object3D): void {
   jawMesh.scale.set(0.92, 1.0, 0.95)
   jawMesh.castShadow = true
   neckHead.add(jawMesh)
+  // Phase L9 — brow shadow line. A thin dark torus that sits at the
+  // hair-meets-forehead boundary so the face has visible separation
+  // between the hair cap and the skin sphere. Without this the head
+  // reads as "ball with a beanie"; with it, the silhouette has a
+  // subtle hairline read at gameplay distance. Reuses no shared
+  // material — its own material because the hue is unique (this
+  // does add one material per figure to the premium path; ~14 tris).
+  const browMat = new THREE.MeshStandardMaterial({
+    color: '#1A1208',
+    roughness: 0.82,
+    metalness: 0,
+  })
+  const browLine = new THREE.Mesh(
+    new THREE.TorusGeometry(ATH_HEAD_R * 0.88, 0.025, 4, 14, Math.PI * 1.4),
+    browMat,
+  )
+  // Sit the torus at the brow level with the front-facing arc visible
+  // from the broadcast camera. The Math.PI * 1.4 arc covers temple
+  // → forehead → temple without wrapping the back of the head.
+  browLine.rotation.x = Math.PI * 0.5
+  browLine.rotation.y = Math.PI * 0.7
+  browLine.position.y = ATH_NECK_LENGTH + ATH_HEAD_R * 1.20
+  browLine.position.z = -0.02
+  browLine.scale.set(1.0, 1.0, 0.78)
+  neckHead.add(browLine)
 }
 
 /**
