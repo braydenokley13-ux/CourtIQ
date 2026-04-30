@@ -299,3 +299,11 @@ Floor markers under D4's feet are the signature visual: they make the parallel-f
 - Weak-side (left) wing: a teammate at -18, 8.
 - **Weak-side (left) corner: a shooter, and their defender has stepped one big step toward the paint to "stunt"** — they are now too far away to contest a corner shot.
 - Top of the key: a teammate (the original passer).
+
+**Decision Moment:** The play freezes the instant your second dribble lands at the elbow. Two defenders are clearly committed in the paint (original defender behind, big help in front). The weak-side corner shooter's defender is mid-stunt — both feet inside the lane line, body leaning toward you.
+
+**Visible Cue:**
+- **Two defenders in the paint** between you and the rim.
+- **Weak-side corner defender stunting** — both feet inside the paint, eyes on you, body angled away from their own player.
+- The weak-side corner is wide open — visibly so.
+- Strong-side corner defender is *still* glued to the strong corner (they did NOT help — only the weak-side stunted).
