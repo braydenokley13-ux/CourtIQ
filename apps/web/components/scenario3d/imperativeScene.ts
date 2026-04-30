@@ -4718,18 +4718,22 @@ function applyCloseoutPose(joints: AthleteJoints): void {
  */
 function applyDenialPose(joints: AthleteJoints): void {
   // Lower body — same crouch as defensive but slightly narrower
-  // stance and a small body angle toward the ball.
-  joints.upperBody.position.y = -0.16
-  joints.leftThigh.rotation.set(-0.45, 0, -0.10)
-  joints.leftCalf.rotation.set(0.45, 0, 0)
+  // stance and a small body angle toward the ball. Phase L8 deepens
+  // the crouch from t=0.45 → t=0.54 so the defender on the pass
+  // shares the athletic base of the ball-side defender, with a
+  // narrower base than full defensive (legs closer together because
+  // the defender is mid-shuffle along the lane line).
+  joints.upperBody.position.y = -0.22
+  joints.leftThigh.rotation.set(-0.54, 0, -0.12)
+  joints.leftCalf.rotation.set(0.54, 0, 0)
   joints.leftFoot.rotation.set(0, 0, 0)
-  joints.rightThigh.rotation.set(-0.45, 0, 0.10)
-  joints.rightCalf.rotation.set(0.45, 0, 0)
+  joints.rightThigh.rotation.set(-0.54, 0, 0.12)
+  joints.rightCalf.rotation.set(0.54, 0, 0)
   joints.rightFoot.rotation.set(0, 0, 0)
   // Hip / shoulder square — both rotate the same way so the body
   // reads as turned to face the passing lane, not contorted.
-  joints.pelvis.rotation.set(0.14, 0.32, 0)
-  joints.torso.rotation.set(-0.14, 0.0, 0)
+  joints.pelvis.rotation.set(0.18, 0.32, 0)
+  joints.torso.rotation.set(-0.18, 0.0, 0)
   joints.neckHead.rotation.set(0.02, -0.32, 0)
   // Arms — outside (right) arm extended toward the lane, palm in;
   // inside (left) arm low and slightly back so the silhouette is
@@ -4751,19 +4755,23 @@ function applyDefensivePose(joints: AthleteJoints): void {
   // Crouch math: thigh pitches forward by `t`, calf pitches back by
   // `t` (so the calf stays roughly vertical), and the upperBody
   // drops by `thigh_length * (1 - cos(t))` so the foot stays at
-  // the floor. With t≈0.5rad and thigh ≈ 1.45ft, drop ≈ 0.18ft.
-  joints.upperBody.position.y = -0.18
-  joints.leftThigh.rotation.set(-0.50, 0, -0.18)
-  joints.leftCalf.rotation.set(0.50, 0, 0)
+  // the floor. Phase L8 deepens the crouch from t=0.50 → t=0.60
+  // (≈ 28° → 34°) so the defender reads as in a real defensive base
+  // rather than just standing with bent knees. Drop math: 1.45 *
+  // (1 - cos(0.60)) ≈ 0.27ft, hence the upperBody.y = -0.26 anchor.
+  joints.upperBody.position.y = -0.26
+  joints.leftThigh.rotation.set(-0.60, 0, -0.22)
+  joints.leftCalf.rotation.set(0.60, 0, 0)
   joints.leftFoot.rotation.set(0, 0, 0)
-  joints.rightThigh.rotation.set(-0.50, 0, 0.18)
-  joints.rightCalf.rotation.set(0.50, 0, 0)
+  joints.rightThigh.rotation.set(-0.60, 0, 0.22)
+  joints.rightCalf.rotation.set(0.60, 0, 0)
   joints.rightFoot.rotation.set(0, 0, 0)
   // Pelvis tilts forward a touch so the back is angled toward the
-  // ball instead of straight up.
-  joints.pelvis.rotation.set(0.18, 0, 0)
-  joints.torso.rotation.set(-0.18, 0, 0)
-  joints.neckHead.rotation.set(0.05, 0, 0)
+  // ball instead of straight up. Slightly more pronounced now to
+  // match the deeper crouch.
+  joints.pelvis.rotation.set(0.22, 0, 0)
+  joints.torso.rotation.set(-0.22, 0, 0)
+  joints.neckHead.rotation.set(0.06, 0, 0)
   // Arms — both out and forward, palms-down basketball defensive
   // hands. Upper arm rotates outward + forward; forearm rotates
   // forward at the elbow so hands extend past the body.
@@ -4774,25 +4782,36 @@ function applyDefensivePose(joints: AthleteJoints): void {
 }
 
 /**
- * Idle stance — basketball-ready offensive posture. Standing tall,
- * slight forward lean on the ball of each foot, arms relaxed at the
- * sides with a small outward angle so they don't fuse to the torso.
+ * Idle stance — basketball-ready offensive posture. Phase L8: changed
+ * from a fully-upright mannequin pose to a real athletic ready stance.
+ * Slight knee bend, small forward lean, arms loosely forward with the
+ * elbow slightly broken — the body language of a player who is alert
+ * and waiting for the play to develop, not standing at attention.
  */
 function applyIdlePose(joints: AthleteJoints): void {
-  joints.pelvis.rotation.set(0, 0, 0)
-  joints.torso.rotation.set(0, 0, 0)
-  joints.neckHead.rotation.set(0, 0, 0)
-  joints.upperBody.position.y = 0
-  joints.leftThigh.rotation.set(0, 0, 0)
-  joints.leftCalf.rotation.set(0, 0, 0)
+  // Light forward lean — athlete on the balls of their feet, not flat
+  // on heels. The pelvis tilt and matching torso counter-tilt keep the
+  // shoulders over the hips so the silhouette still reads "tall".
+  joints.pelvis.rotation.set(0.06, 0, 0)
+  joints.torso.rotation.set(-0.04, 0, 0)
+  joints.neckHead.rotation.set(0.02, 0, 0)
+  // Soft knee bend (~0.16 rad ≈ 9°). Small enough that the figure
+  // still reads as standing; large enough that the silhouette is
+  // visibly an athlete rather than a marionette.
+  joints.upperBody.position.y = -0.05
+  joints.leftThigh.rotation.set(-0.16, 0, -0.04)
+  joints.leftCalf.rotation.set(0.16, 0, 0)
   joints.leftFoot.rotation.set(0, 0, 0)
-  joints.rightThigh.rotation.set(0, 0, 0)
-  joints.rightCalf.rotation.set(0, 0, 0)
+  joints.rightThigh.rotation.set(-0.16, 0, 0.04)
+  joints.rightCalf.rotation.set(0.16, 0, 0)
   joints.rightFoot.rotation.set(0, 0, 0)
-  joints.leftUpperArm.rotation.set(0, 0, 0.18)
-  joints.leftForeArm.rotation.set(0, 0, 0)
-  joints.rightUpperArm.rotation.set(0, 0, -0.18)
-  joints.rightForeArm.rotation.set(0, 0, 0)
+  // Arms — loose at the sides but slightly forward and elbows broken,
+  // not glued straight down the seam. This is what a real off-ball
+  // player looks like waiting for a screen.
+  joints.leftUpperArm.rotation.set(0.18, 0, 0.22)
+  joints.leftForeArm.rotation.set(-0.20, 0, 0)
+  joints.rightUpperArm.rotation.set(0.18, 0, -0.22)
+  joints.rightForeArm.rotation.set(-0.20, 0, 0)
 }
 
 /**
