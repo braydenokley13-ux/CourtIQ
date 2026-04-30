@@ -71,3 +71,22 @@ Coordinates in feet, origin at rim center, +x = right sideline, +z = toward half
 | D3 | On O3 | 22 | 3 | Tight on the corner shooter |
 | **D4** | **On you (O4)** | -12 | 9 | "In the gap" — head turned to ball |
 | D5 | On O5 | 4 | 6 | High-side fronting the post |
+
+### Camera Angle
+
+**Primary cam:** Behind-the-user, slightly elevated.
+- Position: ~ (-22, 14, 6) — looking from the weak-side baseline corner up toward the basket and the ball.
+- The user sees their own back-left shoulder, their defender D4 in front-left, and the empty corner is in the lower-right of the frame.
+- This angle is critical: it puts the **empty space and D4's head turn in the same shot**, so the read is visible without rotating the camera.
+
+**Secondary cam (replay only):** Overhead 3/4 from above the strong-side wing — used only during the post-decision review so the player can see the full court geometry.
+
+### Freeze-Frame Moment
+
+The play runs for ~2.0 seconds:
+1. PG passes from top to strong-side wing (O1 → O2). Ball flight ~0.6s.
+2. O2 catches and squares up (~0.4s).
+3. D4's head rotates toward the catch (~0.5s).
+4. **FREEZE** at 1.5s — the exact frame where D4's head reaches its peak rotation toward the ball, before D4 can re-find you.
+
+The empty corner, the head turn, and the open baseline lane must all be inside the frame at the freeze.
