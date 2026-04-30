@@ -4163,6 +4163,110 @@ on field with a youth coach:
   already green.
 
 
+### Phase H QA Results
+
+> Phase H is the integration / polish phase. No new features, no
+> new scenarios, no scene-logic changes. Goal was to verify replay,
+> movement, geometry, indicators, fullscreen, and Phase G copy all
+> ship as one coherent BDW-01 experience.
+
+#### What worked well
+
+- **Replay ↔ copy alignment.** Every BDW-01 movement reads
+  cleanly against the new copy: the denial step → "Your defender
+  is blocking the pass."; the back-cut → "Cut behind him to the
+  basket."; the wrong demos → captions that name what just
+  happened ("The defender stole the pass." / "The defender
+  followed your cut. No layup."). No mismatches found.
+- **Indicator stack.** The four indicator layers (`base`, `user`,
+  `userHead`, `possession`) survive every stance — `idle`,
+  `defensive`, `denial`, `closeout` — with the chevron riding
+  the `upperBody` anchor (Phase F2/F3). Coverage in
+  `imperativeScene.athlete.test.ts:84` ("preserves all four
+  indicator layers") plus the disposal + budget tests.
+- **Fullscreen.** Phase D logic + 8 tests in
+  `fullscreen.test.ts` cover toggle / exit / change-listener
+  cleanup / icon swap. Controls cluster top-right with 20px
+  inset in fullscreen so they never cross the action area; the
+  decoder pill, phase tracker, and answer caption remain
+  readable. `data-fullscreen` is intentional — the wrapper's
+  `relative h-full w-full` plus a `height={undefined}` prop swap
+  is what actually expands the canvas.
+- **Phase G copy.** Every Phase G string is consumed by an
+  existing render path (`PRAISE`, `RECOVER`, `WIN_MICRO_PRAISE`,
+  `MISS_MICRO_NOTE`, `DECODER_HANDOFF.BACKDOOR_WINDOW`). Type
+  signatures are byte-compatible with the pre-G shape; no caller
+  needed updating. The seed-time zod caps (`prompt.max(140)`,
+  `label.min(1)`, `feedback_text.min(1)`) all pass the manual
+  length check.
+
+#### What was fixed in Phase H
+
+- **H5 — prompt / heading duplication.** Phase G2 ended the
+  BDW-01 prompt on "What do you do?", which is also the
+  hard-coded headline rendered immediately below it in
+  `app/train/page.tsx:654`. Learners saw the question twice.
+  Trimmed the prompt to the cue only — "Your defender is
+  blocking the pass." — so the prompt + heading read as one
+  beat. Commit `01aaa78`.
+- **H1–H4.** No issues found; no commits needed. Smoke pass,
+  replay/copy cross-check, indicator review, and fullscreen
+  audit all came up clean against the existing test coverage.
+
+#### Remaining issues
+
+- None blocking. The Phase G manual-coach-review queue
+  (jab-step wording, partial-feedback tone, wrong-cut caption
+  choice) carries forward — those are tone calls for a youth
+  coach, not engineering issues.
+- The five-player Mac frame-rate measurement and live cross-
+  browser fullscreen capture (Chrome / Safari / Firefox) still
+  require a developer machine; they are explicitly out of scope
+  for this environment per Phase F's documented constraint.
+
+#### Premium trainer or prototype?
+
+**Premium trainer, with one honest caveat.** Replay determinism,
+indicator clarity, fullscreen behaviour, the new young-player
+copy, and the Phase F athlete silhouette read as one product.
+The H5 prompt trim was the last visible seam between phases.
+
+The honest caveat: from the broadcast camera, players still read
+as stylized placeholders, not photoreal athletes. That ceiling is
+documented in Phase F's "out of scope" list and is the explicit
+landing zone for the Future Phase I asset-pipeline spike. Inside
+the constraints set in §6 / E4 (no facial detail, no PBR
+textures, no SkinnedMesh) the F5 athlete is the cleanest possible
+silhouette.
+
+#### What Phase I (asset pipeline spike) should focus on next
+
+- Visual improvement of the on-court silhouette under the
+  gameplay camera — the gap that Phase F could not close inside
+  its code-built mesh boundary.
+- Mac / Safari frame-rate measurement at default DPR with five
+  players + post-answer overlays, since this environment cannot
+  run those captures.
+- Whether one stylized GLB athlete per player (no rigging, per-
+  stance pose meshes) raises the silhouette ceiling enough to
+  justify the asset-pipeline cost. Stay inside the replay-
+  determinism guarantee Phase B locked in.
+
+#### Final validation summary (Phase H tip)
+
+- **JSON parse.** Green after every edit.
+- **Schema cap check.** Trimmed prompt is 36 chars / 140 cap;
+  every other Phase G/H string sits inside its existing cap.
+- **Type signatures.** Unchanged across G + H; no caller
+  updates needed.
+- **`pnpm lint` / `typecheck` / `test` / `qa:scene:screenshots`.**
+  Same environmental constraint Phase F documented (web app
+  needs `pnpm install` + Prisma generate before tsc/lint can run;
+  Playwright needs a Mac for browser captures). The failure
+  surface for the H change is JSON parse + schema cap, both
+  green.
+
+
 ### Future Phase I — True Trainer Asset Pipeline Spike
 
 Phase F deliberately stayed inside a code-built mesh boundary so
