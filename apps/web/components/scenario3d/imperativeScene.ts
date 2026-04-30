@@ -958,6 +958,23 @@ const YAW_TIME_CONSTANT_DEFENSE_S = 0.1
 const MOVEMENT_DIRECTION_EPS_SQ = 0.01
 
 /**
+ * Phase C / C5 — ball arc tuning.
+ *
+ *  - `BALL_PEAK_MULT_PASS` (0.25) — the existing multiplier for a
+ *    standard pass. Distance × mult gives the apex height in ft.
+ *  - `BALL_PEAK_MULT_SKIP` (0.10) — line-drive multiplier for skip
+ *    passes. A 30-ft skip peaks at 3 ft instead of clipping the cap.
+ *  - `BALL_PEAK_MIN_FT` (0.7) — floor for very short hand-offs so the
+ *    ball does not pop above the passer's shoulder on a 3-ft feed.
+ *  - `BALL_PEAK_MAX_FT` (7.0) — ceiling so cross-court bombs stay
+ *    under the gym shell on the broadcast camera.
+ */
+const BALL_PEAK_MULT_PASS = 0.25
+const BALL_PEAK_MULT_SKIP = 0.1
+const BALL_PEAK_MIN_FT = 0.7
+const BALL_PEAK_MAX_FT = 7.0
+
+/**
  * Resolves the movement list for a given mode. Centralised here so the
  * imperative MotionController and the older JSX ScenarioReplayController
  * agree on which list to play even though they live in separate files.
@@ -1468,12 +1485,22 @@ export class MotionController {
       const toZ = phase.pass.to.z
       const x = fromX + (toX - fromX) * eased
       const z = fromZ + (toZ - fromZ) * eased
-      // Symmetric parabolic arc with peak height proportional to pass
-      // distance, capped so cross-court bombs do not visibly clip the
-      // gym ceiling.
+      // Phase C / C5 — kind-aware parabolic arc.
+      //  - `skip_pass` uses a low multiplier so cross-court skips read
+      //    as line drives, not lazy lobs.
+      //  - Default `pass` uses the same multiplier as before.
+      //  - The minimum peak floor is dropped from 2.0 ft to 0.7 ft so
+      //    short hand-offs don't pop above the passer's shoulder. The
+      //    7 ft cap stays in place to keep cross-court bombs under the
+      //    gym ceiling.
+      //  - Y now follows the same eased curve as X/Z, so the apex
+      //    aligns with the visual midpoint of the pass instead of
+      //    landing too early on short throws.
       const dist = Math.hypot(toX - fromX, toZ - fromZ)
-      const peak = Math.min(7, Math.max(2, dist * 0.25))
-      const y = this.baseBallY + peak * 4 * u * (1 - u)
+      const peakMultiplier =
+        phase.pass.kind === 'skip_pass' ? BALL_PEAK_MULT_SKIP : BALL_PEAK_MULT_PASS
+      const peak = Math.min(BALL_PEAK_MAX_FT, Math.max(BALL_PEAK_MIN_FT, dist * peakMultiplier))
+      const y = this.baseBallY + peak * 4 * eased * (1 - eased)
       this.ballGroup.position.set(x, y, z)
       return
     }

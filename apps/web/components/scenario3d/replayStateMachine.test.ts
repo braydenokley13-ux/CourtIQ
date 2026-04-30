@@ -1149,3 +1149,121 @@ describe('Phase C / C4 — defender reaction speed', () => {
     expect(defenderDist).toBeLessThan(offenseDist)
   })
 })
+
+describe('Phase C / C5 — ball arc + freeze accuracy', () => {
+  // The ball-arc kind dispatch lives inside MotionController.applyBall,
+  // which writes to ballGroup.position. The tests sample y at multiple
+  // u values along an in-flight phase to verify peak height and
+  // apex alignment.
+  function buildPassScene(passKind: 'pass' | 'skip_pass', toX: number, toZ: number, durationMs = 500): Scene3D {
+    return {
+      id: 'arc_test',
+      court: 'half',
+      camera: 'teaching_angle',
+      players: [
+        { id: 'pg', team: 'offense', role: 'pg', start: { x: 0, z: 0 }, hasBall: true },
+        { id: 'wing', team: 'offense', role: 'wing', start: { x: toX, z: toZ } },
+      ],
+      ball: { start: { x: 0, z: 0 }, holderId: 'pg' },
+      movements: [
+        { id: 'p', playerId: 'ball', kind: passKind, to: { x: toX, z: toZ }, durationMs },
+      ],
+      answerDemo: [],
+      wrongDemos: [],
+      preAnswerOverlays: [],
+      postAnswerOverlays: [],
+      freezeAtMs: null,
+      synthetic: false,
+    }
+  }
+
+  function ballYAt(scene: Scene3D, atMs: number): number {
+    const { motion, ball } = makeMotion(scene)
+    motion.tick(0)
+    motion.tick(atMs)
+    return ball.position.y - 0.5 // subtract baseBallY so we're checking arc above ground
+  }
+
+  it('peaks higher for a normal pass than for a skip pass over the same distance', () => {
+    // 25 ft pass: skip_pass peak = clamp(25 * 0.10, 0.7, 7.0) = 2.5
+    //              pass peak     = clamp(25 * 0.25, 0.7, 7.0) = 6.25
+    const sceneNormal = buildPassScene('pass', 25, 0)
+    const sceneSkip = buildPassScene('skip_pass', 25, 0)
+    // Sample at PRE_DELAY + half-duration (mid-flight).
+    const tMid = 250 + 250
+    const yNormal = ballYAt(sceneNormal, tMid)
+    const ySkip = ballYAt(sceneSkip, tMid)
+    expect(yNormal).toBeGreaterThan(ySkip)
+    // Skip stays well below the pass apex for a 25-ft cross-court line.
+    expect(ySkip).toBeLessThan(3)
+    expect(yNormal).toBeGreaterThan(5)
+  })
+
+  it('honors the 7 ft ceiling on cross-court bombs', () => {
+    // 40 ft pass: raw mult = 10, clamped to 7.
+    const scene = buildPassScene('pass', 40, 0)
+    const yMid = ballYAt(scene, 250 + 250)
+    // At u=0.5 the parabola is at peak = 7.
+    expect(yMid).toBeCloseTo(7, 1)
+  })
+
+  it('honors the 0.7 ft floor on tiny hand-offs', () => {
+    // 1 ft hand-off: raw mult = 0.25, clamped to 0.7.
+    const scene = buildPassScene('pass', 1, 0)
+    const yMid = ballYAt(scene, 250 + 250)
+    // Apex is at peak = 0.7 (the floor) — well below shoulder height.
+    expect(yMid).toBeCloseTo(0.7, 2)
+  })
+
+  it('apex sits at the eased mid-flight, not the raw mid-flight', () => {
+    // Y now follows the same eased curve as X/Z, so at the visual
+    // midpoint of the pass (ease-in-out cubic at u=0.5 → 0.5) the ball
+    // is at the apex. At a quarter of real-time (u=0.25, eased=0.0625)
+    // the ball is barely off the ground, NOT 75% up like before.
+    const scene = buildPassScene('pass', 20, 0)
+    const yMid = ballYAt(scene, 250 + 250)
+    const yQuarter = ballYAt(scene, 250 + 125)
+    // Mid is the apex.
+    expect(yMid).toBeGreaterThan(yQuarter)
+    // At u=0.25 → eased=0.0625, height = peak * 4 * 0.0625 * 0.9375 ≈
+    // peak * 0.234. For a 20ft pass peak=5: yQuarter ≈ 1.17.
+    // Pre-fix it was peak * 0.75 ≈ 3.75 — much higher than what we now see.
+    expect(yQuarter).toBeLessThan(2)
+  })
+
+  it('ball position is rate-aware (mid-flight at 2x reaches apex at half real time)', () => {
+    const scene = buildPassScene('pass', 20, 0, 600)
+    const { motion, ball } = makeMotion(scene)
+    motion.setPlaybackRate(2)
+    motion.tick(0)
+    // getElapsedMs(now) = (now - startedAt - PRE_DELAY) * rate.
+    // For visible t=300 (mid of 600ms timeline) at rate=2:
+    //   now - 0 - 250 = 150 → now = 400ms.
+    motion.tick(400)
+    const yAt2x = ball.position.y - 0.5
+    // At u=0.5, eased=0.5, height = peak * 4 * 0.5 * 0.5 = peak.
+    const peak = 20 * 0.25
+    expect(yAt2x).toBeCloseTo(peak, 1)
+  })
+
+  it('freeze inside an in-flight pass clamps t at the cap and does not overshoot', () => {
+    const scene = buildPassScene('pass', 20, 0, 600)
+    // Freeze at mid-flight in scene time (300ms).
+    scene.freezeAtMs = 300
+    const { motion, ball } = makeMotion(scene)
+    motion.setFreezeAtMs(300)
+    motion.tick(0)
+    motion.tick(250 + 800) // long past the cap
+    const ySnapped = ball.position.y - 0.5
+    // The held position must equal the position at exactly t=300, not
+    // some later overshoot. Recompute the expected y from the exact
+    // same arc math used in the controller.
+    const u = 300 / 600
+    const easeInOutCubic = (uu: number): number =>
+      uu < 0.5 ? 4 * uu * uu * uu : 1 - Math.pow(-2 * uu + 2, 3) / 2
+    const e = easeInOutCubic(u)
+    const peak = 20 * 0.25
+    const expectedY = peak * 4 * e * (1 - e)
+    expect(ySnapped).toBeCloseTo(expectedY, 4)
+  })
+})
