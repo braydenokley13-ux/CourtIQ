@@ -4195,6 +4195,14 @@ function buildAthleteFigure(
     calfMesh.position.y = -ATH_CALF_LENGTH * 0.5
     calfMesh.castShadow = true
     calf.add(calfMesh)
+    // Knee dome — small skin-tone sphere at the joint so the leg
+    // reads as two segments connected at a knee, not a single tube.
+    const kneeDome = new THREE.Mesh(
+      new THREE.SphereGeometry(ATH_CALF_TOP_R * 1.05, 10, 6),
+      skinMat,
+    )
+    kneeDome.position.y = 0
+    calf.add(kneeDome)
 
     const foot = new THREE.Group()
     foot.name = 'foot'
