@@ -75,3 +75,11 @@ These notes are implementation-level QA derived from the Phase M builder + tests
 | indicator stability    | stable               | stable                 | tie          |
 | performance            | well under budget    | well under budget      | tie          |
 | teaching clarity       | clear                | clearer at replay      | skinned      |
+
+### Decision
+
+Path **D — hybrid**: keep procedural as the production default now, but continue the skinned/GLB experiment as the next investment.
+
+- The generated low-poly prototype proves the SkinnedMesh + AnimationMixer architecture works (clips, indicators, fallback, budget) but does not on its own clear the bar for premium static visuals.
+- The motion-clarity win is real. The static-look regression is also real. A license-clean GLB rig is the smallest next step that lets us keep the motion architecture and recover premium look.
+- Procedural fallback remains the safety net. Do not delete the procedural path. Do not flip `USE_SKINNED_ATHLETE_PREVIEW` to `true` for production. Do not ship a GLB until the licensing + retargeting pass is scoped.
