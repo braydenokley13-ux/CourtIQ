@@ -6648,4 +6648,163 @@ states deterministically per replay tick.
   commit, scoped to the step's deliverable.
 
 
+## Phase M Findings
+
+#### 1. Did Phase M create a real skinned preview path?
+
+Yes. `apps/web/components/scenario3d/skinnedAthlete.ts`
+ships a generated low-poly humanoid prototype rendered
+through a single `THREE.SkinnedMesh` bound to an 11-bone
+skeleton (hips → spine → head, L/R upper arm → forearm,
+L/R thigh → shin). Vertices are placed in mesh-local
+coordinates that match the bind world positions; skin
+weights are hard one-bone-per-vertex assignments so the
+GPU skinning shader can deform the mesh deterministically
+when bones rotate.
+
+#### 2. Did it include AnimationMixer support?
+
+Yes. The builder constructs an `AnimationMixer` per
+figure with three named clips:
+
+* `idle_ready` (2.4s loop, ~3deg spine sway, slight knee
+  bend, hands relaxed)
+* `cut_sprint` (0.8s loop, hip yaw + spine forward lean,
+  arm/leg phase opposition with the leading thigh ~37deg
+  forward and trailing thigh ~26deg back)
+* `defense_slide` (1.0s loop, wide stance with thighs
+  splayed ~12deg outward, hips rocking ±3deg, hands held
+  high)
+
+Mixer ticks flow through `updateSkinnedAthletePose(figure,
+dt)`. `setSkinnedAthleteAnimation(figure, name)` cross-
+fades to a target clip with a configurable fade duration
+(default 0.15s). Clips are cached process-wide so each
+new figure shares the same `AnimationClip` array.
+
+#### 3. Is the procedural player still default?
+
+Yes. `USE_SKINNED_ATHLETE_PREVIEW` defaults to `false`
+in `imperativeScene.ts`. With the flag off, the call
+chain is byte-for-byte identical to the pre-Phase-M
+behaviour: `buildPlayerFigure` skips the skinned path
+and goes straight to the procedural premium → procedural
+Phase F fallback. BDW-01 renders the procedural figure.
+A vitest case (`Phase M — flag default`) guards the
+default explicitly.
+
+#### 4. Is fallback preserved?
+
+Yes. The selector tries the skinned path first (when
+flag on), then the procedural premium path, then the
+procedural Phase F path. Every non-default branch is
+wrapped in try/catch and the skinned branch additionally
+returns `null` instead of throwing on missing
+prerequisites. The Phase F figure is the guaranteed
+last resort.
+
+#### 5. What animations were implemented?
+
+`idle_ready`, `cut_sprint`, `defense_slide`. All three
+are deterministic procedural keyframe clips built from
+`THREE.QuaternionKeyframeTrack` against bone names. No
+external clip imports.
+
+#### 6. Does replay still own root motion?
+
+Yes. The clips affect bone *rotation* only — there are
+no position tracks on the root bone or the figure root.
+The motion controller continues to set the figure's
+world transform from the timeline; the mixer only
+deforms the figure's pose around its current world
+position. Determinism flows from controlled `dt` to the
+mixer in the same way it flows to the timeline sampler.
+
+#### 7. Are indicators preserved?
+
+Yes. `getPlayerIndicatorLayers` resolves the same four
+layers (`base`, `user`, `userHead`, `possession`) on a
+skinned figure as on a procedural figure. The chevron
+rides above the head's bind world position +1.1 ft and
+is parented to the figure root (not the head bone) so
+it stays vertical during animation. Floor rings sit at
+y ≈ 0.05 to match the procedural floor lift. A vitest
+case verifies the chevron is at least 0.5 ft above the
+SkinnedMesh's bounding box top.
+
+#### 8. What performance risks remain?
+
+* **GPU skinning cost.** 600 tris per figure × 10
+  figures × hard one-bone-per-vertex skinning is well
+  under the procedural figure's per-scenario triangle
+  budget, but skinning still costs more per pixel than
+  rigid sub-group rotations. Headroom is intentional —
+  the cap is set at 800 tris (target ~500–700) so a
+  follow-up that tightens the prototype mesh has room.
+* **Material count.** The skinned figure uses one
+  shared MeshStandardMaterial per figure today.
+  Sharing across figures (one material per team) would
+  save further GPU state changes; deferred to a follow-
+  up pass.
+* **Bone count.** 11 bones is the floor for a humanoid.
+  Adding pelvis/spine sub-bones, clavicles, or a neck
+  bone would smooth the silhouette but increase
+  per-vertex skinning cost. Deferred until visual QA
+  shows the floor count is the bottleneck.
+* **AnimationMixer time accumulation.** `mixer.update`
+  uses delta time. The motion controller already drives
+  this from a controlled tick, but if a follow-up
+  routes scrub/rewind through `mixer.setTime()` instead
+  of accumulating delta, the determinism story stays
+  airtight.
+* **No LOD.** A camera close-up will reveal the cylinder-
+  segment construction. Deferred until the prototype
+  proves visually viable.
+
+#### 9. What should happen next?
+
+Run a manual visual QA / comparison of the procedural
+vs skinned preview path on BDW-01:
+
+1. Render BDW-01 with the flag off (current
+   procedural figures) and capture screenshots of the
+   teaching beat.
+2. Flip the flag to `true` and re-render. Capture
+   screenshots of the same beats.
+3. Compare:
+   * Does the skinned figure read as a real athlete
+     in motion, or does the low-poly silhouette break
+     the trainer feel?
+   * Do the three clips read distinctly during play
+     (idle vs sprint vs defensive slide)?
+   * Are indicators (chevron, halo, possession ring)
+     stable and legible at the broadcast camera
+     distance?
+   * Is performance acceptable on the QA hardware
+     baseline?
+
+Decision branches based on the QA outcome:
+
+* **A. Improve the generated prototype.** If the
+  motion reads well but the silhouette is the
+  bottleneck, add segment count, clavicles, smoother
+  hips, and possibly two-bone-per-vertex skinning on
+  the elbow/knee.
+* **B. Source a license-clean GLB.** If the motion
+  reads well but the *prototype* is the bottleneck,
+  open a J7-class follow-up to import a license-clean
+  GLB rig (Mixamo/Adobe-licensed avatar) and re-target
+  the three clips. This is the larger investment and
+  introduces an asset pipeline the recovery plan has
+  intentionally avoided.
+* **C. Remain procedural.** If the skinned preview
+  still does not move the trainer feel materially
+  past Phase L, keep the procedural path as the
+  default and revisit only if a content-expansion
+  phase clears the queue.
+
+Phase M ships the experiment and the seam; the next
+phase ships the verdict.
+
+
 
