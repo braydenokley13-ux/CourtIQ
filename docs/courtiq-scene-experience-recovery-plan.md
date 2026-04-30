@@ -2681,3 +2681,142 @@ BDW-01:
   (e.g., a denying defender turns faster than a helper) would be a
   natural Phase F follow-on if needed.
 
+---
+
+## 15. Phase D — Fullscreen Film Room Mode
+
+### D1 — Fullscreen UX Plan
+
+> Docs-only milestone. All open questions resolved here before any
+> code is written. The answers below drive D2–D5 implementation.
+
+#### Button placement
+
+The fullscreen toggle lives in the **top-right cluster** of
+`PremiumOverlay`, to the right of the camera selector. The cluster
+already groups "what am I looking at" controls (replay badge, paths
+toggle, camera selector). Fullscreen belongs there because it is also
+a view-mode affordance, not a timeline control.
+
+```
+top-right cluster (left → right):
+  [REPLAY badge] [Paths on/off] [Camera ▾] [⛶ / ⛶ Exit]
+```
+
+The button is a compact chip matching the camera-selector aesthetic
+(`ciq-broadcast-chip`, same font/size/opacity transitions).
+
+#### Icon design
+
+- **Enter fullscreen**: four-corner expand glyph (arrows pointing
+  outward from center).
+- **Exit fullscreen**: four-corner collapse glyph (arrows pointing
+  inward).
+- Icon drawn as an inline SVG `viewBox="0 0 16 16"`,
+  `stroke="currentColor"`, consistent with the rest of the overlay
+  icon set.
+- `aria-label` changes between "Enter fullscreen" and "Exit
+  fullscreen" to reflect the current state.
+
+#### Control persistence inside fullscreen
+
+**All controls remain visible and usable inside fullscreen.** The
+overlay is positioned `absolute inset-0` over the canvas wrapper, and
+that wrapper is the fullscreen element. The overlay's DOM tree travels
+with the element into fullscreen — no control is re-mounted or
+teleported.
+
+Controls confirmed reachable in fullscreen:
+- Restart, Play/Pause, Speed selector (bottom-center transport pill)
+- Paths toggle (top-right cluster)
+- Camera selector (top-right cluster)
+- Fullscreen toggle now showing "Exit" (top-right cluster)
+- Concept chip, Replay badge (top-left / top-right, already in DOM)
+
+#### Escape behavior
+
+The browser's native `Escape` key exits fullscreen (this is mandatory
+and cannot be suppressed). A `fullscreenchange` event fires on the
+element; the listener updates `isFullscreen` state so the button icon
+and aria-label flip back to "Enter." No custom Escape binding is
+added.
+
+#### Train-page shell hiding
+
+The fullscreen element is the **canvas wrapper div** inside
+`Scenario3DView` (the same `div.relative.h-full.w-full` that wraps
+`Scenario3DCanvas` and `PremiumOverlay`). When the browser promotes
+this element to fullscreen, it renders it at full viewport size
+independent of the page's normal document flow. The decoder pill,
+answer cards, and header in `app/train/page.tsx` remain in the DOM
+but are behind the fullscreen layer — the browser stacking context
+ensures they are not visible.
+
+No changes to `app/train/page.tsx` are required for shell hiding; the
+browser fullscreen spec handles it. A minimal `data-fullscreen` hook
+is added to the container only if CSS `:fullscreen` fixes are needed
+for control sizing (deferred to D4).
+
+#### State ownership
+
+`isFullscreen: boolean` lives in **`Scenario3DView`**. It is the
+parent that owns the container ref and manages overlay state; the
+canvas stays narrowly focused on imperative rendering.
+
+```ts
+// Scenario3DView pseudo-code
+const containerRef = useRef<HTMLDivElement>(null)
+const [isFullscreen, setIsFullscreen] = useState(false)
+
+function toggleFullscreen() {
+  if (typeof document === 'undefined') return
+  if (!document.fullscreenElement) {
+    containerRef.current?.requestFullscreen()
+  } else {
+    document.exitFullscreen()
+  }
+}
+
+useEffect(() => {
+  if (typeof document === 'undefined') return
+  const el = containerRef.current
+  if (!el) return
+  const onChange = () => setIsFullscreen(!!document.fullscreenElement)
+  el.addEventListener('fullscreenchange', onChange)
+  return () => el.removeEventListener('fullscreenchange', onChange)
+}, [])
+```
+
+All access to `document.fullscreenElement`, `requestFullscreen()`, and
+`exitFullscreen()` is guarded behind `typeof document !== 'undefined'`
+checks so the component SSR-renders without errors.
+
+#### Canvas sizing in fullscreen
+
+When `isFullscreen` is true, `Scenario3DView` passes `height={undefined}`
+(or a very large sentinel) to `Scenario3DCanvas` so the canvas uses
+`height: 100%` of its container instead of the fixed `320px` default.
+The canvas's `containerRef` already sets `width: 100%` and the R3F
+`<Canvas>` uses `style={{ width: '100%', height: '100%' }}`, so no
+resize observer is required — the renderer naturally fills the
+fullscreen element. The browser's resize of the fullscreen element
+triggers R3F's size tracking which re-renders at the correct
+resolution.
+
+The DPR / FPS guard is unaffected. The fullscreen element inherits the
+same pixel ratio as before; the guard continues to degrade the tier if
+sustained low FPS is detected.
+
+#### Open questions resolved
+
+| Question | Answer |
+|---|---|
+| Where does the button live? | Top-right cluster, after camera selector |
+| What icon? | Expand/collapse SVG corners glyph, 12×12px |
+| Do controls disappear in fullscreen? | No — all controls stay |
+| Does Escape need custom handling? | No — browser native is correct |
+| Does the train shell bleed in? | No — browser fullscreen stacking handles it |
+| Is SSR safe? | Yes — typeof document guards on all API access |
+| Does canvas resize? | Yes — height becomes 100% in fullscreen element |
+| Does DPR / FPS guard change? | No — unchanged |
+
