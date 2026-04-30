@@ -209,3 +209,22 @@ Coordinates in feet, origin at rim, +x = right sideline, +z = toward half-court.
 | D3 | On O3 | -21 | 3 | Tight on left corner |
 | **D4** | **On you — closing out** | 16 | 9 | **Parallel feet, forward momentum, ~2ft from O4** |
 | D5 | On O5 | 21 | 3 | Tight on right corner |
+
+### Camera Angle
+
+**Primary cam:** Over-the-shoulder of the user, slight downward tilt toward the defender's feet.
+- Position: ~ (24, 6, 12) — looking from behind/right of O4 toward D4 and the rim.
+- The user sees the **defender's feet, hips, and the empty lane** in the same shot.
+- Critical because the cue is **feet** — the camera must show the floor.
+
+**Secondary cam (replay only):** Side-on from half-court — used to show D4's parallel-feet stance and forward lean clearly.
+
+### Freeze-Frame Moment
+
+The play runs for ~1.6 seconds:
+1. O2 catches a swing on the left wing (~0.3s).
+2. O2 immediately swings to PG → PG to O4 (right wing). Ball flight ~0.7s total.
+3. D4 reads the pass and sprints to closeout (~0.5s of motion).
+4. **FREEZE** at 1.5s — the ball just hit O4's hands; D4 is two feet away with parallel feet, momentum still forward.
+
+Defender's feet, your hands, and the empty lane behind D4 must all be visible at the freeze.
