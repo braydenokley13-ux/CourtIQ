@@ -53,3 +53,21 @@ Design specs for the 3D film-room decision scenarios.
 **Lesson Connection:** Decoder 1 — *The Empty-Space Cut*. The cue here is **head turn + empty space**. Same cue, every time, in every scenario.
 
 **One-Sentence Teaching Point:** "When the eyes leave, the feet move."
+
+### 3D Court Setup
+
+Coordinates in feet, origin at rim center, +x = right sideline, +z = toward half-court. Strong side = right.
+
+| ID | Role | x | z | Notes |
+| --- | --- | --- | --- | --- |
+| O1 | Point guard (just passed) | -3 | 20 | Above the key, drifting left |
+| O2 | Strong-side wing — **has ball** | 18 | 8 | Just caught the swing |
+| O3 | Strong-side corner | 22 | 1 | Spaced, ready to shoot |
+| **O4** | **You — weak-side wing** | -18 | 8 | The user marker |
+| O5 | Post | 4 | 4 | Strong-side block |
+| — | (weak-side corner) | -22 | 1 | **EMPTY** — no offensive player |
+| D1 | On O1 | -3 | 17 | Slight drop, ball-watching |
+| D2 | On O2 (ball) | 17 | 9 | On-ball, hand high |
+| D3 | On O3 | 22 | 3 | Tight on the corner shooter |
+| **D4** | **On you (O4)** | -12 | 9 | "In the gap" — head turned to ball |
+| D5 | On O5 | 4 | 6 | High-side fronting the post |
