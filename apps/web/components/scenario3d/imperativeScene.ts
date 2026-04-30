@@ -3344,7 +3344,19 @@ const YOKE_Y = TORSO_Y + TORSO_HEIGHT / 2 - YOKE_HEIGHT * 0.55
  * phases can add `'closeout'`, `'sag'`, `'cut'` here without changing
  * the call sites — only `buildPlayerFigure` interprets the value.
  */
-type PlayerStance = 'idle' | 'defensive' | 'denial'
+type PlayerStance =
+  | 'idle'
+  | 'defensive'
+  | 'denial'
+  // Phase F2 additions — supported by the athlete builder so the
+  // stance routing change in a follow-up phase (visual-system plan
+  // §18.4) only needs to start picking these names. Closeout is the
+  // hard requirement for AOR-01; cut and sag/shrink ship as
+  // softer stubs the renderer accepts without rebuilding geometry.
+  | 'closeout'
+  | 'cut'
+  | 'sag'
+  | 'shrink'
 
 // Crouch lower — how far the upper body drops in defensive / denial
 // stances. The legs stay full length; the shorts cover the visual
@@ -4610,10 +4622,40 @@ function applyAthleteStance(joints: AthleteJoints, stance: PlayerStance): void {
     case 'denial':
       applyDenialPose(joints)
       return
+    case 'closeout':
+      applyCloseoutPose(joints)
+      return
     default:
       applyIdlePose(joints)
       return
   }
+}
+
+/**
+ * Closeout stance — mid-crouch with shoulders forward, front foot
+ * planted with toe forward, back foot trailing, both arms wide and
+ * up. Reads as urgent forward pressure ("balanced vs out-of-control"
+ * is the AOR-01 read this stance enables).
+ */
+function applyCloseoutPose(joints: AthleteJoints): void {
+  joints.upperBody.position.y = -0.20
+  // Front foot (right) planted forward, back foot (left) trailing.
+  // Knee bends are smaller than defensive — closeout is mid-flight.
+  joints.leftThigh.rotation.set(-0.20, 0, -0.05)
+  joints.leftCalf.rotation.set(0.45, 0, 0)
+  joints.leftFoot.rotation.set(-0.18, 0, 0)
+  joints.rightThigh.rotation.set(-0.40, 0, 0.10)
+  joints.rightCalf.rotation.set(0.55, 0, 0)
+  joints.rightFoot.rotation.set(-0.20, 0, 0)
+  // Body angled forward toward the shooter with the chest leading.
+  joints.pelvis.rotation.set(0.10, 0, 0)
+  joints.torso.rotation.set(-0.32, 0, 0)
+  joints.neckHead.rotation.set(0.15, 0, 0)
+  // Both arms wide and up — palms-forward closeout shape.
+  joints.leftUpperArm.rotation.set(-0.85, 0, 1.20)
+  joints.leftForeArm.rotation.set(-0.35, 0, 0)
+  joints.rightUpperArm.rotation.set(-0.85, 0, -1.20)
+  joints.rightForeArm.rotation.set(-0.35, 0, 0)
 }
 
 /**
