@@ -264,3 +264,16 @@ Defender's feet, your hands, and the empty lane behind D4 must all be visible at
 | Bad shot indicator | Red "X" hovering above the ball when the shoot option is hovered | Red (only on hover) |
 
 Floor markers under D4's feet are the signature visual: they make the parallel-feet cue impossible to miss.
+
+### Feedback Text
+
+**Correct (best read — rip and drive):**
+> "That's it. His feet were flat — there was nowhere for him to go. One dribble and you're past."
+
+**Partial (acceptable read — sweep baseline / shot fake then drive):**
+> "Good attack. You read his momentum and used it. Next time, the rip-through to the middle gets you there a beat faster — but this works."
+
+**Wrong (shot / reset / pump fake):**
+> "His hand was in your face — that's not your shot. The closeout *was* the advantage: parallel feet, forward momentum. Next rep, look at his feet the second you catch — if they're flat, you go."
+
+---
