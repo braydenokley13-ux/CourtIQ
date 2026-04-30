@@ -3360,12 +3360,40 @@ export function computePlayerYaw(team: SceneTeam, x: number, z: number): number 
 }
 
 /**
- * Phase F — public builder entry point. Builds the code-built
- * low-poly stylized-athlete figure described in the recovery plan
- * §16 E4. Signature is locked: `(teamColor, trimColor, isUser,
- * hasBall, jerseyNumber, stance) → THREE.Group`. Exported so the
- * disposal-leak / budget tests can build figures in isolation;
- * production rendering routes through `buildBasketballGroup`.
+ * Phase J — when true, `buildPlayerFigure` produces the premium
+ * code-built athlete (Option B of the Phase J implementation
+ * direction). When false, the original Phase F figure is rendered
+ * unchanged. The boundary lives here so disposal/triangle tests and
+ * the production renderer all flow through the same selector.
+ *
+ * BDW-01 (the Phase F target trainer scenario) picks up the premium
+ * path through the standard renderer route — `Scenario3DView →
+ * Scenario3DCanvas → buildBasketballGroup → buildPlayerFigure` — so
+ * no special-case wiring is needed in the trainer. Flipping this
+ * flag off at any time reverts every BDW-01 player to the Phase F
+ * figure on the next mount.
+ *
+ * The premium path is wrapped in a try/catch by `buildPlayerFigure`
+ * so any unexpected error reverts to the Phase F figure at runtime —
+ * the trainer never crashes if the premium builder regresses.
+ */
+const USE_PREMIUM_ATHLETE = true
+
+/**
+ * Phase F / J — public builder entry point. Returns the premium
+ * code-built athlete (Phase J, Option B) when `USE_PREMIUM_ATHLETE`
+ * is true; otherwise returns the Phase F low-poly stylized athlete
+ * (E4 §3 contract). Signature is locked across both paths:
+ * `(teamColor, trimColor, isUser, hasBall, jerseyNumber, stance) →
+ * THREE.Group`. Exported so the disposal-leak / budget tests can
+ * build figures in isolation; production rendering routes through
+ * `buildBasketballGroup`.
+ *
+ * Fallback policy: if the premium path throws for any reason (e.g.
+ * a regression on a new geometry helper), `buildPlayerFigure`
+ * silently falls back to the Phase F figure so the trainer keeps
+ * rendering. The fallback is the same code path that shipped at the
+ * tip of Phase H, so callers see no contract change.
  */
 export function buildPlayerFigure(
   teamColor: string,
@@ -3375,6 +3403,21 @@ export function buildPlayerFigure(
   jerseyNumber: string,
   stance: PlayerStance,
 ): THREE.Group {
+  if (USE_PREMIUM_ATHLETE) {
+    try {
+      return buildPremiumAthleteFigure(
+        teamColor,
+        trimColor,
+        isUser,
+        hasBall,
+        jerseyNumber,
+        stance,
+      )
+    } catch {
+      // Phase J fallback — premium path failed, render the
+      // Phase F figure so the scene never crashes.
+    }
+  }
   return buildAthleteFigure(teamColor, trimColor, isUser, hasBall, jerseyNumber, stance)
 }
 
@@ -4048,6 +4091,475 @@ function buildAthleteFigure(
   void ATH_FOOT_Y
 
   return figure
+}
+
+// =====================================================================
+// Phase J — Premium code-built athlete (Option B of the Phase J
+// implementation direction). Builds on top of the Phase F figure with
+// upgraded silhouette, smoother body proportions, clearer jersey /
+// shorts / shoe separation, and richer materials. Stance is still
+// applied by the existing `applyAthleteStance` lookup so replay
+// determinism, indicator alignment, and disposal stay identical to the
+// Phase F path.
+//
+// The premium path is opt-in via `USE_PREMIUM_ATHLETE` and wrapped in
+// a try/catch inside `buildPlayerFigure`, so the Phase F figure is
+// always available as the live fallback.
+// =====================================================================
+
+/**
+ * Phase J — premium athlete builder. Initially delegates to the
+ * Phase F builder so the boundary is observable without changing the
+ * rendered geometry. Subsequent commits in this phase replace the
+ * delegated call with an upgraded silhouette while preserving the
+ * sub-group taxonomy, indicator layers, and disposal contract.
+ *
+ * Same public signature as `buildPlayerFigure` / `buildAthleteFigure`.
+ */
+function buildPremiumAthleteFigure(
+  teamColor: string,
+  trimColor: string,
+  isUser: boolean,
+  hasBall: boolean,
+  jerseyNumber: string,
+  stance: PlayerStance,
+): THREE.Group {
+  // Phase J starts from the Phase F figure (taxonomy, materials,
+  // indicator layers, disposal-safe parenting) and surgically upgrades
+  // specific parts. This keeps the public contract identical and the
+  // fallback live by construction.
+  const figure = buildAthleteFigure(
+    teamColor,
+    trimColor,
+    isUser,
+    hasBall,
+    jerseyNumber,
+    stance,
+  )
+  upgradePremiumTorso(figure)
+  upgradePremiumHeadAndShoulders(figure)
+  upgradePremiumArms(figure)
+  upgradePremiumLegsAndFeet(figure)
+  upgradePremiumUniform(figure, trimColor)
+  upgradePremiumRoleReadability(figure, hasBall, stance)
+  return figure
+}
+
+/**
+ * Phase J4 — push role / stance readability further at gameplay
+ * camera by adding small, narrow visual cues that ride existing
+ * inputs (`hasBall`, `stance`). No new scenario data, no new
+ * indicator layers, no scoreboard changes.
+ *
+ * - Ball-handler wristband: a thin possession-color band on the
+ *   right forearm whenever `hasBall` is true. Reads as "this player
+ *   has the ball" even when the held basketball is occluded by
+ *   another figure or hidden behind a screen.
+ * - Defender forearm cuff: a thin trim-color cuff on the right
+ *   forearm for defensive stances (defensive / denial / closeout /
+ *   sag / shrink). Sells "geared-up defender" at a glance and helps
+ *   the BDW-01 denial silhouette read against the offense at the
+ *   broadcast camera distance.
+ */
+function upgradePremiumRoleReadability(
+  figure: THREE.Object3D,
+  hasBall: boolean,
+  stance: PlayerStance,
+): void {
+  const rightArm = figure.getObjectByName('rightArm') as THREE.Group | null
+  if (!rightArm) return
+  const foreArm = rightArm.getObjectByName('foreArm') as THREE.Group | null
+  if (!foreArm) return
+  // Ball-handler wristband — gold torus, low tess, near the wrist.
+  if (hasBall) {
+    const wristMat = new THREE.MeshStandardMaterial({
+      color: POSSESSION_RING_COLOR,
+      roughness: 0.55,
+      metalness: 0.18,
+    })
+    const wristband = new THREE.Mesh(
+      new THREE.TorusGeometry(ATH_FORE_ARM_R * 1.35, 0.05, 4, 12),
+      wristMat,
+    )
+    wristband.rotation.x = Math.PI / 2
+    wristband.position.y = -ATH_FORE_ARM_LENGTH * 0.92
+    foreArm.add(wristband)
+  }
+  // Defender cuff — trim-color torus slightly above the wristband so
+  // the two cues never overlap when both apply (a defender steal/
+  // possession transition is theoretically possible).
+  const isDefensive =
+    stance === 'defensive' ||
+    stance === 'denial' ||
+    stance === 'closeout' ||
+    stance === 'sag' ||
+    stance === 'shrink'
+  if (isDefensive) {
+    // Pull the trim color off the existing piping material added in
+    // J3E so we don't mint a brand new color reference per defender.
+    const torso = figure.getObjectByName('torso') as THREE.Group | null
+    let trimColor: THREE.ColorRepresentation = '#FFFFFF'
+    if (torso) {
+      for (const child of torso.children) {
+        if (child instanceof THREE.Mesh && child.geometry instanceof THREE.TorusGeometry) {
+          const m = child.material
+          if (m instanceof THREE.MeshStandardMaterial) trimColor = m.color.getHex()
+          break
+        }
+      }
+    }
+    const cuffMat = new THREE.MeshStandardMaterial({
+      color: trimColor,
+      roughness: 0.6,
+      metalness: 0.1,
+    })
+    const cuff = new THREE.Mesh(
+      new THREE.TorusGeometry(ATH_FORE_ARM_R * 1.30, 0.045, 4, 12),
+      cuffMat,
+    )
+    cuff.rotation.x = Math.PI / 2
+    cuff.position.y = -ATH_FORE_ARM_LENGTH * 0.72
+    foreArm.add(cuff)
+  }
+}
+
+/**
+ * Phase J3E — uniform polish. Adds a thin jersey shoulder piping ring
+ * in the trim color, a shorts hem band, and tunes the jersey/shorts
+ * material properties toward a slightly more premium sheen so the
+ * uniform reads as fabric instead of plastic. Reuses the existing
+ * jersey, shorts, and trim materials by reading them off Phase F
+ * meshes — no new shared materials.
+ */
+function upgradePremiumUniform(figure: THREE.Object3D, trimColor: string): void {
+  const torso = figure.getObjectByName('torso') as THREE.Group | null
+  const pelvis = figure.getObjectByName('pelvis') as THREE.Group | null
+  if (!torso || !pelvis) return
+  // Pull the jersey material off the upgraded torso lathe and tune it
+  // toward a fabric-like sheen.
+  let jerseyMat: THREE.MeshStandardMaterial | null = null
+  for (const child of torso.children) {
+    if (child instanceof THREE.Mesh && child.geometry instanceof THREE.LatheGeometry) {
+      const m = child.material
+      if (m instanceof THREE.MeshStandardMaterial) jerseyMat = m
+      break
+    }
+  }
+  // Pull the shorts material off the pelvis cylinder mesh.
+  let shortsMat: THREE.MeshStandardMaterial | null = null
+  for (const child of pelvis.children) {
+    if (child instanceof THREE.Mesh && child.geometry instanceof THREE.CylinderGeometry) {
+      const m = child.material
+      if (m instanceof THREE.MeshStandardMaterial) shortsMat = m
+      break
+    }
+  }
+  if (jerseyMat) {
+    // Slightly smoother jersey so the deltoid cap and torso curves
+    // pick up the rim light without going plasticky.
+    jerseyMat.roughness = 0.52
+    jerseyMat.metalness = 0.04
+  }
+  if (shortsMat) {
+    // Shorts stay matte and a touch rougher than the jersey so the
+    // two pieces of the uniform read as distinct fabrics.
+    shortsMat.roughness = 0.84
+    shortsMat.metalness = 0
+  }
+  // Shoulder piping ring — a thin trim-color torus that sits where the
+  // trapezius dome meets the deltoid cap. Reads as a sleeve cuff at
+  // broadcast distance. Owns its own material (per-figure unique trim
+  // hue is fine; the existing trim material is tuned for line work).
+  const pipingMat = new THREE.MeshStandardMaterial({
+    color: trimColor,
+    roughness: 0.55,
+    metalness: 0.12,
+  })
+  const piping = new THREE.Mesh(
+    new THREE.TorusGeometry(ATH_TORSO_TOP_W * 0.46, 0.045, 5, 14),
+    pipingMat,
+  )
+  piping.rotation.x = Math.PI / 2
+  piping.position.y = ATH_TORSO_HEIGHT * 0.88
+  piping.scale.set(1, ATH_TORSO_DEPTH / ATH_TORSO_TOP_W, 1)
+  torso.add(piping)
+  // Shorts hem band — thin trim ring at the bottom of the shorts so
+  // the leg-to-shorts transition reads cleanly.
+  const hem = new THREE.Mesh(
+    new THREE.TorusGeometry(ATH_PELVIS_WIDTH * 0.50, 0.04, 5, 14),
+    pipingMat,
+  )
+  hem.rotation.x = Math.PI / 2
+  hem.position.y = -ATH_PELVIS_HEIGHT * 0.92
+  hem.scale.set(1, ATH_PELVIS_DEPTH / ATH_PELVIS_WIDTH, 1)
+  pelvis.add(hem)
+}
+
+/**
+ * Phase J3D — replace thigh/calf cylinders with lathe profiles that
+ * carry subtle quad/calf swell, and add a toe-cap dome on each shoe so
+ * the sneaker reads as athletic footwear instead of a flat block.
+ * Pivots, lengths, and parent transforms are preserved; stance
+ * application is untouched.
+ */
+function upgradePremiumLegsAndFeet(figure: THREE.Object3D): void {
+  for (const legName of ['leftLeg', 'rightLeg'] as const) {
+    const leg = figure.getObjectByName(legName) as THREE.Group | null
+    if (!leg) continue
+    const thigh = leg.getObjectByName('thigh') as THREE.Group | null
+    const calf = leg.getObjectByName('calf') as THREE.Group | null
+    const foot = leg.getObjectByName('foot') as THREE.Group | null
+    if (!thigh || !calf || !foot) continue
+    upgradeLegSegment(thigh, [
+      new THREE.Vector2(ATH_THIGH_TOP_R * 1.05, ATH_THIGH_LENGTH * 0.5),
+      new THREE.Vector2(ATH_THIGH_TOP_R * 1.10, ATH_THIGH_LENGTH * 0.22),
+      new THREE.Vector2(ATH_THIGH_TOP_R * 0.92, -ATH_THIGH_LENGTH * 0.10),
+      new THREE.Vector2(ATH_THIGH_BOT_R * 1.00, -ATH_THIGH_LENGTH * 0.5),
+    ])
+    upgradeLegSegment(calf, [
+      new THREE.Vector2(ATH_CALF_TOP_R * 1.05, ATH_CALF_LENGTH * 0.5),
+      new THREE.Vector2(ATH_CALF_TOP_R * 1.20, ATH_CALF_LENGTH * 0.18),
+      new THREE.Vector2(ATH_CALF_BOT_R * 1.05, -ATH_CALF_LENGTH * 0.20),
+      new THREE.Vector2(ATH_CALF_BOT_R * 0.95, -ATH_CALF_LENGTH * 0.5),
+    ])
+    upgradePremiumShoe(foot)
+  }
+}
+
+function upgradeLegSegment(
+  segment: THREE.Group,
+  profile: THREE.Vector2[],
+): void {
+  for (const child of segment.children) {
+    if (child instanceof THREE.Mesh && child.geometry instanceof THREE.CylinderGeometry) {
+      const oldGeom = child.geometry
+      child.geometry = new THREE.LatheGeometry(profile, 10)
+      oldGeom.dispose()
+      return
+    }
+  }
+}
+
+/**
+ * Phase J3D — add a toe-cap dome and a heel cap on top of the existing
+ * Phase F shoe block. Reuses the shoe / accent materials read off the
+ * existing shoe meshes so per-figure material count is unchanged.
+ */
+function upgradePremiumShoe(foot: THREE.Group): void {
+  let shoeMat: THREE.Material | null = null
+  let accentMat: THREE.Material | null = null
+  for (const child of foot.children) {
+    if (!(child instanceof THREE.Mesh)) continue
+    const m = child.material
+    if (Array.isArray(m)) continue
+    if (!shoeMat && child.geometry instanceof THREE.BoxGeometry) {
+      // First box is the shoe block (shoe color); midsole is the
+      // taller-but-thinner box (accent color). The shoe block was
+      // added first.
+      shoeMat = m
+    } else if (!accentMat) {
+      accentMat = m
+    }
+  }
+  if (!shoeMat || !accentMat) return
+  // Toe-cap dome at the front of the foot — sells "this is a shoe".
+  const toeCap = new THREE.Mesh(
+    new THREE.SphereGeometry(
+      ATH_FOOT_WIDTH * 0.48,
+      8,
+      5,
+      0,
+      Math.PI * 2,
+      0,
+      Math.PI * 0.55,
+    ),
+    shoeMat,
+  )
+  toeCap.position.set(0, ATH_FOOT_HEIGHT * 0.55, -ATH_FOOT_LENGTH * 0.55)
+  toeCap.scale.set(1, 0.9, 1.05)
+  toeCap.castShadow = true
+  foot.add(toeCap)
+  // Heel counter — small accent block at the back of the shoe so the
+  // silhouette has a clear forward direction from above.
+  const heelCounter = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      ATH_FOOT_WIDTH * 0.95,
+      ATH_FOOT_HEIGHT * 0.85,
+      ATH_FOOT_LENGTH * 0.22,
+    ),
+    accentMat,
+  )
+  heelCounter.position.set(0, ATH_FOOT_HEIGHT * 0.55, ATH_FOOT_LENGTH * 0.32)
+  heelCounter.castShadow = true
+  foot.add(heelCounter)
+}
+
+/**
+ * Phase J3C — replace the straight arm cylinders with lathe profiles
+ * that have a subtle bicep/forearm taper. The pivots, lengths, and
+ * material assignments are preserved so `applyAthleteStance` keeps
+ * rotating the same sub-groups around the same joints (no stance
+ * regression). Hand sphere stays in place — the original is already a
+ * fist-shaped sphere and reads fine; the upper/forearm change is
+ * what removes the stick-figure feeling.
+ */
+function upgradePremiumArms(figure: THREE.Object3D): void {
+  for (const armName of ['leftArm', 'rightArm'] as const) {
+    const arm = figure.getObjectByName(armName) as THREE.Group | null
+    if (!arm) continue
+    const upperArm = arm.getObjectByName('upperArm') as THREE.Group | null
+    const foreArm = arm.getObjectByName('foreArm') as THREE.Group | null
+    if (!upperArm || !foreArm) continue
+    // Profile y spans -L/2 .. +L/2 to match the original cylinder's
+    // local frame; the existing mesh is positioned at y = -L/2 so the
+    // segment still anchors at the joint above and ends at the joint
+    // below without a position shift.
+    upgradeArmSegment(upperArm, [
+      new THREE.Vector2(ATH_UPPER_ARM_R * 1.05, ATH_UPPER_ARM_LENGTH * 0.5),
+      new THREE.Vector2(ATH_UPPER_ARM_R * 1.18, ATH_UPPER_ARM_LENGTH * 0.20),
+      new THREE.Vector2(ATH_UPPER_ARM_R * 1.10, -ATH_UPPER_ARM_LENGTH * 0.12),
+      new THREE.Vector2(ATH_UPPER_ARM_R * 0.95, -ATH_UPPER_ARM_LENGTH * 0.5),
+    ])
+    upgradeArmSegment(foreArm, [
+      new THREE.Vector2(ATH_FORE_ARM_R * 1.05, ATH_FORE_ARM_LENGTH * 0.5),
+      new THREE.Vector2(ATH_FORE_ARM_R * 1.12, ATH_FORE_ARM_LENGTH * 0.25),
+      new THREE.Vector2(ATH_FORE_ARM_R * 0.98, -ATH_FORE_ARM_LENGTH * 0.15),
+      new THREE.Vector2(ATH_FORE_ARM_R * 0.85, -ATH_FORE_ARM_LENGTH * 0.5),
+    ])
+  }
+}
+
+/**
+ * Helper for J3C — finds the first cylinder mesh in an arm sub-group
+ * and replaces its geometry with a lathe profile. The mesh's existing
+ * material, position, and scale are preserved so disposal/stance
+ * behavior is unchanged.
+ */
+function upgradeArmSegment(
+  segment: THREE.Group,
+  profile: THREE.Vector2[],
+): void {
+  for (const child of segment.children) {
+    if (child instanceof THREE.Mesh && child.geometry instanceof THREE.CylinderGeometry) {
+      const oldGeom = child.geometry
+      child.geometry = new THREE.LatheGeometry(profile, 10)
+      oldGeom.dispose()
+      return
+    }
+  }
+}
+
+/**
+ * Phase J3B — soften the head/neck/shoulder transition. Adds a
+ * trapezius dome that bridges the neck base into the deltoid caps so
+ * the head no longer reads as a ball perched on a tube, and drops a
+ * subtle jaw plane below the head sphere so the silhouette tapers
+ * toward the chin from broadcast camera. Reuses the Phase F skin and
+ * jersey materials by reading them off the existing meshes — no new
+ * shared materials, so per-figure dispose count is unchanged.
+ *
+ * Indicator anchor heights (chevron, halo) are not touched: the
+ * upper-body group still owns the chevron and rides up/down with
+ * stance translations exactly as in Phase F.
+ */
+function upgradePremiumHeadAndShoulders(figure: THREE.Object3D): void {
+  const torso = figure.getObjectByName('torso') as THREE.Group | null
+  const neckHead = figure.getObjectByName('neckHead') as THREE.Group | null
+  if (!torso || !neckHead) return
+  // Look up the jersey material from the upgraded torso main mesh
+  // (LatheGeometry). The skin material is on the neck cylinder which
+  // is the first cylinder child of neckHead.
+  let jerseyMat: THREE.Material | null = null
+  for (const child of torso.children) {
+    if (child instanceof THREE.Mesh && child.geometry instanceof THREE.LatheGeometry) {
+      const m = child.material
+      if (!Array.isArray(m)) jerseyMat = m
+      break
+    }
+  }
+  let skinMat: THREE.Material | null = null
+  for (const child of neckHead.children) {
+    if (child instanceof THREE.Mesh && child.geometry instanceof THREE.CylinderGeometry) {
+      const m = child.material
+      if (!Array.isArray(m)) skinMat = m
+      break
+    }
+  }
+  if (!jerseyMat || !skinMat) return
+  // Trapezius dome — flattened sphere riding on top of the torso just
+  // below the deltoid line. Bridges neck and shoulders so the
+  // transition reads continuous, not stepped.
+  const trapMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(
+      ATH_TORSO_TOP_W * 0.42,
+      10,
+      5,
+      0,
+      Math.PI * 2,
+      0,
+      Math.PI * 0.55,
+    ),
+    jerseyMat,
+  )
+  trapMesh.position.y = ATH_TORSO_HEIGHT * 0.92
+  trapMesh.scale.set(1, 0.42, ATH_TORSO_DEPTH / ATH_TORSO_TOP_W)
+  trapMesh.castShadow = true
+  torso.add(trapMesh)
+  // Subtle jaw plane — small flattened sphere just below the head
+  // that fakes a chin/jawline instead of leaving the neck flush with
+  // the back of the head sphere.
+  const jawMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(ATH_HEAD_R * 0.78, 8, 4, 0, Math.PI * 2, Math.PI * 0.55, Math.PI * 0.45),
+    skinMat,
+  )
+  jawMesh.position.y = ATH_NECK_LENGTH + ATH_HEAD_R * 0.55
+  jawMesh.scale.set(0.92, 1.0, 0.95)
+  jawMesh.castShadow = true
+  neckHead.add(jawMesh)
+}
+
+/**
+ * Phase J3A — replace the Phase F V-tapered cylinder torso with a
+ * lathe-revolved athletic silhouette (subtle ab swell + pec/shoulder
+ * line) so the upper body reads less like a tube and more like an
+ * athlete from gameplay camera. Geometry-only change: the original
+ * jersey material, position, scale, and parent group are preserved
+ * so disposal, stance application, and indicator alignment are
+ * untouched.
+ */
+function upgradePremiumTorso(figure: THREE.Object3D): void {
+  const torso = figure.getObjectByName('torso') as THREE.Group | null
+  if (!torso) return
+  // The Phase F builder adds the main torso cylinder as the FIRST
+  // direct Mesh child of the torso group (before shoulderCap, the
+  // chest stripe, the waistband, the number panels, and the
+  // arm/neckHead sub-groups). Find it by that contract.
+  let mainMesh: THREE.Mesh | null = null
+  for (const child of torso.children) {
+    if (child instanceof THREE.Mesh && child.geometry instanceof THREE.CylinderGeometry) {
+      mainMesh = child
+      break
+    }
+  }
+  if (!mainMesh) return
+  const h = ATH_TORSO_HEIGHT
+  // Lathe profile (radius, y) spans -h/2..+h/2 so it slots in at the
+  // existing mesh.position.y = ATH_TORSO_HEIGHT * 0.5 anchor with no
+  // change to the parent transform. Subtle ab/rib swell at the
+  // ribcage, slightly wider pec line, then a smooth taper into the
+  // shoulder cap so the deltoid sphere blends instead of perching.
+  const profile: THREE.Vector2[] = [
+    new THREE.Vector2(ATH_TORSO_BOT_W * 0.50, -h / 2),
+    new THREE.Vector2(ATH_TORSO_BOT_W * 0.515, -h * 0.30),
+    new THREE.Vector2(ATH_TORSO_BOT_W * 0.555, -h * 0.05),
+    new THREE.Vector2(ATH_TORSO_TOP_W * 0.520, h * 0.20),
+    new THREE.Vector2(ATH_TORSO_TOP_W * 0.512, h * 0.40),
+    new THREE.Vector2(ATH_TORSO_TOP_W * 0.50, h / 2),
+  ]
+  const newGeom = new THREE.LatheGeometry(profile, 14)
+  const oldGeom = mainMesh.geometry
+  mainMesh.geometry = newGeom
+  oldGeom.dispose()
 }
 
 /**

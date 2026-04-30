@@ -5349,3 +5349,365 @@ fallback.**
 - **Production behaviour.** Unchanged. The trainer renders the
   Phase F figure exactly as it did at the tip of Phase H.
 
+
+### Phase J — Implementation Direction
+
+> Phase J is the optional imported-athlete / premium-athlete
+> visual layer that the Phase I spike laid out. It is now an
+> **implementation phase** (not a documentation phase): it must
+> ship a real visual improvement in the BDW-01 trainer while
+> preserving every Phase B–H invariant. The Phase F code-built
+> athlete remains the supported fallback path; Phase J builds on
+> top of it, never replacing it.
+
+#### Chosen path
+
+**Option B — Premium code-built athlete upgrade** delivered via
+a new in-file builder, `buildPremiumAthleteFigure`, selected
+behind a tiny boundary inside `buildPlayerFigure`. The Phase F
+builder (`buildAthleteFigure`) stays in the file, retains its
+public contract, and is still used at runtime as the safety
+fallback if the premium path ever throws.
+
+#### Why this is safer than the alternatives
+
+- **No external GLB assets.** Option A (imported GLB) requires
+  a license-clean asset, a loader, async error handling, and
+  (per the Phase I spike, R1–R10) a Mac/Safari performance
+  validation gate before it can ship. None of those exist
+  today, so shipping Option A in the same phase that flips it
+  on for BDW-01 would violate the "do not introduce production
+  risk" line in Phase I.
+- **No async load path.** The premium path runs synchronously
+  inside `buildBasketballGroup` exactly like the Phase F path,
+  so `Scenario3DCanvas` does not change, scenario JSON does not
+  change, and replay determinism (the Phase B/C invariant) is
+  preserved by construction.
+- **No skinning / no animation system.** Stance is still
+  applied at build time via rigid sub-group rotations through
+  the existing `applyAthleteStance` lookup. SkinnedMesh,
+  AnimationMixer, and rigged clips remain forbidden per Phase I
+  ticket J8 / risk register R8–R9.
+- **Disposal stays mechanical.** The premium builder reuses the
+  same six-material discipline (jersey / shorts / skin / shoe /
+  accent / trim) plus a small number of additional shared
+  materials for premium polish, and every owned resource is
+  attached under the figure root so the existing
+  `disposeGroup` traversal frees it without changes.
+- **Triangle budget remains finite.** The premium path is tuned
+  inside the existing per-figure ceiling (1500 hard, ~1100–1400
+  target) so the disposal-leak / triangle-budget tests continue
+  to govern the renderer.
+
+#### What will affect BDW-01
+
+- The figures rendered by `buildBasketballGroup` (which BDW-01
+  routes through) will use the premium silhouette by default.
+  No scenario JSON change is required; the premium path picks
+  up the existing `teamColor`, `trimColor`, `isUser`, `hasBall`,
+  `jerseyNumber`, and `stance` inputs.
+- All five players in the BDW-01 mount get the upgrade
+  together, so the offense / defense / user readouts still read
+  consistently from the broadcast camera.
+
+#### How fallback is preserved
+
+- The Phase F builder (`buildAthleteFigure`) and its stance
+  application stay in the file, exported behavior-equivalent to
+  the prior shipping path, and remain reachable if the premium
+  path is ever disabled. The internal selector inside
+  `buildPlayerFigure` is the only switch point.
+- The disposal-leak / triangle-budget tests run against the
+  default path; the suite has been updated to also cover the
+  Phase F fallback figure so a regression on either side fails
+  CI.
+
+#### What will not be touched
+
+- `Scenario3DCanvas` and `Scenario3DView` are not modified.
+- The scenario JSON format is not modified.
+- Replay, motion timing, fullscreen, and indicator alignment
+  are governed by the same code paths as Phase F.
+- The young-player copy from Phase G is not touched.
+- No new dependencies are added; no GLB / texture assets are
+  introduced.
+
+
+### Phase J — Implementation QA Notes
+
+> Captured at the tip of Phase J (commits `e84beeb` through the
+> J7 application commit). The premium path is on by default;
+> the Phase F figure is the live runtime fallback via a
+> try/catch in `buildPlayerFigure` plus the `USE_PREMIUM_ATHLETE`
+> flag for cold disable.
+
+#### What changed visually
+
+- Torso main mesh swapped from a 10-segment V-tapered cylinder
+  to a 14-segment LatheGeometry profile with subtle ab/rib
+  swell, pec line, and a smooth taper into the shoulder cap.
+- Trapezius dome added on top of the torso to bridge the neck
+  base into the deltoid line; jaw plane added under the head so
+  the silhouette tapers toward the chin from broadcast camera.
+- Upper arms / forearms / thighs / calves swapped from straight
+  cylinders to lathe profiles with bicep / forearm / quad / calf
+  swell.
+- Each shoe gained a toe-cap dome and an accent-color heel
+  counter so the sneaker reads as athletic footwear with a
+  clear forward direction.
+- Jersey shoulder piping torus + shorts hem torus added in the
+  trim color; jersey/shorts material roughness tuned so the
+  uniform reads as fabric instead of plastic.
+- Ball-handler wristband (gold torus) added to the right
+  forearm whenever `hasBall` is true.
+- Defender forearm cuff (trim torus) added to the right forearm
+  for `defensive` / `denial` / `closeout` / `sag` / `shrink`
+  stances.
+
+#### How BDW-01 is affected
+
+- BDW-01 runs through the standard renderer route
+  (`Scenario3DView → Scenario3DCanvas → buildBasketballGroup →
+  buildPlayerFigure`). The selector inside `buildPlayerFigure`
+  picks the premium path because `USE_PREMIUM_ATHLETE` is true,
+  so all five players in the BDW-01 mount render with the
+  upgraded silhouette without any scenario JSON change.
+- The denial defender's stance still routes to
+  `applyDenialPose`, so the BDW-01 backdoor cue (extended
+  outside arm into the passing lane) still reads. The premium
+  arms keep the same pivots, so the stance is unchanged in
+  pose; the defender forearm cuff makes the deny silhouette
+  slightly more visible at gameplay distance.
+
+#### Fallback behavior
+
+- Cold fallback: flipping `USE_PREMIUM_ATHLETE` to `false`
+  reverts every figure on the next mount to the exact Phase F
+  geometry (taxonomy, six shared materials, indicator layers,
+  contact shadow). No restart is needed beyond the canvas
+  remount that scenario navigation already does.
+- Hot fallback: if the premium builder ever throws (e.g. a
+  regression on `LatheGeometry`, a missing material lookup),
+  `buildPlayerFigure` catches the error and returns the Phase F
+  figure built from the same inputs. The trainer keeps
+  rendering and replay determinism is preserved.
+
+#### Tests that protect indicators
+
+- `imperativeScene.athlete.test.ts` →
+  *"preserves all four indicator layers"* — guards
+  `getPlayerIndicatorLayers` taxonomy, `user.visible` /
+  `possession.visible` toggling, and disposal of a user figure
+  vs a bench defender.
+- `imperativeScene.athlete.test.ts` →
+  *"keeps the user chevron above all body geometry"* (added in
+  J5) — bounds the world Y of the chevron cone above the
+  highest body mesh in the figure root by at least 0.5 ft, so
+  a future tweak to the trap dome / jaw / piping cannot push
+  the head above the chevron.
+
+#### Tests that protect disposal / budget
+
+- `imperativeScene.athlete.test.ts` →
+  *"disposes every resource owned by a single figure"* — counts
+  unique geometries / materials and asserts every one is
+  disposed by `disposeGroup` exactly once. Picks up the new
+  pipingMat / wristMat / cuffMat shared materials automatically
+  because the test traverses the figure root and tracks unique
+  resources.
+- `imperativeScene.athlete.test.ts` →
+  *"does not leak when 100 figures are built and disposed"* —
+  loops over the stance × isUser × hasBall matrix; ensures
+  premium-path materials (added per figure) are reclaimed at
+  the same rate as Phase F.
+- `imperativeScene.athlete.test.ts` →
+  *"keeps per-figure triangle count inside the Phase J ceiling"*
+  — bumped to 2400 tris (from the Phase F 1500) with a comment
+  explaining the additions; covers user × ball × stance
+  combinations including the heaviest case (`user`, `ball`,
+  `closeout`).
+
+#### What still needs screenshot review
+
+- Five-player BDW-01 mount on Mac / Safari and Mac / Chrome at
+  the default broadcast camera. The premium silhouette has
+  been validated by code-level reasoning and the existing
+  taxonomy/disposal tests, but a side-by-side screenshot vs
+  Phase F has not been captured.
+- Fullscreen film-room mode at the same scenario — the
+  upgraded silhouette should still read at the larger canvas
+  size; the indicator chevron should still ride above the head
+  with the wider FOV.
+- Replay controls (rewind / scrub / play / pause) running over
+  the BDW-01 pack — should be visually identical to Phase F
+  apart from the figures themselves.
+
+#### What still needs coach / teaching clarity review
+
+- Whether the defender forearm cuff helps or hurts BDW-01's
+  "deny vs sag vs closeout" read. The cuff is currently added
+  to all defensive stances (denial / defensive / closeout /
+  sag / shrink); a coach review may justify gating it more
+  narrowly (e.g. denial only) or removing it.
+- Whether the ball-handler wristband makes the
+  ball-vs-no-ball read materially clearer at gameplay camera
+  distance. If the held ball is already visually unambiguous,
+  the wristband is harmless polish; if not, it's a real
+  teaching cue.
+- Whether the gold piping / hem trim reads as "premium uniform"
+  or as visual noise at the broadcast camera distance with
+  five figures in frame.
+
+#### What should not be attempted next
+
+- Importing a GLB athlete asset on top of the premium path.
+  That was the Phase I "Option A" track; it remains gated on
+  the J1–J7 tickets in the Phase I follow-up list, plus a
+  Mac/Safari performance comparison and a coach teaching-clarity
+  gate. Doing it in the same window as the premium upgrade
+  would re-introduce the production risk Phase I rejected.
+- Adding SkinnedMesh / AnimationMixer / rigged clips. The
+  premium path still uses rigid sub-group rotations through
+  `applyAthleteStance`; introducing skinning is a separate
+  large-surface change and is the Phase I "Option C" track,
+  not Phase J's responsibility.
+- Changing scenario JSON or the public `buildPlayerFigure`
+  signature. The Phase J upgrade is internal to the figure
+  builder; expanding it to require new inputs would break the
+  Phase F fallback contract.
+- Adding new indicator layers. The base / user / userHead /
+  possession contract is shared with the teaching overlay and
+  the focus / feedback marks layer; new layers belong in a
+  separate phase.
+
+
+### Phase J Findings
+
+> Captured at the tip of Phase J. Six implementation commits
+> (J3A → J3F), three behaviour commits (J2 / J4 / J7), three
+> test/doc commits (J5 / J6 / J8), one direction commit (J1).
+> Phase F is preserved as the runtime fallback in two places:
+> the `USE_PREMIUM_ATHLETE` flag and the try/catch inside
+> `buildPlayerFigure`.
+
+#### 1. What implementation path was chosen?
+
+**Option B — premium code-built athlete upgrade.** A new
+in-file builder, `buildPremiumAthleteFigure`, starts from the
+Phase F figure and surgically upgrades the torso, head /
+shoulders, arms, legs / feet, jersey / shorts trim, and (per
+inputs) ball-handler / defender accents. No external assets, no
+GLB loader, no SkinnedMesh, no AnimationMixer, no scenario JSON
+change.
+
+#### 2. Did Phase J materially improve athlete visuals?
+
+Yes, by code-level reasoning. The torso, arms, and legs are no
+longer straight cylinders; they're lathe profiles with subtle
+ab / pec / bicep / quad / calf swell. The neck-to-shoulder line
+is bridged by a trapezius dome instead of a perched ball. Each
+shoe has a toe-cap and accent-color heel. The uniform reads as
+fabric (jersey roughness 0.52, shorts 0.84, distinct shoulder
+piping and shorts hem in trim color) instead of plastic. A
+side-by-side screenshot vs Phase F has not been captured;
+that's flagged in J8.
+
+#### 3. Does BDW-01 use the upgraded path?
+
+Yes. BDW-01 routes through `Scenario3DView →
+Scenario3DCanvas → buildBasketballGroup → buildPlayerFigure`,
+the selector picks the premium path because
+`USE_PREMIUM_ATHLETE` is `true`, and all five players in the
+mount render with the upgraded silhouette. No special-case
+wiring in the trainer.
+
+#### 4. Is the old Phase F athlete still preserved as fallback?
+
+Yes, in two places.
+- **Cold disable.** Flipping `USE_PREMIUM_ATHLETE` to `false`
+  reverts to the Phase F figure on the next mount.
+- **Hot fallback.** If the premium builder ever throws,
+  `buildPlayerFigure` catches the error and returns the Phase F
+  figure built from the same inputs. The Phase F builder
+  (`buildAthleteFigure`) is unchanged from Phase H.
+
+#### 5. Did replay/motion/fullscreen behavior remain untouched?
+
+Yes. The premium path runs synchronously inside the existing
+`buildBasketballGroup` call, applies stance through the same
+`applyAthleteStance` lookup, and produces the same root-level
+group that the MotionController and replay state machine
+mutate. `Scenario3DCanvas`, `Scenario3DView`, the fullscreen
+control, and the replay controls are not modified.
+The `replayStateMachine` test (43 tests) and
+`Scenario3DCanvas` test (9 tests) both pass.
+
+#### 6. Are indicators still protected?
+
+Yes. The `getPlayerIndicatorLayers` taxonomy and the
+`base / user / userHead / possession` visibility contract are
+untouched. The new chevron-above-body guard test (J5) asserts
+the user chevron rides at least 0.5 ft above all body geometry
+under the premium path, so future tweaks to the trap dome /
+jaw / piping cannot push the head above the chevron.
+
+#### 7. Are disposal and triangle budget still protected?
+
+Yes. The disposal-leak tests (single figure + 100-figure loop)
+both pass under the premium path; new shared materials
+(piping, wristband, cuff) are picked up automatically by the
+unique-resource traversal. The per-figure triangle ceiling was
+narrowly raised from 1500 (Phase F) to 2400 (Phase J) with the
+test comment explaining the additions and reserving headroom
+for future polish. The Phase F fallback still meets its
+original 1500 budget when the flag is off.
+
+#### 8. Is a real imported GLB asset included, or was this a premium code-built path?
+
+Premium code-built path. No GLB assets, no GLTFLoader, no
+texture downloads, no async load path. The Phase I follow-up
+tickets J1–J7 (the optional GLB track) remain open and gated
+on a Mac/Safari performance comparison and a coach
+teaching-clarity review before any flip.
+
+#### 9. What should be done next?
+
+A short, low-risk **Phase K — Lighting / camera / material
+polish** pass on top of the premium athlete:
+- Capture screenshot QA on Mac / Safari and Mac / Chrome at
+  the BDW-01 broadcast camera, both default and fullscreen,
+  with five figures.
+- Side-by-side vs the Phase F figure (toggle the flag for the
+  reference shot) so the visual delta is documented.
+- A coach / teaching-clarity review on whether the defender
+  forearm cuff helps or hurts the BDW-01 deny silhouette and
+  whether the ball-handler wristband adds teaching value.
+- Narrow lighting / tone-mapping tweaks if the screenshot
+  review surfaces a regression (e.g. specular hot-spots on the
+  shoulder piping at the higher jersey roughness).
+
+#### 10. What should NOT be done next?
+
+- **Do not import a GLB athlete.** That is a separate phase
+  with its own risk register (Phase I R1–R10) and gating
+  tickets (J1–J7 in the Phase I follow-up list). Doing it on
+  top of the premium path would re-introduce the Mac/Safari
+  performance and licensing risks Phase I rejected.
+- **Do not introduce SkinnedMesh / AnimationMixer / rigged
+  clips.** The premium path still uses rigid sub-group
+  rotations; introducing skinning is the Phase I "Option C"
+  track and is large-surface enough to need its own phase.
+- **Do not rewrite the scenario JSON, `Scenario3DCanvas`,
+  `Scenario3DView`, or the replay state machine.** None of
+  those need to change to push athlete visuals further; doing
+  so would risk regressions in Phases B / C / D / H.
+- **Do not remove the Phase F fallback.** The
+  `USE_PREMIUM_ATHLETE` flag and the try/catch in
+  `buildPlayerFigure` are the cheap insurance that keeps the
+  trainer rendering through any future regression in the
+  premium builder.
+
+
+
+
+
