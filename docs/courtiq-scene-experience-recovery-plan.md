@@ -1042,5 +1042,93 @@ match in tone.
   string fails the meaning check.
 - Suggested commit message: `docs: record copy QA results`
 
+---
+
+### Phase H — Final QA / Integration
+
+#### Goal
+Validate that replay, movement, fullscreen, geometry, and copy
+ship as one coherent experience on BDW-01. Catch and fix
+integration regressions before declaring the recovery done.
+
+#### Why this phase matters
+Five recoveries that work in isolation can still feel uneven
+together. Phase H is the cohesion pass that turns the parts into
+"the product."
+
+#### Files likely involved
+- All files touched in Phases B–G (regression-only).
+- `apps/web/components/scenario3d/imperativeScene.ts` — minor
+  tuning constants only.
+- This doc — final QA matrix.
+- Tests across `apps/web/components/scenario3d/`.
+
+#### Risks / boundaries
+- No new features.
+- No new scenarios.
+- No new visuals beyond minor constant tuning.
+- Do not reopen Phase A–G micro-milestones unless a regression
+  is real and reproducible.
+
+#### Acceptance criteria
+- BDW-01 passes every QA item in
+  `courtiq-premium-scene-visual-system-plan.md` Section 15.
+- Replay matrix (play/pause/restart/0.5x/1x/2x/consequence/answer/
+  show-again) is clean.
+- Fullscreen behaves on Chrome + Safari + Firefox on Mac.
+- Geometry + copy + motion read together as one product.
+- `pnpm lint`, `pnpm test`, `pnpm typecheck` all clean.
+
+#### Suggested model
+**Opus 4.7 High.** Cross-cutting QA + judgment calls; max not
+needed.
+
+#### Suggested commit style
+- 1 integration smoke commit (docs).
+- 1 manual QA matrix commit (docs).
+- 1–2 polish/tuning commits (constants only).
+- 1 final readiness commit (docs).
+
+#### Micro-milestones
+
+**H1 — Integration smoke test**
+- Objective: run BDW-01 end-to-end after every Phase B–G change is
+  on the branch; capture a smoke pass / fail per area.
+- Likely files: docs + manual run.
+- What changes: append an "Integration Smoke Test" subsection.
+- Exit criteria: no blocking regression; every area at least
+  passes a smoke read.
+- Suggested commit message: `docs: record recovery integration smoke test`
+
+**H2 — BDW-01 manual QA matrix**
+- Objective: walk the Section 15 QA checklist + the replay matrix +
+  the fullscreen matrix on BDW-01; record results per item.
+- Likely files: docs.
+- What changes: append a "Manual QA Matrix" subsection.
+- Exit criteria: every item passes or has a numbered defect.
+- Suggested commit message: `docs: record BDW-01 manual QA matrix`
+
+**H3 — Polish/tuning pass**
+- Objective: address any small constant tweaks surfaced by the
+  QA matrix (timing, easing, font size in the new fullscreen
+  controls, copy line breaks).
+- Likely files: minor edits across Phase B–G surfaces.
+- What changes: smallest possible diff per defect.
+- Exit criteria: every defect from H2 either fixed or
+  explicitly deferred with a written rationale.
+- Suggested commit message: `chore(scene): tune Phase H polish defects`
+
+**H4 — Final readiness review**
+- Objective: declare the recovery complete (or list what is
+  blocking completion) and queue scenario expansion as the next
+  workstream.
+- Likely files: docs.
+- What changes: append a "Recovery Readiness Review" subsection;
+  link to the visual-system plan's Phase 7 record so the two
+  records read together.
+- Exit criteria: a one-page status with go / no-go and a clear
+  next-step (typically: "begin authoring ESC-01").
+- Suggested commit message: `docs: declare recovery readiness review`
+
 
 
