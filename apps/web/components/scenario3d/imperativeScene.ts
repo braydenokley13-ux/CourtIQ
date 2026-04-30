@@ -4647,11 +4647,11 @@ function applyAthleteStance(joints: AthleteJoints, stance: PlayerStance): void {
 function applyCutPose(joints: AthleteJoints): void {
   joints.upperBody.position.y = -0.05
   joints.leftThigh.rotation.set(-0.18, 0, -0.05)
-  joints.leftCalf.rotation.set(0.10, 0, 0)
-  joints.leftFoot.rotation.set(-0.12, 0, 0)
-  joints.rightThigh.rotation.set(-0.40, 0, 0.05)
-  joints.rightCalf.rotation.set(0.15, 0, 0)
-  joints.rightFoot.rotation.set(-0.18, 0, 0)
+  joints.leftCalf.rotation.set(0.18, 0, 0)
+  joints.leftFoot.rotation.set(0, 0, 0)
+  joints.rightThigh.rotation.set(-0.30, 0, 0.05)
+  joints.rightCalf.rotation.set(0.30, 0, 0)
+  joints.rightFoot.rotation.set(0, 0, 0)
   joints.pelvis.rotation.set(0.10, 0, 0)
   joints.torso.rotation.set(-0.20, 0, 0)
   joints.neckHead.rotation.set(0.10, 0, 0)
@@ -4668,13 +4668,13 @@ function applyCutPose(joints: AthleteJoints): void {
  * can route SKR-01 over-helpers here without rebuilding geometry.
  */
 function applySagPose(joints: AthleteJoints): void {
-  joints.upperBody.position.y = -0.20
+  joints.upperBody.position.y = -0.12
   joints.leftThigh.rotation.set(-0.35, 0, -0.10)
-  joints.leftCalf.rotation.set(0.55, 0, 0)
-  joints.leftFoot.rotation.set(-0.22, 0, 0)
+  joints.leftCalf.rotation.set(0.35, 0, 0)
+  joints.leftFoot.rotation.set(0, 0, 0)
   joints.rightThigh.rotation.set(-0.35, 0, 0.10)
-  joints.rightCalf.rotation.set(0.55, 0, 0)
-  joints.rightFoot.rotation.set(-0.22, 0, 0)
+  joints.rightCalf.rotation.set(0.35, 0, 0)
+  joints.rightFoot.rotation.set(0, 0, 0)
   joints.pelvis.rotation.set(0.10, -0.22, 0)
   joints.torso.rotation.set(-0.10, 0, 0)
   joints.neckHead.rotation.set(0.05, 0.22, 0)
@@ -4691,15 +4691,15 @@ function applySagPose(joints: AthleteJoints): void {
  * is the AOR-01 read this stance enables).
  */
 function applyCloseoutPose(joints: AthleteJoints): void {
-  joints.upperBody.position.y = -0.20
+  joints.upperBody.position.y = -0.10
   // Front foot (right) planted forward, back foot (left) trailing.
-  // Knee bends are smaller than defensive — closeout is mid-flight.
+  // Knee bends smaller than defensive — closeout is mid-flight.
   joints.leftThigh.rotation.set(-0.20, 0, -0.05)
-  joints.leftCalf.rotation.set(0.45, 0, 0)
-  joints.leftFoot.rotation.set(-0.18, 0, 0)
+  joints.leftCalf.rotation.set(0.20, 0, 0)
+  joints.leftFoot.rotation.set(0, 0, 0)
   joints.rightThigh.rotation.set(-0.40, 0, 0.10)
-  joints.rightCalf.rotation.set(0.55, 0, 0)
-  joints.rightFoot.rotation.set(-0.20, 0, 0)
+  joints.rightCalf.rotation.set(0.40, 0, 0)
+  joints.rightFoot.rotation.set(0, 0, 0)
   // Body angled forward toward the shooter with the chest leading.
   joints.pelvis.rotation.set(0.10, 0, 0)
   joints.torso.rotation.set(-0.32, 0, 0)
@@ -4722,13 +4722,13 @@ function applyCloseoutPose(joints: AthleteJoints): void {
 function applyDenialPose(joints: AthleteJoints): void {
   // Lower body — same crouch as defensive but slightly narrower
   // stance and a small body angle toward the ball.
-  joints.upperBody.position.y = -0.30
-  joints.leftThigh.rotation.set(-0.50, 0, -0.10)
-  joints.leftCalf.rotation.set(0.78, 0, 0)
-  joints.leftFoot.rotation.set(-0.25, 0, 0)
+  joints.upperBody.position.y = -0.16
+  joints.leftThigh.rotation.set(-0.45, 0, -0.10)
+  joints.leftCalf.rotation.set(0.45, 0, 0)
+  joints.leftFoot.rotation.set(0, 0, 0)
   joints.rightThigh.rotation.set(-0.45, 0, 0.10)
-  joints.rightCalf.rotation.set(0.72, 0, 0)
-  joints.rightFoot.rotation.set(-0.22, 0, 0)
+  joints.rightCalf.rotation.set(0.45, 0, 0)
+  joints.rightFoot.rotation.set(0, 0, 0)
   // Hip / shoulder square — both rotate the same way so the body
   // reads as turned to face the passing lane, not contorted.
   joints.pelvis.rotation.set(0.14, 0.32, 0)
@@ -4751,18 +4751,17 @@ function applyDenialPose(joints: AthleteJoints): void {
  * as crouched, not like a standing player who shrunk.
  */
 function applyDefensivePose(joints: AthleteJoints): void {
-  // Lower body — stance lower, wider feet, real bent knees.
-  joints.upperBody.position.y = -0.32
-  // Spread feet outward by widening the leg pivots' z-rotation. Use
-  // a small outward kick on each thigh so the knees splay athletic-
-  // style; the calf bends back so the foot stays roughly under the
-  // hip from the side view.
-  joints.leftThigh.rotation.set(-0.55, 0, -0.18)
-  joints.leftCalf.rotation.set(0.85, 0, 0)
-  joints.leftFoot.rotation.set(-0.30, 0, 0)
-  joints.rightThigh.rotation.set(-0.55, 0, 0.18)
-  joints.rightCalf.rotation.set(0.85, 0, 0)
-  joints.rightFoot.rotation.set(-0.30, 0, 0)
+  // Crouch math: thigh pitches forward by `t`, calf pitches back by
+  // `t` (so the calf stays roughly vertical), and the upperBody
+  // drops by `thigh_length * (1 - cos(t))` so the foot stays at
+  // the floor. With t≈0.5rad and thigh ≈ 1.45ft, drop ≈ 0.18ft.
+  joints.upperBody.position.y = -0.18
+  joints.leftThigh.rotation.set(-0.50, 0, -0.18)
+  joints.leftCalf.rotation.set(0.50, 0, 0)
+  joints.leftFoot.rotation.set(0, 0, 0)
+  joints.rightThigh.rotation.set(-0.50, 0, 0.18)
+  joints.rightCalf.rotation.set(0.50, 0, 0)
+  joints.rightFoot.rotation.set(0, 0, 0)
   // Pelvis tilts forward a touch so the back is angled toward the
   // ball instead of straight up.
   joints.pelvis.rotation.set(0.18, 0, 0)
