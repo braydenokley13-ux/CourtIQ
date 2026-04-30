@@ -3666,3 +3666,242 @@ H. Phase F still owns these in-environment checks:
 (See Phase F section above; the F1–F5 list there is rewritten by E4
 to be specific to Option B.)
 
+
+
+### Phase F QA Results
+
+> Phase F shipped the Option B athlete builder behind a brief
+> `USE_ATHLETE_BUILDER` flag and then removed the flag and legacy
+> builder once the new path was proven against tests + screenshots.
+> All in-environment validation gates (vitest, eslint, tsc) are
+> green at the tip of the branch. Screenshot QA used the new
+> `pnpm qa:scene:screenshots` harness (Phase F0) against the
+> dev-only `/dev/scene-preview` route on `localhost:3100`.
+
+#### Screenshots
+
+| Stage | Path |
+|---|---|
+| Before — broadcast | `docs/qa/courtiq/phase-f/phase-f-before-default.png` |
+| Before — fullscreen | `docs/qa/courtiq/phase-f/phase-f-before-fullscreen.png` |
+| Before — close-up | `docs/qa/courtiq/phase-f/phase-f-before-player-closeup.png` |
+| F1 — broadcast | `docs/qa/courtiq/phase-f/phase-f-f1-default.png` |
+| F1 — fullscreen | `docs/qa/courtiq/phase-f/phase-f-f1-fullscreen.png` |
+| F1 — close-up | `docs/qa/courtiq/phase-f/phase-f-f1-player-closeup.png` |
+| F2 — broadcast | `docs/qa/courtiq/phase-f/phase-f-f2-default.png` |
+| F2 — fullscreen | `docs/qa/courtiq/phase-f/phase-f-f2-fullscreen.png` |
+| F2 — close-up | `docs/qa/courtiq/phase-f/phase-f-f2-player-closeup.png` |
+| F3 — broadcast | `docs/qa/courtiq/phase-f/phase-f-f3-default.png` |
+| F3 — fullscreen | `docs/qa/courtiq/phase-f/phase-f-f3-fullscreen.png` |
+| F3 — close-up | `docs/qa/courtiq/phase-f/phase-f-f3-player-closeup.png` |
+| After — broadcast | `docs/qa/courtiq/phase-f/phase-f-after-default.png` |
+| After — fullscreen | `docs/qa/courtiq/phase-f/phase-f-after-fullscreen.png` |
+| After — close-up | `docs/qa/courtiq/phase-f/phase-f-after-player-closeup.png` |
+
+#### Per-figure triangle count baseline
+
+Recorded via the new `countTriangles` helper exported by
+`imperativeScene.ts`. Numbers are exact, sampled on the tip of
+Phase F:
+
+| Stance | non-user / ball-less | user / ball |
+|---|---:|---:|
+| `idle` | 1190 | 1398 |
+| `defensive` | 1190 | — |
+| `denial` | 1190 | — |
+| `closeout` | 1190 | 1398 |
+
+User figures carry the four extra ring/cone tris that make up the
+mint halo + chevron stack. Both numbers sit under the 1500 hard
+ceiling from §16 E4 §5. The target band (~900–1100) was tightened by
+~10 % to fit the indicator floor stack; no FPS guard auto-degrade
+was observed locally on `medium` or `high` quality tiers (Phase H
+will run the Mac measurement that this environment cannot).
+
+#### Acceptance answers
+
+1. **Player silhouette reads as a basketball player from the default
+   camera.** Improved meaningfully over the legacy "stack of
+   primitives" — the V-tapered torso, deltoid cap, waistband,
+   knee/elbow/hand domes, and toe-forward shoes give a noticeably
+   more athletic outline than the legacy bottle-with-yoke. From the
+   broadcast camera, the figures still read as stylized
+   placeholders, not photoreal athletes; that is intentional under
+   §6 / E4 §4 (no facial detail, no skin features, no clothing
+   folds). The eye-line read is "stylized basketball player," not
+   "stack of cylinders."
+2. **User player obvious within 1 second.** Yes. The mint user mesh
+   keeps the same halo + soft halo + chevron stack as the legacy
+   builder, with the chevron now rideing the upperBody crouch
+   anchor so it tracks the head through `defensive` / `denial` /
+   `closeout`. Confirmed in the after screenshots.
+3. **Ball-handler obvious within 1 second.** Yes. The warm-gold
+   possession ring is unchanged from the legacy contract and sits
+   under the team ring, exactly per §16 E4 §7. Verified in the new
+   `imperativeScene.athlete.test.ts` indicator-layer test.
+4. **`idle` / `defensive` / `denial` / `closeout` look meaningfully
+   different.** Yes — the new builder applies real `rotation.x`
+   deltas on `thigh` / `calf` / `upperArm` / `foreArm` sub-groups,
+   so the leg actually bends in `defensive` / `denial` / `closeout`
+   instead of the legacy "translate the upper body down" trick. The
+   denial defender's outside arm is visibly raised in the after /
+   F3 close-ups; the closeout pose pitches the torso forward with
+   both arms wide. `cut` and `sag`/`shrink` ship as visible stubs
+   per F2C; routing scenarios at them remains a follow-up.
+5. **Scene still feels clean and premium rather than noisy.** Yes.
+   Material count per figure is unchanged (six shared
+   `MeshStandardMaterials`); the per-figure tri count rose by
+   roughly 2.6 × the legacy ~450 baseline but stays under the
+   1500 ceiling. Floor rings, gym shell, lighting, and overlay
+   chrome are untouched. No new draw-call patterns. The scene
+   still looks intentionally calm and broadcast-readable.
+6. **Movement / replay still acceptable.** Yes. MotionController
+   writes `position` and `rotation.y` on the figure root only; the
+   new sub-group taxonomy lives below the root and is static
+   within a stance. Phase B replay, Phase C movement easing, and
+   Phase D fullscreen all unchanged. The full vitest suite (136
+   pre-existing tests + 5 new athlete tests) passes.
+7. **Fullscreen still acceptable.** Yes. The `phase-f-after-fullscreen.png`
+   capture shows the same broadcast-style camera framing that
+   shipped in Phase D; no regression in the canvas-fills-viewport
+   behaviour.
+8. **Screenshots generated.** All 15 paths listed in the table
+   above were produced by `pnpm qa:scene:screenshots` (Phase F0 —
+   Playwright + the dev-only `/dev/scene-preview` route).
+9. **Did the result move meaningfully closer to the attached
+   visual reference?** Honest answer: **partially.** The
+   underlying architecture moved a long way — the new builder has
+   the named sub-group taxonomy, real joint rotations, and the
+   stance lookup table that the reference image's posed-athlete
+   look depends on. The on-screen silhouette moved a smaller way —
+   cylinders + capsules + spheres cannot reach the reference
+   image's dense-mesh stylized-athlete look without an asset
+   pipeline. From the gameplay camera the stance differences,
+   uniform separation, and arm-lane reads are noticeably better,
+   but the players still register as toys, not the polished
+   training-sim athletes in the reference.
+10. **What parts of the reference were achieved?**
+    - Clean, calm broadcast-style hardwood + role-readable players
+    - Distinct user (mint halo + chevron) vs. ball-handler (gold
+      ring) vs. team identity (jersey + ring color)
+    - Athletic body proportions (legs ~50 % of standing height,
+      tapered torso, distinct shoulder line)
+    - Real elbow / knee break in posed stances; arms move to
+      different shapes per stance
+    - Clean uniform separation: jersey, waistband, side stripes,
+      shorts, skin, shoes, and accent midsole all read as
+      individual elements
+    - Floor indicator stack stays clean and not noisy
+11. **What is intentionally out of scope for Phase F?**
+    - Realistic faces / individual hair / facial features — §6 / E4
+      §4 explicitly forbid these
+    - PBR textures or imported texture atlases — §14 + E4 §4
+    - SkinnedMesh / AnimationMixer — replay-safety and Mac perf
+      constraint per E4 §4 / §5
+    - Per-frame geometry mutation, asset-pipeline introduction, or
+      scenario JSON authoring changes — recovery-plan boundary
+    - Stance routing for ESC / AOR / SKR scenarios — the renderer
+      *accepts* `closeout` / `cut` / `sag`, but `buildBasketballGroup`
+      still only picks `denial` / `defensive` / `idle` (visual-system
+      plan §18.4 reopen item; not Phase F)
+12. **What still needs visual polish in Phase G / Phase H or a
+    later asset spike?**
+    - Phase G — Young-Player Copy Pass (next session); no geometry
+      change.
+    - Phase H — Mac frame-rate measurement, broadcast / tactical /
+      follow-camera screenshot diffs, FPS-guard verification on
+      five-player BDW-01.
+    - Future Phase I (see below) — evaluate whether lightweight
+      stylized GLB athletes raise the silhouette ceiling far
+      enough to justify the asset-pipeline cost.
+    - Phase H (or its successor) — body weight-shift and squared-
+      hips axes; the sub-group taxonomy is in place but Phase F
+      did not author additional axes for them.
+
+#### Validation summary
+
+- `pnpm --filter @courtiq/web lint` — clean.
+- `pnpm --filter @courtiq/web test` — 141 / 141 passing
+  (136 prior + 5 new athlete-builder tests).
+- `pnpm --filter @courtiq/web typecheck` — clean. Pre-existing
+  unrelated `@courtiq/core` / Prisma generation gates require
+  `pnpm --filter @courtiq/core build` + `pnpm --filter @courtiq/db
+  exec prisma generate` to run before the typecheck step; both are
+  in the standard local bootstrap and Phase F did not add or
+  unblock any new diagnostic.
+
+#### Flag / legacy builder removal
+
+`USE_ATHLETE_BUILDER` and `buildPlayerFigureLegacy` were retained
+through F1–F5A so a one-line revert was always available. F5B
+removed both after:
+
+- the new path passed the disposal-leak + budget + indicator
+  taxonomy tests;
+- after-screenshots showed no regression vs. the before set on the
+  default / fullscreen / close-up captures;
+- the typecheck + lint gates stayed clean across every micro-
+  milestone commit.
+
+The single-builder file (`imperativeScene.ts`) now ships the
+athlete builder as the only player path.
+
+
+### Future Phase I — True Trainer Asset Pipeline Spike
+
+Phase F deliberately stayed inside a code-built mesh boundary so
+the recovery's downstream guarantees — replay determinism (Phase
+B), motion timing (Phase C), fullscreen (Phase D), screenshot QA
+(F0), Mac performance — were never put at risk. That boundary was
+a *Phase F safety constraint*, not the product's permanent
+direction.
+
+The on-court silhouette gap between the F5 athlete and the visual
+reference image is real. Cylinder + capsule + sphere primitives
+cannot ship a "premium playable film room" silhouette by
+themselves; they can ship a clean teaching-readable placeholder.
+
+When Phase G / H land and the recovery is closed, run a *Phase I
+— True Trainer Asset Pipeline Spike* to evaluate whether
+lightweight imported athlete assets pay for the asset-pipeline
+cost. Constraints to evaluate:
+
+- **Visual improvement on the gameplay camera** vs. the F5 athlete.
+- **Mac / Safari performance** at default DPR with five players
+  on BDW-01 and on the heavier ESC / AOR / SKR packs.
+- **Load time** of a typical scenario with imported assets vs.
+  the current sub-second code-built path.
+- **Replay determinism** — does any imported model interaction
+  (root motion, bone normalisation, animation clip blending) drift
+  the existing `MotionController` / `ReplayStateMachine`
+  guarantees?
+- **Disposal safety** — `SkinnedMesh` and `AnimationMixer` have
+  separate lifetimes from `BufferGeometry` and `Material`; the
+  current `disposeGroup` traversal does not reach them.
+- **Licensing / authoring complexity** of stylized basketball
+  player models and their stances.
+- **Teaching clarity** — is the imported model's silhouette
+  *meaningfully* better at teaching defender stance from
+  broadcast distance? The reference image's premium feel may be
+  bottlenecked on lighting + camera + scene composition rather
+  than on player geometry, in which case the spike should
+  explicitly compare a Phase F figure under that lighting against
+  an imported figure under the same lighting.
+
+The Phase I spike's recommendation should pick one of:
+
+1. **Stay code-built.** F5's silhouette is good enough once
+   lighting + camera + uniform polish reach Phase H targets.
+2. **Optimised imported low-poly GLB athlete.** Use one stylized
+   imported mesh per player, no rigging, stance via per-stance
+   pose meshes — cheapest jump in silhouette quality.
+3. **Simple rigged GLB athlete.** Adds `SkinnedMesh` and a small
+   `AnimationMixer` clip set; widest visual gain but highest
+   replay-determinism risk.
+4. **Full animation system.** Most expensive; explicitly *not*
+   the recommended landing zone unless steps 2 / 3 prove
+   insufficient.
+
+Until that spike runs, the code-built athlete is the supported
+path and the constraints above continue to govern the renderer.
+
