@@ -788,6 +788,99 @@ export function updateSkinnedAthletePose(
 }
 
 /**
+ * Phase M6 — replay/motion state input the mapper consumes.
+ *
+ * `kind` is the SceneMovement kind from `lib/scenario3d/scene.ts`.
+ * `team` lets the mapper differentiate defender movement (which
+ * is always `defense_slide`) from offensive movement (which is
+ * `cut_sprint` for cuts/drives/rips/jabs, otherwise `idle_ready`).
+ * `isMoving` is `true` while the player has an active movement at
+ * the current replay time and `false` while they are stationary.
+ *
+ * The shape is intentionally narrow so it can be assembled from
+ * the existing motion controller without adding new replay state.
+ */
+export interface ReplayMotionState {
+  kind?:
+    | 'cut'
+    | 'closeout'
+    | 'rotation'
+    | 'lift'
+    | 'drift'
+    | 'pass'
+    | 'drive'
+    | 'stop_ball'
+    | 'back_cut'
+    | 'baseline_sneak'
+    | 'skip_pass'
+    | 'rip'
+    | 'jab'
+  team?: 'offense' | 'defense'
+  isMoving: boolean
+}
+
+/**
+ * Phase M6 — pure helper. Maps a player's current replay/motion
+ * state to one of the three Phase M animation clips.
+ *
+ * Mapping rules (deterministic, testable without WebGL):
+ *
+ *   stationary                                → 'idle_ready'
+ *   defender movement (any kind)              → 'defense_slide'
+ *   defender stationary in 'closeout'         → 'defense_slide'
+ *   offensive cut / drive / sprint-like       → 'cut_sprint'
+ *   offensive small footwork (rip/jab/drift)  → 'idle_ready'
+ *   passes / ball-only kinds                  → 'idle_ready'
+ *   unknown                                   → 'idle_ready'
+ *
+ * The "stationary defender in closeout" case keeps a defender
+ * that just finished a closeout in the active defensive base
+ * pose instead of dropping back to idle for one frame.
+ */
+export function mapReplayStateToAnimation(
+  state: ReplayMotionState,
+): SkinnedAthleteAnimationName {
+  // Defenders default to defensive slide whenever the kind reads
+  // as defensive footwork or movement, even if `isMoving` is false
+  // (e.g. mid-stride freeze frame on a closeout).
+  if (state.team === 'defense') {
+    if (state.isMoving) return 'defense_slide'
+    if (state.kind === 'closeout' || state.kind === 'rotation') {
+      return 'defense_slide'
+    }
+    return 'idle_ready'
+  }
+
+  if (!state.isMoving) return 'idle_ready'
+
+  // Offense. Cuts, drives, back cuts, baseline sneaks, and
+  // skip-pass-like kinetic movements drive the sprint clip; small
+  // footwork (rip / jab / drift / lift) and passes do not.
+  switch (state.kind) {
+    case 'cut':
+    case 'drive':
+    case 'back_cut':
+    case 'baseline_sneak':
+      return 'cut_sprint'
+    case 'rip':
+    case 'jab':
+    case 'drift':
+    case 'lift':
+    case 'pass':
+    case 'skip_pass':
+    case 'stop_ball':
+      return 'idle_ready'
+    case 'closeout':
+    case 'rotation':
+      // Offensive closeout/rotation is a degenerate case — treat
+      // as cut_sprint since the player is actively moving.
+      return 'cut_sprint'
+    default:
+      return 'idle_ready'
+  }
+}
+
+/**
  * Switch the active animation on a skinned figure. No-op for
  * procedural figures and for skinned figures whose mixer was not
  * built (the figure is rendered statically). When the requested
