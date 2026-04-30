@@ -151,3 +151,5 @@ All overlays must clear after 1.2s into Timeline A so the player can see the cle
 **Difficulty:** 3 / 5 (intermediate — requires reading feet, not just space)
 
 **Player Role:** Wing scorer (on-ball, just caught a swing pass)
+
+**Game Context:** 3rd quarter, your team is down 4. The ball just swung from one wing to the other. You're catching the pass on the right wing with your defender flying at you. You have to make a decision the instant the ball hits your hands.
