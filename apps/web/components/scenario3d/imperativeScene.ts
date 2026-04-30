@@ -934,6 +934,22 @@ export type MotionMode = 'static' | 'intro' | 'answer'
 const MOTION_PRE_DELAY_MS = 250
 
 /**
+ * Phase C / C2 — yaw smoothing time constant in seconds. The smaller
+ * this is, the snappier the body turn. ~0.18s is fast enough to make
+ * a cut feel decisive without flicking when a defender tracks a fast
+ * ball swing.
+ */
+const YAW_TIME_CONSTANT_S = 0.18
+
+/**
+ * Phase C / C2 — squared minimum direction magnitude before we use
+ * the per-frame movement-direction or defender→ball heuristic for
+ * yaw. Below this, we fall back to the static team yaw so a paused
+ * scene or an idle player does not chase a sub-pixel direction signal.
+ */
+const MOVEMENT_DIRECTION_EPS_SQ = 0.01
+
+/**
  * Resolves the movement list for a given mode. Centralised here so the
  * imperative MotionController and the older JSX ScenarioReplayController
  * agree on which list to play even though they live in separate files.
@@ -1011,6 +1027,15 @@ export class MotionController {
   // freeze pose instead of snapping them back to `scene.players[*].
   // start`. null on the initial intro leg.
   private currentOverrides: ReadonlyMap<string, CourtPoint> | null = null
+  // Phase C / C2 — Per-frame yaw update state. We track each player's
+  // most recent rendered yaw + a real-time wall-clock timestamp so the
+  // smoothing can be frame-rate independent (and replay-rate
+  // independent — `dt` here is wall time, not playback time). Holding
+  // a separate Map per player is cheaper than reading off
+  // playerGroups.rotation.y because Three.Group's rotation is a
+  // Euler whose `.y` getter does numeric work on every read.
+  private currentYaw: Map<string, number> = new Map()
+  private lastYawTickWallMs: number = 0
 
   constructor(
     scene: Scene3D,
@@ -1047,6 +1072,13 @@ export class MotionController {
     this.pendingPassArrival = false
     this.hasFiredFrozen = false
     this.pendingFrozen = false
+    // Phase C / C2 — clear cached yaw so the next tick re-snaps to
+    // each player's authored team yaw. Without this, a reset that
+    // followed a cut would briefly hold the cut-direction yaw and
+    // then ease back toward team default; resetting here makes the
+    // first eased frame match the team default exactly.
+    this.currentYaw.clear()
+    this.lastYawTickWallMs = 0
   }
 
   /** Returns true (and clears the flag) once after a pass phase ends
@@ -1222,9 +1254,116 @@ export class MotionController {
     }
 
     this.applyBall(t)
+
+    // Phase C / C2 — per-frame yaw update. Runs AFTER the ball is
+    // applied so defenders / non-mover heuristics can read a current
+    // ball position without lagging a frame. Uses real-time wall delta
+    // (nowMs across ticks) so the smoothing rate is independent of
+    // both playback rate and frame rate. Allocates nothing beyond the
+    // four scalars below per player.
+    this.applyPlayerYaw(nowMs, t)
   }
 
   // --- internals ---
+
+  /** Returns the resolved active movement for a player at time `t`,
+   *  or null if no segment is active. Mirrors the lookup in
+   *  `samplePlayer` but stays inside the controller so the yaw pass
+   *  can read it without re-walking the byPlayer list. */
+  private findActivePlayerMovement(
+    playerId: string,
+    t: number,
+  ): ResolvedMovement | null {
+    const list = this.timeline.byPlayer.get(playerId)
+    if (!list) return null
+    for (const m of list) {
+      if (m.startMs <= t && t <= m.endMs) return m
+    }
+    return null
+  }
+
+  /** Phase C / C2 — applies a smoothed yaw to every player so bodies
+   *  face the basketball action. Target yaw priority:
+   *   1. If the player has an active movement segment, face the
+   *      direction of that segment (from→to).
+   *   2. Otherwise, defenders face the current ball position; the
+   *      current ball-holder faces the rim; everyone else holds their
+   *      authored team yaw.
+   *  The smoothing uses an exponential approach with a fixed time
+   *  constant, so the same visible quickness applies regardless of
+   *  frame rate or playback rate. Pause-safe: while paused, the
+   *  `tick` caller still passes a real-time `nowMs`, the position
+   *  delta is zero, and the yaw simply continues converging toward
+   *  the same fallback target.
+   */
+  private applyPlayerYaw(nowMs: number, t: number): void {
+    // dt in seconds, clamped so the very first tick after mount or a
+    // long backgrounded tab can't snap by a giant angle.
+    const rawDt = this.lastYawTickWallMs === 0
+      ? 1 / 60
+      : (nowMs - this.lastYawTickWallMs) / 1000
+    const dt = Math.max(0, Math.min(rawDt, 0.1))
+    this.lastYawTickWallMs = nowMs
+    // Exponential smoothing factor. Time constant ~0.18s — fast
+    // enough that a cut feels decisive, slow enough that a defender
+    // tracking a ball swing doesn't flick.
+    const k = 1 - Math.exp(-dt / YAW_TIME_CONSTANT_S)
+
+    // Find the current ball holder once per tick (same lookup
+    // applyBall did). The holder is null while the ball is in flight
+    // — in that case we let the holder fallback hit the default team
+    // yaw, which is fine because the previous holder's body is
+    // already turned toward the target by the active-movement branch.
+    const phase = this.findPhase(t)
+    const holderId = phase?.pass ? null : phase?.holderId ?? null
+    const ballX = this.ballGroup.position.x
+    const ballZ = this.ballGroup.position.z
+
+    for (const player of this.scene.players) {
+      const g = this.playerGroups.get(player.id)
+      if (!g) continue
+      const px = g.position.x
+      const pz = g.position.z
+      let targetYaw: number
+      const active = this.findActivePlayerMovement(player.id, t)
+      if (active) {
+        const dx = active.to.x - active.from.x
+        const dz = active.to.z - active.from.z
+        if (dx * dx + dz * dz > MOVEMENT_DIRECTION_EPS_SQ) {
+          targetYaw = Math.atan2(dx, dz)
+        } else {
+          targetYaw = computePlayerYaw(player.team, px, pz)
+        }
+      } else if (player.team === 'defense') {
+        const bx = ballX - px
+        const bz = ballZ - pz
+        if (bx * bx + bz * bz > MOVEMENT_DIRECTION_EPS_SQ) {
+          targetYaw = Math.atan2(bx, bz)
+        } else {
+          targetYaw = computePlayerYaw('defense', px, pz)
+        }
+      } else if (player.id === holderId) {
+        targetYaw = computePlayerYaw('offense', px, pz)
+      } else {
+        targetYaw = computePlayerYaw(player.team, px, pz)
+      }
+
+      const current = this.currentYaw.get(player.id)
+      if (current === undefined) {
+        // First yaw application this mount: snap to the build-time
+        // yaw the canvas already wrote, so the first eased frame
+        // doesn't visibly twitch.
+        const initial = g.rotation.y
+        const eased = smoothAngle(initial, targetYaw, k)
+        g.rotation.y = eased
+        this.currentYaw.set(player.id, eased)
+      } else {
+        const eased = smoothAngle(current, targetYaw, k)
+        g.rotation.y = eased
+        this.currentYaw.set(player.id, eased)
+      }
+    }
+  }
 
   /** Walks the resolved ball-pass timeline and produces a contiguous
    *  list of held / in-flight phases covering [0, totalMs]. Built once
@@ -1391,6 +1530,12 @@ export class MotionController {
     this.freezeAtMs = null
     this.hasFiredFrozen = false
     this.pendingFrozen = false
+    // Phase C / C2 — drop cached yaw so the new leg re-snaps to its
+    // first targets without easing through stale post-cut yaws from
+    // the previous leg. The yaw smoother re-seeds itself on the first
+    // tick of the new leg from each player group's current rotation.
+    this.currentYaw.clear()
+    this.lastYawTickWallMs = 0
   }
 
   /** Phase D — captures the current sampled positions of every player
@@ -1657,6 +1802,22 @@ function easeInOutCubic(u: number): number {
   if (u <= 0) return 0
   if (u >= 1) return 1
   return u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2
+}
+
+/**
+ * Phase C / C2 — frame-rate-independent smoothing toward `target`
+ * from `current`, taking the shortest path around the circle. `k` is
+ * the per-call step in [0, 1] (typically `1 - exp(-dt / τ)`); k=0
+ * holds, k=1 snaps. Exported so the movement tests can pin the
+ * shortest-path semantics without spinning up a Three scene.
+ */
+export function smoothAngle(current: number, target: number, k: number): number {
+  const TWO_PI = Math.PI * 2
+  let diff = target - current
+  // Normalise diff into (-π, π] so we always rotate the short way.
+  while (diff > Math.PI) diff -= TWO_PI
+  while (diff < -Math.PI) diff += TWO_PI
+  return current + diff * k
 }
 
 // ---------- internals ----------
@@ -3168,7 +3329,7 @@ const FOOT_STAGGER_DENIAL = 0.1
  * Player local +z is the figure's "back" (default Three.js forward is
  * -z), so we rotate so the chest points the way we want.
  */
-function computePlayerYaw(team: SceneTeam, x: number, z: number): number {
+export function computePlayerYaw(team: SceneTeam, x: number, z: number): number {
   // Direction toward the rim from the player's position.
   const towardRim = Math.atan2(-x, -z)
   // Same direction with PI flip → facing outward away from rim.

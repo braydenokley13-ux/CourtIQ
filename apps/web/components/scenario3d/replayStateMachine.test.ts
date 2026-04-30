@@ -4,16 +4,21 @@ import * as THREE from 'three'
 import {
   MotionController,
   ReplayStateMachine,
+  computePlayerYaw,
+  smoothAngle,
   type ReplayState,
 } from './imperativeScene'
 import type { Scene3D } from '@/lib/scenario3d/scene'
 
 // Minimal stub for the THREE groups MotionController writes positions
-// into. The controller only ever touches `position.x/y/z` and
-// `position.set()`, so the rendering pipeline isn't exercised here.
+// into. Phase C / C2 added a per-frame yaw update, so the stub now also
+// exposes `rotation.y`. The rendering pipeline still isn't exercised
+// here — both fields are plain mutable scalars/objects so the tests can
+// assert end-state without booting WebGL.
 function stubGroup(): THREE.Group {
   const v = new THREE.Vector3(0, 0, 0)
-  return { position: v } as unknown as THREE.Group
+  const r = { x: 0, y: 0, z: 0 }
+  return { position: v, rotation: r } as unknown as THREE.Group
 }
 
 function buildScene(opts: {
@@ -949,5 +954,132 @@ describe('Phase H — idle players honor the freeze snapshot', () => {
     // override, it stays at (14, 11) — the frozen pose.
     expect(x2.position.x).toBeCloseTo(14, 5)
     expect(x2.position.z).toBeCloseTo(11, 5)
+  })
+})
+
+describe('Phase C / C2 — body-facing helpers', () => {
+  // Pin the conventions the per-frame yaw pass relies on. The figure
+  // is built so `rotation.y = atan2(dx, dz)` makes the chest face the
+  // direction (dx, dz). `computePlayerYaw` reuses that convention to
+  // pick a default team yaw at build time.
+  it('smoothAngle returns target unchanged when k=1', () => {
+    expect(smoothAngle(0, Math.PI / 2, 1)).toBeCloseTo(Math.PI / 2, 6)
+  })
+
+  it('smoothAngle holds when k=0', () => {
+    expect(smoothAngle(0.7, -2, 0)).toBeCloseTo(0.7, 6)
+  })
+
+  it('smoothAngle rotates the short way around π', () => {
+    // From -3 to 3 the short way is ~0.283 rad through the ±π wrap,
+    // not 6 rad the long way. With k=0.5 the result should sit
+    // halfway along that short arc — very close to ±π — and the
+    // angular distance to the target must be smaller than half the
+    // long way (3 rad).
+    const out = smoothAngle(-3, 3, 0.5)
+    const angularDist = (a: number, b: number): number => {
+      let d = ((a - b) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2)
+      if (d > Math.PI) d = Math.PI * 2 - d
+      return d
+    }
+    expect(angularDist(out, 3)).toBeLessThan(angularDist(-3, 3))
+    expect(angularDist(out, 3)).toBeLessThan(0.2)
+  })
+
+  it('computePlayerYaw flips offense and defense by π', () => {
+    const off = computePlayerYaw('offense', 4, 6)
+    const def = computePlayerYaw('defense', 4, 6)
+    const diff = Math.abs(off - def)
+    // Difference is π modulo 2π.
+    const mod = ((diff % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
+    expect(Math.min(mod, 2 * Math.PI - mod)).toBeCloseTo(Math.PI, 5)
+  })
+})
+
+describe('Phase C / C2 — per-frame yaw update', () => {
+  function buildYawScene(): Scene3D {
+    return {
+      id: 'yaw_scene',
+      court: 'half',
+      camera: 'teaching_angle',
+      players: [
+        { id: 'user', team: 'offense', role: 'wing', start: { x: 18, z: 10 }, isUser: true },
+        { id: 'pg', team: 'offense', role: 'pg', start: { x: -9, z: 14 }, hasBall: true },
+        { id: 'x2', team: 'defense', role: 'denying', start: { x: 14, z: 10 } },
+      ],
+      ball: { start: { x: -9, z: 14 }, holderId: 'pg' },
+      movements: [
+        // User cuts toward the rim — direction roughly (-18, -8).
+        { id: 'cut', playerId: 'user', kind: 'cut', to: { x: 0, z: 2 }, durationMs: 800 },
+      ],
+      answerDemo: [],
+      wrongDemos: [],
+      preAnswerOverlays: [],
+      postAnswerOverlays: [],
+      freezeAtMs: null,
+      synthetic: false,
+    }
+  }
+
+  it('rotates a cutter toward the cut direction over multiple ticks', () => {
+    const scene = buildYawScene()
+    const { motion, players } = makeMotion(scene)
+    // Seed the build-time yaw so the smoother starts from "facing rim",
+    // which is what the canvas sets via computePlayerYaw before the
+    // first tick.
+    const userGroup = players.get('user')!
+    userGroup.rotation.y = computePlayerYaw('offense', 18, 10)
+    const pgGroup = players.get('pg')!
+    pgGroup.rotation.y = computePlayerYaw('offense', -9, 14)
+
+    // Anchor + advance a few real-world frames into the cut.
+    motion.tick(0)
+    for (let i = 1; i <= 30; i++) motion.tick(i * 16) // ~30 frames @ 60fps
+    // Movement direction (dx, dz) = (0 - 18, 2 - 10) = (-18, -8).
+    // Target yaw = atan2(-18, -8) ≈ -1.99 rad. The smoother should be
+    // converging from the build-time atan2(-18, -10) ≈ -2.08 rad
+    // toward -1.99, so the user yaw should be in the same neighborhood.
+    const userYaw = userGroup.rotation.y
+    const expected = Math.atan2(-18, -8)
+    // Either the smoother reached the cut direction, or it's strictly
+    // closer to it than the build-time value. Either way it must NOT
+    // be sitting on the original team yaw any more.
+    expect(userYaw).not.toBe(computePlayerYaw('offense', 18, 10))
+    // Within 0.15 rad of the cut-direction target after 30 frames
+    // (time constant ~0.18s, ~0.48s elapsed → ~93% converged).
+    expect(Math.abs(userYaw - expected)).toBeLessThan(0.15)
+  })
+
+  it('rotates a stationary defender toward the ball-holder direction', () => {
+    const scene = buildYawScene()
+    const { motion, players } = makeMotion(scene)
+    const x2Group = players.get('x2')!
+    x2Group.rotation.y = computePlayerYaw('defense', 14, 10)
+
+    motion.tick(0)
+    for (let i = 1; i <= 30; i++) motion.tick(i * 16)
+    // The defender is stationary at (14, 10). Ball holder pg is at
+    // (-9, 14). After applyBall runs the ball is at pg's position —
+    // so the defender's target yaw faces the ball.
+    // Direction (dx, dz) = (-9 - 14, 14 - 10) = (-23, 4).
+    const expected = Math.atan2(-23, 4)
+    const yaw = x2Group.rotation.y
+    expect(Math.abs(yaw - expected)).toBeLessThan(0.2)
+  })
+
+  it('does not allocate per-tick scaling with player count', () => {
+    // Smoke check: many ticks should not blow up the wallMs ref or
+    // produce NaN yaws even with bursty timestamps. Models a
+    // backgrounded tab where a few-second gap appears between ticks.
+    const scene = buildYawScene()
+    const { motion, players } = makeMotion(scene)
+    motion.tick(0)
+    motion.tick(16)
+    // Long gap (5s) — should not snap the yaw by a wild angle.
+    motion.tick(5016)
+    motion.tick(5032)
+    for (const g of players.values()) {
+      expect(Number.isFinite(g.rotation.y)).toBe(true)
+    }
   })
 })
