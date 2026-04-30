@@ -34,3 +34,14 @@ Design specs for the 3D film-room decision scenarios.
 - The baseline lane (you → empty corner) is clean.
 
 **Question Prompt:** "Your defender just looked away. What do you do?"
+
+**Best Read:** Sneak baseline into the empty corner. Stay low, move fast, and call for the ball as you arrive.
+
+**Acceptable Reads:**
+- Slow baseline drift to the empty corner (gets there late but still gets a clean catch).
+- A quick "shake" toward the wing first, then baseline cut (sells it harder, same destination).
+
+**Bad Reads:**
+- Stand still and hold your spot (kills the empty space).
+- Cut up to the top of the key (cuts toward your defender's eyes, not behind them).
+- Run all the way under the rim (drags the help defender into the corner you wanted).
