@@ -289,3 +289,13 @@ Floor markers under D4's feet are the signature visual: they make the parallel-f
 **Player Role:** Driver (you have the ball, attacking the paint off a wing)
 
 **Game Context:** 4th quarter, score is tied. You drove past your defender on the right wing and you're at the elbow with momentum. The defense is collapsing on you.
+
+**Possession Setup:**
+- Formation: 4-out, 1-in (post starts on the strong-side block, then lifts).
+- You (the user) just blew by your wing defender on the right.
+- Your original defender is trailing behind your right hip.
+- The post defender has stepped up to cut off your drive at the elbow — that's the **second** body in the paint.
+- Strong-side (right) corner: a teammate, defender still tight on them.
+- Weak-side (left) wing: a teammate at -18, 8.
+- **Weak-side (left) corner: a shooter, and their defender has stepped one big step toward the paint to "stunt"** — they are now too far away to contest a corner shot.
+- Top of the key: a teammate (the original passer).
