@@ -4304,17 +4304,25 @@ function upgradePremiumLegsAndFeet(figure: THREE.Object3D): void {
     const calf = leg.getObjectByName('calf') as THREE.Group | null
     const foot = leg.getObjectByName('foot') as THREE.Group | null
     if (!thigh || !calf || !foot) continue
+    // Phase L7 — quad/calf mass. Phase J3D peaked the thigh at 1.10x
+    // (≈ 0.33) and the calf at 1.20x (≈ 0.264). L7 lifts the thigh peak
+    // to 1.30x (≈ 0.39) so the upper-leg silhouette carries quad mass
+    // instead of reading as a stretched cylinder, and bumps the calf
+    // belly to 1.42x (≈ 0.312) so the lower-leg-to-shoe transition has
+    // visible muscle. The hip end and knee transitions are also
+    // thickened so the segments seat into the pelvis and ankle
+    // cleanly — same lathe segment count, no triangle budget change.
     upgradeLegSegment(thigh, [
-      new THREE.Vector2(ATH_THIGH_TOP_R * 1.05, ATH_THIGH_LENGTH * 0.5),
-      new THREE.Vector2(ATH_THIGH_TOP_R * 1.10, ATH_THIGH_LENGTH * 0.22),
-      new THREE.Vector2(ATH_THIGH_TOP_R * 0.92, -ATH_THIGH_LENGTH * 0.10),
-      new THREE.Vector2(ATH_THIGH_BOT_R * 1.00, -ATH_THIGH_LENGTH * 0.5),
+      new THREE.Vector2(ATH_THIGH_TOP_R * 1.15, ATH_THIGH_LENGTH * 0.5),
+      new THREE.Vector2(ATH_THIGH_TOP_R * 1.30, ATH_THIGH_LENGTH * 0.22),
+      new THREE.Vector2(ATH_THIGH_TOP_R * 1.04, -ATH_THIGH_LENGTH * 0.10),
+      new THREE.Vector2(ATH_THIGH_BOT_R * 1.10, -ATH_THIGH_LENGTH * 0.5),
     ])
     upgradeLegSegment(calf, [
-      new THREE.Vector2(ATH_CALF_TOP_R * 1.05, ATH_CALF_LENGTH * 0.5),
-      new THREE.Vector2(ATH_CALF_TOP_R * 1.20, ATH_CALF_LENGTH * 0.18),
-      new THREE.Vector2(ATH_CALF_BOT_R * 1.05, -ATH_CALF_LENGTH * 0.20),
-      new THREE.Vector2(ATH_CALF_BOT_R * 0.95, -ATH_CALF_LENGTH * 0.5),
+      new THREE.Vector2(ATH_CALF_TOP_R * 1.18, ATH_CALF_LENGTH * 0.5),
+      new THREE.Vector2(ATH_CALF_TOP_R * 1.42, ATH_CALF_LENGTH * 0.18),
+      new THREE.Vector2(ATH_CALF_BOT_R * 1.18, -ATH_CALF_LENGTH * 0.20),
+      new THREE.Vector2(ATH_CALF_BOT_R * 1.00, -ATH_CALF_LENGTH * 0.5),
     ])
     upgradePremiumShoe(foot)
   }
@@ -4408,17 +4416,25 @@ function upgradePremiumArms(figure: THREE.Object3D): void {
     // local frame; the existing mesh is positioned at y = -L/2 so the
     // segment still anchors at the joint above and ends at the joint
     // below without a position shift.
+    //
+    // Phase L7 — bicep/tricep mass. Phase J3C peaked the upper arm
+    // at 1.18x of the base radius (≈ 0.20), which still read as a
+    // tube at gameplay-camera distance. L7 lifts the peak to 1.42x
+    // (≈ 0.241) and broadens the shoulder/joint ends 1.05 → 1.18 so
+    // the deltoid cap blends into a thicker upper-arm without a step.
+    // The forearm peak comes up to 1.30x so the hand transition reads
+    // cleaner. Triangle count is unchanged — lathe segments are still 10.
     upgradeArmSegment(upperArm, [
-      new THREE.Vector2(ATH_UPPER_ARM_R * 1.05, ATH_UPPER_ARM_LENGTH * 0.5),
-      new THREE.Vector2(ATH_UPPER_ARM_R * 1.18, ATH_UPPER_ARM_LENGTH * 0.20),
-      new THREE.Vector2(ATH_UPPER_ARM_R * 1.10, -ATH_UPPER_ARM_LENGTH * 0.12),
-      new THREE.Vector2(ATH_UPPER_ARM_R * 0.95, -ATH_UPPER_ARM_LENGTH * 0.5),
+      new THREE.Vector2(ATH_UPPER_ARM_R * 1.18, ATH_UPPER_ARM_LENGTH * 0.5),
+      new THREE.Vector2(ATH_UPPER_ARM_R * 1.42, ATH_UPPER_ARM_LENGTH * 0.20),
+      new THREE.Vector2(ATH_UPPER_ARM_R * 1.32, -ATH_UPPER_ARM_LENGTH * 0.12),
+      new THREE.Vector2(ATH_UPPER_ARM_R * 1.05, -ATH_UPPER_ARM_LENGTH * 0.5),
     ])
     upgradeArmSegment(foreArm, [
-      new THREE.Vector2(ATH_FORE_ARM_R * 1.05, ATH_FORE_ARM_LENGTH * 0.5),
-      new THREE.Vector2(ATH_FORE_ARM_R * 1.12, ATH_FORE_ARM_LENGTH * 0.25),
-      new THREE.Vector2(ATH_FORE_ARM_R * 0.98, -ATH_FORE_ARM_LENGTH * 0.15),
-      new THREE.Vector2(ATH_FORE_ARM_R * 0.85, -ATH_FORE_ARM_LENGTH * 0.5),
+      new THREE.Vector2(ATH_FORE_ARM_R * 1.12, ATH_FORE_ARM_LENGTH * 0.5),
+      new THREE.Vector2(ATH_FORE_ARM_R * 1.30, ATH_FORE_ARM_LENGTH * 0.25),
+      new THREE.Vector2(ATH_FORE_ARM_R * 1.10, -ATH_FORE_ARM_LENGTH * 0.15),
+      new THREE.Vector2(ATH_FORE_ARM_R * 0.92, -ATH_FORE_ARM_LENGTH * 0.5),
     ])
   }
 }
@@ -4542,12 +4558,19 @@ function upgradePremiumTorso(figure: THREE.Object3D): void {
   // change to the parent transform. Subtle ab/rib swell at the
   // ribcage, slightly wider pec line, then a smooth taper into the
   // shoulder cap so the deltoid sphere blends instead of perching.
+  // Phase L7 — pec/chest swell. Phase J3A peaked the chest at
+  // ATH_TORSO_TOP_W * 0.520 (≈ 0.738), which produced a smooth but
+  // shallow torso. L7 lifts the upper-chest pec line to 0.560
+  // (≈ 0.795) and the rib swell to 0.580 so the silhouette carries
+  // visible pectoral mass at the gameplay camera. The waist node is
+  // unchanged so the V-taper from chest to waist becomes more
+  // pronounced — the same shape an athletic figure makes.
   const profile: THREE.Vector2[] = [
     new THREE.Vector2(ATH_TORSO_BOT_W * 0.50, -h / 2),
-    new THREE.Vector2(ATH_TORSO_BOT_W * 0.515, -h * 0.30),
-    new THREE.Vector2(ATH_TORSO_BOT_W * 0.555, -h * 0.05),
-    new THREE.Vector2(ATH_TORSO_TOP_W * 0.520, h * 0.20),
-    new THREE.Vector2(ATH_TORSO_TOP_W * 0.512, h * 0.40),
+    new THREE.Vector2(ATH_TORSO_BOT_W * 0.520, -h * 0.30),
+    new THREE.Vector2(ATH_TORSO_BOT_W * 0.580, -h * 0.05),
+    new THREE.Vector2(ATH_TORSO_TOP_W * 0.560, h * 0.20),
+    new THREE.Vector2(ATH_TORSO_TOP_W * 0.530, h * 0.40),
     new THREE.Vector2(ATH_TORSO_TOP_W * 0.50, h / 2),
   ]
   const newGeom = new THREE.LatheGeometry(profile, 14)
