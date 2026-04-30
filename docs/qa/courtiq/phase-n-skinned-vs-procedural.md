@@ -6,3 +6,5 @@
 - With flag `true`, `buildPlayerFigure` attempts `buildSkinnedAthletePreview` first.
 - If the skinned path returns `null` or throws, the selector falls back to the procedural premium → Phase F figure.
 - Phase N visual QA must NOT make the skinned path the production default.
+
+## Phase N — Procedural BDW-01 Visual QA
