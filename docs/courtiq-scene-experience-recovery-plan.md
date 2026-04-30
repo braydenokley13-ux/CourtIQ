@@ -6159,5 +6159,76 @@ add segments). Phase F fallback constants are NOT touched in
 L7 so the fallback figure keeps its leaner Phase F silhouette
 exactly as the recovery plan committed to.
 
+### Phase L — Motion Feel Diagnosis
+
+After L7–L9 ship the athlete-quality fixes, the remaining
+"motion feels off" complaint resolves into the following
+ranked code-built blockers (no rigging required to address):
+
+1. **Camera easing is frame-rate-dependent (#1 blocker).**
+   `CameraController.easing = 0.10` is applied as a fixed per-
+   frame `lerp(target, 0.10)` factor (`imperativeScene.ts:854`,
+   used at `:910–:917`). Effective time constant therefore
+   scales with frame rate: at 60fps the camera converges in
+   ~120ms (e^-0.5 with 6 frames at 0.10 each); at 30fps it
+   converges in ~240ms; at 120fps it converges in ~60ms. The
+   "robotic / choppy" complaint partly comes from this — the
+   camera doesn't feel like it has a consistent reaction time
+   across devices. Yaw smoothing already uses `1 - exp(-dt/τ)`
+   (`imperativeScene.ts:1378`); the camera should match.
+2. **Yaw fallback flicker at micro-movements.** When a movement
+   segment's `dx² + dz² ≤ MOVEMENT_DIRECTION_EPS_SQ` (0.04 ft²),
+   `applyPlayerYaw` falls back from the segment-direction yaw
+   to the team-default yaw. For very short authored moves this
+   produces a one-frame yaw target swap that the smoothing
+   then has to chase. Clamping the active-movement check to a
+   minimum segment-distance threshold (instead of switching
+   modes) would keep the segment-direction read continuous
+   across short steps.
+3. **Pre-delay snap (`MOTION_PRE_DELAY_MS = 250`).** Players
+   hold still for 250ms before motion begins. The first eased
+   sample at t=0+ε advances visibly because `easeOutAthletic`
+   has f'(0) = 0 — but the camera, which has been settling
+   during the 250ms hold, may also start moving simultaneously
+   when the first segment fires, producing a "everyone starts
+   together" beat. Staggering the camera target update to
+   precede the player motion by ~80ms would soften this.
+4. **Segment seam acceleration.** Segments are velocity-
+   continuous when the dispatch table picks the same curve
+   on both sides of the seam (cut → cut, defensive → defensive
+   etc.). When a player transitions from an explosive ease
+   (`easeOutAthletic`, f'(1) = 0) into a defensive ease
+   (`ease`, f'(0) = 0) at u=1 → u=0, both endpoint derivatives
+   are zero so velocity continues at zero. But the *direction*
+   of motion can change abruptly at the seam, which reads as
+   a sharp pivot. Mitigation is per-player: blend the last
+   segment's exit yaw into the next segment's entry yaw via
+   the existing yaw smoothing (already happens) AND lift the
+   defender yaw time constant a hair so the body completes
+   the pivot before the next motion fires.
+5. **Pause / resume idle-pose pop.** When the user pauses on
+   a moving frame, players hold the eased position. On resume,
+   the segment u jumps from u_paused to u_paused + dt (no
+   pop). But if the user changes playback rate while paused,
+   `setPlaybackRate` rebases startedAt — that math is correct
+   (`MotionController.setPlaybackRate`), but the camera does
+   not re-anchor on rate change, which leaves a tiny camera
+   acceleration jump on resume. Worth touching only if it
+   reads visible.
+6. **Replay-leg snap.** When the consequence/replay legs start,
+   `setMovements` resets `pausedAtT = null` and the player
+   positions snap to the leg's `from`. The override map holds
+   idle players at the freeze snapshot, so non-movers do not
+   visibly jump — but the active movers may. Phase K already
+   addressed the worst of this (front-loaded ease on cuts).
+
+Biggest single blocker: **camera easing time-constant**.
+Phase L11 will make the camera time-constant explicit (in
+seconds) and apply it via `1 - exp(-dt/τ)` so the camera has
+the same reaction speed regardless of frame rate or playback
+rate. The yaw / position / pre-delay tweaks are smaller and
+will only land if they fit in the L11 micro-chunk without
+adding new dependencies or rewriting the replay state machine.
+
 
 
