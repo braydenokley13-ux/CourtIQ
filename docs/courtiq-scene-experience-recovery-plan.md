@@ -6278,5 +6278,250 @@ teaching-clarity contract:
 
 No additional teaching-clarity adjustments are needed in L12.
 
+## Phase L Findings
+
+#### 1. What caused the fullscreen black-space bug?
+
+The Phase K fullscreen path relied on a
+`[data-fullscreen='true']` attribute selector that React
+applied INSIDE the `fullscreenchange` event handler — one
+React render tick AFTER the browser had already promoted the
+element to fullscreen. During that one-frame window, the
+fullscreen target element had no
+`width: 100vh`/`height: 100vh` rule, so its canvas-wrapper
+child's `height: 100%` resolved against an unsized parent and
+collapsed to its embedded 280px height. The result: a thin
+top strip of court with the rest of the viewport black,
+controls anchored to the bottom of the (full-height) outer
+target, and a perceived "controls floating in unrelated black
+space" feel.
+
+A secondary contributor was R3F's internal ResizeObserver
+occasionally coalescing or missing the fullscreen transition
+on Safari, which left the WebGL pixel buffer at the embedded
+size even after layout had settled.
+
+#### 2. What fullscreen sizing/layout changes were made?
+
+L2 (`49ea6d6`) — `:fullscreen` / `:-webkit-full-screen` /
+`[data-fullscreen='true']` now share one rule that sets
+`display: flex; flex-direction: column` plus
+`width: 100vw; height: 100vh; height: 100dvh`. The
+pseudo-class fires the moment the browser enters fullscreen,
+no React render needed.
+
+L2 (continued) — `[data-fullscreen-fill='true']` children of
+the fullscreen target switched from `height: 100% !important`
+(percentage, requires sized parent) to
+`flex: 1 1 auto; height: auto; min-height: 0; max-height: none`
+(flex grow, cannot collapse). This is the structural fix:
+a flex-grown child of a 100vh flex column ALWAYS fills the
+remaining space, regardless of inline-style ordering or
+React-attribute timing.
+
+L3 (`d785460`) — added a `fullscreenchange` listener inside
+`Scenario3DCanvas` that calls `gl.setSize(clientWidth,
+clientHeight, false)` and `cameraController.setAspect(width/
+height)` from the wrapper's current layout box. Runs both
+immediately and on the next rAF so layout changes taking
+effect on either timing get picked up. Independent of R3F's
+internal ResizeObserver — idempotent if the observer also
+fires.
+
+L4 (`459e14d`) — fullscreen control insets bumped 20px → 24px
+(top), 20px → 38px (bottom), so the transport pill sits with
+intentional film-room margin above the hardwood floor instead
+of crowding the bottom edge.
+
+L5 (`ac30c1e`) — added 5 regression tests in
+`fullscreen.test.ts` covering: `data-fullscreen-fill`
+attribute presence, `height` prop toggling on isFullscreen,
+the CSS contract (both pseudo-class AND attribute selectors
+present, flex-column shell, `flex: 1 1 auto` on fill children,
+`max-height: none` releasing embedded clamps), control-
+container invariant, and `fullscreenchange` event flow.
+
+#### 3. What athlete-quality problems were addressed?
+
+L6 (`b11bdf7`) — diagnosis appended to recovery plan.
+Identified that the Phase K thicker-limb constants still left
+upper-arm peak radius at ~0.20 (cylindrical) and thigh peak
+at ~0.33 (also cylindrical) at gameplay-camera distance.
+
+L7 (`b736448`) — lifted the lathe profile multipliers without
+touching the shared constants:
+- Upper arm peak: 1.18x → 1.42x (ATH_UPPER_ARM_R, premium-
+  path lathe only). Joint-end multipliers also lifted so the
+  bicep blends into the deltoid cap and forearm without a
+  step.
+- Forearm peak: 1.12x → 1.30x.
+- Thigh peak: 1.10x → 1.30x. Joint ends 1.05/1.00 → 1.15/1.10.
+- Calf belly: 1.20x → 1.42x. Joint ends 1.05 → 1.18.
+- Torso pec line: 0.520 → 0.560 of TORSO_TOP_W; rib swell
+  0.555 → 0.580 of TORSO_BOT_W. The chest reads as a real
+  pectoral plane at gameplay distance.
+
+Triangle count is unchanged — lathe segment count (10 for
+limbs, 14 for torso) was preserved; only the radial profile
+got fatter.
+
+L8 (`7dd6a38`) — pose tuning:
+- Idle pose changed from "fully upright mannequin" to a real
+  basketball ready stance (slight knee bend ~9°, pelvis
+  forward 0.06 rad, broken-elbow arms at 0.18/-0.20).
+- Defensive crouch deepened: thigh/calf rotations 0.50 →
+  0.60 rad (≈ 28° → 34°); upperBody drop -0.18 → -0.26.
+- Denial crouch deepened: 0.45 → 0.54 rad; drop -0.16 → -0.22.
+
+L9 (`c0a517e`) — head/uniform:
+- Hair color lifted from `#1B1208` (near-black void cap) to
+  `#2C1E12` (warm dark brown). Coverage extended `Math.PI *
+  0.55` → `0.62` (past temples). Sphere seated 0.04 lower so
+  it sits at the brow line, scaled slightly fuller (1, 1.04 →
+  1.02, 1.06).
+- New premium-path brow-line torus at the hairline boundary
+  so the head reads with subtle hairline separation instead
+  of "ball with a beanie".
+
+#### 4. What animation/motion problems were addressed?
+
+L10 (`3cde17d`) — motion diagnosis appended. Identified the
+camera ease as frame-rate dependent (fixed `0.10` per-frame
+lerp factor → 30fps users felt sluggish, 120fps users felt
+whippy).
+
+L11 (`92b5e1f`) — `CameraController.tick` now uses
+`1 - exp(-dt/τ)` with `τ = 0.18s` (tracking via a private
+`lastTickWallMs` plus a clamped `dt` like the yaw smoothing
+already does). At 60fps the visible feel is close to identical
+to Phase K; 30fps and 120fps users now see the same reaction
+speed instead of speed-tied variants. `snapNext()` resets
+`lastTickWallMs` so the first eased tick after a snap uses
+the bootstrap default rather than measuring against a stale
+anchor.
+
+#### 5. Did BDW-01 remain on the normal renderer path?
+
+Yes. No special-casing was added in any chunk. BDW-01 (and
+every other scenario) flows through `Scenario3DView →
+Scenario3DCanvas → buildBasketballGroup → buildPlayerFigure`,
+which dispatches on the existing `USE_PREMIUM_ATHLETE`
+selector. The selector is unchanged.
+
+#### 6. Is Phase F fallback still preserved?
+
+Yes. The shared `ATH_*` constants (radii, lengths, gaps) were
+not touched in L7. Phase F's `buildAthleteFigure` keeps its
+original Phase F silhouette via the unchanged constants. The
+L7 lathe-multiplier bumps live exclusively in the premium
+upgrade functions (`upgradePremiumArms`,
+`upgradePremiumLegsAndFeet`, `upgradePremiumTorso`) which only
+run inside `buildPremiumAthleteFigure`. The hair color change
+in L9 affects both paths — same precedent as Phase K's K6
+constant bump, intentional for visual consistency between
+fallback and premium.
+
+#### 7. Did replay remain deterministic?
+
+Yes. The replay-position determinism contract was untouched.
+`samplePlayer(scene, timeline, id, t)` still returns the same
+position for the same `(scene, t)` because timeline math,
+easing curves, and movement resolution are unchanged. The
+camera path uses wall-clock dt (the only L11 change) — the
+camera was never deterministic across frame rates anyway, and
+the visible camera framing is independent of replay state.
+Yaw smoothing was already wall-clock-based (Phase C / C2);
+nothing changed there.
+
+#### 8. Did tests pass?
+
+Yes. `pnpm exec vitest run components/scenario3d/
+lib/scenario3d/` (run from `apps/web`) reports **148/148
+tests passing across 10 test files**, including the 5 new
+Phase L fullscreen-fill regression tests in `fullscreen.test
+.ts` (12 total in that file now, up from 7).
+
+`pnpm exec tsc --noEmit` reports no Phase L-related TS errors.
+Pre-existing errors in `@prisma/client` namespace re-exports
+and `@courtiq/core` module resolution are unchanged from
+Phase K and unrelated to scene work.
+
+#### 9. What visual risks remain?
+
+- **Fullscreen on iframes / WebViews.** Same Phase K
+  caveat — the `:fullscreen` rule and Fullscreen API only
+  fire when the host environment grants it. Embedded
+  WebViews that deny the request fall back to embedded
+  layout (correct behavior).
+- **Older Safari with no `:fullscreen` support.** The
+  `:-webkit-full-screen` selector covers Safari 16+;
+  ancient WebKit (Safari < 16) might miss both. That cohort
+  is off the supported matrix.
+- **Premium athletes still possibly read as "code-built"
+  at extreme close-ups.** L7 brought the limb mass into
+  range for gameplay-camera distance, but a "follow"
+  camera that pushes inside ~10 ft will still expose the
+  lathe-only modeling (no shoulder ridge, no clavicle, no
+  knee detail). Acceptable for the standard broadcast
+  framing the recovery plan committed to.
+- **Brow line is premium-only and additive.** Adds one
+  material per figure (~14 tris) on the premium path. The
+  Phase F fallback does not get a brow line — visual
+  intent is preserved, premium reads slightly more
+  detailed.
+- **Camera time constant 0.18s tuned for the Phase K
+  feel.** A coach review should confirm the cross-fps feel
+  (compare the same scenario at 30fps vs 60fps vs 120fps).
+  The yaw smoothing constants were not touched — yaw still
+  uses 0.20s / 0.14s.
+- **Stance crouch deepened by ~10–15%.** If a coach sees
+  the new defensive base as "too low", the rotations are
+  data and easy to roll back. Indicators (chevron / halo /
+  wristband) were verified to ride correctly with the new
+  drops in L12.
+
+#### 10. What should happen next?
+
+The Phase L commits land all three corrections (fullscreen
+fill, athlete mass, motion feel). The next pass should be a
+manual screenshot QA pass at fullscreen at 1080p+ on
+Mac/Chrome and Mac/Safari, focusing on:
+
+1. Fullscreen scene fills the viewport edge-to-edge from the
+   first frame (no top-strip transient).
+2. Controls sit cleanly above the hardwood with the new
+   38px bottom inset.
+3. Limbs read as muscular at gameplay distance, not
+   cylindrical.
+4. Defensive / denial poses look like a real defensive base.
+5. Hair and brow read as a person, not a beanie cap.
+6. Replay feels smooth at 60fps and the same way at 30fps
+   and 120fps (test by throttling the browser's frame rate).
+
+If the screenshot QA passes and the product feel still does
+not match the trainer-grade bar, the recovery plan
+recommends either:
+
+- **A. Open a GLB experiment** — the J7-class follow-up has
+  been gated since Phase I. With Phase L as the upper bound
+  of code-built athlete quality, a GLB-based SkinnedMesh
+  experiment is the right next investment IF the visual gap
+  is still identified as "the athletes" rather than "the
+  motion".
+- **B. Open an authored non-skeletal pose-animation phase**
+  — keyed sub-group rotations off motion phase (gather →
+  drive → settle) without `AnimationMixer`. Right next move
+  IF the screenshot QA shows the visual is acceptable but
+  the motion still reads as canned.
+- **C. Move to scenario / content expansion** — if BDW-01
+  reads cleanly enough that the bottleneck is "we only have
+  one teaching scenario" rather than visual quality.
+
+Phase L was the last guaranteed-non-skeletal layer before a
+SkinnedMesh / GLB experiment becomes the right next move.
+The recovery plan does not recommend SkinnedMesh /
+AnimationMixer unless the screenshot QA on Phase L proves
+non-skeletal motion is insufficient.
+
 
 
