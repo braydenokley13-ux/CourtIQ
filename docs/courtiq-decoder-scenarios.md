@@ -239,3 +239,14 @@ Defender's feet, your hands, and the empty lane behind D4 must all be visible at
 | 1.0s | Gather at the elbow, rim attack | D1 contesting late | Layup or kick to weak-side corner |
 
 **Outcome:** Layup or a 2-on-1 advantage with the help defender pulling off another shooter. Best-case basketball.
+
+### Timeline B — Wrong Read (Force the Shot)
+
+| t | What you do | What the defense does | Result |
+| --- | --- | --- | --- |
+| 0.0s | Catch, rise into the shot | D4 right on top of you, parallel feet but high hand | Hand in your face |
+| 0.3s | Release | D4 contests at the rim of the ball | Bad mechanics, off-balance |
+| 0.6s | Ball flight | D4 lands and crashes the board | Likely miss |
+| 0.8s | Long rebound | Defense secures the ball | Possession lost |
+
+**Outcome:** Contested 3 → miss → fast break the other way. The advantage was real; you wasted it on a low-percentage shot.
