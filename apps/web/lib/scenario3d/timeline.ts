@@ -145,7 +145,7 @@ export function samplePlayer(
 
   if (active) {
     const span = Math.max(1, active.endMs - active.startMs)
-    const u = ease((t - active.startMs) / span)
+    const u = easeForKind(active.kind, (t - active.startMs) / span)
     return lerp(active.from, active.to, u)
   }
 
@@ -181,9 +181,49 @@ function lerp(a: CourtPoint, b: CourtPoint, u: number): CourtPoint {
   }
 }
 
-/** ease-in-out cubic, 0..1 */
+/** ease-in-out cubic, 0..1. Symmetric S-curve; the safe default for
+ *  defensive rotations, closeouts, drifts, and lift / settle steps. */
 function ease(u: number): number {
   if (u <= 0) return 0
   if (u >= 1) return 1
   return u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2
+}
+
+/** ease-out cubic, 0..1. Front-loaded: fast acceleration off the
+ *  starting position, deceleration into arrival. Reads as a decisive
+ *  basketball cut / drive / jab — the player explodes out, settles
+ *  on the spot. Used for the "explosive" movement kinds below. */
+function easeOutCubic(u: number): number {
+  if (u <= 0) return 0
+  if (u >= 1) return 1
+  const inv = 1 - u
+  return 1 - inv * inv * inv
+}
+
+/** Phase C / C3 — pick the eased curve for a movement kind. Cuts /
+ *  drives / jabs / rips / baseline_sneak / stop_ball get ease-out so
+ *  they feel like a player making a move; defensive movements
+ *  (rotation, closeout) keep the symmetric ease-in-out so a defender
+ *  sliding into help reads as smooth, not panicked. `pass` on a
+ *  player is a release flick — short and not visually a translation,
+ *  so it stays on ease-in-out. Authored JSON timings are unchanged;
+ *  this only redistributes WITHIN each segment. Exported so movement
+ *  tests can pin the dispatch table without rebuilding a full scene.
+ */
+export function easeForKind(
+  kind: SceneMovement['kind'],
+  u: number,
+): number {
+  switch (kind) {
+    case 'cut':
+    case 'back_cut':
+    case 'baseline_sneak':
+    case 'drive':
+    case 'jab':
+    case 'rip':
+    case 'stop_ball':
+      return easeOutCubic(u)
+    default:
+      return ease(u)
+  }
 }

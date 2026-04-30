@@ -198,6 +198,20 @@ export function Scenario3DCanvas({
   // through the parent's `onPhase` callback.
   const stateMachineRef = useRef<ReplayStateMachine | null>(null)
   const consumedChoiceRef = useRef<string | null>(null)
+  // Phase B / B4 — buffer a `pickedChoiceId` that arrives before the
+  // state machine reaches `frozen`. The subscribe callback below flushes
+  // this on the `frozen` transition so a pick is never silently dropped
+  // by the early-return in the [pickedChoiceId] effect.
+  const pendingPickRef = useRef<string | null>(null)
+  // Phase B / B1 — mirror the React `paused` and `playbackRate` props
+  // into refs so the state-machine subscribe callback can re-apply them
+  // after a leg swap. `MotionController.setMovements` (called by
+  // `startConsequence` / `startReplay`) hard-resets `pausedAtT = null`,
+  // so without this re-arm the consequence/replay leg always begins
+  // playing even when the user paused before picking. The two effects
+  // below keep the refs in lock-step with the React props.
+  const pausedRef = useRef<boolean>(false)
+  const playbackRateRef = useRef<number>(1)
   // Packet E (renderer-polish, learning overlays). Owns the imperative
   // teaching overlay group (paths, defender cues, spacing labels). Same
   // lifetime as the imperative scene group: built when the scene mounts,
@@ -663,6 +677,48 @@ export function Scenario3DCanvas({
               // ReplayState matches ReplayPhase 1:1 for the values the
               // train flow cares about; cast and forward.
               phaseListener?.(state as ReplayState as ReplayPhase)
+              // Phase B / B1 — re-apply React-owned playback flags after
+              // every state transition. `setMovements` (called by
+              // `startConsequence` / `startReplay`) clears `pausedAtT`,
+              // so without this re-arm the consequence and replay legs
+              // begin playing even when the user paused before picking.
+              // `setPaused` is idempotent (early-returns when state
+              // matches), so firing on every transition is safe; the
+              // initial `idle → setup → playing` chain after
+              // `machine.start()` calls `motion.reset()` is also covered
+              // here, fixing the mount race where `paused = true` was
+              // applied before `start()` then immediately reset.
+              //
+              // Phase B / B3 — defensively re-apply playbackRate too.
+              // The controller preserves its internal rate across
+              // `setMovements`, but re-asserting it on every transition
+              // closes any drift between the React state and the
+              // controller (e.g., if a React-side change ever fired
+              // out-of-order with the leg swap). `setPlaybackRate`
+              // early-returns when the rate already matches, so this
+              // is also a no-op on the happy path.
+              const m = motionControllerRef.current
+              if (m) {
+                m.setPlaybackRate(playbackRateRef.current)
+                if (pausedRef.current) m.setPaused(true)
+              }
+              // Phase B / B4 — flush a buffered pickedChoiceId on the
+              // `frozen` transition. Covers the race where the parent
+              // forwards a pick before the machine has actually reached
+              // `frozen` (e.g., scene rebuild during a fast pick path),
+              // which previously silently dropped the pick because the
+              // [pickedChoiceId] effect's dep is the prop alone.
+              if (state === 'frozen') {
+                const pendingId = pendingPickRef.current
+                if (
+                  pendingId !== null &&
+                  consumedChoiceRef.current !== pendingId
+                ) {
+                  consumedChoiceRef.current = pendingId
+                  pendingPickRef.current = null
+                  machine.pickChoice(pendingId)
+                }
+              }
             })
             // Stash the unsubscribe on the ref so the cleanup below
             // can release it without re-importing the listener.
@@ -672,6 +728,7 @@ export function Scenario3DCanvas({
             stateMachineRef.current = null
           }
           consumedChoiceRef.current = null
+          pendingPickRef.current = null
         } catch (error) {
           // eslint-disable-next-line no-console
           console.error('[scenario3d] camera/motion init failed', error)
@@ -753,6 +810,7 @@ export function Scenario3DCanvas({
         stateMachineRef.current = null
       }
       consumedChoiceRef.current = null
+      pendingPickRef.current = null
       // Dispose the dust-mote GPU resources before the parent group is
       // disposed. disposeGroup() walks the descendants and frees the
       // points geometry+material, but the canvas-generated alpha map
@@ -817,13 +875,28 @@ export function Scenario3DCanvas({
   // (or short-circuit to replay) leg. Treated as a one-shot per id —
   // re-renders with the same id are ignored, and a scene swap clears
   // the consumed-id ref so a new scenario's picks fire correctly.
+  //
+  // Phase B / B4 — when the prop arrives before the machine has reached
+  // `frozen` (mount race / fast-pick path), stash the id in
+  // `pendingPickRef` instead of dropping it. The state-machine
+  // subscriber flushes the buffer on the `frozen` transition.
   useEffect(() => {
     if (!pickedChoiceId) return
     if (consumedChoiceRef.current === pickedChoiceId) return
     const machine = stateMachineRef.current
-    if (!machine) return
-    if (machine.getSnapshot().state !== 'frozen') return
+    if (!machine) {
+      // No machine yet (legacy scene without a freeze marker, or
+      // pre-mount race). Buffer; if a machine ever appears later, the
+      // subscriber will flush on `frozen`.
+      pendingPickRef.current = pickedChoiceId
+      return
+    }
+    if (machine.getSnapshot().state !== 'frozen') {
+      pendingPickRef.current = pickedChoiceId
+      return
+    }
     consumedChoiceRef.current = pickedChoiceId
+    pendingPickRef.current = null
     machine.pickChoice(pickedChoiceId)
   }, [pickedChoiceId])
 
@@ -832,8 +905,22 @@ export function Scenario3DCanvas({
   // from t=0 on the next parent rAF tick. The scene rebuild path
   // already covers scene/mode changes, so this handles the
   // "play again" button case without remounting the geometry.
+  //
+  // Phase B / B2 — state-aware dispatch. From `done`, route through
+  // `ReplayStateMachine.showAgain()` so the machine cycles
+  // `done → replaying → done` and re-emits its listener snapshot
+  // (driving captions, phase tracker, and onPhase consumers). For all
+  // other states, `motion.reset()` rewinds the currently active leg
+  // (intro / consequence / answer demo) — the same behavior callers
+  // had before Phase B. Legacy scenes without a state machine fall
+  // through to the simple motion reset.
   useEffect(() => {
-    motionControllerRef.current?.reset()
+    const machine = stateMachineRef.current
+    if (machine && machine.getSnapshot().state === 'done') {
+      machine.showAgain()
+    } else {
+      motionControllerRef.current?.reset()
+    }
   }, [resetCounter])
 
   // Push playback-rate / pause changes into the existing motion
@@ -841,10 +928,12 @@ export function Scenario3DCanvas({
   // so the currently visible t does not jump. Defaults preserve the
   // pre-Packet-12 behavior when callers omit the new props.
   useEffect(() => {
+    playbackRateRef.current = playbackRate ?? 1
     motionControllerRef.current?.setPlaybackRate(playbackRate ?? 1)
   }, [playbackRate])
 
   useEffect(() => {
+    pausedRef.current = paused ?? false
     motionControllerRef.current?.setPaused(paused ?? false)
   }, [paused])
 

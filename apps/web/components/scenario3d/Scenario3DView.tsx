@@ -88,9 +88,17 @@ export function Scenario3DView(props: Scenario3DViewProps) {
   // begins). Speed is preserved so the user's selection survives, but
   // the timeline restarts and pause clears so they don't get a frozen
   // canvas after a scenario swap.
+  //
+  // Phase B / B2 — depend on `compositeResetCounter` instead of just
+  // `resetCounterProp` so the in-canvas Restart button (which bumps
+  // `restartTick`) and the parent's "Show me again" CTA (which bumps
+  // `resetCounterProp`) reset the same overlay state. Before this,
+  // Restart cleared `paused` only because `onRestart` did it
+  // explicitly, and never cleared `pathOverride` at all — leaving the
+  // two affordances behaviorally divergent.
   useEffect(() => {
     setPaused(false)
-  }, [replayMode, resetCounterProp])
+  }, [replayMode, compositeResetCounter])
 
   // Local override for the path toggle. When the user has touched it,
   // honor their choice. Otherwise fall back to the parent's prop (which
@@ -98,7 +106,7 @@ export function Scenario3DView(props: Scenario3DViewProps) {
   const [pathOverride, setPathOverride] = useState<boolean | null>(null)
   useEffect(() => {
     setPathOverride(null)
-  }, [replayMode, resetCounterProp])
+  }, [replayMode, compositeResetCounter])
   const showPaths = pathOverride ?? showPathsProp ?? false
 
   // Packet E (renderer-polish, learning overlays). The toggle now
@@ -138,7 +146,10 @@ export function Scenario3DView(props: Scenario3DViewProps) {
           paused={paused}
           onPausedChange={setPaused}
           onRestart={() => {
-            setPaused(false)
+            // Phase B / B2 — bump the local restart tick so
+            // `compositeResetCounter` advances. The shared reset
+            // effect above clears `paused` and `pathOverride` for
+            // both this path and the parent's "Show me again" path.
             setRestartTick((n) => n + 1)
           }}
           showPaths={showPaths}

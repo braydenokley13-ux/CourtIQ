@@ -4,16 +4,21 @@ import * as THREE from 'three'
 import {
   MotionController,
   ReplayStateMachine,
+  computePlayerYaw,
+  smoothAngle,
   type ReplayState,
 } from './imperativeScene'
 import type { Scene3D } from '@/lib/scenario3d/scene'
 
 // Minimal stub for the THREE groups MotionController writes positions
-// into. The controller only ever touches `position.x/y/z` and
-// `position.set()`, so the rendering pipeline isn't exercised here.
+// into. Phase C / C2 added a per-frame yaw update, so the stub now also
+// exposes `rotation.y`. The rendering pipeline still isn't exercised
+// here — both fields are plain mutable scalars/objects so the tests can
+// assert end-state without booting WebGL.
 function stubGroup(): THREE.Group {
   const v = new THREE.Vector3(0, 0, 0)
-  return { position: v } as unknown as THREE.Group
+  const r = { x: 0, y: 0, z: 0 }
+  return { position: v, rotation: r } as unknown as THREE.Group
 }
 
 function buildScene(opts: {
@@ -360,6 +365,544 @@ describe('Phase H — consequence + replay budgets', () => {
   })
 })
 
+describe('Phase B / B1 — paused state across leg swap', () => {
+  // Recovery plan A2.1: `MotionController.setMovements` (called by
+  // `startConsequence` and `startReplay`) hard-resets `pausedAtT = null`,
+  // dropping the user's pause whenever the consequence or replay leg
+  // begins. The Phase B fix re-applies `setPaused` from the canvas
+  // subscriber on every state transition; the controller-level tests
+  // here lock in the contract the subscriber relies on.
+  it('setMovements clears the paused flag (documents existing behavior)', () => {
+    const scene = buildScene({
+      intro: [{ id: 'cut', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 500 }],
+      wrongDemos: [
+        {
+          choiceId: 'wait',
+          movements: [
+            { id: 'recover', playerId: 'user', kind: 'rotation', to: { x: 5, z: 10 }, durationMs: 400 },
+          ],
+        },
+      ],
+    })
+    const { motion } = makeMotion(scene)
+    motion.setPaused(true, 1000)
+    expect(motion.isPaused()).toBe(true)
+    motion.startConsequence('wait')
+    expect(motion.isPaused()).toBe(false)
+  })
+
+  it('re-applying setPaused after setMovements pauses the new leg at t=0', () => {
+    const scene = buildScene({
+      intro: [{ id: 'cut', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 500 }],
+      wrongDemos: [
+        {
+          choiceId: 'wait',
+          movements: [
+            { id: 'recover', playerId: 'user', kind: 'rotation', to: { x: 5, z: 10 }, durationMs: 400 },
+          ],
+        },
+      ],
+    })
+    const { motion } = makeMotion(scene)
+    motion.setPaused(true, 1000)
+    motion.startConsequence('wait')
+    // Canvas subscriber pattern: re-apply paused after the leg swap.
+    motion.setPaused(true, 1000)
+    motion.tick(1000)
+    expect(motion.isPaused()).toBe(true)
+    expect(motion.getElapsedMs(1000)).toBe(0)
+    // Even with real-time advancing, paused t stays clamped at 0.
+    expect(motion.getElapsedMs(1500)).toBe(0)
+    // Resuming at a later real time continues from t=0.
+    motion.setPaused(false, 1500)
+    expect(motion.isPaused()).toBe(false)
+  })
+
+  it('subscriber-driven re-arm keeps pause across frozen → consequence', () => {
+    const scene = buildScene({
+      freezeAtMs: 500,
+      intro: [
+        { id: 'cut', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 1500 },
+      ],
+      answerDemo: [
+        { id: 'demo', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 400 },
+      ],
+      wrongDemos: [
+        {
+          choiceId: 'wait',
+          movements: [
+            { id: 'recover', playerId: 'user', kind: 'rotation', to: { x: 5, z: 10 }, durationMs: 300 },
+          ],
+        },
+      ],
+    })
+    const { motion } = makeMotion(scene)
+    const machine = new ReplayStateMachine(motion, scene)
+
+    // Mirror the canvas subscriber: any time the state changes, re-apply
+    // the React-owned paused flag. We model the React state as a single
+    // mutable boolean here — the canvas reads from a ref initialised by
+    // the [paused] effect.
+    let userPaused = false
+    machine.subscribe(() => {
+      if (userPaused) motion.setPaused(true)
+    })
+
+    machine.start()
+    motion.tick(0)
+    motion.tick(0 + 250 + 600)
+    machine.tick(0 + 250 + 600)
+    expect(machine.getSnapshot().state).toBe('frozen')
+
+    // User pauses while frozen, then picks the wrong choice. The
+    // consequence leg's setMovements call clears the paused flag — the
+    // subscriber must re-arm it.
+    userPaused = true
+    motion.setPaused(true, 0 + 250 + 600)
+    machine.pickChoice('wait', 0 + 250 + 600)
+    expect(machine.getSnapshot().state).toBe('consequence')
+    expect(motion.isPaused()).toBe(true)
+    // Visible t for the new leg stays at 0 while paused.
+    expect(motion.getElapsedMs(0 + 250 + 600)).toBe(0)
+    expect(motion.getElapsedMs(0 + 250 + 600 + 1000)).toBe(0)
+  })
+
+  it('subscriber-driven re-arm keeps pause across consequence → replaying', () => {
+    // Models a user who wants the leg to advance but expects pause to
+    // continue applying on every subsequent leg. The user briefly
+    // releases pause to let the consequence leg finish, then re-engages
+    // pause, and the answer-demo replay leg honors the renewed pause.
+    const scene = buildScene({
+      freezeAtMs: 500,
+      intro: [
+        { id: 'cut', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 1500 },
+      ],
+      answerDemo: [
+        { id: 'demo', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 400 },
+      ],
+      wrongDemos: [
+        {
+          choiceId: 'wait',
+          movements: [
+            { id: 'recover', playerId: 'user', kind: 'rotation', to: { x: 5, z: 10 }, durationMs: 300 },
+          ],
+        },
+      ],
+    })
+    const { motion } = makeMotion(scene)
+    const machine = new ReplayStateMachine(motion, scene)
+
+    let userPaused = false
+    machine.subscribe(() => {
+      if (userPaused) motion.setPaused(true)
+    })
+
+    machine.start()
+    motion.tick(0)
+    motion.tick(0 + 250 + 600)
+    machine.tick(0 + 250 + 600)
+    machine.pickChoice('wait', 0 + 250 + 600)
+    expect(machine.getSnapshot().state).toBe('consequence')
+
+    // Run the consequence to completion (user not paused yet). The
+    // machine.tick after isPlaybackComplete fires startReplay, which
+    // calls setMovements again — at that exact transition the user
+    // just engaged pause from React, so the subscriber must re-arm it.
+    motion.tick(2000)
+    motion.tick(2000 + 250 + 400)
+    userPaused = true
+    motion.setPaused(true, 2000 + 250 + 400)
+    machine.tick(2000 + 250 + 400)
+    expect(machine.getSnapshot().state).toBe('replaying')
+    expect(motion.isPaused()).toBe(true)
+    expect(motion.getElapsedMs(2000 + 250 + 400)).toBe(0)
+  })
+
+  it('subscriber-driven re-arm covers the initial start() reset', () => {
+    // `machine.start()` calls `motion.reset()` before transitioning to
+    // `setup` / `playing`, so any pause set inline at mount is erased.
+    // The canvas relies on the subscriber firing for the `setup` /
+    // `playing` transitions to re-arm pause.
+    const scene = buildScene({
+      freezeAtMs: 500,
+      intro: [
+        { id: 'cut', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 1500 },
+      ],
+    })
+    const { motion } = makeMotion(scene)
+    const machine = new ReplayStateMachine(motion, scene)
+
+    const userPaused = true
+    machine.subscribe(() => {
+      if (userPaused) motion.setPaused(true)
+    })
+
+    // Inline mount-race: setPaused is called before start() resets.
+    motion.setPaused(true, 0)
+    machine.start()
+    expect(motion.isPaused()).toBe(true)
+    motion.tick(0)
+    // Visible t stays at 0 because pausedAtT is set.
+    expect(motion.getElapsedMs(0 + 1000)).toBe(0)
+  })
+})
+
+describe('Phase B / B2 — restart from done dispatches showAgain', () => {
+  // Recovery plan A2.5: prior to Phase B, both the in-canvas Restart
+  // button and the FeedbackPanel "Replay" CTA dropped into
+  // `motion.reset()`, which rewinds the playhead but leaves the state
+  // machine in `done`. The result was a "ghosted replay" — the answer
+  // demo replayed but no `replaying` snapshot fired, so consumers like
+  // the page caption and learn-phase tracker did not re-react. The
+  // canvas now branches: in `done`, dispatch `machine.showAgain()`;
+  // otherwise call `motion.reset()` to rewind the active leg.
+  function driveToDone(scene: Scene3D): {
+    motion: MotionController
+    machine: ReplayStateMachine
+    states: ReplayState[]
+  } {
+    const { motion } = makeMotion(scene)
+    const machine = new ReplayStateMachine(motion, scene)
+    const states: ReplayState[] = []
+    machine.subscribe(({ state }) => states.push(state))
+    machine.start()
+    motion.tick(0)
+    motion.tick(0 + 250 + 600)
+    machine.tick(0 + 250 + 600)
+    machine.pickChoice('best_choice', 0 + 250 + 600)
+    motion.tick(1500)
+    motion.tick(1500 + 250 + 500)
+    machine.tick(1500 + 250 + 500)
+    return { motion, machine, states }
+  }
+
+  const sceneWithFreezeAndAnswer: Scene3D = {
+    id: 'sm_b2',
+    court: 'half',
+    camera: 'teaching_angle',
+    players: [
+      { id: 'user', team: 'offense', role: 'wing', start: { x: 0, z: 10 }, isUser: true },
+      { id: 'pg', team: 'offense', role: 'pg', start: { x: 5, z: 20 }, hasBall: true },
+    ],
+    ball: { start: { x: 5, z: 20 }, holderId: 'pg' },
+    movements: [
+      { id: 'cut', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 1500 },
+    ],
+    answerDemo: [
+      { id: 'demo', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 400 },
+    ],
+    wrongDemos: [],
+    preAnswerOverlays: [],
+    postAnswerOverlays: [],
+    freezeAtMs: 500,
+    synthetic: false,
+  }
+
+  it('motion.reset() from done leaves the machine in done (pre-fix behavior)', () => {
+    const { motion, machine, states } = driveToDone(sceneWithFreezeAndAnswer)
+    expect(states.at(-1)).toBe('done')
+    motion.reset()
+    expect(machine.getSnapshot().state).toBe('done')
+    // No additional snapshot was emitted by the reset — the listener
+    // did not see a `replaying` event, which is exactly the user-visible
+    // "ghosted replay" symptom from A2.5.
+    expect(states.filter((s) => s === 'replaying').length).toBe(1)
+  })
+
+  it('canvas-style state-aware reset routes through showAgain when in done', () => {
+    const { motion, machine, states } = driveToDone(sceneWithFreezeAndAnswer)
+    // Mirrors the canvas's [resetCounter] effect post-B2.
+    const resetEffect = () => {
+      if (machine.getSnapshot().state === 'done') {
+        machine.showAgain()
+      } else {
+        motion.reset()
+      }
+    }
+    resetEffect()
+    expect(machine.getSnapshot().state).toBe('replaying')
+    // Replaying is re-emitted, so onPhase / caption consumers re-fire.
+    expect(states.filter((s) => s === 'replaying').length).toBe(2)
+    motion.tick(3000)
+    motion.tick(3000 + 250 + 500)
+    machine.tick(3000 + 250 + 500)
+    expect(machine.getSnapshot().state).toBe('done')
+  })
+
+  it('canvas-style state-aware reset rewinds the active leg outside done', () => {
+    // From `playing`, the same effect must keep the legacy "rewind the
+    // active leg" semantics so the in-canvas Restart button still works
+    // before the user has frozen.
+    const { motion } = makeMotion(sceneWithFreezeAndAnswer)
+    const machine = new ReplayStateMachine(motion, sceneWithFreezeAndAnswer)
+    machine.start()
+    motion.tick(0)
+    motion.tick(0 + 250 + 200) // mid-intro
+    expect(motion.getElapsedMs(0 + 250 + 200)).toBeGreaterThan(0)
+
+    // Same effect closure as the canvas would apply.
+    if (machine.getSnapshot().state === 'done') {
+      machine.showAgain()
+    } else {
+      motion.reset()
+    }
+    expect(machine.getSnapshot().state).toBe('playing')
+    motion.tick(0 + 250 + 200 + 1) // immediate next tick after reset
+    expect(motion.getElapsedMs(0 + 250 + 200 + 1)).toBeLessThanOrEqual(1)
+  })
+})
+
+describe('Phase B / B3 — speed control across leg swaps', () => {
+  // Recovery plan A2.3: speed changes set at `frozen` (or any other
+  // pre-leg-swap state) must apply to the next leg from its first
+  // tick, with no perceptible visible-t jump. The controller's
+  // internal `playbackRate` already survives `setMovements`; B3 adds
+  // a defensive re-arm in the canvas subscriber so React state and
+  // controller state can never drift across a swap.
+  function makeSceneWithLegs(): Scene3D {
+    return {
+      id: 'sm_b3',
+      court: 'half',
+      camera: 'teaching_angle',
+      players: [
+        { id: 'user', team: 'offense', role: 'wing', start: { x: 0, z: 10 }, isUser: true },
+        { id: 'pg', team: 'offense', role: 'pg', start: { x: 5, z: 20 }, hasBall: true },
+      ],
+      ball: { start: { x: 5, z: 20 }, holderId: 'pg' },
+      movements: [
+        { id: 'cut', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 1500 },
+      ],
+      answerDemo: [
+        { id: 'demo', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 800 },
+      ],
+      wrongDemos: [
+        {
+          choiceId: 'wait',
+          movements: [
+            { id: 'recover', playerId: 'user', kind: 'rotation', to: { x: 5, z: 10 }, durationMs: 800 },
+          ],
+        },
+      ],
+      preAnswerOverlays: [],
+      postAnswerOverlays: [],
+      freezeAtMs: 500,
+      synthetic: false,
+    }
+  }
+
+  it('rate set at frozen applies to the consequence leg from t=0', () => {
+    const scene = makeSceneWithLegs()
+    const { motion } = makeMotion(scene)
+    const machine = new ReplayStateMachine(motion, scene)
+
+    // Subscriber-driven re-arm — pulls the latest rate from a closure
+    // (mirrors the canvas's playbackRateRef).
+    let userRate = 1
+    machine.subscribe(() => {
+      motion.setPlaybackRate(userRate)
+    })
+
+    machine.start()
+    motion.tick(0)
+    motion.tick(0 + 250 + 600)
+    machine.tick(0 + 250 + 600)
+    expect(machine.getSnapshot().state).toBe('frozen')
+
+    // User selects 2x while frozen, then picks the wrong choice.
+    const tFrozen = 0 + 250 + 600
+    userRate = 2
+    motion.setPlaybackRate(2, tFrozen)
+    machine.pickChoice('wait', tFrozen)
+    expect(motion.getPlaybackRate()).toBe(2)
+
+    // Anchor the new leg with a tick at the same instant as the swap.
+    motion.tick(tFrozen)
+    // After PRE_DELAY (250ms) + 200ms of real time the consequence leg
+    // should have advanced by 400ms of visible t (2x rate).
+    motion.tick(tFrozen + 250 + 200)
+    expect(motion.getElapsedMs(tFrozen + 250 + 200)).toBeCloseTo(400, 5)
+  })
+
+  it('subscriber re-arm of setPlaybackRate is idempotent (no t-jump)', () => {
+    const scene = makeSceneWithLegs()
+    const { motion } = makeMotion(scene)
+    motion.setPlaybackRate(0.5, 0)
+    motion.tick(0)
+    motion.tick(0 + 250 + 200)
+    const before = motion.getElapsedMs(0 + 250 + 200)
+    // Re-apply the same rate (canvas subscriber pattern).
+    motion.setPlaybackRate(0.5, 0 + 250 + 200)
+    const after = motion.getElapsedMs(0 + 250 + 200)
+    expect(after).toBe(before)
+  })
+
+  it('rate persists across showAgain (done → replaying)', () => {
+    const scene = makeSceneWithLegs()
+    const { motion } = makeMotion(scene)
+    const machine = new ReplayStateMachine(motion, scene)
+    // Drive at 1x to keep timing math simple; rate is set later.
+    machine.subscribe(() => {
+      motion.setPlaybackRate(motion.getPlaybackRate())
+    })
+
+    machine.start()
+    motion.tick(0)
+    motion.tick(0 + 250 + 600)
+    machine.tick(0 + 250 + 600)
+    machine.pickChoice('best_choice', 0 + 250 + 600)
+    motion.tick(2000)
+    motion.tick(2000 + 250 + 900)
+    machine.tick(2000 + 250 + 900)
+    expect(machine.getSnapshot().state).toBe('done')
+
+    // User flips to 0.5x at done, then triggers Show me again.
+    motion.setPlaybackRate(0.5, 3000)
+    machine.showAgain()
+    expect(machine.getSnapshot().state).toBe('replaying')
+    expect(motion.getPlaybackRate()).toBe(0.5)
+    // Anchor the leg, then advance: at 0.5x, 200ms real → 100ms t.
+    motion.tick(3000)
+    motion.tick(3000 + 250 + 200)
+    expect(motion.getElapsedMs(3000 + 250 + 200)).toBeCloseTo(100, 5)
+
+    // Re-applying the same rate does not jump visible t (idempotent).
+    const before = motion.getElapsedMs(3000 + 250 + 200)
+    motion.setPlaybackRate(0.5, 3000 + 250 + 200)
+    expect(motion.getElapsedMs(3000 + 250 + 200)).toBe(before)
+  })
+})
+
+describe('Phase B / B4 — robust consequence dispatch', () => {
+  // Recovery plan A2.4 #1: when a pick arrives before the state
+  // machine has reached `frozen`, the canvas's [pickedChoiceId] effect
+  // early-returns and the dep-list (`[pickedChoiceId]`) prevents the
+  // same id from retrying on a later render. Phase B buffers the id
+  // and flushes it from the state-machine subscriber on the `frozen`
+  // transition.
+  function makeCanvasLikeFlow(scene: Scene3D) {
+    const { motion } = makeMotion(scene)
+    const machine = new ReplayStateMachine(motion, scene)
+    let pendingPick: string | null = null
+    let consumedPick: string | null = null
+    machine.subscribe(({ state }) => {
+      // Phase B / B4 mirror — flush a buffered pick when `frozen` lands.
+      if (state === 'frozen' && pendingPick !== null && consumedPick !== pendingPick) {
+        consumedPick = pendingPick
+        pendingPick = null
+        machine.pickChoice(consumedPick)
+      }
+    })
+    const submitPick = (id: string) => {
+      // Same shape as the [pickedChoiceId] effect post-B4.
+      if (consumedPick === id) return
+      if (machine.getSnapshot().state !== 'frozen') {
+        pendingPick = id
+        return
+      }
+      consumedPick = id
+      pendingPick = null
+      machine.pickChoice(id)
+    }
+    return { motion, machine, submitPick, peekPending: () => pendingPick }
+  }
+
+  const sceneB4: Scene3D = {
+    id: 'sm_b4',
+    court: 'half',
+    camera: 'teaching_angle',
+    players: [
+      { id: 'user', team: 'offense', role: 'wing', start: { x: 0, z: 10 }, isUser: true },
+      { id: 'pg', team: 'offense', role: 'pg', start: { x: 5, z: 20 }, hasBall: true },
+    ],
+    ball: { start: { x: 5, z: 20 }, holderId: 'pg' },
+    movements: [
+      { id: 'cut', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 1500 },
+    ],
+    answerDemo: [
+      { id: 'demo', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 400 },
+    ],
+    wrongDemos: [
+      {
+        choiceId: 'wait',
+        movements: [
+          { id: 'recover', playerId: 'user', kind: 'rotation', to: { x: 5, z: 10 }, durationMs: 300 },
+        ],
+      },
+    ],
+    preAnswerOverlays: [],
+    postAnswerOverlays: [],
+    freezeAtMs: 500,
+    synthetic: false,
+  }
+
+  it('buffers a pick that arrives before frozen and flushes on freeze', () => {
+    const { motion, machine, submitPick, peekPending } = makeCanvasLikeFlow(sceneB4)
+    machine.start()
+    motion.tick(0)
+    // Pre-frozen pick.
+    expect(machine.getSnapshot().state).toBe('playing')
+    submitPick('wait')
+    expect(peekPending()).toBe('wait')
+    expect(machine.getSnapshot().state).toBe('playing')
+
+    // Cross the freeze cap; subscriber must flush the buffer.
+    motion.tick(0 + 250 + 600)
+    machine.tick(0 + 250 + 600)
+    expect(machine.getSnapshot().state).toBe('consequence')
+    expect(peekPending()).toBeNull()
+  })
+
+  it('happy path: pick at frozen still dispatches immediately', () => {
+    const { motion, machine, submitPick, peekPending } = makeCanvasLikeFlow(sceneB4)
+    machine.start()
+    motion.tick(0)
+    motion.tick(0 + 250 + 600)
+    machine.tick(0 + 250 + 600)
+    expect(machine.getSnapshot().state).toBe('frozen')
+    submitPick('wait')
+    expect(machine.getSnapshot().state).toBe('consequence')
+    expect(peekPending()).toBeNull()
+  })
+
+  it('best-read short-circuit is observable as a state transition', () => {
+    // A2.4 #2: when the picked id has no wrongDemos entry the machine
+    // skips `consequence` and goes straight to `replaying`. Phase B
+    // does not change this behavior, but the test pins it down so a
+    // future caption-driven UI can rely on the transition.
+    const { motion, machine, submitPick } = makeCanvasLikeFlow(sceneB4)
+    const states: ReplayState[] = []
+    machine.subscribe(({ state }) => states.push(state))
+
+    machine.start()
+    motion.tick(0)
+    motion.tick(0 + 250 + 600)
+    machine.tick(0 + 250 + 600)
+    expect(machine.getSnapshot().state).toBe('frozen')
+
+    submitPick('best_choice')
+    expect(machine.getSnapshot().state).toBe('replaying')
+    // The transition list shows frozen → replaying with no consequence
+    // entry — exactly the signal a caption layer needs to render
+    // "best read" rather than the wrong-demo caption.
+    expect(states).toContain('frozen')
+    expect(states).toContain('replaying')
+    expect(states).not.toContain('consequence')
+  })
+
+  it('idempotent: re-submitting the same pick after dispatch is a no-op', () => {
+    const { motion, machine, submitPick } = makeCanvasLikeFlow(sceneB4)
+    machine.start()
+    motion.tick(0)
+    motion.tick(0 + 250 + 600)
+    machine.tick(0 + 250 + 600)
+    submitPick('wait')
+    expect(machine.getSnapshot().state).toBe('consequence')
+    // Repeat submission should not re-trigger or break the leg.
+    submitPick('wait')
+    expect(machine.getSnapshot().state).toBe('consequence')
+  })
+})
+
 describe('Phase H — idle players honor the freeze snapshot', () => {
   // Bug fix: before Phase H, an idle player (no entry in the
   // consequence/replay leg's `byPlayer`) snapped back to its
@@ -411,5 +954,316 @@ describe('Phase H — idle players honor the freeze snapshot', () => {
     // override, it stays at (14, 11) — the frozen pose.
     expect(x2.position.x).toBeCloseTo(14, 5)
     expect(x2.position.z).toBeCloseTo(11, 5)
+  })
+})
+
+describe('Phase C / C2 — body-facing helpers', () => {
+  // Pin the conventions the per-frame yaw pass relies on. The figure
+  // is built so `rotation.y = atan2(dx, dz)` makes the chest face the
+  // direction (dx, dz). `computePlayerYaw` reuses that convention to
+  // pick a default team yaw at build time.
+  it('smoothAngle returns target unchanged when k=1', () => {
+    expect(smoothAngle(0, Math.PI / 2, 1)).toBeCloseTo(Math.PI / 2, 6)
+  })
+
+  it('smoothAngle holds when k=0', () => {
+    expect(smoothAngle(0.7, -2, 0)).toBeCloseTo(0.7, 6)
+  })
+
+  it('smoothAngle rotates the short way around π', () => {
+    // From -3 to 3 the short way is ~0.283 rad through the ±π wrap,
+    // not 6 rad the long way. With k=0.5 the result should sit
+    // halfway along that short arc — very close to ±π — and the
+    // angular distance to the target must be smaller than half the
+    // long way (3 rad).
+    const out = smoothAngle(-3, 3, 0.5)
+    const angularDist = (a: number, b: number): number => {
+      let d = ((a - b) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2)
+      if (d > Math.PI) d = Math.PI * 2 - d
+      return d
+    }
+    expect(angularDist(out, 3)).toBeLessThan(angularDist(-3, 3))
+    expect(angularDist(out, 3)).toBeLessThan(0.2)
+  })
+
+  it('computePlayerYaw flips offense and defense by π', () => {
+    const off = computePlayerYaw('offense', 4, 6)
+    const def = computePlayerYaw('defense', 4, 6)
+    const diff = Math.abs(off - def)
+    // Difference is π modulo 2π.
+    const mod = ((diff % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
+    expect(Math.min(mod, 2 * Math.PI - mod)).toBeCloseTo(Math.PI, 5)
+  })
+})
+
+describe('Phase C / C2 — per-frame yaw update', () => {
+  function buildYawScene(): Scene3D {
+    return {
+      id: 'yaw_scene',
+      court: 'half',
+      camera: 'teaching_angle',
+      players: [
+        { id: 'user', team: 'offense', role: 'wing', start: { x: 18, z: 10 }, isUser: true },
+        { id: 'pg', team: 'offense', role: 'pg', start: { x: -9, z: 14 }, hasBall: true },
+        { id: 'x2', team: 'defense', role: 'denying', start: { x: 14, z: 10 } },
+      ],
+      ball: { start: { x: -9, z: 14 }, holderId: 'pg' },
+      movements: [
+        // User cuts toward the rim — direction roughly (-18, -8).
+        { id: 'cut', playerId: 'user', kind: 'cut', to: { x: 0, z: 2 }, durationMs: 800 },
+      ],
+      answerDemo: [],
+      wrongDemos: [],
+      preAnswerOverlays: [],
+      postAnswerOverlays: [],
+      freezeAtMs: null,
+      synthetic: false,
+    }
+  }
+
+  it('rotates a cutter toward the cut direction over multiple ticks', () => {
+    const scene = buildYawScene()
+    const { motion, players } = makeMotion(scene)
+    // Seed the build-time yaw so the smoother starts from "facing rim",
+    // which is what the canvas sets via computePlayerYaw before the
+    // first tick.
+    const userGroup = players.get('user')!
+    userGroup.rotation.y = computePlayerYaw('offense', 18, 10)
+    const pgGroup = players.get('pg')!
+    pgGroup.rotation.y = computePlayerYaw('offense', -9, 14)
+
+    // Anchor + advance a few real-world frames into the cut.
+    motion.tick(0)
+    for (let i = 1; i <= 30; i++) motion.tick(i * 16) // ~30 frames @ 60fps
+    // Movement direction (dx, dz) = (0 - 18, 2 - 10) = (-18, -8).
+    // Target yaw = atan2(-18, -8) ≈ -1.99 rad. The smoother should be
+    // converging from the build-time atan2(-18, -10) ≈ -2.08 rad
+    // toward -1.99, so the user yaw should be in the same neighborhood.
+    const userYaw = userGroup.rotation.y
+    const expected = Math.atan2(-18, -8)
+    // Either the smoother reached the cut direction, or it's strictly
+    // closer to it than the build-time value. Either way it must NOT
+    // be sitting on the original team yaw any more.
+    expect(userYaw).not.toBe(computePlayerYaw('offense', 18, 10))
+    // Within 0.15 rad of the cut-direction target after 30 frames
+    // (time constant ~0.18s, ~0.48s elapsed → ~93% converged).
+    expect(Math.abs(userYaw - expected)).toBeLessThan(0.15)
+  })
+
+  it('rotates a stationary defender toward the ball-holder direction', () => {
+    const scene = buildYawScene()
+    const { motion, players } = makeMotion(scene)
+    const x2Group = players.get('x2')!
+    x2Group.rotation.y = computePlayerYaw('defense', 14, 10)
+
+    motion.tick(0)
+    for (let i = 1; i <= 30; i++) motion.tick(i * 16)
+    // The defender is stationary at (14, 10). Ball holder pg is at
+    // (-9, 14). After applyBall runs the ball is at pg's position —
+    // so the defender's target yaw faces the ball.
+    // Direction (dx, dz) = (-9 - 14, 14 - 10) = (-23, 4).
+    const expected = Math.atan2(-23, 4)
+    const yaw = x2Group.rotation.y
+    expect(Math.abs(yaw - expected)).toBeLessThan(0.2)
+  })
+
+  it('does not allocate per-tick scaling with player count', () => {
+    // Smoke check: many ticks should not blow up the wallMs ref or
+    // produce NaN yaws even with bursty timestamps. Models a
+    // backgrounded tab where a few-second gap appears between ticks.
+    const scene = buildYawScene()
+    const { motion, players } = makeMotion(scene)
+    motion.tick(0)
+    motion.tick(16)
+    // Long gap (5s) — should not snap the yaw by a wild angle.
+    motion.tick(5016)
+    motion.tick(5032)
+    for (const g of players.values()) {
+      expect(Number.isFinite(g.rotation.y)).toBe(true)
+    }
+  })
+})
+
+describe('Phase C / C4 — defender reaction speed', () => {
+  // Defenders use a smaller yaw time constant so they shift attention
+  // to a moving ball / changing holder a beat faster than offense.
+  // To isolate the smoothing rate from the target-selection branch,
+  // we drive both a defender and an offense player through identical
+  // movement segments — the active-movement branch picks the same
+  // target yaw for both, so only the team-specific smoothing constant
+  // differs.
+  function buildReactionScene(): Scene3D {
+    const userMove = { x: 0, z: 0 } // both players move toward (0, 0)
+    return {
+      id: 'reaction_scene',
+      court: 'half',
+      camera: 'teaching_angle',
+      players: [
+        { id: 'x2', team: 'defense', role: 'denying', start: { x: 6, z: 6 } },
+        { id: 'wing', team: 'offense', role: 'wing', start: { x: 6, z: 6 } },
+      ],
+      ball: { start: userMove, holderId: undefined },
+      movements: [
+        // Identical from→to for both players — same movement-direction
+        // target yaw via active-movement branch.
+        { id: 'def_close', playerId: 'x2', kind: 'rotation', to: userMove, durationMs: 600 },
+        { id: 'off_cut', playerId: 'wing', kind: 'rotation', to: userMove, durationMs: 600 },
+      ],
+      answerDemo: [],
+      wrongDemos: [],
+      preAnswerOverlays: [],
+      postAnswerOverlays: [],
+      freezeAtMs: null,
+      synthetic: false,
+    }
+  }
+
+  it('defender body converges toward its target faster than offense', () => {
+    const scene = buildReactionScene()
+    const { motion, players } = makeMotion(scene)
+    const x2 = players.get('x2')!
+    const wing = players.get('wing')!
+
+    // Seed both at the same starting yaw, far enough from the target
+    // that the smoothing rate dominates the result. Picking 0 keeps
+    // the angular distance to atan2(-6, -6) ≈ -2.36 well above zero.
+    x2.rotation.y = 0
+    wing.rotation.y = 0
+
+    motion.tick(0)
+    for (let i = 1; i <= 6; i++) motion.tick(i * 16) // ~96ms
+
+    // Both have the same active movement → same direction target.
+    // Movement direction: from (6,6) to (0,0) → atan2(-6, -6).
+    const dirTarget = Math.atan2(-6, -6)
+    const angularDist = (a: number, b: number): number => {
+      let d = ((a - b) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2)
+      if (d > Math.PI) d = Math.PI * 2 - d
+      return d
+    }
+    const defenderDist = angularDist(x2.rotation.y, dirTarget)
+    const offenseDist = angularDist(wing.rotation.y, dirTarget)
+
+    // Strict ordering: defender (faster smoothing) closes the gap
+    // more than offense given the same elapsed time.
+    expect(defenderDist).toBeLessThan(offenseDist)
+  })
+})
+
+describe('Phase C / C5 — ball arc + freeze accuracy', () => {
+  // The ball-arc kind dispatch lives inside MotionController.applyBall,
+  // which writes to ballGroup.position. The tests sample y at multiple
+  // u values along an in-flight phase to verify peak height and
+  // apex alignment.
+  function buildPassScene(passKind: 'pass' | 'skip_pass', toX: number, toZ: number, durationMs = 500): Scene3D {
+    return {
+      id: 'arc_test',
+      court: 'half',
+      camera: 'teaching_angle',
+      players: [
+        { id: 'pg', team: 'offense', role: 'pg', start: { x: 0, z: 0 }, hasBall: true },
+        { id: 'wing', team: 'offense', role: 'wing', start: { x: toX, z: toZ } },
+      ],
+      ball: { start: { x: 0, z: 0 }, holderId: 'pg' },
+      movements: [
+        { id: 'p', playerId: 'ball', kind: passKind, to: { x: toX, z: toZ }, durationMs },
+      ],
+      answerDemo: [],
+      wrongDemos: [],
+      preAnswerOverlays: [],
+      postAnswerOverlays: [],
+      freezeAtMs: null,
+      synthetic: false,
+    }
+  }
+
+  function ballYAt(scene: Scene3D, atMs: number): number {
+    const { motion, ball } = makeMotion(scene)
+    motion.tick(0)
+    motion.tick(atMs)
+    return ball.position.y - 0.5 // subtract baseBallY so we're checking arc above ground
+  }
+
+  it('peaks higher for a normal pass than for a skip pass over the same distance', () => {
+    // 25 ft pass: skip_pass peak = clamp(25 * 0.10, 0.7, 7.0) = 2.5
+    //              pass peak     = clamp(25 * 0.25, 0.7, 7.0) = 6.25
+    const sceneNormal = buildPassScene('pass', 25, 0)
+    const sceneSkip = buildPassScene('skip_pass', 25, 0)
+    // Sample at PRE_DELAY + half-duration (mid-flight).
+    const tMid = 250 + 250
+    const yNormal = ballYAt(sceneNormal, tMid)
+    const ySkip = ballYAt(sceneSkip, tMid)
+    expect(yNormal).toBeGreaterThan(ySkip)
+    // Skip stays well below the pass apex for a 25-ft cross-court line.
+    expect(ySkip).toBeLessThan(3)
+    expect(yNormal).toBeGreaterThan(5)
+  })
+
+  it('honors the 7 ft ceiling on cross-court bombs', () => {
+    // 40 ft pass: raw mult = 10, clamped to 7.
+    const scene = buildPassScene('pass', 40, 0)
+    const yMid = ballYAt(scene, 250 + 250)
+    // At u=0.5 the parabola is at peak = 7.
+    expect(yMid).toBeCloseTo(7, 1)
+  })
+
+  it('honors the 0.7 ft floor on tiny hand-offs', () => {
+    // 1 ft hand-off: raw mult = 0.25, clamped to 0.7.
+    const scene = buildPassScene('pass', 1, 0)
+    const yMid = ballYAt(scene, 250 + 250)
+    // Apex is at peak = 0.7 (the floor) — well below shoulder height.
+    expect(yMid).toBeCloseTo(0.7, 2)
+  })
+
+  it('apex sits at the eased mid-flight, not the raw mid-flight', () => {
+    // Y now follows the same eased curve as X/Z, so at the visual
+    // midpoint of the pass (ease-in-out cubic at u=0.5 → 0.5) the ball
+    // is at the apex. At a quarter of real-time (u=0.25, eased=0.0625)
+    // the ball is barely off the ground, NOT 75% up like before.
+    const scene = buildPassScene('pass', 20, 0)
+    const yMid = ballYAt(scene, 250 + 250)
+    const yQuarter = ballYAt(scene, 250 + 125)
+    // Mid is the apex.
+    expect(yMid).toBeGreaterThan(yQuarter)
+    // At u=0.25 → eased=0.0625, height = peak * 4 * 0.0625 * 0.9375 ≈
+    // peak * 0.234. For a 20ft pass peak=5: yQuarter ≈ 1.17.
+    // Pre-fix it was peak * 0.75 ≈ 3.75 — much higher than what we now see.
+    expect(yQuarter).toBeLessThan(2)
+  })
+
+  it('ball position is rate-aware (mid-flight at 2x reaches apex at half real time)', () => {
+    const scene = buildPassScene('pass', 20, 0, 600)
+    const { motion, ball } = makeMotion(scene)
+    motion.setPlaybackRate(2)
+    motion.tick(0)
+    // getElapsedMs(now) = (now - startedAt - PRE_DELAY) * rate.
+    // For visible t=300 (mid of 600ms timeline) at rate=2:
+    //   now - 0 - 250 = 150 → now = 400ms.
+    motion.tick(400)
+    const yAt2x = ball.position.y - 0.5
+    // At u=0.5, eased=0.5, height = peak * 4 * 0.5 * 0.5 = peak.
+    const peak = 20 * 0.25
+    expect(yAt2x).toBeCloseTo(peak, 1)
+  })
+
+  it('freeze inside an in-flight pass clamps t at the cap and does not overshoot', () => {
+    const scene = buildPassScene('pass', 20, 0, 600)
+    // Freeze at mid-flight in scene time (300ms).
+    scene.freezeAtMs = 300
+    const { motion, ball } = makeMotion(scene)
+    motion.setFreezeAtMs(300)
+    motion.tick(0)
+    motion.tick(250 + 800) // long past the cap
+    const ySnapped = ball.position.y - 0.5
+    // The held position must equal the position at exactly t=300, not
+    // some later overshoot. Recompute the expected y from the exact
+    // same arc math used in the controller.
+    const u = 300 / 600
+    const easeInOutCubic = (uu: number): number =>
+      uu < 0.5 ? 4 * uu * uu * uu : 1 - Math.pow(-2 * uu + 2, 3) / 2
+    const e = easeInOutCubic(u)
+    const peak = 20 * 0.25
+    const expectedY = peak * 4 * e * (1 - e)
+    expect(ySnapped).toBeCloseTo(expectedY, 4)
   })
 })

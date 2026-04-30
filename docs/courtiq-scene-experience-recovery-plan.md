@@ -1439,4 +1439,1245 @@ not start scenario authoring.
 
 ---
 
+## 12. Replay Audit (Phase A)
+
+> Read-only audit produced by Phase A — micro-milestones A1, A2, A3, A4.
+> No replay code, no scenario JSON, and no wiring file was modified by
+> this section. The findings below feed directly into Phase B.
+
+### A1 — Replay Flow Map
+
+#### A1.1 Plain-English replay flow
+
+The user lands on `/train`. The session API returns one or more
+scenarios; for a decoder scenario (today: BDW-01) the page mounts the
+3D canvas, asks it to play through to the authored freeze marker, then
+mounts the question UI on the freeze edge. After the user picks, the
+canvas plays the matching wrong-demo leg (or short-circuits to the
+answer-demo leg when no wrong-demo matches the picked id), then the
+answer-demo leg, then settles into `done`. From `done` the user can
+press "Show me again" (Feedback panel) to replay the answer demo, or
+press the bottom-center Restart button to restart the active leg from
+t=0. Throughout, the user can pause/play and switch speed via the
+in-canvas `PremiumOverlay` transport.
+
+In rough English:
+
+1. **Page load.** `app/train/page.tsx` renders, fetches a session,
+   resolves a `Scene3D` via `useScenarioSceneData`, and mounts
+   `<Scenario3DView>` with `replayMode='intro'`, `forceFullPath=true`
+   (decoder), and `pickedChoiceId=null`.
+2. **Watch.** `Scenario3DView` mounts `<Scenario3DCanvas>` which
+   builds the imperative scene, constructs `MotionController` and (for
+   decoder scenes) `ReplayStateMachine`, and the parent rAF loop
+   begins ticking. The state machine transitions
+   `idle → setup → playing` immediately on `start()`.
+3. **Freeze.** When elapsed time crosses `scene.freezeAtMs`, the motion
+   controller fires `pendingFrozen` once. The state machine consumes
+   it on the next `tick()`, snapshots player + ball positions, and
+   transitions to `frozen`. `onPhase('frozen')` propagates up to the
+   train page, which flips `frozen=true` so the prompt + choice cards
+   mount and a 700 ms timer-arm delay starts.
+4. **Choose.** The user clicks a `ChoiceCard`. The train page sets
+   `selected=choiceId`, posts to `/api/session/.../attempt`, sets
+   `feedback`, and (because `isDecoder`) passes `pickedChoiceId` down
+   through `Scenario3DView` to `Scenario3DCanvas`. The canvas's
+   `[pickedChoiceId]` effect calls `machine.pickChoice(choiceId)`.
+5. **Consequence (wrong picks).** `pickChoice` calls
+   `motion.startConsequence(id, snapshot)`. If a `wrongDemos[id]`
+   entry exists, the controller swaps in that movement list (preserving
+   the freeze pose for idle players) and the state machine transitions
+   to `consequence`. The leg plays to its end; the next `tick()` after
+   completion calls `motion.startReplay(snapshot)` and transitions to
+   `replaying`.
+6. **Replay (right picks short-circuit here).** The answer-demo
+   movement list plays from the freeze pose. On completion the state
+   machine transitions to `done`.
+7. **Done.** The Feedback panel surfaces with "Why" body and a
+   "Replay" CTA wired to `setReplayCounter(n+1)`. The decoder lesson
+   panel and self-review checklist mount alongside it.
+8. **Show me again.** Pressing the Feedback "Replay" CTA bumps the
+   parent's `replayCounter`. That flows into `Scenario3DView` as
+   `resetCounterProp`, which raises `compositeResetCounter` and the
+   canvas effect calls `motion.reset()`. The bottom-center Restart
+   button (in `PremiumOverlay`) instead bumps the View-local
+   `restartTick`, which also raises `compositeResetCounter` and calls
+   `motion.reset()` — but it additionally clears `paused`. Neither
+   path calls `machine.showAgain()` today.
+9. **Next rep.** "Next rep" advances `idx`. The train page resets
+   `selected`, `feedback`, `frozen`, etc. The new scene flows in;
+   `Scenario3DCanvas`'s scene-build effect tears down the state
+   machine + motion controller and rebuilds them for the new scene.
+
+#### A1.2 File-level responsibility map
+
+| Concern | File | Notes |
+|---|---|---|
+| Page shell, decoder gating, choice submit, "Show me again" CTA | `apps/web/app/train/page.tsx` | Owns `selected`, `feedback`, `frozen`, `replayCounter`, `scenePhase`. Forwards `pickedChoiceId` only when `isDecoder`. |
+| Overlay state ownership | `apps/web/components/scenario3d/Scenario3DView.tsx` | Owns `paused`, `playbackRate`, `restartTick`, `cameraMode`, `pathOverride`. Composes `compositeResetCounter = resetCounterProp + restartTick`. |
+| In-canvas chrome (transport, speed, paths, camera) | `apps/web/components/scenario3d/PremiumOverlay.tsx` | Pure controlled UI: emits onPausedChange / onPlaybackRateChange / onRestart. No replay state of its own. |
+| Imperative scene build, parent rAF, FPS guard, controller wiring | `apps/web/components/scenario3d/Scenario3DCanvas.tsx` | Constructs `MotionController` + `ReplayStateMachine` inside `tryMount`. Forwards `paused` / `playbackRate` / `resetCounter` / `pickedChoiceId` via dedicated effects. Subscribes the state machine listener and dispatches `onPhase`. |
+| Motion timing math | `MotionController` in `imperativeScene.ts` (~L972–L1452) | Owns `startedAt`, `pausedAtT`, `playbackRate`, `freezeAtMs`, `currentOverrides`. `tick`, `reset`, `setPaused`, `setPlaybackRate`, `setMovements`, `startConsequence`, `startReplay`, `snapshotPositions`. |
+| Replay state transitions | `ReplayStateMachine` in `imperativeScene.ts` (~L1498–L1628) | Owns `state`, `chosenChoiceId`, `freezeSnapshot`. `start`, `pickChoice`, `showAgain`, `reset`, `tick`. Subscribers receive `(state, choiceId)` snapshots. |
+| Legacy JSX replay path (off in production) | `apps/web/components/scenario3d/ScenarioReplayController.tsx` | Mounted only under `?simple=0`. The imperative path now drives decoder scenarios via the imperative `ReplayStateMachine`; this file is kept for the JSX escape hatch. |
+| State machine unit tests | `apps/web/components/scenario3d/replayStateMachine.test.ts` | Covers freeze cap, leg swaps, idle-player snapshot honoring, BDW-01 budgets. |
+
+#### A1.3 State ownership map
+
+| Concern | Owner | Sources of change |
+|---|---|---|
+| `paused` (boolean) | `Scenario3DView` | `PremiumOverlay.onPausedChange`; reset to `false` in a `[replayMode, resetCounterProp]` effect; reset to `false` in `onRestart`. NOT reset on `restartTick` alone. |
+| `playbackRate` (0.5/1/2) | `Scenario3DView` | `PremiumOverlay.onPlaybackRateChange`. Never auto-reset. |
+| `restartTick` | `Scenario3DView` | `PremiumOverlay.onRestart` increments. |
+| `compositeResetCounter` | `Scenario3DView` | Derived: `resetCounterProp + restartTick`. |
+| `cameraMode` | `Scenario3DView` | URL `?camera=` on first mount, then `PremiumOverlay`. |
+| `pathOverride` | `Scenario3DView` | Reset to `null` on `[replayMode, resetCounterProp]` (NOT `restartTick`). |
+| `replayCounter` (parent) | `app/train/page.tsx` | "Show me again" CTA in `FeedbackPanel`; reset on `idx` change. |
+| `selected`, `feedback`, `frozen`, `scenePhase` | `app/train/page.tsx` | UI state + `onPhase` callback from canvas. |
+| `MotionController.startedAt`, `pausedAtT`, `playbackRate`, `freezeAtMs`, `currentOverrides` | imperative motion controller (canvas-owned ref) | `setPaused`, `setPlaybackRate`, `setFreezeAtMs`, `setMovements`, `reset`, `startConsequence`, `startReplay`, plus the `[paused]` / `[playbackRate]` / `[resetCounter]` effects in `Scenario3DCanvas`. |
+| `ReplayStateMachine.state`, `chosenChoiceId`, `freezeSnapshot` | imperative state machine (canvas-owned ref) | `start`, `pickChoice`, `showAgain`, `reset`, `tick`. Re-built on scene/`replayMode` change. |
+| `consumedChoiceRef` | `Scenario3DCanvas` | Set when a `pickedChoiceId` is forwarded to the machine; cleared on scene rebuild + cleanup. |
+
+#### A1.4 Text sequence diagram
+
+```
+TrainPage             Scenario3DView         Scenario3DCanvas         MotionController          ReplayStateMachine
+   │                       │                       │                         │                         │
+   │── render scene ──────▶│                       │                         │                         │
+   │                       │── Canvas + Overlay ──▶│                         │                         │
+   │                       │                       │── tryMount() ──────────▶│ new MotionController     │
+   │                       │                       │                         │ (anchored on next tick) │
+   │                       │                       │                         │                         │
+   │                       │                       │── if freezeAtMs!=null ─▶│                         │── new ReplayStateMachine
+   │                       │                       │                         │                         │
+   │                       │                       │── machine.start() ─────────────────────────────▶ │ idle→setup→playing
+   │                       │                       │   subscribe(onPhase) ─────────────────────────── ▶│
+   │                       │                       │                         │                         │
+   │                       │                       │  (parent rAF tick)      │                         │
+   │                       │                       │── motion.tick(now) ────▶│ advance t, fire frozen │
+   │                       │                       │── machine.tick(now) ───────────────────────────▶ │ playing→frozen
+   │   onPhase('frozen') ◀───────────────────────── │                         │ snapshot positions     │
+   │   setFrozen(true)     │                       │                         │                         │
+   │                       │                       │                         │                         │
+   │── user clicks card    │                       │                         │                         │
+   │   submitChoice(id)    │                       │                         │                         │
+   │   setSelected(id)     │                       │                         │                         │
+   │   pickedChoiceId=id ─▶│── pickedChoiceId=id ─▶│  effect [pickedChoiceId]│                         │
+   │                       │                       │  if state==='frozen'    │                         │
+   │                       │                       │  consumedChoiceRef=id   │                         │
+   │                       │                       │── machine.pickChoice ────────────────────────── ▶│
+   │                       │                       │                         │ startConsequence/Replay│ frozen→consequence
+   │   onPhase('consequence') ◀───────────────────  │                         │                         │
+   │                       │                       │                         │                         │
+   │                       │                       │  (rAF ticks until leg complete)                   │
+   │                       │                       │── motion.tick ─────────▶│ isPlaybackComplete=true│
+   │                       │                       │── machine.tick ────────────────────────────────▶ │ consequence→replaying
+   │                       │                       │                         │ startReplay(snapshot)  │
+   │                       │                       │                         │                         │
+   │                       │                       │── motion.tick ─────────▶│ leg ends                │
+   │                       │                       │── machine.tick ────────────────────────────────▶ │ replaying→done
+   │   onPhase('done') ◀── │                       │                         │                         │
+   │                       │                       │                         │                         │
+   │── user presses        │                       │                         │                         │
+   │   FeedbackPanel.Replay│                       │                         │                         │
+   │   replayCounter+=1 ──▶│ resetCounterProp+=1   │                         │                         │
+   │                       │ compositeResetCounter│                         │                         │
+   │                       │ ── compositeReset ──▶ │ effect [resetCounter]   │                         │
+   │                       │                       │── motion.reset() ──────▶│ startedAt=null         │
+   │                       │  paused→false (effect on resetCounterProp)      │                         │
+   │                       │  pathOverride→null                              │                         │
+   │                       │                       │   ⚠ machine.showAgain() NOT called               │
+   │                       │                       │                         │                         │
+   │── user presses        │                       │                         │                         │
+   │   Overlay.Restart     │ restartTick+=1        │                         │                         │
+   │                       │ paused→false          │                         │                         │
+   │                       │ ── compositeReset ──▶ │── motion.reset() ──────▶│                         │
+   │                       │                       │   ⚠ machine.showAgain() NOT called               │
+   │                       │                       │                         │                         │
+   │                       │                       │   ⚠ pathOverride NOT reset on restartTick alone  │
+```
+
+#### A1.5 Known uncertainty
+
+- **Restart semantics are ambiguous.** `motion.reset()` on a fresh
+  `compositeResetCounter` rewinds whatever leg the controller is
+  currently driving. From `done` that's the answer-demo leg; from
+  `consequence` that's the consequence leg; from `playing` it's the
+  intro leg. The button label says "Restart replay," which a user
+  will likely read as "restart the whole rep from the beginning" — but
+  the actual behavior is "restart the active leg." Phase B should
+  decide which semantics to ship.
+- **Show-me-again is split across two affordances.** The Feedback
+  panel "Replay" CTA and the Overlay's bottom-center Restart button
+  both go through `motion.reset()`. They differ subtly: Feedback CTA
+  bumps `resetCounterProp` (which clears `paused` and `pathOverride`
+  via the `[replayMode, resetCounterProp]` effects); Overlay Restart
+  bumps only `restartTick` (clears `paused` only because `onRestart`
+  does it explicitly; does not clear `pathOverride`).
+- **`pickedChoiceId` race.** The canvas effect early-returns if the
+  state machine isn't yet `frozen` when the prop arrives. Today the
+  train page gates choices behind `frozen`, so this can only fire if
+  a future change exposes choices earlier. Worth a defensive check.
+- **`forceFullPath` is intentionally ignored.** The canvas
+  hard-pins to the imperative path. The JSX `ScenarioReplayController`
+  in `ScenarioReplayController.tsx` only mounts under `?simple=0` and
+  is not on the production path; tests / audits should refer to the
+  imperative `ReplayStateMachine` in `imperativeScene.ts`.
+
+#### A1.6 A1 findings (short)
+
+1. The replay loop is genuinely owned by **two cooperating
+   controllers** in `imperativeScene.ts` (`MotionController` and
+   `ReplayStateMachine`) plus three layers of React wiring
+   (`Scenario3DCanvas` effects, `Scenario3DView` overlay state,
+   `app/train/page.tsx` decoder gating).
+2. Every replay control flows down through `Scenario3DCanvas` as a
+   prop change → effect → controller method call. Of the four control
+   props (`paused`, `playbackRate`, `resetCounter`, `pickedChoiceId`),
+   only `pickedChoiceId` reaches the state machine; the other three
+   reach the motion controller only.
+3. `resetCounter` and `restartTick` collapse into one
+   `compositeResetCounter`, which is why the Feedback "Replay" CTA
+   and the Overlay Restart button feel almost-but-not-quite the same.
+4. The state machine has no public "rewind to active leg start" or
+   "snap-to-done" entry point. The only existing recovery affordance
+   from `done` is `showAgain()`, which the parent never calls.
+
+---
+
+### A2 — Broken Replay Behaviors
+
+For each Section 2.1 symptom: what the user sees, the code path most
+likely involved, the suspected cause, a confidence label
+(high / medium / low), the evidence supporting that hypothesis, and
+what Phase B should test before editing. No code is changed in this
+section.
+
+#### A2.1 Play/pause can lose sync with the visible scene
+
+- **What the user sees.** Hitting Pause sometimes leaves the scene
+  still moving (or already-frozen). Hitting Play sometimes leaves the
+  scene parked on the last paused frame. The transition between intro
+  and consequence, in particular, can "swallow" a pause press.
+- **Likely file/function.**
+  `MotionController.setMovements` (`imperativeScene.ts` ~L1376–L1394),
+  `Scenario3DCanvas` `[paused]` effect (~L847–L849), and
+  `Scenario3DView` paused state ownership.
+- **Suspected cause.** `setMovements` (called by both
+  `startConsequence` and `startReplay`) hard-resets `pausedAtT = null`
+  every time a leg swaps. The `[paused]` effect in
+  `Scenario3DCanvas` only re-fires when the React `paused` prop
+  changes, not when the underlying motion controller swaps timelines.
+  So if the user is paused at the moment of the pick, the consequence
+  leg starts playing despite the React state still being `paused=true`.
+- **Confidence.** **High.**
+- **Evidence.** `setMovements` body explicitly sets
+  `this.pausedAtT = null` and `this.startedAt = null`; the
+  Scenario3DCanvas paused effect deps are `[paused]`; there is no
+  re-application of the paused flag after a leg swap on either side.
+- **What Phase B should test before editing.**
+  - Reproduce: enter `frozen`, press Pause, then pick a wrong choice.
+    Expect the consequence leg to begin playing despite Pause being
+    visually engaged.
+  - Add a state-machine test that pauses pre-pick, calls
+    `pickChoice`, and asserts `motion.isPaused()` is still true on
+    the next tick.
+  - Decide whether `setMovements` should preserve the prior pause
+    state, or whether the canvas wiring should re-apply `paused` on
+    every leg swap.
+
+#### A2.2 Restart can leave the scene mid-trajectory
+
+- **What the user sees.** After hitting Restart in `done` (or
+  Feedback's "Replay" CTA), the user expects the scene to start over
+  cleanly. Sometimes a frame from the previous leg remains visible
+  (idle players hold an old pose, or the ball is mid-air for a beat
+  before snapping).
+- **Likely file/function.**
+  `MotionController.reset` (~L1043–L1050), `Scenario3DCanvas`
+  `[resetCounter]` effect (~L835–L837), `Scenario3DView`
+  `compositeResetCounter`.
+- **Suspected cause.** `motion.reset()` rewinds the playhead but does
+  NOT change `currentOverrides`, `freezeAtMs`, or the active timeline.
+  In `done`, the active timeline is the answer-demo leg with the
+  freeze snapshot still applied, so reset replays *the answer demo*
+  rather than the original intro. Additionally, the rendered frame
+  between the reset and the next tick can briefly show the last leg's
+  final pose because `motion.tick(now)` only re-anchors `startedAt`
+  on the next animation frame — there is no immediate forced
+  re-sample on reset.
+- **Confidence.** **Medium-High.**
+- **Evidence.** `reset` body: `startedAt = null; pausedAtT = null;
+  lastPhaseIndex = -1; pendingPassArrival = false; hasFiredFrozen =
+  false; pendingFrozen = false`. It deliberately does not touch the
+  timeline, currentOverrides, or freezeAtMs (per the comment "user's
+  selected speed is intentionally preserved"). The state machine is
+  not informed of the reset, so its `state` field stays at `done`.
+- **What Phase B should test before editing.**
+  - Reproduce: complete a wrong-pick rep, press Restart in the
+    Overlay. Expect the answer demo to replay (since that's the
+    active leg) — does the scene actually settle on t=0 of the active
+    leg, or does it bleed in the final pose for a frame?
+  - Add a state-machine test that drives the machine to `done`,
+    triggers the parent reset, and asserts the rendered positions
+    after one tick equal the leg's t=0 sample.
+  - Decide what "Restart" should mean from `done` (and from
+    `consequence`/`replaying`): rewind the active leg, restart the
+    entire rep, or call `machine.showAgain()`.
+
+#### A2.3 Speed changes do not always affect every replay leg
+
+- **What the user sees.** Switching 0.5x ↔ 2x mid-play sometimes
+  feels right and sometimes feels like the scene jumps. Speed picked
+  during a frozen state may not appear to take effect once the
+  consequence leg starts.
+- **Likely file/function.**
+  `MotionController.setPlaybackRate` (~L1068–L1076),
+  `MotionController.setMovements` (~L1376–L1394),
+  `Scenario3DCanvas` `[playbackRate]` effect (~L843–L845).
+- **Suspected cause.** `setPlaybackRate` only rebases `startedAt`
+  when the controller is unpaused AND has been anchored
+  (`startedAt !== null`). If the user changes speed while paused or
+  before the first tick of a new leg (`startedAt === null` after
+  `setMovements`), the rebase math is skipped and the new rate
+  applies instantly when the next leg starts — which can read as a
+  "jump" because the visible t suddenly maps to a different real-time
+  per-frame delta. `setMovements` itself does not re-apply the rate;
+  it merely preserves the controller-internal `playbackRate` field.
+- **Confidence.** **Medium.**
+- **Evidence.** `setPlaybackRate` rebases only inside
+  `if (this.startedAt !== null && this.pausedAtT === null)`.
+  `setMovements` resets both anchors but leaves `playbackRate`
+  untouched; the canvas `[playbackRate]` effect only fires on React
+  prop change.
+- **What Phase B should test before editing.**
+  - Reproduce: at `frozen`, change speed to 2x, then pick a wrong
+    choice. Does the consequence leg play at 2x without a perceptible
+    jump?
+  - Add a state-machine test that sets rate at `frozen`, picks, and
+    asserts the consequence leg's elapsed-ms math at known real-time
+    points matches the requested rate from the very first tick.
+  - Decide whether `setMovements` should explicitly re-apply the
+    current rate (it doesn't need to: the field is preserved) and
+    whether the canvas should call `setPlaybackRate` once after every
+    leg swap as a defensive re-arm.
+
+#### A2.4 Consequence replay can stall, skip, or play the wrong leg
+
+- **What the user sees.** A wrong pick sometimes shows no consequence
+  at all (jumping straight to the answer demo). Sometimes the
+  consequence plays but never advances to the answer demo. Sometimes
+  the wrong leg appears to play (pieces of two animations overlap).
+- **Likely file/function.**
+  `ReplayStateMachine.pickChoice` (~L1544–L1557),
+  `MotionController.startConsequence` (~L1410–L1418),
+  `Scenario3DCanvas` `[pickedChoiceId]` effect (~L820–L828),
+  `consumedChoiceRef` reset path (~L674).
+- **Suspected cause.** Three plausible contributors:
+  1. The `[pickedChoiceId]` effect early-returns if the state machine
+     is not in `frozen` when the prop arrives; the dep is
+     `[pickedChoiceId]`, so the same id will not retry on a later
+     render. If the freeze edge fires *after* the prop is set (a
+     timing race during scene rebuild), the pick is dropped and the
+     scene stays in `playing` forever.
+  2. `startConsequence` returns `false` when the picked id has no
+     entry in `wrongDemos`. The state machine treats that as a
+     best-read short-circuit and goes straight to `replaying`. If a
+     scenario JSON has a typo in the choice id or omits a wrongDemo
+     entry, the user perceives a "skip" rather than a "no demo
+     available."
+  3. `consumedChoiceRef` resets only on scene-rebuild; if the parent
+     ever re-emits the same id after a Restart while the machine has
+     re-entered `frozen` (hypothetical, not in current flow), the
+     pick will be ignored.
+- **Confidence.** **Medium** — the early-return path (#1) is highest
+  confidence; #2 is intentional design but feels like a bug to the
+  user; #3 is defensive only.
+- **Evidence.** Effect body at Scenario3DCanvas L820–L828; the
+  early-return on state mismatch; the deliberate short-circuit branch
+  in `pickChoice`.
+- **What Phase B should test before editing.**
+  - Reproduce: simulate a fast pick path where `pickedChoiceId`
+    appears before `frozen` is reached (force-mount sequence). Verify
+    the pick is captured, queued, or surfaced as a clear no-op.
+  - Add tests covering: (a) pick before frozen → buffered or
+    rejected explicitly; (b) pick with no wrongDemo → still emits
+    `consequence`-skipped event so the page can show a caption; (c)
+    pick correctly advances `consequence → replaying → done`.
+  - Decide whether the canvas should buffer a pre-`frozen`
+    `pickedChoiceId` and dispatch it once the machine reaches
+    `frozen`.
+
+#### A2.5 "Show me again" / Restart behavior may not reset cleanly
+
+- **What the user sees.** Pressing the Feedback panel's "Replay" CTA
+  in `done` plays the answer demo from t=0, but the state machine
+  stays in `done` and does not re-emit `replaying`. As a result, the
+  decoder caption that depends on `scenePhase === 'replaying'` does
+  not re-appear; the user perceives a "ghosted" replay where the
+  scene replays but the surrounding UI doesn't acknowledge it.
+- **Likely file/function.**
+  `Scenario3DView` `compositeResetCounter` and `[resetCounter]`
+  effects, `Scenario3DCanvas` `[resetCounter]` effect (~L835–L837),
+  `ReplayStateMachine.showAgain` (~L1563–L1574),
+  `app/train/page.tsx` `setReplayCounter` callsite (~L713).
+- **Suspected cause.** Neither code path that the user reaches via
+  "Show me again" or "Restart" calls `machine.showAgain()`. They both
+  drop into `motion.reset()` which rewinds the timeline but leaves
+  the state machine in whatever state it was in. This is the most
+  user-visible consequence of the "two-controllers, one reset wire"
+  design noted in A1.6.4.
+- **Confidence.** **High.**
+- **Evidence.** Grep for `showAgain` in `Scenario3DCanvas.tsx` finds
+  no callers; the imperative-scene mount effect calls
+  `machine.start()` once and never re-enters; the `[resetCounter]`
+  effect calls only `motionControllerRef.current?.reset()`.
+- **What Phase B should test before editing.**
+  - Reproduce: complete a rep (right or wrong), press Feedback's
+    "Replay" CTA. Expect `onPhase('replaying')` to fire; today it
+    stays at `done`.
+  - Add a state-machine test that asserts `showAgain()` from `done`
+    cycles `done → replaying → done` and re-emits the listener
+    snapshot.
+  - Decide which "Show me again" affordance should call
+    `machine.showAgain()` (Feedback CTA, Overlay Restart, both, or a
+    new dedicated button) and whether `motion.reset()` should be
+    deprecated as a public reset path.
+
+#### A2.6 Answer-card UI and scene state can desync
+
+- **What the user sees.** The choice cards may stay visible into the
+  consequence/answer leg, or disappear before the freeze beat lands.
+  After "Show me again," the FeedbackPanel stays mounted but the
+  canvas plays as if the user hadn't picked yet.
+- **Likely file/function.**
+  `app/train/page.tsx` (`questionReady`, `frozen`, `feedback`,
+  `selected` state), `Scenario3DCanvas` `onPhase` subscription path
+  (~L661–L666), `Scenario3DView` paused/path reset effects.
+- **Suspected cause.** The page's `frozen` flag latches true on the
+  first `onPhase('frozen')` and is only reset on `idx` change. The
+  page does not consume `'consequence' / 'replaying' / 'done'` for
+  unmounting choices — the choice cards instead unmount when
+  `feedback` is non-null (gated by `submitChoice`). That works for
+  the first pass but means a Show-Me-Again replay (which today does
+  not even re-emit phases — see A2.5) cannot drive the surrounding
+  UI to a coherent state. Compounded by the `paused` reset effect
+  using `[replayMode, resetCounterProp]`, but `restartTick` not being
+  in the deps list, so the two paths diverge.
+- **Confidence.** **Medium.**
+- **Evidence.** `app/train/page.tsx` `useEffect` at ~L312 only resets
+  on `[idx]`. `Scenario3DView` paused-reset effect deps:
+  `[replayMode, resetCounterProp]`. `pathOverride` reset effect:
+  `[replayMode, resetCounterProp]`. The `onScenePhase` callback only
+  calls `setFrozen(true)` on the `frozen` event; no other phase
+  triggers UI state changes beyond `learnPhase` derivation.
+- **What Phase B should test before editing.**
+  - Reproduce: complete a rep, hit Show me again. Observe whether
+    the FeedbackPanel, decoder lesson panel, and self-review checklist
+    behave the same as on first arrival at `done`.
+  - Verify whether a `replaying → done` re-entry would be expected to
+    emit a fresh `done` so consumers can re-react.
+  - Decide whether the page's UI gating should switch from
+    `feedback`-driven to `scenePhase`-driven for the parts that
+    correspond to scene state (caption visibility, paths default).
+
+---
+
+### A3 — Replay Fix Surface Classification
+
+Risk legend: **safe** = small bounded change, well-understood,
+covered by tests; **careful** = changes timing math or wiring that
+multiple consumers depend on; **avoid** = touching this is almost
+never required for the symptoms in A2 and tends to produce
+regressions out of proportion to the fix.
+
+| File / function | Responsibility | Risk | Why | Phase B use |
+|---|---|---|---|---|
+| `MotionController.setPaused` (`imperativeScene.ts` ~L1086–L1097) | Toggles `pausedAtT` and rebases `startedAt` on resume. | **careful** | Rebase math (`startedAt = nowMs - PRE_DELAY - t / rate`) is the same formula as `setPlaybackRate`; if drift is introduced it shows up as t-jump. Tests in `replayStateMachine.test.ts` already exercise the freeze cap which depends on this math. | B1: tighten so paused state survives `setMovements` (either preserve across leg swap OR have the canvas re-apply on swap). |
+| `MotionController.setPlaybackRate` (~L1068–L1076) | Clamps + rebases on rate change. | **careful** | Rebase is gated on `startedAt !== null && pausedAtT === null`. Any change here can produce silent t-jumps. | B3: leave the rebase math as-is; have callers ensure rate is re-applied across legs (or document why it doesn't need to be). |
+| `MotionController.reset` (~L1043–L1050) | Drops `startedAt`, `pausedAtT`, frozen flags. Preserves rate, timeline, overrides. | **careful** | Comment explicitly notes preserving the user's rate. Several callers rely on "reset = rewind active leg." Repurposing it (e.g., to also rewind to the intro leg) is a behavior change. | B2: do NOT change the contract; add a sibling helper instead (e.g., reset-to-intro or call `machine.showAgain()` from the page). |
+| `MotionController.swapMode` (no such method exists; the equivalent is `setMovements`) (~L1376–L1394) | Loads a new movement list; clears anchors, freeze cap, override-aware ball holder; preserves rate. | **careful** | Called by `startConsequence`/`startReplay`. Hard-resets `pausedAtT`. Any change ripples to every leg transition. | B1: the canonical fix point if Phase B chooses "preserve paused across leg swap" (vs. canvas re-applying). |
+| `MotionController.getElapsedMs` (~L1106–L1111) | Reads visible t (clamped to freeze cap or timeline length). | **avoid** | Pure math; touched by every consumer. | Don't edit. |
+| `ReplayStateMachine.pickChoice` (~L1544–L1557) | Snapshots positions, dispatches consequence or short-circuit replay. | **careful** | Already correct in the happy path. Any change should be additive (e.g., emit a discriminated event for "no consequence available"). | B4: optionally surface a "no-consequence" event so the page can render a caption instead of silently short-circuiting. |
+| `ReplayStateMachine.transition` (~L1621–L1627) | Private; updates state + notifies subscribers. | **avoid** | Single source of truth for state notifications. | Don't edit. |
+| `ReplayStateMachine.showAgain` (~L1563–L1574) | Cycles `done → replaying → done` from the freeze snapshot. | **safe** | Already implemented and tested; the bug is that nobody calls it. | B2/B5: add the calls from the canvas reset effect (or train page) so Restart and Show-Me-Again actually use it. |
+| `ReplayStateMachine.reset` (~L1579–L1585) | Returns machine to `idle` and re-arms `start()`. | **safe** | Used today only by tests, but stable. | B2: candidate for the "restart whole rep" semantics if Phase B picks that interpretation. |
+| `Scenario3DCanvas` `[paused]` effect (~L847–L849) | Pushes React `paused` prop into `motion.setPaused`. | **safe** | One-line effect with no dependencies on other refs. | B1: extend deps or add a leg-swap re-arm (likely via the state-machine subscriber). |
+| `Scenario3DCanvas` `[playbackRate]` effect (~L843–L845) | Pushes rate prop into `motion.setPlaybackRate`. | **safe** | Same shape as the paused effect. | B3: same defensive re-arm pattern as B1 if needed. |
+| `Scenario3DCanvas` `[resetCounter]` effect (~L835–L837) | Calls `motion.reset()` on parent reset bumps. | **careful** | Today does not coordinate with the state machine — that's the root of A2.5. Changing it changes behavior for every Restart and Show-Me-Again. | B2: switch to a state-aware reset (call `machine.showAgain()` from `done`, otherwise `motion.reset()`). |
+| `Scenario3DCanvas` `[pickedChoiceId]` effect (~L820–L828) | One-shot dispatch into `machine.pickChoice`. | **careful** | Early-return on non-`frozen` state silently drops picks (A2.4 #1). | B4: buffer or flush once `frozen` arrives; or surface a console warning so it's diagnosable. |
+| `Scenario3DCanvas` parent rAF loop (~L394–L536) | Drives camera, motion, state machine, overlay, dust, FPS guard. | **avoid** | The renderer's heartbeat. Touching this risks frame-drop, leak, or simple visual breakage that the FPS guard then over-corrects. Recovery plan Section 6 explicitly forbids editing this in Phase B. | Don't edit. |
+| `Scenario3DCanvas` FPS guard (~L482–L518) | Tier-degrades on sustained slow frames. | **avoid** | Coupled to the rAF loop. | Don't edit. |
+| `Scenario3DView` `compositeResetCounter` + reset effects | Composes overlay restart with parent reset; clears paused/path on parent resets. | **careful** | The split between "parent reset clears these but local restart doesn't" is the source of A2.6's UI desync. Aligning them is a small change but visibly user-facing. | B2: align deps so paused (always) and pathOverride (likely) reset on both paths. |
+| `PremiumOverlay` `IconButton`, `SpeedSelector`, `onRestart` callsite | Pure controlled UI for play/pause/restart/speed. | **safe** | No state of its own; all changes flow through props. | B1/B3: only edit if a control needs an extra disabled state or a new affordance (e.g., "show me again" being distinct from "restart"). |
+| `app/train/page.tsx` `pickedChoiceId` path (`isDecoder ? selected : null`) | Forwards the picked id into the canvas. | **safe** | Pure prop derivation. | B4: if Phase B chooses to also send a "show me again" intent, this is where it lands. |
+| `app/train/page.tsx` `setReplayCounter` (Feedback "Replay" CTA, ~L713) | Bumps the parent reset counter. | **careful** | Today this drives the broken Show-Me-Again path (A2.5). Changing the wiring (e.g., adding a dedicated handle that calls `machine.showAgain()`) is the most natural fix. | B2: replace with a callback that asks the canvas to call `machine.showAgain()` — or, simpler, keep the counter but have the canvas effect dispatch state-aware. |
+| `replayStateMachine.test.ts` | State-machine + motion-controller unit tests. | **safe** | Designed to grow. | B1–B4 all add tests here; B5 is the regression-pass commit. |
+| Scenario JSON (`packages/db/seed/scenarios/packs/founder-v0/BDW-01.json`) | Authored intro + answer + wrongDemos + freezeMarker for BDW-01. | **avoid** | Recovery plan Section 6 explicitly forbids JSON edits in Phase B. | Don't edit. |
+| `lib/scenario3d/schema.ts` | Zod validators for scene + overlays. | **avoid** | Schema changes ripple to every authored scene. | Don't edit. |
+
+#### A3.1 Safe to edit in Phase B
+
+- `ReplayStateMachine.showAgain` (already implemented; just call it).
+- `ReplayStateMachine.reset` (use as the "restart whole rep" path if
+  Phase B chooses that semantic).
+- `Scenario3DCanvas` `[paused]`, `[playbackRate]`, `[resetCounter]`,
+  `[pickedChoiceId]` effects (small, bounded, well-understood).
+- `Scenario3DView` paused / pathOverride reset deps (one-line align).
+- `PremiumOverlay` controls (only if a new affordance is needed —
+  ideally none for Phase B).
+- `app/train/page.tsx` "Replay" CTA wiring (one prop / one callback).
+- `replayStateMachine.test.ts` (add tests freely).
+
+#### A3.2 Edit with care in Phase B
+
+- `MotionController.setPaused` and `MotionController.setMovements` —
+  the canonical fix point for A2.1; whichever side handles the
+  pause-across-swap, write the new test first.
+- `MotionController.reset` — do not repurpose; pair with a sibling
+  helper or a state-machine call instead.
+- `ReplayStateMachine.pickChoice` — additive only (e.g., a clearer
+  no-consequence event); do not change the success path.
+- `Scenario3DCanvas` reset and pick effects — coordinate with the
+  state machine, do not lose existing behavior.
+- `Scenario3DView` reset deps — align both paths but keep behavior
+  conservative.
+
+#### A3.3 Do not touch in Phase B unless absolutely necessary
+
+- `MotionController.getElapsedMs` — pure math; everything depends on
+  it.
+- `ReplayStateMachine.transition` (private) — only the four public
+  methods should drive transitions.
+- `Scenario3DCanvas` parent rAF loop and FPS guard — explicitly
+  forbidden by Section 6.
+- `MOTION_PRE_DELAY_MS` constant — do not change without an explicit
+  Phase B sign-off.
+- The simple/full-path pin (`simpleMode` / `forceFullPath`) — the
+  imperative path is the production path; do not flip it.
+- Scenario JSON, schema, presets, `coords.ts` — out of scope.
+- The legacy JSX `ScenarioReplayController.tsx` — not on the
+  production path.
+
+---
+
+### A4 — Phase B Replay Fix Recommendation
+
+The Phase B work list below is ranked so each fix unblocks the next
+test. B1 lands the pause invariant the rest of Phase B leans on; B2
+and B4 are independent of each other but both need B1; B3 is
+near-trivial after B1; B5 ratifies the regression matrix. Diff sizes
+are estimates only (S ≤ ~30 LOC, M ≤ ~120 LOC, L ≤ ~250 LOC, all
+including tests).
+
+#### A4.1 Ranked Phase B work list
+
+| # | Item | Maps to | Diff | Depends on | Likely files |
+|---|---|---|---|---|---|
+| 1 | Re-apply React `paused` after every leg swap so pause state is consistent across `setMovements`. | B1 | S | — | `Scenario3DCanvas.tsx` (paused effect + state-machine subscription), `replayStateMachine.test.ts`. Optionally `MotionController.setMovements` (only if Phase B chooses controller-side preservation). |
+| 2 | Wire "Show me again" / Restart through `ReplayStateMachine.showAgain` from `done`; keep `motion.reset()` for the "rewind active leg" semantic; align `Scenario3DView` paused + pathOverride reset deps. | B2 | M | B1 | `Scenario3DCanvas.tsx` (`[resetCounter]` effect), `Scenario3DView.tsx` (deps + maybe a new prop), `app/train/page.tsx` (Feedback CTA wiring), `replayStateMachine.test.ts`. |
+| 3 | Defensive re-arm of `setPlaybackRate` after every leg swap so speed never visually jumps. | B3 | S | B1 | `Scenario3DCanvas.tsx` (rate effect or state-machine subscription), `replayStateMachine.test.ts`. |
+| 4 | Make consequence dispatch robust: buffer a `pickedChoiceId` that arrives before `frozen`, surface a clear no-consequence event so the page can react. | B4 | M | B1 | `Scenario3DCanvas.tsx` (`[pickedChoiceId]` effect, subscribe-driven flush), optionally `ReplayStateMachine.pickChoice` (additive event), `app/train/page.tsx` (caption wiring), `replayStateMachine.test.ts`. |
+| 5 | Replay QA pass: BDW-01 manual matrix + tests for B1–B4 + a brief QA notes subsection in this doc. | B5 | M | B1, B2, B3, B4 | `replayStateMachine.test.ts`, `docs/courtiq-scene-experience-recovery-plan.md` (QA notes). No new code surface. |
+
+#### A4.2 Test coverage needed (across Phase B)
+
+- Pause survives `frozen → consequence` and `consequence → replaying`
+  swaps when `paused === true`.
+- Pause clears via `onRestart` and via the Feedback "Replay" CTA;
+  pause clears identically on both paths.
+- Speed change while frozen takes effect on the consequence leg with
+  no t-jump (assert `getElapsedMs` against expected linear math).
+- Speed change mid-play across rate switches (0.5x → 2x → 1x) does
+  not desync the visible t.
+- Show-Me-Again from `done` cycles `done → replaying → done` AND
+  re-emits the listener snapshots (so consumers re-react).
+- Restart from `done` returns to the active leg's t=0 and clears
+  `paused`; assert positions match a fresh sample at t=0.
+- Pick before `frozen` is buffered (or rejected with a diagnostic),
+  not silently dropped.
+- Pick with no `wrongDemos` entry surfaces a "no-consequence" signal
+  the page can render.
+- All existing tests in `replayStateMachine.test.ts` still pass.
+
+#### A4.3 Manual QA needed (across Phase B)
+
+Run on BDW-01, on the production simple path (no URL flags):
+
+- Pause / Play across each leg boundary (intro→frozen→consequence,
+  consequence→replaying, replaying→done).
+- Speed switches at 0.5x / 1x / 2x at every leg boundary.
+- Restart pressed in `playing`, `frozen`, `consequence`, `replaying`,
+  `done` — each should land in a coherent state.
+- Show me again pressed multiple times in a row.
+- Wrong pick → consequence → replay → done, all four BDW-01 wrong
+  choices.
+- Right pick → answer-demo replay → done.
+- 30 s of button-mashing across all controls — no stuck state.
+- Camera selector + Paths toggle still work after every fix path.
+
+#### A4.4 Do-not-touch list for Phase B
+
+- `MotionController.getElapsedMs`, `tick`, `applyBall`, `samplePlayer`,
+  `computePlayerYaw`.
+- `ReplayStateMachine.transition`, `subscribe`, `getSnapshot`.
+- `Scenario3DCanvas` parent rAF loop, FPS guard, `simpleMode` pin.
+- `MOTION_PRE_DELAY_MS`.
+- All scenario JSON.
+- All schema / preset / coords / quality / feature flag files.
+- The legacy JSX `ScenarioReplayController.tsx` (not on the
+  production path).
+- `PremiumOverlay`'s structural layout (icon button shapes,
+  positioning, animations) — Phase D will own fullscreen and any
+  affordance redesign.
+
+---
+
+#### B1 — Fix play/pause state consistency
+
+- **Objective.** Pause survives a leg swap (`frozen → consequence`,
+  `consequence → replaying`, `done → replaying` via Show-Me-Again)
+  with no spurious resume and no double-pause.
+- **Likely files.**
+  - `apps/web/components/scenario3d/Scenario3DCanvas.tsx` — paused
+    effect, plus a state-machine subscriber that re-applies React
+    `paused` when the machine transitions across leg boundaries.
+  - `apps/web/components/scenario3d/imperativeScene.ts` —
+    `MotionController.setMovements` (optional; only if Phase B
+    chooses controller-side preservation rather than canvas re-arm).
+  - `apps/web/components/scenario3d/replayStateMachine.test.ts` —
+    new tests for paused-across-swap.
+- **Likely code surface.** A short re-apply hook in the canvas's
+  state-machine subscribe block; or a one-line preservation in
+  `setMovements`. Pick one path; do not do both.
+- **Should change.** Pause persists across every leg transition.
+  Tests assert `motion.isPaused()` is still true on the first tick
+  after a leg swap when `paused === true`.
+- **Should not change.** `MotionController.getElapsedMs`, `tick`,
+  the rebase math in `setPaused` / `setPlaybackRate`. The React
+  `paused` state ownership in `Scenario3DView`.
+- **Acceptance criteria.**
+  - Pause pressed in `frozen`, then a wrong pick, then resume → the
+    consequence leg starts at t=0 paused; resume continues from t=0.
+  - Pause pressed during `consequence`, then leg ends → `replaying`
+    leg is paused at t=0; resume continues normally.
+  - All existing tests pass; at least 1 new test covers paused
+    survival across a leg swap.
+- **Suggested commit message.**
+  `fix(replay): keep pause across consequence and replay leg swaps`
+
+#### B2 — Fix restart/reset behavior
+
+- **Objective.** Restart and Show-Me-Again behave as the user
+  expects: from `done`, both call `machine.showAgain()` and re-emit
+  `replaying`/`done` so the surrounding UI re-reacts. From any other
+  state, Restart rewinds the active leg (current behavior).
+- **Likely files.**
+  - `apps/web/components/scenario3d/Scenario3DCanvas.tsx` —
+    `[resetCounter]` effect becomes state-aware: in `done`, call
+    `stateMachineRef.current?.showAgain()`; otherwise call
+    `motion.reset()`.
+  - `apps/web/components/scenario3d/Scenario3DView.tsx` — align the
+    paused / pathOverride reset effect deps so both reset paths
+    behave identically (add `restartTick` to deps OR move the
+    `paused = false` line into a single shared helper).
+  - `apps/web/app/train/page.tsx` — Feedback "Replay" CTA continues
+    to bump `replayCounter`; no API change required if the canvas
+    effect is state-aware.
+  - `apps/web/components/scenario3d/replayStateMachine.test.ts` —
+    test for `motion.reset()` from `done` vs. `showAgain()` from
+    `done`; test for pause clear on both paths.
+- **Likely code surface.** A 5–10 line branch in the canvas reset
+  effect; a single deps-list change in the View effects.
+- **Should change.** From `done`, the user-visible state machine
+  re-enters `replaying` and emits the corresponding `onPhase` events.
+- **Should not change.** `MotionController.reset` semantics —
+  remains "rewind active leg." `ReplayStateMachine.showAgain`
+  semantics — already correct.
+- **Acceptance criteria.**
+  - Hammering Restart 10 times in a row from `done` leaves the scene
+    at t=0 of the answer demo with `paused === false`, speed
+    preserved, and `onPhase('replaying')` re-emitted each time.
+  - Hammering Restart from `playing` rewinds the intro leg to t=0
+    every time.
+  - Feedback "Replay" CTA triggers the same `showAgain` path as the
+    Overlay Restart from `done`.
+  - All existing tests pass; new tests cover Show-Me-Again and
+    Restart from `done`.
+- **Suggested commit message.**
+  `fix(replay): wire restart and show-me-again through showAgain`
+
+#### B3 — Fix speed-control application
+
+- **Objective.** Speed changes apply on every leg with no visible
+  t-jump; speed survives `setMovements` and `motion.reset()`.
+- **Likely files.**
+  - `apps/web/components/scenario3d/Scenario3DCanvas.tsx` —
+    `[playbackRate]` effect or a one-call defensive re-arm inside
+    the state-machine subscriber added in B1.
+  - `apps/web/components/scenario3d/replayStateMachine.test.ts` —
+    new tests around rate change at `frozen` and across leg swaps.
+- **Likely code surface.** ≤10 LOC of re-arm; no math change.
+- **Should change.** After any leg swap, `playbackRate` is asserted
+  to match the React state and the rebase math is correct from the
+  first tick.
+- **Should not change.** `MotionController.setPlaybackRate`
+  internals; the rebase formula at L1071–L1075.
+- **Acceptance criteria.**
+  - 0.5x ↔ 2x mid-play does not jump the visible t (assert via
+    deterministic `tick` calls and `getElapsedMs`).
+  - Speed selected at `frozen` takes effect on the consequence leg
+    from its first tick.
+  - All existing tests pass; at least 1 new test covers speed
+    persistence across a leg swap.
+- **Suggested commit message.**
+  `fix(replay): keep speed consistent across leg swaps`
+
+#### B4 — Fix consequence replay path
+
+- **Objective.** Wrong picks reliably play the matching `wrongDemos`
+  leg and arrive at `done` exactly once; right picks short-circuit
+  and emit a clear signal the page can render. Pre-`frozen` picks are
+  buffered (or rejected with a diagnostic), not silently dropped.
+- **Likely files.**
+  - `apps/web/components/scenario3d/Scenario3DCanvas.tsx` —
+    `[pickedChoiceId]` effect: if the machine is not yet `frozen`,
+    stash the id in a ref and dispatch from the state-machine
+    subscriber on the `frozen` transition.
+  - `apps/web/components/scenario3d/imperativeScene.ts` — optional:
+    `ReplayStateMachine.pickChoice` adds a discriminated event /
+    callback when `startConsequence` returns false (so consumers can
+    distinguish best-read from missing-data).
+  - `apps/web/app/train/page.tsx` — react to the new signal (e.g.,
+    surface a caption like "Best read — here is the answer demo").
+  - `apps/web/components/scenario3d/replayStateMachine.test.ts` —
+    pick-before-frozen, pick with no wrongDemo, pick with wrongDemo.
+- **Likely code surface.** A small ref + flush in the canvas; an
+  optional event surface on the state machine; tests.
+- **Should change.** Pre-`frozen` picks are flushed at `frozen`; the
+  no-consequence path is observable from outside the state machine.
+- **Should not change.** `pickChoice` happy-path behavior (the
+  consequence dispatch and state transition).
+- **Acceptance criteria.**
+  - All four BDW-01 picks (right + three wrong) produce the correct
+    leg sequence and terminate in `done` exactly once.
+  - A simulated pre-`frozen` pick is dispatched at `frozen`, not
+    dropped.
+  - A pick with no `wrongDemos` entry is observable as a
+    short-circuit (signal or callback), not just a state jump.
+  - All existing tests pass; at least 3 new tests cover the above.
+- **Suggested commit message.**
+  `fix(replay): make consequence dispatch robust to pick timing`
+
+#### B5 — Replay QA pass
+
+- **Objective.** Lock the regression matrix. Confirm BDW-01 plays
+  end-to-end across every replay control. Capture a QA Notes
+  subsection in this doc.
+- **Likely files.**
+  - `apps/web/components/scenario3d/replayStateMachine.test.ts` —
+    backfill any missing tests from B1–B4 acceptance criteria.
+  - `docs/courtiq-scene-experience-recovery-plan.md` — append a
+    "Phase B QA Results" subsection to Section 12.
+- **Likely code surface.** Tests + docs only.
+- **Should change.** Test coverage and a written QA log.
+- **Should not change.** Anything user-visible.
+- **Acceptance criteria.**
+  - `pnpm lint`, `pnpm typecheck`, and `pnpm test` clean (or, if the
+    repo's commands differ, the equivalents).
+  - Manual QA matrix from A4.3 clean on BDW-01.
+  - QA Notes subsection committed.
+- **Suggested commit message.**
+  `test(replay): cover Phase B regressions and QA log`
+
+---
+
+#### A4.5 Exact next prompt to run Phase B automatically
+
+Paste this into a fresh Claude Code session to run all of Phase B in
+one auto-driven pass:
+
+```
+Continue in PHASE B AUTO-RUN MODE.
+
+Read docs/courtiq-scene-experience-recovery-plan.md, Section 6
+Phase B AND Section 12 (the Phase A audit, especially A4 — Phase B
+Replay Fix Recommendation).
+
+Implement Phase B ONLY. Do not start Phase C. Do not change visuals,
+copy, or geometry.
+
+Constraints (from A4.4):
+- Stay inside MotionController, ReplayStateMachine, and the
+  immediate wiring in Scenario3DCanvas / Scenario3DView /
+  PremiumOverlay / app/train/page.tsx.
+- Do NOT touch the parent rAF loop, the FPS guard, or the
+  simple/full-path pin.
+- Do NOT change MOTION_PRE_DELAY_MS.
+- Do NOT touch scenario JSON, schema, presets, coords, quality, or
+  feature flag files.
+- Do NOT touch the legacy JSX ScenarioReplayController.tsx.
+- Add tests in replayStateMachine.test.ts for each fix.
+- Each micro-milestone is its own commit.
+
+Run B1 → B2 → B3 → B4 → B5 in order, each with the suggested commit
+message from A4. Stop after B5. Run lint + typecheck + tests after
+each commit; if any fail, fix in-place before proceeding.
+
+Final response after B5: include commit hashes for each B
+micro-milestone, the test command output (clean), and the
+Phase B QA Results subsection diff.
+```
+
+#### A4.6 Recommended Claude mode/thinking for Phase B
+
+- **Model.** Opus 4.7 Max — Phase 6 of the recovery plan flags the
+  state machine + timing math as risky-touch surfaces, and the cost
+  of a regression here cascades into every other Phase. The
+  reading-heavy work was done in Phase A; Phase B is bounded
+  engineering work where deep reasoning per edit is worth more than
+  raw output speed.
+- **Mode.** Auto-run with small commits (one per micro-milestone).
+  Tests-first for B1, B2, B3, B4 — all four have test scaffolding
+  already in place.
+- **Thinking budget.** Max. The thinking budget is best spent
+  reasoning about the rebase math edge cases and the state-machine
+  transition invariants; the actual code diffs are small.
+
+---
+
+### Phase B QA Results
+
+> Phase B landed B1–B5 on this branch. Subsection records the
+> automated coverage and the human-in-the-loop matrix Phase H should
+> walk on a real browser before the recovery is declared done.
+
+#### Files touched (Phase B)
+
+- `apps/web/components/scenario3d/Scenario3DCanvas.tsx`
+  - Added `pausedRef` / `playbackRateRef` / `pendingPickRef`.
+  - `[paused]` / `[playbackRate]` effects now sync the refs.
+  - `[resetCounter]` effect dispatches `machine.showAgain()` from
+    `done`, otherwise calls `motion.reset()`.
+  - `[pickedChoiceId]` effect buffers a pre-`frozen` pick.
+  - State-machine `subscribe` callback re-applies playbackRate +
+    paused on every transition and flushes the buffered pick on
+    `frozen`.
+  - Cleanup paths clear `pendingPickRef` alongside
+    `consumedChoiceRef`.
+- `apps/web/components/scenario3d/Scenario3DView.tsx`
+  - Paused + path-override reset effects depend on
+    `compositeResetCounter` so both reset paths align.
+  - `onRestart` no longer needs an explicit `setPaused(false)`.
+- `apps/web/components/scenario3d/replayStateMachine.test.ts`
+  - +15 tests across `Phase B / B1`, `Phase B / B2`, `Phase B / B3`,
+    and `Phase B / B4` describes.
+
+No edits to `MotionController`, `ReplayStateMachine`,
+`PremiumOverlay`, `app/train/page.tsx`, scenario JSON, the parent
+rAF loop, the FPS guard, or the simple/full-path pin.
+
+#### Automated test coverage
+
+```
+RUN  v2.1.9 /home/user/CourtIQ/apps/web
+
+✓ components/scenario3d/replayStateMachine.test.ts (29 tests) 13ms
+
+Test Files  1 passed (1)
+     Tests  29 passed (29)
+```
+
+Coverage map (Phase B additions):
+
+- B1 — paused across leg swap
+  - `setMovements` clears the paused flag (documents existing
+    behavior)
+  - re-applying `setPaused` after `setMovements` pauses the new leg
+    at t=0
+  - subscriber-driven re-arm keeps pause across `frozen → consequence`
+  - subscriber-driven re-arm keeps pause across
+    `consequence → replaying`
+  - subscriber-driven re-arm covers the initial `start()` reset
+- B2 — restart from done dispatches showAgain
+  - `motion.reset()` from `done` leaves the machine in `done`
+    (pre-fix behavior pinned for regression safety)
+  - canvas-style state-aware reset routes through `showAgain` when
+    in `done`
+  - canvas-style state-aware reset rewinds the active leg outside
+    `done`
+- B3 — speed control across leg swaps
+  - rate set at frozen applies to the consequence leg from t=0
+  - subscriber re-arm of `setPlaybackRate` is idempotent (no t-jump)
+  - rate persists across `showAgain` (`done → replaying`)
+- B4 — robust consequence dispatch
+  - buffers a pick that arrives before frozen and flushes on freeze
+  - happy path: pick at `frozen` still dispatches immediately
+  - best-read short-circuit is observable as a state transition
+  - idempotent: re-submitting the same pick after dispatch is a
+    no-op
+
+All 14 pre-Phase-B tests still pass.
+
+#### Lint / typecheck
+
+- `pnpm --filter @courtiq/web lint` — clean.
+- `pnpm --filter @courtiq/web typecheck` — pre-existing errors in
+  `lib/services/*` (Prisma client + workspace `@courtiq/core` not
+  generated in this environment). Verified by stashing the Phase B
+  diff: the same errors existed before any Phase B edit. No new
+  typecheck error was introduced by the Phase B changes; the
+  scenario3d / replay surfaces are clean.
+
+#### Manual QA matrix (deferred to Phase H)
+
+Phase B did not include a browser-driven QA pass — the recovery
+plan's Phase H is the integration / cohesion gate. Phase H should
+walk this matrix on BDW-01 in the real `/train` flow:
+
+- Pause / Play across each leg boundary (intro → frozen → consequence,
+  consequence → replaying, replaying → done).
+- Speed switches at 0.5x / 1x / 2x at every leg boundary.
+- Restart pressed in `playing`, `frozen`, `consequence`, `replaying`,
+  `done` — each lands in a coherent state.
+- Show me again pressed multiple times in a row from the Feedback
+  panel.
+- Wrong pick → consequence → replay → done, all four BDW-01 wrong
+  choices.
+- Right pick → answer-demo replay → done.
+- 30 s of button-mashing across all controls — no stuck state.
+- Camera selector + Paths toggle still work after every fix path.
+
+Phase B's job was to make these matrices *possible*; Phase H ratifies
+them on real hardware.
+
+---
+
+
+
+
+### C1 — Movement Audit
+
+> Read-only audit produced by Phase C / C1. No motion code modified
+> by this subsection. Findings drive the C2–C5 implementation passes.
+
+#### C1.1 Current movement flow
+
+`MotionController` (`apps/web/components/scenario3d/imperativeScene.ts`
+~L972–L1452) is the sole driver of per-frame transforms on the
+production simple path. Each parent rAF tick:
+
+1. `motion.tick(now)` reads `getElapsedMs(now)`, then for every
+   player loops `samplePlayer(scene, timeline, id, t, currentOverrides)`
+   and writes the resulting `{x, z}` to the player group's position.
+   The y component is never touched (figures are floor-anchored).
+2. `applyBall(t)` walks the precomputed `phases[]` list to decide
+   between in-flight (parabolic arc + lerp) and held (follow current
+   holder's sampled position).
+3. The state-machine layer ticks separately for freeze /
+   leg-end events; the canvas renders `gl.render(scene, camera)`.
+
+The timeline is built once per leg by `buildTimeline` in
+`apps/web/lib/scenario3d/timeline.ts` and re-built on every
+`setMovements` (consequence / replay leg swaps, plus the initial
+intro). `samplePlayer` is a pure function over (scene, timeline,
+id, t, overrides) so replays are byte-identical for the same inputs.
+
+#### C1.2 Where player positions are sampled
+
+- `samplePlayer(scene, timeline, playerId, t, overrides)` in
+  `apps/web/lib/scenario3d/timeline.ts` (~L115–L153). Walks the
+  player's `byPlayer` movement list, finds the active segment,
+  applies `ease(u)` (ease-in-out cubic) and `lerp(from, to, u)`.
+- Idle players (no entry in `byPlayer`) fall back to:
+  - the freeze-snapshot override if present (Phase H fix),
+  - else the player's authored `start` point.
+- Pre-segment time clamps to the first segment's `from`; post-segment
+  time stays at the last segment's `to`.
+
+#### C1.3 Where yaw / facing direction is decided
+
+- `computePlayerYaw(team, x, z)` in `imperativeScene.ts` (~L3171).
+  Pure function of team + position: offense faces the rim at the
+  origin; defense faces away from the rim (outward toward offense).
+  Does not depend on movement direction or ball position.
+- Called exactly **once per scene mount**, at `buildBasketballGroup`
+  ~L424:
+  ```ts
+  playerGroup.rotation.y = computePlayerYaw(p.team, p.start.x, p.start.z)
+  ```
+- After mount, no code path updates `playerGroup.rotation.y`.
+  Cutters keep their start yaw through their whole cut path;
+  defenders do not rotate when the ball swings; ball-handlers do not
+  pivot toward the catcher before a pass. This is the core stiffness
+  observed in Section 2.2 of the recovery plan.
+
+#### C1.4 Where ball arc is created
+
+- `MotionController.applyBall(t)` (~L1302–L1344). For an in-flight
+  phase:
+  ```ts
+  const u = clamp01((t - phase.startMs) / span)
+  const eased = easeInOutCubic(u)
+  const x = fromX + (toX - fromX) * eased
+  const z = fromZ + (toZ - fromZ) * eased
+  const dist = Math.hypot(toX - fromX, toZ - fromZ)
+  const peak = Math.min(7, Math.max(2, dist * 0.25))
+  const y = this.baseBallY + peak * 4 * u * (1 - u)
+  ```
+- Position interpolation uses the **eased** `u`; the y-arc uses the
+  **raw** `u`. This means the ball reaches its parabola peak at
+  real-time u=0.5 (when the eased x/z is also at u=0.5 for symmetric
+  ease-in-out, so visually OK on long passes — but the eased curve
+  spends slightly more visible time at the start/end, while the y
+  curve is symmetric, producing a subtle apex-too-early feel on
+  short passes).
+- Held phases follow the current holder's sampled (x, z) and lock y
+  at `baseBallY`. No bobble or dribble cue.
+
+#### C1.5 Where freeze timing is applied
+
+- `MotionController.setFreezeAtMs(ms)` (~L1131) sets a hard cap.
+- `tick(now)` checks `t >= effectiveCapMs()` and fires
+  `pendingFrozen` exactly once.
+- `getElapsedMs` clamps the visible `t` at `effectiveCapMs()` so
+  rendered transforms hold steady at the freeze pose.
+- The state machine consumes `pendingFrozen` and snapshots positions
+  via `samplePositionsAt(scene, timeline, t, overrides)`.
+- Freeze accuracy depends on the rAF tick crossing the cap on the
+  first frame after t exceeds `freezeAtMs`. Because `getElapsedMs`
+  clamps before the frozen flag fires, the rendered pose at the
+  freeze beat is exactly the pose at `t = freezeAtMs` (no overshoot
+  in space). The state-machine test "clamps elapsed time at
+  freezeAtMs" pins this.
+- Phase B / B1+B3 re-arms paused / playbackRate after each
+  `setMovements`, so freeze does not interact with leg swaps.
+
+#### C1.6 Current gaps
+
+1. **Fixed body yaw (Section 2.2).** `computePlayerYaw` is one-shot.
+   Cutters, drivers, and defenders never rotate. The strongest
+   stiffness signal in the scene.
+2. **Symmetric ease-in-out for every kind.** `samplePlayer` applies
+   the same ease curve to every `SceneMovementKind`. Cuts (`cut`,
+   `back_cut`, `front_cut`-as-`cut`, `baseline_sneak`) read like
+   smooth glides instead of explosive moves; defender rotations
+   already feel right with this curve.
+3. **Static defenders.** Defenders without authored `rotation` /
+   `closeout` movements stand still while the ball swings. Phase 7
+   added defender pressure halos in the teaching overlay; the body
+   itself does not react.
+4. **No ball arc kind awareness.** All passes use
+   `peak = clamp(dist * 0.25, 2, 7)`. A short `pass` and a
+   cross-court `skip_pass` use the same multiplier; skip passes that
+   should be on a line read as the same lazy parabola as a 12-foot
+   feed. Y-arc uses raw `u` while x/z uses eased `u` (subtle apex
+   timing mismatch on short passes).
+5. **Holder pose has no pre-pass bias.** A passer does not rotate
+   toward the catcher before releasing; the ball just leaves a
+   stationary figure. Reads as a marker shooting another marker.
+6. **No foot-sliding compensation.** Even with eased translation,
+   the figure's leg geometry is fixed (Phase F territory), so any
+   change in C must avoid making sliding more visible. This is a
+   constraint, not a bug.
+7. **Freeze timing is solid.** Phase B locked the cap behavior;
+   Phase C should not touch it except to confirm the cap is honored
+   across rate changes (already covered by tests).
+
+#### C1.7 Safest implementation points for C2–C5
+
+- **C2 — Body-facing.** Add a per-frame yaw update inside
+  `MotionController.tick()`. Track each player's previous (x, z) in
+  a private Map; compute movement direction from the per-frame delta;
+  fall back to defender→ball / holder→rim heuristics when stationary.
+  Smooth toward the target with an exponential approach using a
+  real-time `dt` derived from `nowMs`. Keeps yaw frame-rate
+  independent and rate-independent (rate scales position delta but
+  not the smoothing constant). Touches `MotionController` only;
+  exports `computePlayerYaw` (already module-local) and a small
+  `smoothAngle` helper for tests.
+- **C3 — Cut / drive timing.** Switch `samplePlayer`'s easing to a
+  per-kind dispatch in `timeline.ts`. Cuts / back_cuts / drives /
+  jabs / baseline_sneaks / rips get an ease-out-bias curve so the
+  player accelerates fast and settles at arrival; rotations /
+  closeouts / lifts / drifts keep the existing ease-in-out cubic.
+  No JSON change. The ResolvedMovement already carries `kind`, so
+  the dispatch is local. `samplePlayer` is shared with the legacy
+  JSX controller (off in production) — the change only affects
+  feel; deterministic behavior is preserved.
+- **C4 — Defender reaction.** No new movement system. Two changes:
+  (a) the C2 yaw update naturally rotates defenders toward the ball
+  when stationary (defender→ball heuristic); (b) confirm the
+  teaching-overlay pressure halo continues to fire when the holder
+  changes (overlay already reads holder via the motion controller).
+  No structural changes; tuning only.
+- **C5 — Ball arc + freeze.** Tune `applyBall` so:
+  - peak height uses the same eased curve for y as for x/z, fixing
+    the apex-timing mismatch on short passes,
+  - skip passes (`kind === 'skip_pass'` on the active phase's
+    `pass` movement) use a lower peak multiplier (line drive feel),
+  - clamp tightening for very short hand-offs so they don't pop up.
+  Freeze accuracy stays as-is — already accurate; verify via test
+  that mid-pass freeze still lands at the authored cap.
+
+
+
+### Phase C QA Results
+
+> Phase C landed C1–C6 on this branch. This subsection records the
+> automated coverage and the human-in-the-loop matrix Phase H should
+> walk on a real browser before the recovery is declared done.
+
+#### Files touched (Phase C)
+
+- `apps/web/components/scenario3d/imperativeScene.ts`
+  - Exported `computePlayerYaw` and `smoothAngle` for tests.
+  - New constants: `YAW_TIME_CONSTANT_OFFENSE_S`,
+    `YAW_TIME_CONSTANT_DEFENSE_S`, `MOVEMENT_DIRECTION_EPS_SQ`,
+    `BALL_PEAK_MULT_PASS`, `BALL_PEAK_MULT_SKIP`, `BALL_PEAK_MIN_FT`,
+    `BALL_PEAK_MAX_FT`.
+  - `MotionController` gained `currentYaw` Map +
+    `lastYawTickWallMs` + `applyPlayerYaw(now, t)` +
+    `findActivePlayerMovement`.
+  - `tick(now)` now drives a yaw pass after `applyBall(t)` so
+    defenders / non-mover heuristics can read up-to-date ball
+    position.
+  - `reset()` and `setMovements()` clear `currentYaw` and
+    `lastYawTickWallMs` so leg swaps re-snap to the team default.
+  - `applyBall` switched to kind-aware peak height +
+    eased-aligned y arc + 0.7 ft floor for short hand-offs +
+    `skip_pass` line-drive multiplier.
+- `apps/web/lib/scenario3d/timeline.ts`
+  - Added `easeForKind(kind, u)` dispatch:
+    `cut / back_cut / baseline_sneak / drive / jab / rip / stop_ball`
+    → ease-out cubic; everything else → ease-in-out cubic (existing).
+  - `samplePlayer` now calls `easeForKind` instead of the static
+    `ease`. Endpoints are unchanged so authored final positions still
+    land exactly on the authored `to` point.
+- `apps/web/components/scenario3d/replayStateMachine.test.ts`
+  - Stub `Group` now exposes `rotation.y` so the yaw pass has
+    something to write into.
+  - +14 tests across `Phase C / C2`, `Phase C / C4`, `Phase C / C5`.
+- `apps/web/lib/scenario3d/timeline.test.ts`
+  - Updated mid-segment expectation to match the new `cut` ease-out
+    curve.
+  - +4 `easeForKind` tests covering explosive vs. defensive kinds,
+    endpoint exactness, and front-loaded ordering.
+
+No edits to `Scenario3DCanvas.tsx`, `Scenario3DView.tsx`,
+`PremiumOverlay.tsx`, `app/train/page.tsx`,
+`imperativeTeachingOverlay.ts`, scenario JSON, `schema.ts`,
+`presets.ts`, the parent rAF loop, the FPS guard, or the
+simple/full-path pin.
+
+#### Movement changes made
+
+- **Per-frame body facing.** Players, including idle defenders, now
+  rotate to face the basketball action: cutters / drivers face the
+  segment direction; stationary defenders face the ball; the current
+  ball-holder faces the rim. Smoothing is dt-based so the visible
+  responsiveness is the same at 30 fps and 120 fps; rate-independent
+  because it uses wall time, not playback time.
+- **Defender-specific responsiveness.** Defenders use a smaller yaw
+  time constant (~0.10 s) than offense (~0.18 s), so a holder change
+  reads as a quick attention shift on the defenders' bodies — the C4
+  "shift attention when holder changes" cue.
+- **Kind-aware easing.** Cuts, back-cuts, drives, jabs, rips,
+  baseline sneaks, and stop-ball moves now use ease-out cubic in
+  `samplePlayer`. They accelerate fast off the start and settle into
+  the arrival point — reads as a basketball move instead of a
+  marker glide. Defensive rotations / closeouts / lifts / drifts /
+  passes keep the symmetric ease-in-out curve.
+- **Ball arc.** Skip passes now use a 0.10 multiplier (line drive);
+  standard passes keep 0.25. Short hand-offs use a 0.7 ft floor so
+  they don't pop above the passer's shoulder. Y motion follows the
+  same eased curve as X/Z so the apex aligns with the visual
+  midpoint instead of landing too early on short throws.
+- **Freeze accuracy.** Unchanged at the math level. A new
+  `Phase C / C5` test pins the in-flight freeze case so a freeze
+  marker landing inside a pass holds the ball at the exact arc
+  position for `t = freezeAtMs`.
+
+#### Validation results
+
+- `pnpm --filter @courtiq/web test` — **129 tests passed**, 0
+  failed. Test files: scenario3d / lib / app combined.
+  - +18 new tests across Phase C: 8 in `replayStateMachine.test.ts`
+    (yaw helpers, per-frame yaw update, defender reaction,
+    ball arc, freeze accuracy) and 4 in `timeline.test.ts`
+    (`easeForKind` dispatch).
+  - All Phase B tests (29) still pass; all 14 pre-Phase-B tests
+    still pass.
+- `pnpm --filter @courtiq/web lint` — clean.
+- `pnpm --filter @courtiq/web typecheck` — pre-existing errors in
+  `lib/services/*` (Prisma client + workspace `@courtiq/core` not
+  generated in this environment). Same baseline as Phase B; no new
+  typecheck error introduced. The `scenario3d`, `replay`, and
+  `timeline` surfaces have zero typecheck errors.
+
+#### Phase B replay reliability — intact
+
+- All 29 Phase B regression tests still pass.
+- The new yaw pass runs **after** `applyBall(t)`, so the existing
+  ball-arrival camera-shake hook still observes the ball position
+  the way it did before Phase C.
+- `reset()` and `setMovements()` clear yaw state alongside the
+  Phase B state-clears, so the Phase B subscriber re-arm of paused /
+  rate continues to work correctly across leg swaps.
+- Ball arc changes are pure tuning; the `findPhase` /
+  `consumePassArrival` hooks are unchanged, so the Phase B
+  consequence-leg dispatch and the `done → replaying → done`
+  show-again cycle behave identically.
+
+#### Manual QA matrix (deferred to Phase H)
+
+Phase C did not include a browser-driven QA pass — Phase H is the
+integration / cohesion gate. Phase H should walk this matrix on
+BDW-01:
+
+- Movement feel — eyeball test:
+  - Cutters visibly accelerate off the start, settle on arrival.
+  - Drives feel decisive, not like marker slides.
+  - Defenders rotate toward the ball during a pass.
+  - The denying defender on BDW-01 (x2) still reads as denying
+    the user.
+  - No yaw jitter or snapping, including at low frame rate.
+- Ball arc — eyeball test:
+  - Standard passes arc convincingly at 0.5x / 1x / 2x.
+  - Skip passes (if any authored) read as line drives.
+  - Short hand-offs stay below shoulder height.
+  - Apex of the arc aligns with the visual midpoint of the pass.
+- Freeze — eyeball test:
+  - Freeze at the authored beat lands exactly on the marker.
+  - No overshoot or rebound between freeze and the question UI
+    mounting.
+- Replay reliability regression — re-walk the Phase B QA matrix:
+  - Pause / Play across each leg boundary.
+  - Speed switches at 0.5x / 1x / 2x.
+  - Restart from each state.
+  - Show me again from the Feedback panel.
+
+#### Remaining movement risks
+
+- **Foot-sliding visibility.** With sharper ease-out cuts the body
+  visibly accelerates, but the legs are still rigid (Phase F
+  territory). On a long fast cut this might emphasize the slide.
+  Phase F's geometry redesign is the long-term fix.
+- **`closeout` movement curve.** Currently uses ease-in-out (the
+  defensive default). Real closeouts decelerate hard at arrival. If
+  authored content adds many closeouts, Phase F's stance work or a
+  later C6.x extension may revisit.
+- **No defender lateral lean.** C4 only rotates yaw. A small
+  position lean toward the ball was considered and skipped — would
+  conflict with authored spacing. If Phase F adds a torso-tilt
+  primitive, a later pass could add a subtle lean alongside yaw.
+- **Pre-pass passer pivot.** The passer faces the rim while
+  holding; on the pass it does not pre-rotate toward the catcher.
+  Could be added later as a small "look-ahead" lookup that biases
+  the holder's yaw target toward the next pass `to` point in the
+  upcoming phase. Out of scope for Phase C given the constraint to
+  not redesign the body model.
+- **Yaw smoother time constants are global.** Per-stance tuning
+  (e.g., a denying defender turns faster than a helper) would be a
+  natural Phase F follow-on if needed.
 
