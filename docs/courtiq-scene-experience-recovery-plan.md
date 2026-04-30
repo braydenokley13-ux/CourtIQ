@@ -2354,3 +2354,170 @@ them on real hardware.
 ---
 
 
+
+
+### C1 — Movement Audit
+
+> Read-only audit produced by Phase C / C1. No motion code modified
+> by this subsection. Findings drive the C2–C5 implementation passes.
+
+#### C1.1 Current movement flow
+
+`MotionController` (`apps/web/components/scenario3d/imperativeScene.ts`
+~L972–L1452) is the sole driver of per-frame transforms on the
+production simple path. Each parent rAF tick:
+
+1. `motion.tick(now)` reads `getElapsedMs(now)`, then for every
+   player loops `samplePlayer(scene, timeline, id, t, currentOverrides)`
+   and writes the resulting `{x, z}` to the player group's position.
+   The y component is never touched (figures are floor-anchored).
+2. `applyBall(t)` walks the precomputed `phases[]` list to decide
+   between in-flight (parabolic arc + lerp) and held (follow current
+   holder's sampled position).
+3. The state-machine layer ticks separately for freeze /
+   leg-end events; the canvas renders `gl.render(scene, camera)`.
+
+The timeline is built once per leg by `buildTimeline` in
+`apps/web/lib/scenario3d/timeline.ts` and re-built on every
+`setMovements` (consequence / replay leg swaps, plus the initial
+intro). `samplePlayer` is a pure function over (scene, timeline,
+id, t, overrides) so replays are byte-identical for the same inputs.
+
+#### C1.2 Where player positions are sampled
+
+- `samplePlayer(scene, timeline, playerId, t, overrides)` in
+  `apps/web/lib/scenario3d/timeline.ts` (~L115–L153). Walks the
+  player's `byPlayer` movement list, finds the active segment,
+  applies `ease(u)` (ease-in-out cubic) and `lerp(from, to, u)`.
+- Idle players (no entry in `byPlayer`) fall back to:
+  - the freeze-snapshot override if present (Phase H fix),
+  - else the player's authored `start` point.
+- Pre-segment time clamps to the first segment's `from`; post-segment
+  time stays at the last segment's `to`.
+
+#### C1.3 Where yaw / facing direction is decided
+
+- `computePlayerYaw(team, x, z)` in `imperativeScene.ts` (~L3171).
+  Pure function of team + position: offense faces the rim at the
+  origin; defense faces away from the rim (outward toward offense).
+  Does not depend on movement direction or ball position.
+- Called exactly **once per scene mount**, at `buildBasketballGroup`
+  ~L424:
+  ```ts
+  playerGroup.rotation.y = computePlayerYaw(p.team, p.start.x, p.start.z)
+  ```
+- After mount, no code path updates `playerGroup.rotation.y`.
+  Cutters keep their start yaw through their whole cut path;
+  defenders do not rotate when the ball swings; ball-handlers do not
+  pivot toward the catcher before a pass. This is the core stiffness
+  observed in Section 2.2 of the recovery plan.
+
+#### C1.4 Where ball arc is created
+
+- `MotionController.applyBall(t)` (~L1302–L1344). For an in-flight
+  phase:
+  ```ts
+  const u = clamp01((t - phase.startMs) / span)
+  const eased = easeInOutCubic(u)
+  const x = fromX + (toX - fromX) * eased
+  const z = fromZ + (toZ - fromZ) * eased
+  const dist = Math.hypot(toX - fromX, toZ - fromZ)
+  const peak = Math.min(7, Math.max(2, dist * 0.25))
+  const y = this.baseBallY + peak * 4 * u * (1 - u)
+  ```
+- Position interpolation uses the **eased** `u`; the y-arc uses the
+  **raw** `u`. This means the ball reaches its parabola peak at
+  real-time u=0.5 (when the eased x/z is also at u=0.5 for symmetric
+  ease-in-out, so visually OK on long passes — but the eased curve
+  spends slightly more visible time at the start/end, while the y
+  curve is symmetric, producing a subtle apex-too-early feel on
+  short passes).
+- Held phases follow the current holder's sampled (x, z) and lock y
+  at `baseBallY`. No bobble or dribble cue.
+
+#### C1.5 Where freeze timing is applied
+
+- `MotionController.setFreezeAtMs(ms)` (~L1131) sets a hard cap.
+- `tick(now)` checks `t >= effectiveCapMs()` and fires
+  `pendingFrozen` exactly once.
+- `getElapsedMs` clamps the visible `t` at `effectiveCapMs()` so
+  rendered transforms hold steady at the freeze pose.
+- The state machine consumes `pendingFrozen` and snapshots positions
+  via `samplePositionsAt(scene, timeline, t, overrides)`.
+- Freeze accuracy depends on the rAF tick crossing the cap on the
+  first frame after t exceeds `freezeAtMs`. Because `getElapsedMs`
+  clamps before the frozen flag fires, the rendered pose at the
+  freeze beat is exactly the pose at `t = freezeAtMs` (no overshoot
+  in space). The state-machine test "clamps elapsed time at
+  freezeAtMs" pins this.
+- Phase B / B1+B3 re-arms paused / playbackRate after each
+  `setMovements`, so freeze does not interact with leg swaps.
+
+#### C1.6 Current gaps
+
+1. **Fixed body yaw (Section 2.2).** `computePlayerYaw` is one-shot.
+   Cutters, drivers, and defenders never rotate. The strongest
+   stiffness signal in the scene.
+2. **Symmetric ease-in-out for every kind.** `samplePlayer` applies
+   the same ease curve to every `SceneMovementKind`. Cuts (`cut`,
+   `back_cut`, `front_cut`-as-`cut`, `baseline_sneak`) read like
+   smooth glides instead of explosive moves; defender rotations
+   already feel right with this curve.
+3. **Static defenders.** Defenders without authored `rotation` /
+   `closeout` movements stand still while the ball swings. Phase 7
+   added defender pressure halos in the teaching overlay; the body
+   itself does not react.
+4. **No ball arc kind awareness.** All passes use
+   `peak = clamp(dist * 0.25, 2, 7)`. A short `pass` and a
+   cross-court `skip_pass` use the same multiplier; skip passes that
+   should be on a line read as the same lazy parabola as a 12-foot
+   feed. Y-arc uses raw `u` while x/z uses eased `u` (subtle apex
+   timing mismatch on short passes).
+5. **Holder pose has no pre-pass bias.** A passer does not rotate
+   toward the catcher before releasing; the ball just leaves a
+   stationary figure. Reads as a marker shooting another marker.
+6. **No foot-sliding compensation.** Even with eased translation,
+   the figure's leg geometry is fixed (Phase F territory), so any
+   change in C must avoid making sliding more visible. This is a
+   constraint, not a bug.
+7. **Freeze timing is solid.** Phase B locked the cap behavior;
+   Phase C should not touch it except to confirm the cap is honored
+   across rate changes (already covered by tests).
+
+#### C1.7 Safest implementation points for C2–C5
+
+- **C2 — Body-facing.** Add a per-frame yaw update inside
+  `MotionController.tick()`. Track each player's previous (x, z) in
+  a private Map; compute movement direction from the per-frame delta;
+  fall back to defender→ball / holder→rim heuristics when stationary.
+  Smooth toward the target with an exponential approach using a
+  real-time `dt` derived from `nowMs`. Keeps yaw frame-rate
+  independent and rate-independent (rate scales position delta but
+  not the smoothing constant). Touches `MotionController` only;
+  exports `computePlayerYaw` (already module-local) and a small
+  `smoothAngle` helper for tests.
+- **C3 — Cut / drive timing.** Switch `samplePlayer`'s easing to a
+  per-kind dispatch in `timeline.ts`. Cuts / back_cuts / drives /
+  jabs / baseline_sneaks / rips get an ease-out-bias curve so the
+  player accelerates fast and settles at arrival; rotations /
+  closeouts / lifts / drifts keep the existing ease-in-out cubic.
+  No JSON change. The ResolvedMovement already carries `kind`, so
+  the dispatch is local. `samplePlayer` is shared with the legacy
+  JSX controller (off in production) — the change only affects
+  feel; deterministic behavior is preserved.
+- **C4 — Defender reaction.** No new movement system. Two changes:
+  (a) the C2 yaw update naturally rotates defenders toward the ball
+  when stationary (defender→ball heuristic); (b) confirm the
+  teaching-overlay pressure halo continues to fire when the holder
+  changes (overlay already reads holder via the motion controller).
+  No structural changes; tuning only.
+- **C5 — Ball arc + freeze.** Tune `applyBall` so:
+  - peak height uses the same eased curve for y as for x/z, fixing
+    the apex-timing mismatch on short passes,
+  - skip passes (`kind === 'skip_pass'` on the active phase's
+    `pass` movement) use a lower peak multiplier (line drive feel),
+  - clamp tightening for very short hand-offs so they don't pop up.
+  Freeze accuracy stays as-is — already accurate; verify via test
+  that mid-pass freeze still lands at the authored cap.
+
+
