@@ -4133,7 +4133,80 @@ function buildPremiumAthleteFigure(
   upgradePremiumHeadAndShoulders(figure)
   upgradePremiumArms(figure)
   upgradePremiumLegsAndFeet(figure)
+  upgradePremiumUniform(figure, trimColor)
   return figure
+}
+
+/**
+ * Phase J3E — uniform polish. Adds a thin jersey shoulder piping ring
+ * in the trim color, a shorts hem band, and tunes the jersey/shorts
+ * material properties toward a slightly more premium sheen so the
+ * uniform reads as fabric instead of plastic. Reuses the existing
+ * jersey, shorts, and trim materials by reading them off Phase F
+ * meshes — no new shared materials.
+ */
+function upgradePremiumUniform(figure: THREE.Object3D, trimColor: string): void {
+  const torso = figure.getObjectByName('torso') as THREE.Group | null
+  const pelvis = figure.getObjectByName('pelvis') as THREE.Group | null
+  if (!torso || !pelvis) return
+  // Pull the jersey material off the upgraded torso lathe and tune it
+  // toward a fabric-like sheen.
+  let jerseyMat: THREE.MeshStandardMaterial | null = null
+  for (const child of torso.children) {
+    if (child instanceof THREE.Mesh && child.geometry instanceof THREE.LatheGeometry) {
+      const m = child.material
+      if (m instanceof THREE.MeshStandardMaterial) jerseyMat = m
+      break
+    }
+  }
+  // Pull the shorts material off the pelvis cylinder mesh.
+  let shortsMat: THREE.MeshStandardMaterial | null = null
+  for (const child of pelvis.children) {
+    if (child instanceof THREE.Mesh && child.geometry instanceof THREE.CylinderGeometry) {
+      const m = child.material
+      if (m instanceof THREE.MeshStandardMaterial) shortsMat = m
+      break
+    }
+  }
+  if (jerseyMat) {
+    // Slightly smoother jersey so the deltoid cap and torso curves
+    // pick up the rim light without going plasticky.
+    jerseyMat.roughness = 0.52
+    jerseyMat.metalness = 0.04
+  }
+  if (shortsMat) {
+    // Shorts stay matte and a touch rougher than the jersey so the
+    // two pieces of the uniform read as distinct fabrics.
+    shortsMat.roughness = 0.84
+    shortsMat.metalness = 0
+  }
+  // Shoulder piping ring — a thin trim-color torus that sits where the
+  // trapezius dome meets the deltoid cap. Reads as a sleeve cuff at
+  // broadcast distance. Owns its own material (per-figure unique trim
+  // hue is fine; the existing trim material is tuned for line work).
+  const pipingMat = new THREE.MeshStandardMaterial({
+    color: trimColor,
+    roughness: 0.55,
+    metalness: 0.12,
+  })
+  const piping = new THREE.Mesh(
+    new THREE.TorusGeometry(ATH_TORSO_TOP_W * 0.46, 0.045, 8, 18),
+    pipingMat,
+  )
+  piping.rotation.x = Math.PI / 2
+  piping.position.y = ATH_TORSO_HEIGHT * 0.88
+  piping.scale.set(1, ATH_TORSO_DEPTH / ATH_TORSO_TOP_W, 1)
+  torso.add(piping)
+  // Shorts hem band — thin trim ring at the bottom of the shorts so
+  // the leg-to-shorts transition reads cleanly.
+  const hem = new THREE.Mesh(
+    new THREE.TorusGeometry(ATH_PELVIS_WIDTH * 0.50, 0.04, 6, 16),
+    pipingMat,
+  )
+  hem.rotation.x = Math.PI / 2
+  hem.position.y = -ATH_PELVIS_HEIGHT * 0.92
+  hem.scale.set(1, ATH_PELVIS_DEPTH / ATH_PELVIS_WIDTH, 1)
+  pelvis.add(hem)
 }
 
 /**
