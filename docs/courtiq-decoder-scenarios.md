@@ -114,3 +114,17 @@ The empty corner, the head turn, and the open baseline lane must all be inside t
 | 2.0s+ | Late shot-clock heave or turnover risk | Defense in shape | Bad possession |
 
 **Outcome:** Wasted opportunity. The cue was there for ~0.5 seconds and you didn't move. The "right play" expired.
+
+### Overlays (toggle in the freeze view)
+
+| Overlay | Show | Color / style |
+| --- | --- | --- |
+| Vision cone — D4 | Cone from D4's head, ~60° wide, pointed at the ball | Translucent yellow |
+| Defender hips/feet — D4 | Arrow from D4's pelvis showing hip orientation | Cyan arrow |
+| Open space highlight | The empty weak-side corner zone (-22 ± 3, 1 ± 3) | Soft green floor patch |
+| Cut lane (best) | Curved arrow from O4 along the baseline to the empty corner | Bright green dashed |
+| Passing lane | Skip pass arc from O2 to the empty corner landing spot | White arc, animated |
+| Help-defender highlight (none) | — | Not used here; D5 is locked on the post |
+| Bad-cut lane | Straight line from O4 up to the top of the key | Red dashed (only shown after a wrong answer) |
+
+All overlays must clear after 1.2s into Timeline A so the player can see the clean catch.
