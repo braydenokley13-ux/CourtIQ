@@ -4190,7 +4190,7 @@ function upgradePremiumUniform(figure: THREE.Object3D, trimColor: string): void 
     metalness: 0.12,
   })
   const piping = new THREE.Mesh(
-    new THREE.TorusGeometry(ATH_TORSO_TOP_W * 0.46, 0.045, 8, 18),
+    new THREE.TorusGeometry(ATH_TORSO_TOP_W * 0.46, 0.045, 5, 14),
     pipingMat,
   )
   piping.rotation.x = Math.PI / 2
@@ -4200,7 +4200,7 @@ function upgradePremiumUniform(figure: THREE.Object3D, trimColor: string): void 
   // Shorts hem band — thin trim ring at the bottom of the shorts so
   // the leg-to-shorts transition reads cleanly.
   const hem = new THREE.Mesh(
-    new THREE.TorusGeometry(ATH_PELVIS_WIDTH * 0.50, 0.04, 6, 16),
+    new THREE.TorusGeometry(ATH_PELVIS_WIDTH * 0.50, 0.04, 5, 14),
     pipingMat,
   )
   hem.rotation.x = Math.PI / 2
@@ -4280,8 +4280,8 @@ function upgradePremiumShoe(foot: THREE.Group): void {
   const toeCap = new THREE.Mesh(
     new THREE.SphereGeometry(
       ATH_FOOT_WIDTH * 0.48,
-      10,
-      6,
+      8,
+      5,
       0,
       Math.PI * 2,
       0,
@@ -4406,8 +4406,8 @@ function upgradePremiumHeadAndShoulders(figure: THREE.Object3D): void {
   const trapMesh = new THREE.Mesh(
     new THREE.SphereGeometry(
       ATH_TORSO_TOP_W * 0.42,
-      12,
-      6,
+      10,
+      5,
       0,
       Math.PI * 2,
       0,
@@ -4423,7 +4423,7 @@ function upgradePremiumHeadAndShoulders(figure: THREE.Object3D): void {
   // that fakes a chin/jawline instead of leaving the neck flush with
   // the back of the head sphere.
   const jawMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(ATH_HEAD_R * 0.78, 8, 6, 0, Math.PI * 2, Math.PI * 0.55, Math.PI * 0.45),
+    new THREE.SphereGeometry(ATH_HEAD_R * 0.78, 8, 4, 0, Math.PI * 2, Math.PI * 0.55, Math.PI * 0.45),
     skinMat,
   )
   jawMesh.position.y = ATH_NECK_LENGTH + ATH_HEAD_R * 0.55
