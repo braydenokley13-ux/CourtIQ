@@ -452,6 +452,29 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
  * does NOT cascade to attached maps — a leaked CanvasTexture (e.g. the
  * basketball surface map) would otherwise hang around forever.
  */
+/**
+ * Phase F4 — count triangles under the given object. Walks every
+ * descendant `THREE.Mesh.geometry` and sums `index.count / 3` (or
+ * `position.count / 3` for non-indexed geometry). Used by the
+ * disposal-leak test and by ad-hoc QA to keep the per-figure budget
+ * inside the E4 §5 envelope (~900–1100 target, 1500 hard ceiling).
+ */
+export function countTriangles(group: THREE.Object3D): number {
+  let total = 0
+  group.traverse((child) => {
+    const mesh = child as THREE.Mesh
+    if (!mesh.geometry) return
+    const idx = mesh.geometry.index
+    if (idx) {
+      total += idx.count / 3
+    } else {
+      const pos = mesh.geometry.attributes.position
+      if (pos) total += pos.count / 3
+    }
+  })
+  return total
+}
+
 export function disposeGroup(group: THREE.Object3D): void {
   group.traverse((child) => {
     const mesh = child as THREE.Mesh
@@ -3298,44 +3321,6 @@ function makeCenterCourtTexture(): THREE.CanvasTexture | null {
   return tex
 }
 
-// Humanoid anatomy in feet. Hand-tuned so the figure reads as a 6 ft
-// athlete from the default broadcast camera.
-const SHOE_HEIGHT = 0.4
-const SHOE_WIDTH = 0.5
-const SHOE_DEPTH = 1.0
-const LEG_RADIUS = 0.22
-const LEG_HEIGHT = 2.1
-const HIP_GAP = 0.45
-const SHORTS_HEIGHT = 1.0
-const SHORTS_WIDTH = 1.5
-const SHORTS_DEPTH = 0.95
-const TORSO_HEIGHT = 1.4
-const TORSO_WIDTH = 1.55
-const TORSO_DEPTH = 0.9
-const ARM_RADIUS = 0.18
-const ARM_LENGTH = 1.4
-const ARM_OFFSET = TORSO_WIDTH / 2 + ARM_RADIUS - 0.04
-const NECK_RADIUS = 0.18
-const NECK_HEIGHT = 0.22
-const HEAD_RADIUS = 0.42
-
-const SHOE_Y = SHOE_HEIGHT / 2
-const LEG_Y = SHOE_HEIGHT + LEG_HEIGHT / 2
-const SHORTS_Y = SHOE_HEIGHT + LEG_HEIGHT + SHORTS_HEIGHT / 2
-const TORSO_Y = SHORTS_Y + SHORTS_HEIGHT / 2 + TORSO_HEIGHT / 2
-const ARM_Y = TORSO_Y
-const NECK_Y = TORSO_Y + TORSO_HEIGHT / 2 + NECK_HEIGHT / 2
-const HEAD_Y = NECK_Y + NECK_HEIGHT / 2 + HEAD_RADIUS
-
-// Shoulder yoke — a thin horizontal capsule across the top of the
-// torso, slightly wider than the torso itself. Makes the shoulder line
-// the widest part of the upper body so facing direction is unambiguous
-// from the high 3/4 broadcast camera.
-const YOKE_WIDTH = TORSO_WIDTH * 1.18
-const YOKE_HEIGHT = 0.32
-const YOKE_DEPTH = TORSO_DEPTH * 0.85
-const YOKE_Y = TORSO_Y + TORSO_HEIGHT / 2 - YOKE_HEIGHT * 0.55
-
 /**
  * Stance presets the renderer paints today. The closest defender to the
  * user / ball-handler is `'denial'` (preserves the BDW-01 backdoor cue);
@@ -3344,21 +3329,19 @@ const YOKE_Y = TORSO_Y + TORSO_HEIGHT / 2 - YOKE_HEIGHT * 0.55
  * phases can add `'closeout'`, `'sag'`, `'cut'` here without changing
  * the call sites — only `buildPlayerFigure` interprets the value.
  */
-type PlayerStance = 'idle' | 'defensive' | 'denial'
-
-// Crouch lower — how far the upper body drops in defensive / denial
-// stances. The legs stay full length; the shorts cover the visual
-// overlap at the hips, which from broadcast distance reads as bent
-// knees. Cheap stance abstraction (no skeletal rig).
-const STANCE_LOWER_FT = 0.35
-// Defensive feet are wider than offensive idle feet so the player
-// reads as "in a stance" instead of "standing".
-const HIP_GAP_DEFENSIVE = 0.62
-// Forward / back foot offset. Defensive: stance-ready stagger.
-// Denial: small stagger toward the rim side. Idle: tiny forward bias
-// already used to break up the silhouette.
-const FOOT_STAGGER_DEFENSIVE = 0.18
-const FOOT_STAGGER_DENIAL = 0.1
+export type PlayerStance =
+  | 'idle'
+  | 'defensive'
+  | 'denial'
+  // Phase F2 additions — supported by the athlete builder so the
+  // stance routing change in a follow-up phase (visual-system plan
+  // §18.4) only needs to start picking these names. Closeout is the
+  // hard requirement for AOR-01; cut and sag/shrink ship as
+  // softer stubs the renderer accepts without rebuilding geometry.
+  | 'closeout'
+  | 'cut'
+  | 'sag'
+  | 'shrink'
 
 /**
  * Returns the yaw (rotation around y in radians) for a player at
@@ -3377,20 +3360,111 @@ export function computePlayerYaw(team: SceneTeam, x: number, z: number): number 
 }
 
 /**
- * Builds a single humanoid player figure as a THREE.Group. Local
- * coordinate frame: origin at the floor between the feet, +y up,
- * default facing toward -z. Caller is expected to set position and
- * rotation.y on the returned group.
- *
- * The upper body (shorts, torso, jersey, shoulder yoke, arms, neck,
- * head, hair, facing wedge, user chevron) is parented to a sub-group
- * so a single translation drops the player into a defensive crouch
- * without rebuilding any geometry. Legs stay full length; the shorts
- * cover the resulting hip overlap, which from broadcast distance reads
- * as bent knees. This keeps stance changes to a position write rather
- * than a per-frame skeletal rig.
+ * Phase F — public builder entry point. Builds the code-built
+ * low-poly stylized-athlete figure described in the recovery plan
+ * §16 E4. Signature is locked: `(teamColor, trimColor, isUser,
+ * hasBall, jerseyNumber, stance) → THREE.Group`. Exported so the
+ * disposal-leak / budget tests can build figures in isolation;
+ * production rendering routes through `buildBasketballGroup`.
  */
-function buildPlayerFigure(
+export function buildPlayerFigure(
+  teamColor: string,
+  trimColor: string,
+  isUser: boolean,
+  hasBall: boolean,
+  jerseyNumber: string,
+  stance: PlayerStance,
+): THREE.Group {
+  return buildAthleteFigure(teamColor, trimColor, isUser, hasBall, jerseyNumber, stance)
+}
+
+// =====================================================================
+// Phase F — Athlete builder (Option B)
+// =====================================================================
+//
+// Code-built, low-poly stylized basketball-player mesh. No skeletal
+// rig, no SkinnedMesh, no AnimationMixer; stance is a per-stance pose
+// lookup table on rigid named sub-groups. Six shared
+// MeshStandardMaterials per figure (jersey, shorts, skin, shoe,
+// accent, trim) so per-figure dispose stays cheap and identical to
+// the legacy builder. The builder lives entirely inside this file
+// per the recovery plan §17.5 / §6 constraint.
+//
+// Sub-group taxonomy (E4 §3):
+//   root
+//     pelvis
+//       leftLeg
+//         thigh / calf / foot
+//       rightLeg
+//         thigh / calf / foot
+//     torso
+//       leftArm
+//         upperArm / foreArm
+//       rightArm
+//         upperArm / foreArm
+//       neckHead
+//     shoes (z-grouping anchor for both feet)
+//   indicator-layer-base / -user / -possession (existing contract)
+//   upperBody (legacy crouch anchor — reused so the userHead
+//              indicator chevron rides the upper body the same way it
+//              does on the legacy builder).
+
+// Athletic proportions — feet are in court units (~ft). Tuned so the
+// figure reads as a 6-ft athlete from broadcast: legs are roughly
+// half the standing height, V-tapered torso, distinct knee + elbow
+// pivots, broadcast-readable shoulders.
+const ATH_TOTAL_HEIGHT = 5.95
+const ATH_FOOT_HEIGHT = 0.18
+const ATH_FOOT_LENGTH = 1.05
+const ATH_FOOT_WIDTH = 0.46
+const ATH_CALF_LENGTH = 1.25
+const ATH_CALF_TOP_R = 0.18
+const ATH_CALF_BOT_R = 0.13
+const ATH_THIGH_LENGTH = 1.45
+const ATH_THIGH_TOP_R = 0.24
+const ATH_THIGH_BOT_R = 0.19
+const ATH_PELVIS_HEIGHT = 0.55
+const ATH_PELVIS_WIDTH = 1.0
+const ATH_PELVIS_DEPTH = 0.78
+const ATH_TORSO_HEIGHT = 1.55
+const ATH_TORSO_TOP_W = 1.25
+const ATH_TORSO_BOT_W = 0.95
+const ATH_TORSO_DEPTH = 0.78
+const ATH_NECK_LENGTH = 0.22
+const ATH_NECK_R = 0.14
+const ATH_HEAD_R = 0.42
+const ATH_UPPER_ARM_LENGTH = 0.95
+const ATH_UPPER_ARM_R = 0.13
+const ATH_FORE_ARM_LENGTH = 0.95
+const ATH_FORE_ARM_R = 0.11
+const ATH_HIP_GAP = 0.46
+const ATH_SHOULDER_WIDTH = 1.35
+
+// Anchor heights derived once from the proportions above. `_Y` is the
+// world-space y of the *anchor pivot* on the figure root (origin =
+// floor between the feet).
+const ATH_FOOT_Y = ATH_FOOT_HEIGHT * 0.5
+const ATH_KNEE_Y = ATH_FOOT_HEIGHT + ATH_CALF_LENGTH
+const ATH_HIP_Y = ATH_KNEE_Y + ATH_THIGH_LENGTH
+const ATH_TORSO_BOTTOM_Y = ATH_HIP_Y + ATH_PELVIS_HEIGHT * 0.3
+const ATH_SHOULDER_Y = ATH_TORSO_BOTTOM_Y + ATH_TORSO_HEIGHT * 0.85
+const ATH_NECK_Y = ATH_TORSO_BOTTOM_Y + ATH_TORSO_HEIGHT
+const ATH_HEAD_Y = ATH_NECK_Y + ATH_NECK_LENGTH + ATH_HEAD_R
+
+/**
+ * Phase F — code-built low-poly stylized-athlete builder. Replaces the
+ * primitive-stack legacy builder when `USE_ATHLETE_BUILDER` is true.
+ *
+ * Constraints (recovery plan §16 E4): no skeletal rig, no
+ * SkinnedMesh, no imported assets, no per-frame geometry mutation,
+ * tri count ≤ 1500 (target ~900–1100), six shared materials per
+ * figure, every owned resource reachable via the figure root for
+ * `disposeGroup`. Stance is applied at build time via rigid sub-group
+ * rotation deltas (F2 introduces the lookup table).
+ *
+ * Same public signature as `buildPlayerFigure`.
+ */
+function buildAthleteFigure(
   teamColor: string,
   trimColor: string,
   isUser: boolean,
@@ -3401,6 +3475,8 @@ function buildPlayerFigure(
   const figure = new THREE.Group()
   figure.name = 'player-figure'
 
+  // --- Six shared materials per figure (E4 §5). Mirrors the
+  // existing builder so per-figure dispose count stays constant.
   const jerseyMat = new THREE.MeshStandardMaterial({
     color: teamColor,
     roughness: 0.6,
@@ -3432,130 +3508,106 @@ function buildPlayerFigure(
     metalness: 0.1,
   })
 
-  const isCrouch = stance === 'defensive' || stance === 'denial'
-  const hipGap = isCrouch ? HIP_GAP_DEFENSIVE : HIP_GAP
-  const upperLower = isCrouch ? STANCE_LOWER_FT : 0
-  // Per-foot z offset for stance stagger. Index 0 is the left foot,
-  // index 1 the right foot. Defensive: classic ready stagger (right
-  // foot forward, left foot back). Denial: small stagger toward the
-  // ball side. Idle: tiny forward bias on both feet to break up the
-  // silhouette without reading as motion.
-  const footStagger: [number, number] =
-    stance === 'defensive'
-      ? [-FOOT_STAGGER_DEFENSIVE, FOOT_STAGGER_DEFENSIVE]
-      : stance === 'denial'
-        ? [FOOT_STAGGER_DENIAL, -FOOT_STAGGER_DENIAL]
-        : [-0.05, -0.05]
-
-  // Shoes — staggered per stance for hip/foot readability. White
-  // midsole stripe sells the "athletic shoe" silhouette without
-  // extra meshes.
-  const shoeXs: [number, number] = [-hipGap / 2, hipGap / 2]
-  for (let i = 0; i < 2; i++) {
-    const sx = shoeXs[i]!
-    const sz = footStagger[i]!
-    const shoe = new THREE.Mesh(
-      new THREE.BoxGeometry(SHOE_WIDTH, SHOE_HEIGHT, SHOE_DEPTH),
-      shoeMat,
-    )
-    shoe.position.set(sx, SHOE_Y, sz)
-    shoe.castShadow = true
-    shoe.receiveShadow = true
-    figure.add(shoe)
-
-    // Midsole stripe — a thin white band at the bottom of the shoe.
-    const sole = new THREE.Mesh(
-      new THREE.BoxGeometry(SHOE_WIDTH + 0.02, 0.12, SHOE_DEPTH + 0.02),
-      accentMat,
-    )
-    sole.position.set(sx, 0.06, sz)
-    figure.add(sole)
-  }
-
-  // Lower-body legs — tapered cylinder (thicker at thigh, thinner at
-  // calf) for a more athletic silhouette. Shorts hide the very top.
-  // Legs follow the foot stagger so the figure reads as a single
-  // staggered stance, not a torso floating over offset shoes.
-  for (let i = 0; i < 2; i++) {
-    const lx = shoeXs[i]!
-    const lz = footStagger[i]! * 0.4
-    const leg = new THREE.Mesh(
-      new THREE.CylinderGeometry(LEG_RADIUS * 0.95, LEG_RADIUS * 1.25, LEG_HEIGHT, 14),
-      skinMat,
-    )
-    leg.position.set(lx, LEG_Y, lz)
-    leg.castShadow = true
-    figure.add(leg)
-  }
-
-  // Upper body — every part above the knees lives on this sub-group
-  // so a single position write drops the figure into a crouch for
-  // defensive / denial stances. Lower body (shoes, legs) stays on the
-  // figure root so the feet always touch the floor.
-  const upperBody = new THREE.Group()
-  upperBody.name = 'player-upper'
-  upperBody.position.y = -upperLower
-  figure.add(upperBody)
-
-  // Shorts — capsule-shaped via a slightly tapered cylinder so the
-  // bottom is wider than the top (athletic basketball shorts). Side
-  // accent stripes in trim color sell the uniform.
-  const shorts = new THREE.Mesh(
-    new THREE.CylinderGeometry(SHORTS_WIDTH * 0.5, SHORTS_WIDTH * 0.55, SHORTS_HEIGHT, 16),
+  // --- Sub-group taxonomy (E4 §3). Constructed empty here; geometry
+  // is attached in subsequent atomic commits (F1A.4 — torso/pelvis,
+  // F1A.5 — legs, F1A.6 — arms, F1A.7 — shoes/finalize).
+  const pelvis = new THREE.Group()
+  pelvis.name = 'pelvis'
+  pelvis.position.set(0, ATH_HIP_Y, 0)
+  // Pelvis = the shorts. A short, slightly tapered cylinder that
+  // belts the hip line, narrower at the top so the torso reads
+  // wider than the waist.
+  const shortsMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(
+      ATH_PELVIS_WIDTH * 0.42,
+      ATH_PELVIS_WIDTH * 0.55,
+      ATH_PELVIS_HEIGHT,
+      10,
+      1,
+      false,
+    ),
     shortsMat,
   )
-  shorts.position.set(0, SHORTS_Y, 0)
-  shorts.castShadow = true
-  shorts.receiveShadow = true
-  shorts.scale.set(1, 1, 0.85)
-  upperBody.add(shorts)
-
+  shortsMesh.position.y = -ATH_PELVIS_HEIGHT * 0.45
+  shortsMesh.scale.set(1, 1, ATH_PELVIS_DEPTH / ATH_PELVIS_WIDTH)
+  shortsMesh.castShadow = true
+  shortsMesh.receiveShadow = true
+  pelvis.add(shortsMesh)
   // Side stripes on the shorts — thin trim-color bands hugging both
-  // hips. Two bands instead of one so the player reads symmetrically
-  // from the broadcast camera regardless of yaw.
-  for (const sign of [-1, 1]) {
+  // hips so the uniform reads symmetrically from any yaw.
+  for (const sign of [-1, 1] as const) {
     const stripe = new THREE.Mesh(
-      new THREE.BoxGeometry(0.06, SHORTS_HEIGHT * 0.9, SHORTS_DEPTH * 0.85),
+      new THREE.BoxGeometry(0.06, ATH_PELVIS_HEIGHT * 0.85, ATH_PELVIS_DEPTH * 0.78),
       trimMat,
     )
-    stripe.position.set(sign * (SHORTS_WIDTH / 2 + 0.001), SHORTS_Y, 0)
-    upperBody.add(stripe)
+    stripe.position.set(
+      sign * ATH_PELVIS_WIDTH * 0.5,
+      -ATH_PELVIS_HEIGHT * 0.45,
+      0,
+    )
+    pelvis.add(stripe)
   }
 
-  // Torso — capsule for a more natural torso silhouette than a box.
-  // Tapered toward the waist (narrower at the bottom) so the
-  // V-shaped athletic torso reads from above.
-  const torso = new THREE.Mesh(
-    new THREE.CapsuleGeometry(TORSO_WIDTH * 0.46, TORSO_HEIGHT * 0.6, 6, 16),
+  const torso = new THREE.Group()
+  torso.name = 'torso'
+  torso.position.set(0, ATH_TORSO_BOTTOM_Y, 0)
+  // Torso = a V-tapered cylinder. Wider radius at the shoulders,
+  // narrower at the waist gives the broadcast-readable athlete
+  // silhouette without a separate yoke primitive.
+  const torsoMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(
+      ATH_TORSO_TOP_W * 0.5,
+      ATH_TORSO_BOT_W * 0.5,
+      ATH_TORSO_HEIGHT,
+      10,
+      1,
+      false,
+    ),
     jerseyMat,
   )
-  torso.position.set(0, TORSO_Y, 0)
-  torso.castShadow = true
-  torso.receiveShadow = true
-  // Wider at the chest, narrower at the waist, shallow front-to-back —
-  // the broadcast-silhouette V the eye reads as "athlete".
-  torso.scale.set(1.05, 1, 0.72)
-  upperBody.add(torso)
-
-  // Shoulder yoke — a thin horizontal capsule riding the shoulder
-  // line. Makes the shoulders unambiguously the widest part of the
-  // upper body so facing direction reads without overlays. Painted
-  // in trim so a defensive shoulder line and an offensive shoulder
-  // line are immediately distinguishable from the broadcast camera.
-  const yoke = new THREE.Mesh(
-    new THREE.CapsuleGeometry(YOKE_HEIGHT * 0.5, YOKE_WIDTH - YOKE_HEIGHT, 4, 10),
+  torsoMesh.position.y = ATH_TORSO_HEIGHT * 0.5
+  torsoMesh.scale.set(1, 1, ATH_TORSO_DEPTH / ATH_TORSO_TOP_W)
+  torsoMesh.castShadow = true
+  torsoMesh.receiveShadow = true
+  torso.add(torsoMesh)
+  // Deltoid cap — a flattened sphere that sits on top of the torso
+  // shoulders. Reads as the rounded muscle line under a sleeveless
+  // jersey instead of a bar across the top of a tube.
+  const shoulderCap = new THREE.Mesh(
+    new THREE.SphereGeometry(ATH_TORSO_TOP_W * 0.55, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.6),
+    jerseyMat,
+  )
+  shoulderCap.position.y = ATH_TORSO_HEIGHT * 0.95
+  shoulderCap.scale.set(1, 0.5, ATH_TORSO_DEPTH / ATH_TORSO_TOP_W)
+  shoulderCap.castShadow = true
+  torso.add(shoulderCap)
+  // Chest accent — thin trim band across the upper chest so the
+  // jersey reads as a real uniform.
+  const chestStripe = new THREE.Mesh(
+    new THREE.BoxGeometry(ATH_TORSO_TOP_W * 0.92, 0.08, ATH_TORSO_DEPTH * 0.85),
     trimMat,
   )
-  yoke.position.set(0, YOKE_Y, 0)
-  // Capsule's long axis is +y by default; rotate so it lies along x.
-  yoke.rotation.z = Math.PI / 2
-  yoke.scale.set(1, 1, YOKE_DEPTH / YOKE_HEIGHT)
-  yoke.castShadow = true
-  upperBody.add(yoke)
-
-  // Jersey number panel — flat plane on the chest with the number
-  // canvas texture. Sits a hair in front of the torso so depth-write
-  // doesn't z-fight at glancing angles.
+  chestStripe.position.y = ATH_TORSO_HEIGHT * 0.78
+  torso.add(chestStripe)
+  // Waistband — thin trim band where the jersey meets the shorts so
+  // the uniform reads as two pieces from the broadcast camera.
+  const waistband = new THREE.Mesh(
+    new THREE.CylinderGeometry(
+      ATH_TORSO_BOT_W * 0.51,
+      ATH_TORSO_BOT_W * 0.51,
+      0.12,
+      12,
+    ),
+    trimMat,
+  )
+  waistband.position.y = 0.06
+  waistband.scale.set(1, 1, ATH_TORSO_DEPTH / ATH_TORSO_TOP_W)
+  torso.add(waistband)
+  // Jersey number panels (front + back). Reuses the existing canvas
+  // texture helper so the disposal path stays unchanged. Front face
+  // is -z by Three.js convention; the figure root is rotated so -z
+  // points toward the camera for offense / away from rim for
+  // defense, matching the legacy builder.
   const numberTex = makeJerseyNumberTexture(jerseyNumber, teamColor, trimColor)
   if (numberTex) {
     const numberMat = new THREE.MeshBasicMaterial({
@@ -3563,154 +3615,284 @@ function buildPlayerFigure(
       toneMapped: false,
       transparent: false,
     })
-    const numberPanel = new THREE.Mesh(
-      new THREE.PlaneGeometry(TORSO_WIDTH * 0.85, TORSO_HEIGHT * 0.7),
+    const frontPanel = new THREE.Mesh(
+      new THREE.PlaneGeometry(ATH_TORSO_TOP_W * 0.7, ATH_TORSO_HEIGHT * 0.55),
       numberMat,
     )
-    numberPanel.position.set(0, TORSO_Y, -TORSO_DEPTH * 0.36)
-    numberPanel.rotation.y = Math.PI
-    upperBody.add(numberPanel)
-
-    // Mirror panel on the back so the number reads from any angle.
+    frontPanel.position.set(0, ATH_TORSO_HEIGHT * 0.5, -ATH_TORSO_DEPTH * 0.32)
+    frontPanel.rotation.y = Math.PI
+    torso.add(frontPanel)
     const backPanel = new THREE.Mesh(
-      new THREE.PlaneGeometry(TORSO_WIDTH * 0.85, TORSO_HEIGHT * 0.7),
+      new THREE.PlaneGeometry(ATH_TORSO_TOP_W * 0.7, ATH_TORSO_HEIGHT * 0.55),
       numberMat,
     )
-    backPanel.position.set(0, TORSO_Y, TORSO_DEPTH * 0.36)
-    upperBody.add(backPanel)
+    backPanel.position.set(0, ATH_TORSO_HEIGHT * 0.5, ATH_TORSO_DEPTH * 0.32)
+    torso.add(backPanel)
   }
 
-  // Chest accent stripe across the top of the jersey.
-  const chestStripe = new THREE.Mesh(
-    new THREE.BoxGeometry(TORSO_WIDTH + 0.02, 0.1, TORSO_DEPTH * 0.78),
-    trimMat,
-  )
-  chestStripe.position.set(0, TORSO_Y + TORSO_HEIGHT / 2 - 0.12, 0)
-  upperBody.add(chestStripe)
-
-  // Arms — capsule limbs posed by stance.
-  //   idle    : relaxed, slight outward angle (current offense pose)
-  //   defensive: both arms low and out to the sides, palms-out feel
-  //   denial  : asymmetric raise — outside arm in the passing lane,
-  //             inside arm low. Sells the BDW-01 "sitting on the
-  //             pass" read at a glance.
-  for (const ax of [-ARM_OFFSET, ARM_OFFSET]) {
-    const arm = new THREE.Mesh(
-      new THREE.CapsuleGeometry(ARM_RADIUS, ARM_LENGTH * 0.9, 4, 10),
-      skinMat,
-    )
-    arm.position.set(ax, ARM_Y, 0)
-
-    if (stance === 'denial') {
-      // Outside arm raised toward the rim side, inside arm low.
-      const raise = ax < 0 ? 1.0 : 1.1
-      arm.rotation.z = ax < 0 ? 0.22 : -0.22
-      arm.rotation.x = -raise
-      arm.position.y = ARM_Y + 0.55
-      arm.position.z = -0.45
-    } else if (stance === 'defensive') {
-      // Hands-out base defensive pose. Arms angled outward and a
-      // touch forward so the silhouette reads "active hands" without
-      // copying the asymmetric denial raise.
-      arm.rotation.z = ax < 0 ? 0.55 : -0.55
-      arm.rotation.x = -0.25
-      arm.position.x = ax * 1.05
-      arm.position.y = ARM_Y - 0.18
-      arm.position.z = -0.18
-    } else {
-      // Idle / offensive — relaxed, hands-down with a small outward
-      // angle so arms don't fuse to the torso.
-      arm.rotation.z = ax < 0 ? 0.22 : -0.22
-    }
-    arm.castShadow = true
-    upperBody.add(arm)
-  }
-
-  // Neck.
-  const neck = new THREE.Mesh(
-    new THREE.CylinderGeometry(NECK_RADIUS, NECK_RADIUS * 1.1, NECK_HEIGHT, 12),
+  const neckHead = new THREE.Group()
+  neckHead.name = 'neckHead'
+  neckHead.position.set(0, ATH_NECK_Y - ATH_TORSO_BOTTOM_Y, 0)
+  // Neck — short skin-tone cylinder.
+  const neckMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(ATH_NECK_R, ATH_NECK_R * 1.15, ATH_NECK_LENGTH, 10),
     skinMat,
   )
-  neck.position.set(0, NECK_Y, 0)
-  upperBody.add(neck)
-
-  // Head — slightly squashed sphere. Tessellation trimmed (24×20 →
-  // 18×14) since the head is small in the frame; saves ~512 tris per
-  // figure with no visible quality drop at any default camera mode.
-  const head = new THREE.Mesh(
-    new THREE.SphereGeometry(HEAD_RADIUS, 18, 14),
+  neckMesh.position.y = ATH_NECK_LENGTH * 0.5
+  neckHead.add(neckMesh)
+  // Head — single sphere, slight squash for a stylized look. No
+  // facial detail per E4 §4. Tessellation tuned down for the budget.
+  const headMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(ATH_HEAD_R, 8, 6),
     skinMat,
   )
-  head.position.set(0, HEAD_Y, 0)
-  head.scale.set(1, 1.05, 0.95)
-  head.castShadow = true
-  upperBody.add(head)
-
-  // Hair cap — darker hemisphere on top of the head so heads don't
-  // read as featureless pink balls. Same skin-toned hair for all
-  // figures keeps the team color the dominant signal; the cap exists
-  // only to sell "this is a person", not identity. Same tessellation
-  // trim as the head.
+  headMesh.position.y = ATH_NECK_LENGTH + ATH_HEAD_R
+  headMesh.scale.set(1, 1.04, 0.97)
+  headMesh.castShadow = true
+  neckHead.add(headMesh)
+  // Hair cap — dark hemisphere on the top of the head so the
+  // figure reads as a person, not a flesh-tone ball. Stylized; no
+  // hair systems, no facial features per the recovery plan.
   const hairMat = new THREE.MeshStandardMaterial({
     color: '#1B1208',
     roughness: 0.85,
     metalness: 0,
   })
-  const hair = new THREE.Mesh(
-    new THREE.SphereGeometry(HEAD_RADIUS * 1.02, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.55),
+  const hairMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(ATH_HEAD_R * 1.02, 8, 4, 0, Math.PI * 2, 0, Math.PI * 0.55),
     hairMat,
   )
-  hair.position.set(0, HEAD_Y + 0.02, 0)
-  hair.castShadow = true
-  upperBody.add(hair)
+  hairMesh.position.y = ATH_NECK_LENGTH + ATH_HEAD_R + 0.02
+  hairMesh.scale.set(1, 1.04, 0.97)
+  hairMesh.castShadow = true
+  neckHead.add(hairMesh)
 
-  // Front-facing wedge — a small skin-tone nub on the head's front
-  // (-z) so facing direction reads from any default camera angle.
-  // Slightly larger than before so it survives medium camera distance.
-  const facingMarker = new THREE.Mesh(
-    new THREE.BoxGeometry(0.2, 0.13, 0.16),
-    skinMat,
+  // Build a leg sub-tree at a given hip x offset. The thigh's pivot
+  // is at the hip, the calf pivot at the knee, the foot pivot at
+  // the ankle — so future stance code can rotate at any of those
+  // joints without translating siblings. Each segment's mesh is
+  // anchored downward from the pivot via `position.y = -length/2`,
+  // which means a `rotation.x` on the joint pitches the segment
+  // around the joint as a real bone would.
+  const buildLeg = (hipX: number) => {
+    const leg = new THREE.Group()
+    leg.position.set(hipX, 0, 0)
+
+    const thigh = new THREE.Group()
+    thigh.name = 'thigh'
+
+    const thighMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(
+        ATH_THIGH_TOP_R,
+        ATH_THIGH_BOT_R,
+        ATH_THIGH_LENGTH,
+        8,
+        1,
+        false,
+      ),
+      skinMat,
+    )
+    thighMesh.position.y = -ATH_THIGH_LENGTH * 0.5
+    thighMesh.castShadow = true
+    thigh.add(thighMesh)
+
+    const calf = new THREE.Group()
+    calf.name = 'calf'
+    calf.position.set(0, -ATH_THIGH_LENGTH, 0)
+    const calfMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(
+        ATH_CALF_TOP_R,
+        ATH_CALF_BOT_R,
+        ATH_CALF_LENGTH,
+        8,
+        1,
+        false,
+      ),
+      skinMat,
+    )
+    calfMesh.position.y = -ATH_CALF_LENGTH * 0.5
+    calfMesh.castShadow = true
+    calf.add(calfMesh)
+    // Knee dome — small skin-tone sphere at the joint so the leg
+    // reads as two segments connected at a knee, not a single tube.
+    const kneeDome = new THREE.Mesh(
+      new THREE.SphereGeometry(ATH_CALF_TOP_R * 1.05, 6, 4),
+      skinMat,
+    )
+    kneeDome.position.y = 0
+    calf.add(kneeDome)
+
+    const foot = new THREE.Group()
+    foot.name = 'foot'
+    foot.position.set(0, -ATH_CALF_LENGTH, 0)
+    // Shoe — a slim block with a separate accent toe pad in front.
+    // Toe-forward by half the foot length so the figure has a clear
+    // facing direction from above (the legacy boxy shoe was symmetric
+    // and read as "block under leg" not "shoe").
+    const shoeMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(ATH_FOOT_WIDTH, ATH_FOOT_HEIGHT, ATH_FOOT_LENGTH),
+      shoeMat,
+    )
+    shoeMesh.position.set(0, ATH_FOOT_HEIGHT * 0.5, -ATH_FOOT_LENGTH * 0.18)
+    shoeMesh.castShadow = true
+    shoeMesh.receiveShadow = true
+    foot.add(shoeMesh)
+    // Midsole stripe in accent color so the silhouette reads as an
+    // athletic shoe at broadcast distance.
+    const midsoleMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(
+        ATH_FOOT_WIDTH + 0.02,
+        ATH_FOOT_HEIGHT * 0.32,
+        ATH_FOOT_LENGTH + 0.02,
+      ),
+      accentMat,
+    )
+    midsoleMesh.position.set(0, ATH_FOOT_HEIGHT * 0.16, -ATH_FOOT_LENGTH * 0.18)
+    foot.add(midsoleMesh)
+
+    calf.add(foot)
+    thigh.add(calf)
+    leg.add(thigh)
+    return { leg, thigh, calf, foot }
+  }
+
+  const leftLegParts = buildLeg(-ATH_HIP_GAP / 2)
+  const leftLeg = leftLegParts.leg
+  leftLeg.name = 'leftLeg'
+  const leftFoot = leftLegParts.foot
+  const rightLegParts = buildLeg(ATH_HIP_GAP / 2)
+  const rightLeg = rightLegParts.leg
+  rightLeg.name = 'rightLeg'
+  const rightFoot = rightLegParts.foot
+
+  pelvis.add(leftLeg)
+  pelvis.add(rightLeg)
+
+  // Build an arm sub-tree at a given shoulder offset. Like the leg,
+  // each segment's mesh is anchored downward from its pivot so a
+  // future stance pose can rotate at shoulder or elbow without
+  // translating siblings. Skin-tone arms; sleeve coloring is a
+  // future polish (Phase H).
+  const buildArm = (shoulderX: number, neutralOutSide: number) => {
+    const arm = new THREE.Group()
+    arm.position.set(shoulderX, ATH_SHOULDER_Y - ATH_TORSO_BOTTOM_Y, 0)
+
+    const upperArm = new THREE.Group()
+    upperArm.name = 'upperArm'
+    // Default neutral: small outward angle so arms don't fuse to
+    // the torso. Stance code in F2 overrides this.
+    upperArm.rotation.z = neutralOutSide
+    const upperArmMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(
+        ATH_UPPER_ARM_R * 1.05,
+        ATH_UPPER_ARM_R * 0.95,
+        ATH_UPPER_ARM_LENGTH,
+        8,
+        1,
+        false,
+      ),
+      skinMat,
+    )
+    upperArmMesh.position.y = -ATH_UPPER_ARM_LENGTH * 0.5
+    upperArmMesh.castShadow = true
+    upperArm.add(upperArmMesh)
+
+    const foreArm = new THREE.Group()
+    foreArm.name = 'foreArm'
+    foreArm.position.set(0, -ATH_UPPER_ARM_LENGTH, 0)
+    const foreArmMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(
+        ATH_FORE_ARM_R * 1.05,
+        ATH_FORE_ARM_R * 0.85,
+        ATH_FORE_ARM_LENGTH,
+        8,
+        1,
+        false,
+      ),
+      skinMat,
+    )
+    foreArmMesh.position.y = -ATH_FORE_ARM_LENGTH * 0.5
+    foreArmMesh.castShadow = true
+    foreArm.add(foreArmMesh)
+    // Elbow dome — mirrors the knee. Sells the elbow break in
+    // denial / defensive arm poses.
+    const elbowDome = new THREE.Mesh(
+      new THREE.SphereGeometry(ATH_UPPER_ARM_R * 1.1, 6, 4),
+      skinMat,
+    )
+    elbowDome.position.y = 0
+    foreArm.add(elbowDome)
+    // Hand block — simple stylized fist at the end of the forearm.
+    // No fingers per E4 §4. Sells "this is a hand" at broadcast.
+    const hand = new THREE.Mesh(
+      new THREE.SphereGeometry(ATH_FORE_ARM_R * 1.45, 6, 4),
+      skinMat,
+    )
+    hand.position.y = -ATH_FORE_ARM_LENGTH - 0.02
+    hand.scale.set(1, 1.2, 0.95)
+    foreArm.add(hand)
+
+    upperArm.add(foreArm)
+    arm.add(upperArm)
+    return { arm, upperArm, foreArm }
+  }
+
+  const leftArmParts = buildArm(-ATH_SHOULDER_WIDTH / 2, 0.18)
+  const leftArm = leftArmParts.arm
+  leftArm.name = 'leftArm'
+  const rightArmParts = buildArm(ATH_SHOULDER_WIDTH / 2, -0.18)
+  const rightArm = rightArmParts.arm
+  rightArm.name = 'rightArm'
+
+  torso.add(leftArm)
+  torso.add(rightArm)
+  torso.add(neckHead)
+
+  // Group that holds both feet so callers / future stance code can
+  // query a single "shoes" handle. Visuals live on the per-foot
+  // sub-groups; this group is a structural marker only.
+  const shoes = new THREE.Group()
+  shoes.name = 'shoes'
+  shoes.add(leftFoot)
+  shoes.add(rightFoot)
+
+  // upperBody is the crouch anchor for everything above the floor —
+  // pelvis, torso, arms, head, indicator chevron. Lowering
+  // `upperBody.position.y` for defensive / denial / closeout poses
+  // drops the visible body together with the chevron, so the user's
+  // "YOU" mark always rides above the head regardless of stance.
+  const upperBody = new THREE.Group()
+  upperBody.name = 'player-upper'
+  figure.add(upperBody)
+
+  upperBody.add(pelvis)
+  upperBody.add(torso)
+
+  // --- Stance pose. Applied via rigid sub-group rotations on the
+  // named handles (E4 §3) — no SkinnedMesh / AnimationMixer.
+  applyAthleteStance(
+    {
+      pelvis,
+      torso,
+      neckHead,
+      leftThigh: leftLegParts.thigh,
+      leftCalf: leftLegParts.calf,
+      leftFoot: leftLegParts.foot,
+      rightThigh: rightLegParts.thigh,
+      rightCalf: rightLegParts.calf,
+      rightFoot: rightLegParts.foot,
+      leftUpperArm: leftArmParts.upperArm,
+      leftForeArm: leftArmParts.foreArm,
+      rightUpperArm: rightArmParts.upperArm,
+      rightForeArm: rightArmParts.foreArm,
+      upperBody,
+    },
+    stance,
   )
-  facingMarker.position.set(0, HEAD_Y - 0.05, -HEAD_RADIUS - 0.05)
-  upperBody.add(facingMarker)
 
-  // Soft contact shadow — anchors the figure to the hardwood so it
-  // doesn't read as floating. Sits beneath every other floor mark.
-  // Cheap: a single dark CircleGeometry with low opacity, drawn before
-  // depth-write so the ring stack above paints cleanly on top.
-  const contactShadow = new THREE.Mesh(
-    new THREE.CircleGeometry(PLAYER_RADIUS + 0.55, 32),
-    new THREE.MeshBasicMaterial({
-      color: CONTACT_SHADOW_COLOR,
-      toneMapped: false,
-      transparent: true,
-      opacity: 0.42,
-      depthWrite: false,
-    }),
-  )
-  contactShadow.rotation.x = -Math.PI / 2
-  contactShadow.position.y = 0.02
-  contactShadow.renderOrder = -1
-  figure.add(contactShadow)
-
-  // ---- Phase 3: layered role / state indicators ---------------------
-  // Indicators live on three named sub-groups parented to the figure
-  // root so the indicator system from Section 7 (base / user /
-  // possession) is structurally legible and so the teaching overlay
-  // can find / hide them later without rebuilding geometry. Layer
-  // visibility is the contract; geometry is unchanged from Phase 2.
-  //
-  //   base       — team identity ring + inner outline. Always on.
-  //                Never animated.
-  //   user       — user-only halo + soft halo on the floor and the
-  //                "YOU" chevron above the head. Visible only on the
-  //                user-controlled player. Never animated.
-  //   possession — warm-gold ball-handler band. Visible only on the
-  //                ball-handler. Never animated.
-  //
-  // Pulse is reserved for the focus / feedback layers, which live on
-  // the teaching overlay (per imperativeTeachingOverlay) rather than
-  // on the player figure.
+  // --- Indicator layers — same contract as the legacy builder
+  // (E4 §7 / recovery plan §16). Same Y heights, same materials,
+  // same visibility rules.
   const baseLayer = new THREE.Group()
   baseLayer.name = 'indicator-layer-base'
   const userLayer = new THREE.Group()
@@ -3719,22 +3901,14 @@ function buildPlayerFigure(
   const possessionLayer = new THREE.Group()
   possessionLayer.name = 'indicator-layer-possession'
   possessionLayer.visible = hasBall
-  // The user chevron has to ride the upper body so it follows the
-  // crouch translation. Its own named sub-group keeps it discoverable
-  // alongside the other user-layer pieces.
   const userHeadLayer = new THREE.Group()
   userHeadLayer.name = 'indicator-layer-user-head'
   userHeadLayer.visible = isUser
 
-  // Possession ring — a warm-gold outer band that sits OUTSIDE the
-  // team ring so both can be read at a glance without one occluding
-  // the other. The geometry is built for every player and the layer's
-  // visibility flag drives whether it shows; this keeps the
-  // `getPlayerIndicatorLayers(...).possession.visible = true` post-mount
-  // contract honest, so a future ball-handoff can flip possession on
-  // a non-initial holder without rebuilding any geometry.
+  // Possession ring tessellation tuned to fit the per-figure tri
+  // budget (E4 §5). Reads identical at default DPR.
   const possession = new THREE.Mesh(
-    new THREE.RingGeometry(PLAYER_RADIUS + 0.55, PLAYER_RADIUS + 0.85, 48),
+    new THREE.RingGeometry(PLAYER_RADIUS + 0.55, PLAYER_RADIUS + 0.85, 36),
     new THREE.MeshBasicMaterial({
       color: POSSESSION_RING_COLOR,
       toneMapped: false,
@@ -3747,14 +3921,12 @@ function buildPlayerFigure(
   possession.position.y = 0.045
   possessionLayer.add(possession)
 
-  // Floor disc — keeps the existing team-colored selection ring used
-  // upstream by the 2D motion overlay so the renderer reads the same.
-  // The user's ring is wider and brighter, with a faint outer halo for
-  // an additional "this is YOU" cue from broadcast distance.
   const ringInner = PLAYER_RADIUS + 0.2
   const ringOuter = isUser ? PLAYER_RADIUS + 0.7 : PLAYER_RADIUS + 0.55
+  // Ring segments dropped from 64 → 48 to fit the per-figure tri
+  // budget; the floor disc reads identical at default DPR.
   const ring = new THREE.Mesh(
-    new THREE.RingGeometry(ringInner, ringOuter, 64),
+    new THREE.RingGeometry(ringInner, ringOuter, 36),
     new THREE.MeshBasicMaterial({
       color: teamColor,
       toneMapped: false,
@@ -3767,11 +3939,8 @@ function buildPlayerFigure(
   ring.position.y = 0.05
   baseLayer.add(ring)
 
-  // Inner ring outline — a thin bright ring just inside the team
-  // ring. Adds a clean edge so the ring reads as a lit disc, not as
-  // a fuzzy color blob.
   const innerOutline = new THREE.Mesh(
-    new THREE.RingGeometry(ringInner - 0.07, ringInner, 64),
+    new THREE.RingGeometry(ringInner - 0.07, ringInner, 36),
     new THREE.MeshBasicMaterial({
       color: '#FFFFFF',
       toneMapped: false,
@@ -3785,10 +3954,8 @@ function buildPlayerFigure(
   baseLayer.add(innerOutline)
 
   if (isUser) {
-    // Outer halo — a wider, brighter mint band around the team ring
-    // so the user's player reads even when the camera is pulled out.
     const halo = new THREE.Mesh(
-      new THREE.RingGeometry(ringOuter + 0.05, ringOuter + 0.6, 64),
+      new THREE.RingGeometry(ringOuter + 0.05, ringOuter + 0.6, 36),
       new THREE.MeshBasicMaterial({
         color: USER_COLOR,
         toneMapped: false,
@@ -3801,10 +3968,8 @@ function buildPlayerFigure(
     halo.position.y = 0.046
     userLayer.add(halo)
 
-    // Soft outer fade — a very faint, wide ring that creates a
-    // "spotlight" feel under the user without being a hard edge.
     const softHalo = new THREE.Mesh(
-      new THREE.RingGeometry(ringOuter + 0.65, ringOuter + 1.4, 64),
+      new THREE.RingGeometry(ringOuter + 0.65, ringOuter + 1.4, 36),
       new THREE.MeshBasicMaterial({
         color: USER_COLOR,
         toneMapped: false,
@@ -3817,25 +3982,19 @@ function buildPlayerFigure(
     softHalo.position.y = 0.044
     userLayer.add(softHalo)
 
-    // Floating "YOU" chevron — a small downward-pointing cone in mint
-    // that hovers above the head. Parented to upperBody so it follows
-    // the head when the user is in a defensive / denial crouch.
     const chevron = new THREE.Mesh(
-      new THREE.ConeGeometry(0.42, 0.85, 24),
+      new THREE.ConeGeometry(0.42, 0.85, 16),
       new THREE.MeshBasicMaterial({
         color: USER_COLOR,
         toneMapped: false,
       }),
     )
     chevron.rotation.x = Math.PI
-    chevron.position.set(0, HEAD_Y + HEAD_RADIUS + 1.1, 0)
+    chevron.position.set(0, ATH_HEAD_Y + ATH_HEAD_R + 1.1, 0)
     userHeadLayer.add(chevron)
 
-    // Chevron outline — thin dark cone behind the mint cone so the
-    // floating marker reads against the bright gym walls without
-    // fading out.
     const chevronOutline = new THREE.Mesh(
-      new THREE.ConeGeometry(0.5, 1.0, 24),
+      new THREE.ConeGeometry(0.5, 1.0, 16),
       new THREE.MeshBasicMaterial({
         color: '#062118',
         toneMapped: false,
@@ -3844,24 +4003,36 @@ function buildPlayerFigure(
       }),
     )
     chevronOutline.rotation.x = Math.PI
-    chevronOutline.position.set(0, HEAD_Y + HEAD_RADIUS + 1.1, 0)
+    chevronOutline.position.set(0, ATH_HEAD_Y + ATH_HEAD_R + 1.1, 0)
     chevronOutline.renderOrder = -1
     userHeadLayer.add(chevronOutline)
   }
 
-  // Attach indicator layers in z-order: base under user halo under
-  // possession band so the warm-gold ball-handler ring is never
-  // hidden by the team ring beneath it.
+  // Soft contact shadow under the figure (matches the legacy
+  // builder so the floor weight is identical between paths).
+  const contactShadow = new THREE.Mesh(
+    new THREE.CircleGeometry(PLAYER_RADIUS + 0.55, 24),
+    new THREE.MeshBasicMaterial({
+      color: CONTACT_SHADOW_COLOR,
+      toneMapped: false,
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+    }),
+  )
+  contactShadow.rotation.x = -Math.PI / 2
+  contactShadow.position.y = 0.02
+  contactShadow.renderOrder = -1
+  figure.add(contactShadow)
+
   figure.add(baseLayer)
   figure.add(userLayer)
   figure.add(possessionLayer)
   upperBody.add(userHeadLayer)
+  // shoes group is added last so future stance work can re-parent
+  // feet onto it without rewiring leg sub-groups.
+  figure.add(shoes)
 
-  // Public, named handle to the role-state layers so future code (e.g.
-  // ball-handoff updates that flip possession after the scene mounts)
-  // can `getPlayerLayers(figure).possession.visible = true` without
-  // rebuilding any geometry. Stays `any`-typed via userData rather
-  // than threading a new field through every player return type.
   const indicatorLayers: PlayerIndicatorLayers = {
     base: baseLayer,
     user: userLayer,
@@ -3870,7 +4041,229 @@ function buildPlayerFigure(
   }
   ;(figure.userData as Record<string, unknown>).indicatorLayers = indicatorLayers
 
+  // Materials and proportional constants are referenced by sub-group
+  // geometry attached in F1A.4 onward. Suppress the unused-binding
+  // lint here so the scaffold compiles before the body parts ship.
+  void ATH_TOTAL_HEIGHT
+  void ATH_FOOT_Y
+
   return figure
+}
+
+/**
+ * Phase F — non-owning bundle of the named sub-groups the stance
+ * lookup table writes into. Each field is a THREE.Group whose pivot
+ * sits at the corresponding joint (hip / knee / ankle / shoulder /
+ * elbow). Stance application is `rotation.x/y/z` writes only — no
+ * geometry rebuild, no per-frame mutation.
+ */
+interface AthleteJoints {
+  pelvis: THREE.Group
+  torso: THREE.Group
+  neckHead: THREE.Group
+  leftThigh: THREE.Group
+  leftCalf: THREE.Group
+  leftFoot: THREE.Group
+  rightThigh: THREE.Group
+  rightCalf: THREE.Group
+  rightFoot: THREE.Group
+  leftUpperArm: THREE.Group
+  leftForeArm: THREE.Group
+  rightUpperArm: THREE.Group
+  rightForeArm: THREE.Group
+  upperBody: THREE.Group
+}
+
+/**
+ * Phase F2 — apply a stance pose to the athlete sub-groups. Lookup
+ * table dispatch keeps each pose readable as data and lets future
+ * stances slot in without changing the call site.
+ */
+function applyAthleteStance(joints: AthleteJoints, stance: PlayerStance): void {
+  switch (stance) {
+    case 'idle':
+      applyIdlePose(joints)
+      return
+    case 'defensive':
+      applyDefensivePose(joints)
+      return
+    case 'denial':
+      applyDenialPose(joints)
+      return
+    case 'closeout':
+      applyCloseoutPose(joints)
+      return
+    case 'cut':
+      applyCutPose(joints)
+      return
+    case 'sag':
+    case 'shrink':
+      applySagPose(joints)
+      return
+    default:
+      applyIdlePose(joints)
+      return
+  }
+}
+
+/**
+ * Cut stub — standing tall but tilted forward with the front foot
+ * extended, arms drawn back. Reads as "first step toward the rim"
+ * for ESC/SKR cutter renders. Soft requirement; full polish lives in
+ * a follow-up.
+ */
+function applyCutPose(joints: AthleteJoints): void {
+  joints.upperBody.position.y = -0.05
+  joints.leftThigh.rotation.set(-0.18, 0, -0.05)
+  joints.leftCalf.rotation.set(0.18, 0, 0)
+  joints.leftFoot.rotation.set(0, 0, 0)
+  joints.rightThigh.rotation.set(-0.30, 0, 0.05)
+  joints.rightCalf.rotation.set(0.30, 0, 0)
+  joints.rightFoot.rotation.set(0, 0, 0)
+  joints.pelvis.rotation.set(0.10, 0, 0)
+  joints.torso.rotation.set(-0.20, 0, 0)
+  joints.neckHead.rotation.set(0.10, 0, 0)
+  joints.leftUpperArm.rotation.set(0.45, 0, 0.20)
+  joints.leftForeArm.rotation.set(-0.45, 0, 0)
+  joints.rightUpperArm.rotation.set(0.55, 0, -0.20)
+  joints.rightForeArm.rotation.set(-0.45, 0, 0)
+}
+
+/**
+ * Sag/shrink stub — defensive stance shifted toward help. Smaller
+ * crouch than 'defensive', body angled inward toward the paint.
+ * Soft requirement; ships as a visible stub so a follow-up packet
+ * can route SKR-01 over-helpers here without rebuilding geometry.
+ */
+function applySagPose(joints: AthleteJoints): void {
+  joints.upperBody.position.y = -0.12
+  joints.leftThigh.rotation.set(-0.35, 0, -0.10)
+  joints.leftCalf.rotation.set(0.35, 0, 0)
+  joints.leftFoot.rotation.set(0, 0, 0)
+  joints.rightThigh.rotation.set(-0.35, 0, 0.10)
+  joints.rightCalf.rotation.set(0.35, 0, 0)
+  joints.rightFoot.rotation.set(0, 0, 0)
+  joints.pelvis.rotation.set(0.10, -0.22, 0)
+  joints.torso.rotation.set(-0.10, 0, 0)
+  joints.neckHead.rotation.set(0.05, 0.22, 0)
+  joints.leftUpperArm.rotation.set(-0.20, 0, 0.55)
+  joints.leftForeArm.rotation.set(-0.30, 0, 0)
+  joints.rightUpperArm.rotation.set(-0.20, 0, -0.45)
+  joints.rightForeArm.rotation.set(-0.30, 0, 0)
+}
+
+/**
+ * Closeout stance — mid-crouch with shoulders forward, front foot
+ * planted with toe forward, back foot trailing, both arms wide and
+ * up. Reads as urgent forward pressure ("balanced vs out-of-control"
+ * is the AOR-01 read this stance enables).
+ */
+function applyCloseoutPose(joints: AthleteJoints): void {
+  joints.upperBody.position.y = -0.10
+  // Front foot (right) planted forward, back foot (left) trailing.
+  // Knee bends smaller than defensive — closeout is mid-flight.
+  joints.leftThigh.rotation.set(-0.20, 0, -0.05)
+  joints.leftCalf.rotation.set(0.20, 0, 0)
+  joints.leftFoot.rotation.set(0, 0, 0)
+  joints.rightThigh.rotation.set(-0.40, 0, 0.10)
+  joints.rightCalf.rotation.set(0.40, 0, 0)
+  joints.rightFoot.rotation.set(0, 0, 0)
+  // Body angled forward toward the shooter with the chest leading.
+  joints.pelvis.rotation.set(0.10, 0, 0)
+  joints.torso.rotation.set(-0.32, 0, 0)
+  joints.neckHead.rotation.set(0.15, 0, 0)
+  // Both arms wide and up — palms-forward closeout shape.
+  joints.leftUpperArm.rotation.set(-0.85, 0, 1.20)
+  joints.leftForeArm.rotation.set(-0.35, 0, 0)
+  joints.rightUpperArm.rotation.set(-0.85, 0, -1.20)
+  joints.rightForeArm.rotation.set(-0.35, 0, 0)
+}
+
+/**
+ * Denial stance — defensive crouch with the outside arm extended
+ * into the passing lane and the inside arm low. Body angles toward
+ * the ball-handler so the BDW-01 "sitting on the pass" cue reads at
+ * a glance. The figure root yaw already faces the offense; the
+ * denial pose adds a hip rotation so the stance squares to the
+ * passing lane rather than the rim.
+ */
+function applyDenialPose(joints: AthleteJoints): void {
+  // Lower body — same crouch as defensive but slightly narrower
+  // stance and a small body angle toward the ball.
+  joints.upperBody.position.y = -0.16
+  joints.leftThigh.rotation.set(-0.45, 0, -0.10)
+  joints.leftCalf.rotation.set(0.45, 0, 0)
+  joints.leftFoot.rotation.set(0, 0, 0)
+  joints.rightThigh.rotation.set(-0.45, 0, 0.10)
+  joints.rightCalf.rotation.set(0.45, 0, 0)
+  joints.rightFoot.rotation.set(0, 0, 0)
+  // Hip / shoulder square — both rotate the same way so the body
+  // reads as turned to face the passing lane, not contorted.
+  joints.pelvis.rotation.set(0.14, 0.32, 0)
+  joints.torso.rotation.set(-0.14, 0.0, 0)
+  joints.neckHead.rotation.set(0.02, -0.32, 0)
+  // Arms — outside (right) arm extended toward the lane, palm in;
+  // inside (left) arm low and slightly back so the silhouette is
+  // unambiguously "denying the pass".
+  joints.leftUpperArm.rotation.set(0.35, 0, 0.15)
+  joints.leftForeArm.rotation.set(-0.45, 0, 0)
+  joints.rightUpperArm.rotation.set(-1.55, 0, -0.55)
+  joints.rightForeArm.rotation.set(-0.10, 0, 0)
+}
+
+/**
+ * Defensive stance — knees bent, hips low, feet wider than
+ * shoulders, hands out. Real leg articulation: thigh rotates
+ * forward, calf rotates back, so the knee actually breaks. Torso
+ * tilts forward and the upperBody anchor drops so the figure reads
+ * as crouched, not like a standing player who shrunk.
+ */
+function applyDefensivePose(joints: AthleteJoints): void {
+  // Crouch math: thigh pitches forward by `t`, calf pitches back by
+  // `t` (so the calf stays roughly vertical), and the upperBody
+  // drops by `thigh_length * (1 - cos(t))` so the foot stays at
+  // the floor. With t≈0.5rad and thigh ≈ 1.45ft, drop ≈ 0.18ft.
+  joints.upperBody.position.y = -0.18
+  joints.leftThigh.rotation.set(-0.50, 0, -0.18)
+  joints.leftCalf.rotation.set(0.50, 0, 0)
+  joints.leftFoot.rotation.set(0, 0, 0)
+  joints.rightThigh.rotation.set(-0.50, 0, 0.18)
+  joints.rightCalf.rotation.set(0.50, 0, 0)
+  joints.rightFoot.rotation.set(0, 0, 0)
+  // Pelvis tilts forward a touch so the back is angled toward the
+  // ball instead of straight up.
+  joints.pelvis.rotation.set(0.18, 0, 0)
+  joints.torso.rotation.set(-0.18, 0, 0)
+  joints.neckHead.rotation.set(0.05, 0, 0)
+  // Arms — both out and forward, palms-down basketball defensive
+  // hands. Upper arm rotates outward + forward; forearm rotates
+  // forward at the elbow so hands extend past the body.
+  joints.leftUpperArm.rotation.set(-0.55, 0, 0.85)
+  joints.leftForeArm.rotation.set(-0.45, 0, 0)
+  joints.rightUpperArm.rotation.set(-0.55, 0, -0.85)
+  joints.rightForeArm.rotation.set(-0.45, 0, 0)
+}
+
+/**
+ * Idle stance — basketball-ready offensive posture. Standing tall,
+ * slight forward lean on the ball of each foot, arms relaxed at the
+ * sides with a small outward angle so they don't fuse to the torso.
+ */
+function applyIdlePose(joints: AthleteJoints): void {
+  joints.pelvis.rotation.set(0, 0, 0)
+  joints.torso.rotation.set(0, 0, 0)
+  joints.neckHead.rotation.set(0, 0, 0)
+  joints.upperBody.position.y = 0
+  joints.leftThigh.rotation.set(0, 0, 0)
+  joints.leftCalf.rotation.set(0, 0, 0)
+  joints.leftFoot.rotation.set(0, 0, 0)
+  joints.rightThigh.rotation.set(0, 0, 0)
+  joints.rightCalf.rotation.set(0, 0, 0)
+  joints.rightFoot.rotation.set(0, 0, 0)
+  joints.leftUpperArm.rotation.set(0, 0, 0.18)
+  joints.leftForeArm.rotation.set(0, 0, 0)
+  joints.rightUpperArm.rotation.set(0, 0, -0.18)
+  joints.rightForeArm.rotation.set(0, 0, 0)
 }
 
 /**
