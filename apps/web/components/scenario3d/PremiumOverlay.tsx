@@ -24,6 +24,9 @@ export interface PremiumOverlayProps {
   showPaths: boolean
   onShowPathsChange: (show: boolean) => void
   pathsAvailable: boolean
+  /** Phase D — fullscreen state. When true the button shows "Exit". */
+  isFullscreen?: boolean
+  onFullscreenToggle?: () => void
 }
 
 export type PlaybackRate = 0.5 | 1 | 2
@@ -62,6 +65,8 @@ export function PremiumOverlay({
   showPaths,
   onShowPathsChange,
   pathsAvailable,
+  isFullscreen = false,
+  onFullscreenToggle,
 }: PremiumOverlayProps) {
   const isReplay = replayMode === 'answer'
 
@@ -128,6 +133,17 @@ export function PremiumOverlay({
           value={cameraMode}
           onChange={onCameraModeChange}
         />
+        {onFullscreenToggle ? (
+          <button
+            type="button"
+            onClick={onFullscreenToggle}
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            className="ciq-broadcast-chip pointer-events-auto flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-white/80 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70"
+          >
+            {isFullscreen ? <CollapseIcon /> : <ExpandIcon />}
+          </button>
+        ) : null}
       </div>
 
       {/* Bottom-center: compact transport pill. Single anchored row, no
@@ -392,6 +408,42 @@ function ChevronIcon({ open }: { open: boolean }) {
       style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 120ms ease' }}
     >
       <path d="M3.6 6.2l4.4 4 4.4-4" />
+    </svg>
+  )
+}
+
+function ExpandIcon() {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 16 16"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M2.5 6V3h3M10.5 3h3v3M13.5 10v3h-3M5.5 13h-3v-3" />
+    </svg>
+  )
+}
+
+function CollapseIcon() {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 16 16"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M5.5 2.5v3h-3M13.5 5.5h-3v-3M10.5 13.5v-3h3M2.5 10.5h3v3" />
     </svg>
   )
 }

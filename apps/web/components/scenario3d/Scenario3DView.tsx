@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Scenario3DCanvas } from './Scenario3DCanvas'
 import { Scenario3DErrorBoundary } from './Scenario3DErrorBoundary'
 import type { Scene3D } from '@/lib/scenario3d/scene'
@@ -77,6 +77,38 @@ export function Scenario3DView(props: Scenario3DViewProps) {
   const [playbackRate, setPlaybackRate] = useState<PlaybackRate>(1)
   const [paused, setPaused] = useState(false)
 
+  // Phase D — fullscreen film room mode. The container ref is the
+  // element we promote to fullscreen; state tracks whether the browser
+  // is currently in fullscreen so the overlay button can show the
+  // correct icon and aria-label. All Fullscreen API access is SSR-guarded.
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const el = containerRef.current
+    if (!el) return
+    const onChange = () => {
+      setIsFullscreen(!!document.fullscreenElement)
+    }
+    el.addEventListener('fullscreenchange', onChange)
+    return () => el.removeEventListener('fullscreenchange', onChange)
+  }, [])
+
+  const toggleFullscreen = useCallback(() => {
+    if (typeof document === 'undefined') return
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen().catch(() => {
+        // Fullscreen request denied (e.g., not triggered by user gesture
+        // in some browsers, or iframe sandboxing). Silently ignore.
+      })
+    } else {
+      document.exitFullscreen().catch(() => {
+        // Exit can fail if fullscreen was already left by another means.
+      })
+    }
+  }, [])
+
   // Local restart counter folds in the parent's resetCounter so the
   // overlay's restart button and the parent's "Show me again" button
   // both drive the same MotionController.reset() path.
@@ -126,7 +158,7 @@ export function Scenario3DView(props: Scenario3DViewProps) {
 
   return (
     <Scenario3DErrorBoundary scenarioId={props.scene?.id}>
-      <div className="relative h-full w-full">
+      <div ref={containerRef} className="relative h-full w-full">
         <Scenario3DCanvas
           {...props}
           replayMode={replayMode}
@@ -155,6 +187,8 @@ export function Scenario3DView(props: Scenario3DViewProps) {
           showPaths={showPaths}
           onShowPathsChange={(next) => setPathOverride(next)}
           pathsAvailable={pathsAvailable}
+          isFullscreen={isFullscreen}
+          onFullscreenToggle={toggleFullscreen}
         />
       </div>
     </Scenario3DErrorBoundary>
