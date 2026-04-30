@@ -6230,5 +6230,53 @@ rate. The yaw / position / pre-delay tweaks are smaller and
 will only land if they fit in the L11 micro-chunk without
 adding new dependencies or rewriting the replay state machine.
 
+### Phase L — BDW-01 Teaching Clarity Verification
+
+After L7–L11 land, BDW-01 still meets the recovery-plan
+teaching-clarity contract:
+
+- **User player obvious.** The user's "YOU" chevron is parented
+  to `upperBody` (`imperativeScene.ts:4137`), which means the
+  L8 deeper crouch (defensive `upperBody.position.y` -0.18 →
+  -0.26; denial -0.16 → -0.22) drops the chevron 0.06–0.08
+  with the body, but the chevron's local +1.1 lift above the
+  head keeps it well above the head sphere with full clearance.
+  The user-only floor halo is parented to the figure root and
+  is unaffected by stance.
+- **Ball-handler obvious.** The possession floor ring is on
+  the figure root; the wristband torus is on the forearm wrist
+  position (y = -ATH_FORE_ARM_LENGTH * 0.92). The L7 thicker
+  forearm lathe peaks at upper-forearm (y = +0.25 of length);
+  at the wrist position the radius is 0.92x of base = ~0.129,
+  while the wristband outer is 1.22x = ~0.171 — wristband stays
+  visibly outside the forearm at the wrist.
+- **Defender blocking pass obvious.** The denial pose still
+  raises the lane-side arm with `rightUpperArm.rotation.set
+  (-1.55, 0, -0.55)` and the body angles toward the passing
+  lane. The deeper L8 crouch makes the denial more visibly
+  athletic without changing the arm extension.
+- **Cut-behind read.** The cutter pose (`applyCutPose`) was
+  not touched in L8, so the existing forward lean + extended
+  front foot still reads as a cut. L11 only changed the camera
+  ease time-constant; segment timing, easing curves, and
+  authored movement directions are unchanged.
+- **Indicators legible.** Chevron, halo, possession ring,
+  wristband, and brow line do not overlap each other and do
+  not overlap the L7 thicker arm/leg silhouette in a way that
+  obscures them. The brow line is a small-arc torus that sits
+  at the forehead and reads as a hairline shadow rather than
+  competing for attention.
+- **Answer choices align.** Choices live outside the scene; no
+  scene-level change in L7–L11 affects the choice UI.
+- **Motion does not distract.** L11 made the camera easing
+  frame-rate independent. The visible feel at 60fps is close to
+  identical to Phase K; users on 30fps and 120fps now see the
+  same reaction speed instead of "sluggish" / "whippy"
+  variants. The replay determinism contract is unchanged
+  (yaw smoothing already used wall-clock dt; nothing
+  scene-position-deterministic was touched).
+
+No additional teaching-clarity adjustments are needed in L12.
+
 
 
