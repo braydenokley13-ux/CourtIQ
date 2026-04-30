@@ -4510,3 +4510,146 @@ disposal leak, budget overrun — the layer falls through to
 `buildPlayerFigure` and the trainer behaves exactly as it does
 today.
 
+
+### Phase I — Asset Path Options
+
+> Phase I evaluates four asset paths against the Phase F baseline.
+> The bar each path must clear is **"meaningfully better at
+> teaching basketball from the gameplay camera, without
+> regressing replay, motion, fullscreen, copy, or Mac/Safari
+> performance."** "Looks cooler in a still" is not enough.
+
+#### Option A — Stay code-built (current Phase F path)
+
+- **Benefit.** Zero new risk. Sub-second load, deterministic
+  build, six shared materials, ≤ 1500 tris/figure, full test
+  coverage, no licensing surface, no asset pipeline. The
+  silhouette already differentiates `idle` / `defensive` /
+  `denial` / `closeout` clearly enough for BDW-01 teaching cues.
+- **Risk.** The on-court silhouette ceiling. From the gameplay
+  camera, players still register as stylized placeholders rather
+  than "premium training-sim athletes" (Phase F QA acceptance
+  answer 9, Phase H QA "honest caveat"). The gap is real but is
+  partly bottlenecked on lighting / camera / scene composition,
+  not just on geometry.
+- **Preserves.** Everything. Replay, motion, fullscreen, copy,
+  disposal, budget, indicator stack, scenario JSON, Mac
+  performance.
+- **Threatens.** Nothing in the current product. Long-term it
+  caps the visual ceiling; that is a strategic trade-off, not a
+  regression.
+- **Recommendation strength.** **Strong default.** This is the
+  fallback in every other option below.
+
+#### Option B — Optional imported low-poly GLB athlete behind a flag
+
+- **Benefit.** Cheapest jump in silhouette quality. One static
+  stylized GLB mesh per stance (or per stance × team) replaces
+  the body geometry while reusing the existing indicator layers,
+  yaw, position, and stance-routing logic. No skeletal rig, no
+  `AnimationMixer`, no clip-driven motion. Pose change = swap
+  body sub-tree at stance change time, same way the current
+  builder applies static rotations.
+- **Risk.** Asset licensing, GLB load latency on a cold cache
+  (asset-pipeline cost), Safari / WebGL2 compatibility on
+  Mac/Apple Silicon, disposal of `THREE.Texture` slots not
+  currently used by the code-built path, and the chance that an
+  imported silhouette aligns the ring/halo/chevron differently
+  enough to throw the indicator stack off. All of these are
+  bounded; none touch the replay state machine.
+- **Preserves.** Everything in Phase F when the flag is off
+  (default). When the flag is on and the GLB loads, the
+  imported figure has to satisfy the I1 contract; if it fails
+  any clause it falls back to `buildPlayerFigure`. Replay
+  determinism, motion timing, fullscreen, copy, and JSON format
+  are all untouched.
+- **Threatens.** Bundle size (a single stylized basketball
+  athlete GLB is typically 100–500 KB before draco compression),
+  initial load latency, and the disposal contract — `THREE.Group`
+  trees built from `GLTFLoader` carry materials and textures the
+  code-built path never owned, so `disposeGroup` needs the
+  texture-slot sweep it already has and may need additional slot
+  coverage if the model uses unusual maps.
+- **Recommendation strength.** **Strongest future test.**
+  Highest "lift per unit risk" of the four options because the
+  determinism / motion / animation surface stays code-built and
+  only the body silhouette is imported.
+
+#### Option C — Simple rigged GLB athlete with limited clips
+
+- **Benefit.** Widest visual gain on the gameplay camera —
+  smooth defensive shuffle, real arm denial, real backdoor cut,
+  rather than per-stance pose snapshots. Closer to a true
+  "premium playable film room" feel.
+- **Risk.** Re-opens Phase B replay determinism. `AnimationMixer`
+  is clock-driven by default; replay must drive it from the same
+  tick source as `MotionController` or the clip plays at the
+  wrong rate during scrub / pause / step. `SkinnedMesh` adds a
+  whole disposal surface (`Skeleton`, `Bone[]`,
+  `InverseBindMatrices`) that `disposeGroup`'s current traversal
+  does not reach; leak risk is real on the BDW-01 five-figure
+  scene re-render. Indicator alignment becomes harder because
+  the `userHead` chevron is parented to `upperBody`, which a
+  rigged spine bone may not 1:1 replace. Scenario authoring also
+  becomes harder if clips are required to be authored per
+  stance.
+- **Preserves.** With careful work: scenario JSON, copy, and
+  fullscreen logic. The flag-fallback to Phase F is still
+  possible if the imported asset or its mixer fails to
+  initialise.
+- **Threatens.** Phase B (replay), Phase C (motion timing),
+  disposal safety (skeleton / mixer), Mac performance under
+  five-figure scenes, and licensing complexity — rigged
+  basketball-stance assets with permissive licences are rarer
+  than static stylized models.
+- **Recommendation strength.** **Only after Option B proves
+  static imported silhouettes already beat the Phase F figure on
+  teaching clarity.** Otherwise the cost-to-benefit ratio is
+  poor.
+
+#### Option D — Full animation system (SkinnedMesh + AnimationMixer + clip library)
+
+- **Benefit.** Maximum visual ceiling. Closest to commercial
+  trainer references.
+- **Risk.** Maximum on every axis. Replay determinism, motion
+  timing, disposal, Mac/Safari performance, bundle size, asset
+  pipeline, licensing, scenario authoring, and test complexity
+  all regress simultaneously. The `MotionController` ↔
+  `ReplayStateMachine` ↔ `AnimationMixer` triangle has to be
+  re-derived from scratch, with every Phase B–H guarantee
+  retested.
+- **Preserves.** Almost nothing as a side-effect; everything
+  must be explicitly re-validated.
+- **Threatens.** All of Phases B–H simultaneously. Even
+  successful delivery would require a full integration QA pass
+  comparable to Phase H.
+- **Recommendation strength.** **Not recommended for the
+  spike.** Treat as a "do not attempt yet" path. Only justified
+  if Options B and C are both shipped and still fail to clear
+  the teaching-clarity bar against premium references.
+
+#### Quick scoring matrix (high-level)
+
+| Axis | A — Code-built | B — Static GLB layer | C — Rigged GLB | D — Full anim |
+|---|---|---|---|---|
+| Visual improvement | baseline | medium | high | highest |
+| Gameplay-camera readability | good | likely better | likely better | unknown |
+| Basketball-teaching clarity | proven | likely equal-or-better | risky (motion can hide cues) | high risk |
+| Mac/Safari performance | safe | low risk | medium risk | high risk |
+| Load-time risk | none | low–medium | medium | high |
+| Replay determinism risk | none | none (static pose) | medium | high |
+| Disposal / memory safety | covered | extend disposer | new surface (skeleton) | new surface (mixer) |
+| Testing complexity | covered | additive suite | broad re-test | full Phase B–H re-validation |
+| Scenario authoring complexity | none | none | maybe per-stance clips | clip library + states |
+| Licensing risk | none | medium | medium-high | medium-high |
+| Preserves Phase F fallback | n/a (is the path) | yes (flag default) | yes (flag default) | hard to keep clean |
+| Improves teaching vs "looks cool" | improves teaching | likely improves teaching | mixed | mixed |
+
+#### Recommendation
+
+**Default to Option A. Run a future controlled experiment of
+Option B behind a feature flag, with Option A as the live
+fallback.** Defer Options C and D until Option B has either
+proved or disproved that imported silhouettes beat the Phase F
+figure on teaching clarity, performance, and disposal safety.
+
