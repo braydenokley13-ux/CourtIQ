@@ -29,7 +29,7 @@
       ],
       "ball_location": { "x": 160, "y": 140 }
     },
-    "prompt": "Your defender is blocking the pass. What do you do?",
+    "prompt": "Your defender is blocking the pass.",
     "choices": [
       {
         "id": "c1",
