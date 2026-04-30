@@ -4117,10 +4117,64 @@ function buildPremiumAthleteFigure(
   jerseyNumber: string,
   stance: PlayerStance,
 ): THREE.Group {
-  // J2 boundary: the premium builder exists and is wired through
-  // `buildPlayerFigure`, but for this commit it returns the Phase F
-  // figure unchanged. J3 substantively upgrades the geometry.
-  return buildAthleteFigure(teamColor, trimColor, isUser, hasBall, jerseyNumber, stance)
+  // Phase J starts from the Phase F figure (taxonomy, materials,
+  // indicator layers, disposal-safe parenting) and surgically upgrades
+  // specific parts. This keeps the public contract identical and the
+  // fallback live by construction.
+  const figure = buildAthleteFigure(
+    teamColor,
+    trimColor,
+    isUser,
+    hasBall,
+    jerseyNumber,
+    stance,
+  )
+  upgradePremiumTorso(figure)
+  return figure
+}
+
+/**
+ * Phase J3A — replace the Phase F V-tapered cylinder torso with a
+ * lathe-revolved athletic silhouette (subtle ab swell + pec/shoulder
+ * line) so the upper body reads less like a tube and more like an
+ * athlete from gameplay camera. Geometry-only change: the original
+ * jersey material, position, scale, and parent group are preserved
+ * so disposal, stance application, and indicator alignment are
+ * untouched.
+ */
+function upgradePremiumTorso(figure: THREE.Object3D): void {
+  const torso = figure.getObjectByName('torso') as THREE.Group | null
+  if (!torso) return
+  // The Phase F builder adds the main torso cylinder as the FIRST
+  // direct Mesh child of the torso group (before shoulderCap, the
+  // chest stripe, the waistband, the number panels, and the
+  // arm/neckHead sub-groups). Find it by that contract.
+  let mainMesh: THREE.Mesh | null = null
+  for (const child of torso.children) {
+    if (child instanceof THREE.Mesh && child.geometry instanceof THREE.CylinderGeometry) {
+      mainMesh = child
+      break
+    }
+  }
+  if (!mainMesh) return
+  const h = ATH_TORSO_HEIGHT
+  // Lathe profile (radius, y) spans -h/2..+h/2 so it slots in at the
+  // existing mesh.position.y = ATH_TORSO_HEIGHT * 0.5 anchor with no
+  // change to the parent transform. Subtle ab/rib swell at the
+  // ribcage, slightly wider pec line, then a smooth taper into the
+  // shoulder cap so the deltoid sphere blends instead of perching.
+  const profile: THREE.Vector2[] = [
+    new THREE.Vector2(ATH_TORSO_BOT_W * 0.50, -h / 2),
+    new THREE.Vector2(ATH_TORSO_BOT_W * 0.515, -h * 0.30),
+    new THREE.Vector2(ATH_TORSO_BOT_W * 0.555, -h * 0.05),
+    new THREE.Vector2(ATH_TORSO_TOP_W * 0.520, h * 0.20),
+    new THREE.Vector2(ATH_TORSO_TOP_W * 0.512, h * 0.40),
+    new THREE.Vector2(ATH_TORSO_TOP_W * 0.50, h / 2),
+  ]
+  const newGeom = new THREE.LatheGeometry(profile, 14)
+  const oldGeom = mainMesh.geometry
+  mainMesh.geometry = newGeom
+  oldGeom.dispose()
 }
 
 /**
