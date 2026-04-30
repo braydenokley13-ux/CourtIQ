@@ -3387,7 +3387,7 @@ export function computePlayerYaw(team: SceneTeam, x: number, z: number): number 
  * later micro-milestones uncover a regression. F5 deletes both this
  * flag and the legacy builder.
  */
-const USE_ATHLETE_BUILDER = false
+const USE_ATHLETE_BUILDER = true
 
 /**
  * Public builder entry point. Signature is locked by Phase F4 §4 of
