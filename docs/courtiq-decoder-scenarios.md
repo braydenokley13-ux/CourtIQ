@@ -393,3 +393,18 @@ The freeze must clearly show: D4 + D5 = two paint bodies; O5 alone in the weak c
 | 0.4s | O2 catches with no space | D2 contests the shot | Forced or passed-up shot, possession risk |
 
 **Outcome:** Either a turnover/block (B1) or a contested low-value shot (B2). The skip pass was the only high-value option.
+
+### Overlays (toggle in the freeze view)
+
+| Overlay | Show | Color / style |
+| --- | --- | --- |
+| Help-defender highlight | D5 outlined / glowing — labelled "OVER-HELPING" | Bright magenta outline |
+| Paint zone shading | The paint area highlighted to make "2 in the paint" obvious | Translucent red floor patch |
+| Open space highlight | The weak-side corner zone around O5 | Soft green floor patch |
+| Skip pass lane | Curved arc from O4 to O5, animated | Bright green dashed |
+| Bad-pass lane (strong corner) | Straight line from O4 to O2 | Red dashed (only on hover/wrong) |
+| Defender hips/feet — D5 | Foot markers under D5 showing they're inside the paint line | Cyan |
+| Recovery distance | Dotted line from D5's current spot back to O5's corner spot, with distance label "~16 ft" | Yellow dotted |
+| Strong-corner defender lock | Small "still-on-player" badge on D2 | Gray |
+
+The combination of the red paint shading + green corner patch is the signature visual: it shows "where the defense IS" and "where they're NOT" in one frame.
