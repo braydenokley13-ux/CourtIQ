@@ -3366,6 +3366,13 @@ export function computePlayerYaw(team: SceneTeam, x: number, z: number): number 
  * unchanged. The boundary lives here so disposal/triangle tests and
  * the production renderer all flow through the same selector.
  *
+ * BDW-01 (the Phase F target trainer scenario) picks up the premium
+ * path through the standard renderer route — `Scenario3DView →
+ * Scenario3DCanvas → buildBasketballGroup → buildPlayerFigure` — so
+ * no special-case wiring is needed in the trainer. Flipping this
+ * flag off at any time reverts every BDW-01 player to the Phase F
+ * figure on the next mount.
+ *
  * The premium path is wrapped in a try/catch by `buildPlayerFigure`
  * so any unexpected error reverts to the Phase F figure at runtime —
  * the trainer never crashes if the premium builder regresses.
