@@ -721,5 +721,101 @@ well-known browser API; does not need Opus.
 - Exit criteria: matrix clean on Chrome + Safari + Firefox on Mac.
 - Suggested commit message: `test(scene): verify fullscreen behavior`
 
+---
+
+### Phase E — Player Geometry Strategy Spike
+
+#### Goal
+Decide *which* approach to take for fixing player geometry before
+shipping any redesign. Output is a written recommendation with a
+small prototype, not a finished player.
+
+#### Why this phase matters
+Player geometry has been polished twice already inside the
+procedural builder and still reads as "boxes." Investing another
+round of refinement without a strategy decision risks a third
+polish loop with no real gain. This phase chooses the path.
+
+#### Files likely involved
+- Read: `apps/web/components/scenario3d/imperativeScene.ts`
+  (`buildPlayerFigure` ~L3193, palette + ring stack ~L3198–L3289).
+- Read: `courtiq-premium-scene-visual-system-plan.md` Sections 6,
+  13, 14, 17.5 (safest files to edit), 18.4 (stance flag).
+- Optional prototype edits in a scratch branch only — do not
+  land prototype code on the recovery branch.
+
+#### Risks / boundaries
+- Do not implement the redesign in this phase. Phase F does that.
+- Do not import a heavy mesh library (Mac perf budget).
+- Do not change palette or indicator stack here.
+- Do not break the existing builder; prototypes live behind a
+  flag or in a sibling file.
+
+#### Acceptance criteria
+- A written comparison of options A–D exists in this doc.
+- Each option lists pros, cons, perf cost, and risk to existing
+  code.
+- A single chosen path is named with rationale.
+- A small prototype (in a scratch branch) demonstrates the chosen
+  path is feasible on Mac.
+- Phase F's micro-milestone list updates to match the chosen path.
+
+#### Suggested model
+**Opus 4.7 Max.** Architecture decision with downstream cost; max
+thinking is worth the spend.
+
+#### Suggested commit style
+- 1 audit/comparison commit (docs).
+- 0–1 prototype commits (scratch branch only; do not merge yet).
+- 1 decision commit (docs: chosen path + Phase F update).
+
+#### Micro-milestones
+
+**E1 — Audit why current geometry still fails**
+- Objective: name the specific reasons the current procedural
+  builder reads as placeholder (silhouette, joint articulation,
+  shoulder/hip mass, head proportion, stance differentiation).
+- Likely files: docs only.
+- What changes: append a "Geometry Failure Audit" subsection.
+- Exit criteria: each Section 2.3 symptom traced to a specific
+  primitive choice in `buildPlayerFigure`.
+- Suggested commit message: `docs: audit player geometry failures`
+
+**E2 — Compare geometry strategies**
+- Objective: write up options A–D with concrete pros/cons.
+  - A. Improve current procedural primitives again
+  - B. Build a better reusable low-poly player mesh in code
+  - C. Use a lightweight imported model (glTF) if the stack
+    supports it
+  - D. Hybrid (e.g., procedural torso + imported head/limbs, or
+    code mesh with imported textures)
+- Likely files: docs only.
+- What changes: append a "Strategy Comparison" subsection.
+- Exit criteria: each option has perf estimate, integration cost,
+  risk to indicators/stances, and a one-paragraph verdict.
+- Suggested commit message: `docs: compare player geometry strategies`
+
+**E3 — Prototype recommendation**
+- Objective: build the smallest possible prototype of the
+  leading option in a scratch branch, screenshot it, and measure
+  Mac frame rate.
+- Likely files: scratch branch only.
+- What changes: a single prototype file or a behind-flag path
+  in `imperativeScene.ts`; screenshots saved under
+  `docs/screenshots/recovery-e3/`.
+- Exit criteria: feasibility confirmed (renders, perf-safe,
+  preserves indicators).
+- Suggested commit message: `spike: prototype player geometry option`
+
+**E4 — Choose implementation path**
+- Objective: lock the chosen option, document why, and update
+  Phase F micro-milestones to match.
+- Likely files: this doc.
+- What changes: append a "Chosen Path" subsection; rewrite Phase
+  F micro-milestones to be specific to the chosen option.
+- Exit criteria: Phase F is implementation-ready against the
+  chosen path.
+- Suggested commit message: `docs: choose player geometry path`
+
 
 
