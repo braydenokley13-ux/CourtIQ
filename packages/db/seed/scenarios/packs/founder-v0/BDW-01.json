@@ -29,35 +29,35 @@
       ],
       "ball_location": { "x": 160, "y": 140 }
     },
-    "prompt": "Your defender is sitting on the reversal. What is the smartest move right now?",
+    "prompt": "Your defender is blocking the pass. What do you do?",
     "choices": [
       {
         "id": "c1",
-        "label": "Cut backdoor behind the defender.",
+        "label": "Cut behind him to the basket.",
         "quality": "best",
-        "feedback_text": "Best read. The defender is guarding the pass, not the basket — punish that with a plant-and-go.",
+        "feedback_text": "Best read. The defender is blocking the pass, so the basket is open. Cut behind him.",
         "order": 1
       },
       {
         "id": "c2",
-        "label": "V-cut out to a deeper catch point.",
+        "label": "Step back out and ask for the ball.",
         "quality": "acceptable",
-        "feedback_text": "Acceptable. The V-cut keeps possession alive, but you traded a layup window for a contested perimeter catch.",
-        "partial_feedback_text": "Re-spacing keeps the play alive — the cleaner answer is the layup window behind the denying defender.",
+        "feedback_text": "Okay. You kept the play alive, but you missed the open layup behind your defender.",
+        "partial_feedback_text": "Stepping back keeps the play alive. The better read was to cut behind him for the layup.",
         "order": 2
       },
       {
         "id": "c3",
-        "label": "Stay on the wing and call for the ball.",
+        "label": "Stay still and call for the ball.",
         "quality": "wrong",
-        "feedback_text": "Wrong. The defender is already in the lane — forcing the reversal is a deflection or turnover.",
+        "feedback_text": "Not yet. Your defender is in the way. If you stand still, he steals the pass.",
         "order": 3
       },
       {
         "id": "c4",
-        "label": "Slowly cut in front of the defender.",
+        "label": "Cut in front of the defender.",
         "quality": "wrong",
-        "feedback_text": "Wrong. Cutting in front lets the defender ride your route — go behind them, not through them.",
+        "feedback_text": "Not yet. Cutting in front lets him follow you. Cut behind him instead.",
         "order": 4
       }
     ],
