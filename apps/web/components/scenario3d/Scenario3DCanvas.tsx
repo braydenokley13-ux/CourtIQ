@@ -198,6 +198,15 @@ export function Scenario3DCanvas({
   // through the parent's `onPhase` callback.
   const stateMachineRef = useRef<ReplayStateMachine | null>(null)
   const consumedChoiceRef = useRef<string | null>(null)
+  // Phase B / B1 — mirror the React `paused` and `playbackRate` props
+  // into refs so the state-machine subscribe callback can re-apply them
+  // after a leg swap. `MotionController.setMovements` (called by
+  // `startConsequence` / `startReplay`) hard-resets `pausedAtT = null`,
+  // so without this re-arm the consequence/replay leg always begins
+  // playing even when the user paused before picking. The two effects
+  // below keep the refs in lock-step with the React props.
+  const pausedRef = useRef<boolean>(false)
+  const playbackRateRef = useRef<number>(1)
   // Packet E (renderer-polish, learning overlays). Owns the imperative
   // teaching overlay group (paths, defender cues, spacing labels). Same
   // lifetime as the imperative scene group: built when the scene mounts,
@@ -663,6 +672,19 @@ export function Scenario3DCanvas({
               // ReplayState matches ReplayPhase 1:1 for the values the
               // train flow cares about; cast and forward.
               phaseListener?.(state as ReplayState as ReplayPhase)
+              // Phase B / B1 — re-apply React-owned playback flags after
+              // every state transition. `setMovements` (called by
+              // `startConsequence` / `startReplay`) clears `pausedAtT`,
+              // so without this re-arm the consequence and replay legs
+              // begin playing even when the user paused before picking.
+              // `setPaused` is idempotent (early-returns when state
+              // matches), so firing on every transition is safe; the
+              // initial `idle → setup → playing` chain after
+              // `machine.start()` calls `motion.reset()` is also covered
+              // here, fixing the mount race where `paused = true` was
+              // applied before `start()` then immediately reset.
+              const m = motionControllerRef.current
+              if (m && pausedRef.current) m.setPaused(true)
             })
             // Stash the unsubscribe on the ref so the cleanup below
             // can release it without re-importing the listener.
@@ -841,10 +863,12 @@ export function Scenario3DCanvas({
   // so the currently visible t does not jump. Defaults preserve the
   // pre-Packet-12 behavior when callers omit the new props.
   useEffect(() => {
+    playbackRateRef.current = playbackRate ?? 1
     motionControllerRef.current?.setPlaybackRate(playbackRate ?? 1)
   }, [playbackRate])
 
   useEffect(() => {
+    pausedRef.current = paused ?? false
     motionControllerRef.current?.setPaused(paused ?? false)
   }, [paused])
 

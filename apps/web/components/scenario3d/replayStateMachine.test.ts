@@ -360,6 +360,188 @@ describe('Phase H — consequence + replay budgets', () => {
   })
 })
 
+describe('Phase B / B1 — paused state across leg swap', () => {
+  // Recovery plan A2.1: `MotionController.setMovements` (called by
+  // `startConsequence` and `startReplay`) hard-resets `pausedAtT = null`,
+  // dropping the user's pause whenever the consequence or replay leg
+  // begins. The Phase B fix re-applies `setPaused` from the canvas
+  // subscriber on every state transition; the controller-level tests
+  // here lock in the contract the subscriber relies on.
+  it('setMovements clears the paused flag (documents existing behavior)', () => {
+    const scene = buildScene({
+      intro: [{ id: 'cut', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 500 }],
+      wrongDemos: [
+        {
+          choiceId: 'wait',
+          movements: [
+            { id: 'recover', playerId: 'user', kind: 'rotation', to: { x: 5, z: 10 }, durationMs: 400 },
+          ],
+        },
+      ],
+    })
+    const { motion } = makeMotion(scene)
+    motion.setPaused(true, 1000)
+    expect(motion.isPaused()).toBe(true)
+    motion.startConsequence('wait')
+    expect(motion.isPaused()).toBe(false)
+  })
+
+  it('re-applying setPaused after setMovements pauses the new leg at t=0', () => {
+    const scene = buildScene({
+      intro: [{ id: 'cut', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 500 }],
+      wrongDemos: [
+        {
+          choiceId: 'wait',
+          movements: [
+            { id: 'recover', playerId: 'user', kind: 'rotation', to: { x: 5, z: 10 }, durationMs: 400 },
+          ],
+        },
+      ],
+    })
+    const { motion } = makeMotion(scene)
+    motion.setPaused(true, 1000)
+    motion.startConsequence('wait')
+    // Canvas subscriber pattern: re-apply paused after the leg swap.
+    motion.setPaused(true, 1000)
+    motion.tick(1000)
+    expect(motion.isPaused()).toBe(true)
+    expect(motion.getElapsedMs(1000)).toBe(0)
+    // Even with real-time advancing, paused t stays clamped at 0.
+    expect(motion.getElapsedMs(1500)).toBe(0)
+    // Resuming at a later real time continues from t=0.
+    motion.setPaused(false, 1500)
+    expect(motion.isPaused()).toBe(false)
+  })
+
+  it('subscriber-driven re-arm keeps pause across frozen → consequence', () => {
+    const scene = buildScene({
+      freezeAtMs: 500,
+      intro: [
+        { id: 'cut', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 1500 },
+      ],
+      answerDemo: [
+        { id: 'demo', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 400 },
+      ],
+      wrongDemos: [
+        {
+          choiceId: 'wait',
+          movements: [
+            { id: 'recover', playerId: 'user', kind: 'rotation', to: { x: 5, z: 10 }, durationMs: 300 },
+          ],
+        },
+      ],
+    })
+    const { motion } = makeMotion(scene)
+    const machine = new ReplayStateMachine(motion, scene)
+
+    // Mirror the canvas subscriber: any time the state changes, re-apply
+    // the React-owned paused flag. We model the React state as a single
+    // mutable boolean here — the canvas reads from a ref initialised by
+    // the [paused] effect.
+    let userPaused = false
+    machine.subscribe(() => {
+      if (userPaused) motion.setPaused(true)
+    })
+
+    machine.start()
+    motion.tick(0)
+    motion.tick(0 + 250 + 600)
+    machine.tick(0 + 250 + 600)
+    expect(machine.getSnapshot().state).toBe('frozen')
+
+    // User pauses while frozen, then picks the wrong choice. The
+    // consequence leg's setMovements call clears the paused flag — the
+    // subscriber must re-arm it.
+    userPaused = true
+    motion.setPaused(true, 0 + 250 + 600)
+    machine.pickChoice('wait', 0 + 250 + 600)
+    expect(machine.getSnapshot().state).toBe('consequence')
+    expect(motion.isPaused()).toBe(true)
+    // Visible t for the new leg stays at 0 while paused.
+    expect(motion.getElapsedMs(0 + 250 + 600)).toBe(0)
+    expect(motion.getElapsedMs(0 + 250 + 600 + 1000)).toBe(0)
+  })
+
+  it('subscriber-driven re-arm keeps pause across consequence → replaying', () => {
+    // Models a user who wants the leg to advance but expects pause to
+    // continue applying on every subsequent leg. The user briefly
+    // releases pause to let the consequence leg finish, then re-engages
+    // pause, and the answer-demo replay leg honors the renewed pause.
+    const scene = buildScene({
+      freezeAtMs: 500,
+      intro: [
+        { id: 'cut', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 1500 },
+      ],
+      answerDemo: [
+        { id: 'demo', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 400 },
+      ],
+      wrongDemos: [
+        {
+          choiceId: 'wait',
+          movements: [
+            { id: 'recover', playerId: 'user', kind: 'rotation', to: { x: 5, z: 10 }, durationMs: 300 },
+          ],
+        },
+      ],
+    })
+    const { motion } = makeMotion(scene)
+    const machine = new ReplayStateMachine(motion, scene)
+
+    let userPaused = false
+    machine.subscribe(() => {
+      if (userPaused) motion.setPaused(true)
+    })
+
+    machine.start()
+    motion.tick(0)
+    motion.tick(0 + 250 + 600)
+    machine.tick(0 + 250 + 600)
+    machine.pickChoice('wait', 0 + 250 + 600)
+    expect(machine.getSnapshot().state).toBe('consequence')
+
+    // Run the consequence to completion (user not paused yet). The
+    // machine.tick after isPlaybackComplete fires startReplay, which
+    // calls setMovements again — at that exact transition the user
+    // just engaged pause from React, so the subscriber must re-arm it.
+    motion.tick(2000)
+    motion.tick(2000 + 250 + 400)
+    userPaused = true
+    motion.setPaused(true, 2000 + 250 + 400)
+    machine.tick(2000 + 250 + 400)
+    expect(machine.getSnapshot().state).toBe('replaying')
+    expect(motion.isPaused()).toBe(true)
+    expect(motion.getElapsedMs(2000 + 250 + 400)).toBe(0)
+  })
+
+  it('subscriber-driven re-arm covers the initial start() reset', () => {
+    // `machine.start()` calls `motion.reset()` before transitioning to
+    // `setup` / `playing`, so any pause set inline at mount is erased.
+    // The canvas relies on the subscriber firing for the `setup` /
+    // `playing` transitions to re-arm pause.
+    const scene = buildScene({
+      freezeAtMs: 500,
+      intro: [
+        { id: 'cut', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 1500 },
+      ],
+    })
+    const { motion } = makeMotion(scene)
+    const machine = new ReplayStateMachine(motion, scene)
+
+    const userPaused = true
+    machine.subscribe(() => {
+      if (userPaused) motion.setPaused(true)
+    })
+
+    // Inline mount-race: setPaused is called before start() resets.
+    motion.setPaused(true, 0)
+    machine.start()
+    expect(motion.isPaused()).toBe(true)
+    motion.tick(0)
+    // Visible t stays at 0 because pausedAtT is set.
+    expect(motion.getElapsedMs(0 + 1000)).toBe(0)
+  })
+})
+
 describe('Phase H — idle players honor the freeze snapshot', () => {
   // Bug fix: before Phase H, an idle player (no entry in the
   // consequence/replay leg's `byPlayer`) snapped back to its
