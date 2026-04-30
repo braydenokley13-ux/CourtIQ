@@ -4134,7 +4134,86 @@ function buildPremiumAthleteFigure(
   upgradePremiumArms(figure)
   upgradePremiumLegsAndFeet(figure)
   upgradePremiumUniform(figure, trimColor)
+  upgradePremiumRoleReadability(figure, hasBall, stance)
   return figure
+}
+
+/**
+ * Phase J4 — push role / stance readability further at gameplay
+ * camera by adding small, narrow visual cues that ride existing
+ * inputs (`hasBall`, `stance`). No new scenario data, no new
+ * indicator layers, no scoreboard changes.
+ *
+ * - Ball-handler wristband: a thin possession-color band on the
+ *   right forearm whenever `hasBall` is true. Reads as "this player
+ *   has the ball" even when the held basketball is occluded by
+ *   another figure or hidden behind a screen.
+ * - Defender forearm cuff: a thin trim-color cuff on the right
+ *   forearm for defensive stances (defensive / denial / closeout /
+ *   sag / shrink). Sells "geared-up defender" at a glance and helps
+ *   the BDW-01 denial silhouette read against the offense at the
+ *   broadcast camera distance.
+ */
+function upgradePremiumRoleReadability(
+  figure: THREE.Object3D,
+  hasBall: boolean,
+  stance: PlayerStance,
+): void {
+  const rightArm = figure.getObjectByName('rightArm') as THREE.Group | null
+  if (!rightArm) return
+  const foreArm = rightArm.getObjectByName('foreArm') as THREE.Group | null
+  if (!foreArm) return
+  // Ball-handler wristband — gold torus, low tess, near the wrist.
+  if (hasBall) {
+    const wristMat = new THREE.MeshStandardMaterial({
+      color: POSSESSION_RING_COLOR,
+      roughness: 0.55,
+      metalness: 0.18,
+    })
+    const wristband = new THREE.Mesh(
+      new THREE.TorusGeometry(ATH_FORE_ARM_R * 1.35, 0.05, 4, 12),
+      wristMat,
+    )
+    wristband.rotation.x = Math.PI / 2
+    wristband.position.y = -ATH_FORE_ARM_LENGTH * 0.92
+    foreArm.add(wristband)
+  }
+  // Defender cuff — trim-color torus slightly above the wristband so
+  // the two cues never overlap when both apply (a defender steal/
+  // possession transition is theoretically possible).
+  const isDefensive =
+    stance === 'defensive' ||
+    stance === 'denial' ||
+    stance === 'closeout' ||
+    stance === 'sag' ||
+    stance === 'shrink'
+  if (isDefensive) {
+    // Pull the trim color off the existing piping material added in
+    // J3E so we don't mint a brand new color reference per defender.
+    const torso = figure.getObjectByName('torso') as THREE.Group | null
+    let trimColor: THREE.ColorRepresentation = '#FFFFFF'
+    if (torso) {
+      for (const child of torso.children) {
+        if (child instanceof THREE.Mesh && child.geometry instanceof THREE.TorusGeometry) {
+          const m = child.material
+          if (m instanceof THREE.MeshStandardMaterial) trimColor = m.color.getHex()
+          break
+        }
+      }
+    }
+    const cuffMat = new THREE.MeshStandardMaterial({
+      color: trimColor,
+      roughness: 0.6,
+      metalness: 0.1,
+    })
+    const cuff = new THREE.Mesh(
+      new THREE.TorusGeometry(ATH_FORE_ARM_R * 1.30, 0.045, 4, 12),
+      cuffMat,
+    )
+    cuff.rotation.x = Math.PI / 2
+    cuff.position.y = -ATH_FORE_ARM_LENGTH * 0.72
+    foreArm.add(cuff)
+  }
 }
 
 /**
