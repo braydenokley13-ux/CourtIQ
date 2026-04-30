@@ -647,6 +647,126 @@ describe('Phase B / B2 — restart from done dispatches showAgain', () => {
   })
 })
 
+describe('Phase B / B3 — speed control across leg swaps', () => {
+  // Recovery plan A2.3: speed changes set at `frozen` (or any other
+  // pre-leg-swap state) must apply to the next leg from its first
+  // tick, with no perceptible visible-t jump. The controller's
+  // internal `playbackRate` already survives `setMovements`; B3 adds
+  // a defensive re-arm in the canvas subscriber so React state and
+  // controller state can never drift across a swap.
+  function makeSceneWithLegs(): Scene3D {
+    return {
+      id: 'sm_b3',
+      court: 'half',
+      camera: 'teaching_angle',
+      players: [
+        { id: 'user', team: 'offense', role: 'wing', start: { x: 0, z: 10 }, isUser: true },
+        { id: 'pg', team: 'offense', role: 'pg', start: { x: 5, z: 20 }, hasBall: true },
+      ],
+      ball: { start: { x: 5, z: 20 }, holderId: 'pg' },
+      movements: [
+        { id: 'cut', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 1500 },
+      ],
+      answerDemo: [
+        { id: 'demo', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 800 },
+      ],
+      wrongDemos: [
+        {
+          choiceId: 'wait',
+          movements: [
+            { id: 'recover', playerId: 'user', kind: 'rotation', to: { x: 5, z: 10 }, durationMs: 800 },
+          ],
+        },
+      ],
+      preAnswerOverlays: [],
+      postAnswerOverlays: [],
+      freezeAtMs: 500,
+      synthetic: false,
+    }
+  }
+
+  it('rate set at frozen applies to the consequence leg from t=0', () => {
+    const scene = makeSceneWithLegs()
+    const { motion } = makeMotion(scene)
+    const machine = new ReplayStateMachine(motion, scene)
+
+    // Subscriber-driven re-arm — pulls the latest rate from a closure
+    // (mirrors the canvas's playbackRateRef).
+    let userRate = 1
+    machine.subscribe(() => {
+      motion.setPlaybackRate(userRate)
+    })
+
+    machine.start()
+    motion.tick(0)
+    motion.tick(0 + 250 + 600)
+    machine.tick(0 + 250 + 600)
+    expect(machine.getSnapshot().state).toBe('frozen')
+
+    // User selects 2x while frozen, then picks the wrong choice.
+    const tFrozen = 0 + 250 + 600
+    userRate = 2
+    motion.setPlaybackRate(2, tFrozen)
+    machine.pickChoice('wait', tFrozen)
+    expect(motion.getPlaybackRate()).toBe(2)
+
+    // Anchor the new leg with a tick at the same instant as the swap.
+    motion.tick(tFrozen)
+    // After PRE_DELAY (250ms) + 200ms of real time the consequence leg
+    // should have advanced by 400ms of visible t (2x rate).
+    motion.tick(tFrozen + 250 + 200)
+    expect(motion.getElapsedMs(tFrozen + 250 + 200)).toBeCloseTo(400, 5)
+  })
+
+  it('subscriber re-arm of setPlaybackRate is idempotent (no t-jump)', () => {
+    const scene = makeSceneWithLegs()
+    const { motion } = makeMotion(scene)
+    motion.setPlaybackRate(0.5, 0)
+    motion.tick(0)
+    motion.tick(0 + 250 + 200)
+    const before = motion.getElapsedMs(0 + 250 + 200)
+    // Re-apply the same rate (canvas subscriber pattern).
+    motion.setPlaybackRate(0.5, 0 + 250 + 200)
+    const after = motion.getElapsedMs(0 + 250 + 200)
+    expect(after).toBe(before)
+  })
+
+  it('rate persists across showAgain (done → replaying)', () => {
+    const scene = makeSceneWithLegs()
+    const { motion } = makeMotion(scene)
+    const machine = new ReplayStateMachine(motion, scene)
+    // Drive at 1x to keep timing math simple; rate is set later.
+    machine.subscribe(() => {
+      motion.setPlaybackRate(motion.getPlaybackRate())
+    })
+
+    machine.start()
+    motion.tick(0)
+    motion.tick(0 + 250 + 600)
+    machine.tick(0 + 250 + 600)
+    machine.pickChoice('best_choice', 0 + 250 + 600)
+    motion.tick(2000)
+    motion.tick(2000 + 250 + 900)
+    machine.tick(2000 + 250 + 900)
+    expect(machine.getSnapshot().state).toBe('done')
+
+    // User flips to 0.5x at done, then triggers Show me again.
+    motion.setPlaybackRate(0.5, 3000)
+    machine.showAgain()
+    expect(machine.getSnapshot().state).toBe('replaying')
+    expect(motion.getPlaybackRate()).toBe(0.5)
+    // Anchor the leg, then advance: at 0.5x, 200ms real → 100ms t.
+    motion.tick(3000)
+    motion.tick(3000 + 250 + 200)
+    expect(motion.getElapsedMs(3000 + 250 + 200)).toBeCloseTo(100, 5)
+
+    // Re-applying the same rate does not jump visible t (idempotent).
+    const before = motion.getElapsedMs(3000 + 250 + 200)
+    motion.setPlaybackRate(0.5, 3000 + 250 + 200)
+    expect(motion.getElapsedMs(3000 + 250 + 200)).toBe(before)
+  })
+})
+
 describe('Phase H — idle players honor the freeze snapshot', () => {
   // Bug fix: before Phase H, an idle player (no entry in the
   // consequence/replay leg's `byPlayer`) snapped back to its

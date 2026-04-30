@@ -683,8 +683,20 @@ export function Scenario3DCanvas({
               // `machine.start()` calls `motion.reset()` is also covered
               // here, fixing the mount race where `paused = true` was
               // applied before `start()` then immediately reset.
+              //
+              // Phase B / B3 — defensively re-apply playbackRate too.
+              // The controller preserves its internal rate across
+              // `setMovements`, but re-asserting it on every transition
+              // closes any drift between the React state and the
+              // controller (e.g., if a React-side change ever fired
+              // out-of-order with the leg swap). `setPlaybackRate`
+              // early-returns when the rate already matches, so this
+              // is also a no-op on the happy path.
               const m = motionControllerRef.current
-              if (m && pausedRef.current) m.setPaused(true)
+              if (m) {
+                m.setPlaybackRate(playbackRateRef.current)
+                if (pausedRef.current) m.setPaused(true)
+              }
             })
             // Stash the unsubscribe on the ref so the cleanup below
             // can release it without re-importing the listener.
