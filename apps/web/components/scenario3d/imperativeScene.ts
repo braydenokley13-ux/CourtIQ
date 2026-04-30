@@ -3518,30 +3518,30 @@ export function buildPlayerFigure(
 // 2400-tri ceiling is preserved.
 const ATH_TOTAL_HEIGHT = 5.95
 const ATH_FOOT_HEIGHT = 0.18
-const ATH_FOOT_LENGTH = 1.08
-const ATH_FOOT_WIDTH = 0.50
+const ATH_FOOT_LENGTH = 1.12
+const ATH_FOOT_WIDTH = 0.54
 const ATH_CALF_LENGTH = 1.25
-const ATH_CALF_TOP_R = 0.22
+const ATH_CALF_TOP_R = 0.235
 const ATH_CALF_BOT_R = 0.16
 const ATH_THIGH_LENGTH = 1.45
-const ATH_THIGH_TOP_R = 0.30
+const ATH_THIGH_TOP_R = 0.32
 const ATH_THIGH_BOT_R = 0.23
 const ATH_PELVIS_HEIGHT = 0.58
-const ATH_PELVIS_WIDTH = 1.10
-const ATH_PELVIS_DEPTH = 0.86
+const ATH_PELVIS_WIDTH = 1.16
+const ATH_PELVIS_DEPTH = 0.84
 const ATH_TORSO_HEIGHT = 1.58
-const ATH_TORSO_TOP_W = 1.42
-const ATH_TORSO_BOT_W = 1.05
-const ATH_TORSO_DEPTH = 0.88
-const ATH_NECK_LENGTH = 0.22
-const ATH_NECK_R = 0.16
-const ATH_HEAD_R = 0.42
+const ATH_TORSO_TOP_W = 1.52
+const ATH_TORSO_BOT_W = 0.98
+const ATH_TORSO_DEPTH = 0.84
+const ATH_NECK_LENGTH = 0.20
+const ATH_NECK_R = 0.15
+const ATH_HEAD_R = 0.39
 const ATH_UPPER_ARM_LENGTH = 0.95
-const ATH_UPPER_ARM_R = 0.17
+const ATH_UPPER_ARM_R = 0.18
 const ATH_FORE_ARM_LENGTH = 0.95
-const ATH_FORE_ARM_R = 0.14
-const ATH_HIP_GAP = 0.50
-const ATH_SHOULDER_WIDTH = 1.50
+const ATH_FORE_ARM_R = 0.145
+const ATH_HIP_GAP = 0.58
+const ATH_SHOULDER_WIDTH = 1.64
 
 // Anchor heights derived once from the proportions above. `_Y` is the
 // world-space y of the *anchor pivot* on the figure root (origin =
@@ -3582,8 +3582,8 @@ function buildAthleteFigure(
   // existing builder so per-figure dispose count stays constant.
   const jerseyMat = new THREE.MeshStandardMaterial({
     color: teamColor,
-    roughness: 0.6,
-    metalness: 0.06,
+    roughness: 0.68,
+    metalness: 0.02,
   })
   const shortsMat = new THREE.MeshStandardMaterial({
     color: darkenHex(teamColor, SHORTS_DARKEN),
@@ -3597,8 +3597,8 @@ function buildAthleteFigure(
   })
   const shoeMat = new THREE.MeshStandardMaterial({
     color: SHOE_COLOR,
-    roughness: 0.45,
-    metalness: 0.18,
+    roughness: 0.58,
+    metalness: 0.08,
   })
   const accentMat = new THREE.MeshStandardMaterial({
     color: ACCENT_COLOR,
@@ -3750,7 +3750,7 @@ function buildAthleteFigure(
     skinMat,
   )
   headMesh.position.y = ATH_NECK_LENGTH + ATH_HEAD_R
-  headMesh.scale.set(1, 1.04, 0.97)
+  headMesh.scale.set(0.93, 1.1, 0.98)
   headMesh.castShadow = true
   neckHead.add(headMesh)
   // Hair cap — Phase L9 lifts the hair from `#1B1208` (near-black,
@@ -3765,11 +3765,11 @@ function buildAthleteFigure(
     metalness: 0,
   })
   const hairMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(ATH_HEAD_R * 1.04, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.62),
+    new THREE.SphereGeometry(ATH_HEAD_R * 1.04, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.68),
     hairMat,
   )
-  hairMesh.position.y = ATH_NECK_LENGTH + ATH_HEAD_R - 0.02
-  hairMesh.scale.set(1.02, 1.06, 0.99)
+  hairMesh.position.y = ATH_NECK_LENGTH + ATH_HEAD_R - 0.04
+  hairMesh.scale.set(1.06, 1.03, 1.04)
   hairMesh.castShadow = true
   neckHead.add(hairMesh)
 
@@ -4014,7 +4014,7 @@ function buildAthleteFigure(
   // Possession ring tessellation tuned to fit the per-figure tri
   // budget (E4 §5). Reads identical at default DPR.
   const possession = new THREE.Mesh(
-    new THREE.RingGeometry(PLAYER_RADIUS + 0.55, PLAYER_RADIUS + 0.85, 36),
+    new THREE.RingGeometry(PLAYER_RADIUS + 0.55, PLAYER_RADIUS + 0.85, 28),
     new THREE.MeshBasicMaterial({
       color: POSSESSION_RING_COLOR,
       toneMapped: false,
@@ -4029,10 +4029,10 @@ function buildAthleteFigure(
 
   const ringInner = PLAYER_RADIUS + 0.2
   const ringOuter = isUser ? PLAYER_RADIUS + 0.7 : PLAYER_RADIUS + 0.55
-  // Ring segments dropped from 64 → 48 to fit the per-figure tri
-  // budget; the floor disc reads identical at default DPR.
+  // Ring segments are kept intentionally low because these indicators
+  // are always viewed from the gameplay camera, not inspected up close.
   const ring = new THREE.Mesh(
-    new THREE.RingGeometry(ringInner, ringOuter, 36),
+    new THREE.RingGeometry(ringInner, ringOuter, 28),
     new THREE.MeshBasicMaterial({
       color: teamColor,
       toneMapped: false,
@@ -4046,7 +4046,7 @@ function buildAthleteFigure(
   baseLayer.add(ring)
 
   const innerOutline = new THREE.Mesh(
-    new THREE.RingGeometry(ringInner - 0.07, ringInner, 36),
+    new THREE.RingGeometry(ringInner - 0.07, ringInner, 28),
     new THREE.MeshBasicMaterial({
       color: '#FFFFFF',
       toneMapped: false,
@@ -4061,7 +4061,7 @@ function buildAthleteFigure(
 
   if (isUser) {
     const halo = new THREE.Mesh(
-      new THREE.RingGeometry(ringOuter + 0.05, ringOuter + 0.6, 36),
+      new THREE.RingGeometry(ringOuter + 0.05, ringOuter + 0.6, 28),
       new THREE.MeshBasicMaterial({
         color: USER_COLOR,
         toneMapped: false,
@@ -4075,7 +4075,7 @@ function buildAthleteFigure(
     userLayer.add(halo)
 
     const softHalo = new THREE.Mesh(
-      new THREE.RingGeometry(ringOuter + 0.65, ringOuter + 1.4, 36),
+      new THREE.RingGeometry(ringOuter + 0.65, ringOuter + 1.4, 28),
       new THREE.MeshBasicMaterial({
         color: USER_COLOR,
         toneMapped: false,
@@ -4277,24 +4277,38 @@ function upgradePremiumUniform(figure: THREE.Object3D, trimColor: string): void 
   }
   // Pull the shorts material off the pelvis cylinder mesh.
   let shortsMat: THREE.MeshStandardMaterial | null = null
+  let shortsMesh: THREE.Mesh | null = null
   for (const child of pelvis.children) {
     if (child instanceof THREE.Mesh && child.geometry instanceof THREE.CylinderGeometry) {
       const m = child.material
       if (m instanceof THREE.MeshStandardMaterial) shortsMat = m
+      shortsMesh = child
       break
     }
   }
   if (jerseyMat) {
-    // Slightly smoother jersey so the deltoid cap and torso curves
-    // pick up the rim light without going plasticky.
-    jerseyMat.roughness = 0.52
-    jerseyMat.metalness = 0.04
+    // Matte fabric: enough rim-light response to show shape, without
+    // the shiny toy/plastic feel.
+    jerseyMat.roughness = 0.66
+    jerseyMat.metalness = 0.01
   }
   if (shortsMat) {
     // Shorts stay matte and a touch rougher than the jersey so the
     // two pieces of the uniform read as distinct fabrics.
-    shortsMat.roughness = 0.84
+    shortsMat.roughness = 0.88
     shortsMat.metalness = 0
+  }
+  if (shortsMesh) {
+    const h = ATH_PELVIS_HEIGHT
+    const profile: THREE.Vector2[] = [
+      new THREE.Vector2(ATH_PELVIS_WIDTH * 0.43, h / 2),
+      new THREE.Vector2(ATH_PELVIS_WIDTH * 0.55, h * 0.16),
+      new THREE.Vector2(ATH_PELVIS_WIDTH * 0.58, -h * 0.20),
+      new THREE.Vector2(ATH_PELVIS_WIDTH * 0.53, -h / 2),
+    ]
+    const oldGeom = shortsMesh.geometry
+    shortsMesh.geometry = new THREE.LatheGeometry(profile, 10)
+    oldGeom.dispose()
   }
   // Shoulder piping ring — a thin trim-color torus that sits where the
   // trapezius dome meets the deltoid cap. Reads as a sleeve cuff at
@@ -4323,6 +4337,35 @@ function upgradePremiumUniform(figure: THREE.Object3D, trimColor: string): void 
   hem.position.y = -ATH_PELVIS_HEIGHT * 0.92
   hem.scale.set(1, ATH_PELVIS_DEPTH / ATH_PELVIS_WIDTH, 1)
   pelvis.add(hem)
+  if (jerseyMat) {
+    addJerseySleeves(figure, jerseyMat)
+  }
+}
+
+function addJerseySleeves(
+  figure: THREE.Object3D,
+  jerseyMat: THREE.Material,
+): void {
+  for (const armName of ['leftArm', 'rightArm'] as const) {
+    const arm = figure.getObjectByName(armName) as THREE.Group | null
+    const upperArm = arm?.getObjectByName('upperArm') as THREE.Group | null
+    if (!upperArm) continue
+    const sleeve = new THREE.Mesh(
+      new THREE.CylinderGeometry(
+        ATH_UPPER_ARM_R * 1.54,
+        ATH_UPPER_ARM_R * 1.34,
+        0.34,
+        8,
+        1,
+        false,
+      ),
+      jerseyMat,
+    )
+    sleeve.name = `${armName}-jersey-sleeve`
+    sleeve.position.y = -0.17
+    sleeve.castShadow = true
+    upperArm.add(sleeve)
+  }
 }
 
 /**
@@ -4627,11 +4670,11 @@ function upgradePremiumTorso(figure: THREE.Object3D): void {
   // unchanged so the V-taper from chest to waist becomes more
   // pronounced — the same shape an athletic figure makes.
   const profile: THREE.Vector2[] = [
-    new THREE.Vector2(ATH_TORSO_BOT_W * 0.50, -h / 2),
-    new THREE.Vector2(ATH_TORSO_BOT_W * 0.520, -h * 0.30),
-    new THREE.Vector2(ATH_TORSO_BOT_W * 0.580, -h * 0.05),
-    new THREE.Vector2(ATH_TORSO_TOP_W * 0.560, h * 0.20),
-    new THREE.Vector2(ATH_TORSO_TOP_W * 0.530, h * 0.40),
+    new THREE.Vector2(ATH_TORSO_BOT_W * 0.48, -h / 2),
+    new THREE.Vector2(ATH_TORSO_BOT_W * 0.50, -h * 0.30),
+    new THREE.Vector2(ATH_TORSO_BOT_W * 0.60, -h * 0.05),
+    new THREE.Vector2(ATH_TORSO_TOP_W * 0.58, h * 0.20),
+    new THREE.Vector2(ATH_TORSO_TOP_W * 0.54, h * 0.40),
     new THREE.Vector2(ATH_TORSO_TOP_W * 0.50, h / 2),
   ]
   const newGeom = new THREE.LatheGeometry(profile, 14)
@@ -4759,14 +4802,14 @@ function applyCloseoutPose(joints: AthleteJoints): void {
   joints.rightCalf.rotation.set(0.40, 0, 0)
   joints.rightFoot.rotation.set(0, 0, 0)
   // Body angled forward toward the shooter with the chest leading.
-  joints.pelvis.rotation.set(0.10, 0, 0)
-  joints.torso.rotation.set(-0.32, 0, 0)
-  joints.neckHead.rotation.set(0.15, 0, 0)
-  // Both arms wide and up — palms-forward closeout shape.
-  joints.leftUpperArm.rotation.set(-0.85, 0, 1.20)
-  joints.leftForeArm.rotation.set(-0.35, 0, 0)
-  joints.rightUpperArm.rotation.set(-0.85, 0, -1.20)
-  joints.rightForeArm.rotation.set(-0.35, 0, 0)
+  joints.pelvis.rotation.set(0.12, -0.05, 0.02)
+  joints.torso.rotation.set(-0.34, 0.04, -0.02)
+  joints.neckHead.rotation.set(0.16, -0.04, 0)
+  // Arms are still clearly wide and up, but not perfectly mirrored.
+  joints.leftUpperArm.rotation.set(-0.95, 0, 1.12)
+  joints.leftForeArm.rotation.set(-0.42, 0, 0.04)
+  joints.rightUpperArm.rotation.set(-0.78, 0, -1.28)
+  joints.rightForeArm.rotation.set(-0.30, 0, -0.04)
 }
 
 /**
@@ -4830,16 +4873,16 @@ function applyDefensivePose(joints: AthleteJoints): void {
   // Pelvis tilts forward a touch so the back is angled toward the
   // ball instead of straight up. Slightly more pronounced now to
   // match the deeper crouch.
-  joints.pelvis.rotation.set(0.22, 0, 0)
-  joints.torso.rotation.set(-0.22, 0, 0)
-  joints.neckHead.rotation.set(0.06, 0, 0)
+  joints.pelvis.rotation.set(0.24, -0.04, 0)
+  joints.torso.rotation.set(-0.24, 0.03, 0)
+  joints.neckHead.rotation.set(0.07, -0.06, 0)
   // Arms — both out and forward, palms-down basketball defensive
   // hands. Upper arm rotates outward + forward; forearm rotates
   // forward at the elbow so hands extend past the body.
-  joints.leftUpperArm.rotation.set(-0.55, 0, 0.85)
-  joints.leftForeArm.rotation.set(-0.45, 0, 0)
-  joints.rightUpperArm.rotation.set(-0.55, 0, -0.85)
-  joints.rightForeArm.rotation.set(-0.45, 0, 0)
+  joints.leftUpperArm.rotation.set(-0.58, 0, 0.92)
+  joints.leftForeArm.rotation.set(-0.52, 0, 0.04)
+  joints.rightUpperArm.rotation.set(-0.46, 0, -0.78)
+  joints.rightForeArm.rotation.set(-0.36, 0, -0.04)
 }
 
 /**
@@ -4853,26 +4896,25 @@ function applyIdlePose(joints: AthleteJoints): void {
   // Light forward lean — athlete on the balls of their feet, not flat
   // on heels. The pelvis tilt and matching torso counter-tilt keep the
   // shoulders over the hips so the silhouette still reads "tall".
-  joints.pelvis.rotation.set(0.06, 0, 0)
-  joints.torso.rotation.set(-0.04, 0, 0)
-  joints.neckHead.rotation.set(0.02, 0, 0)
-  // Soft knee bend (~0.16 rad ≈ 9°). Small enough that the figure
-  // still reads as standing; large enough that the silhouette is
-  // visibly an athlete rather than a marionette.
-  joints.upperBody.position.y = -0.05
-  joints.leftThigh.rotation.set(-0.16, 0, -0.04)
+  joints.pelvis.rotation.set(0.07, -0.06, 0.02)
+  joints.torso.rotation.set(-0.07, 0.05, -0.01)
+  joints.neckHead.rotation.set(0.03, -0.04, 0)
+  // Asymmetric soft knee bend: one foot slightly loaded, one ready to
+  // step. This keeps idle players alive without adding animation cost.
+  joints.upperBody.position.y = -0.07
+  joints.leftThigh.rotation.set(-0.18, 0, -0.06)
   joints.leftCalf.rotation.set(0.16, 0, 0)
-  joints.leftFoot.rotation.set(0, 0, 0)
-  joints.rightThigh.rotation.set(-0.16, 0, 0.04)
-  joints.rightCalf.rotation.set(0.16, 0, 0)
-  joints.rightFoot.rotation.set(0, 0, 0)
+  joints.leftFoot.rotation.set(0, 0.04, 0)
+  joints.rightThigh.rotation.set(-0.10, 0, 0.08)
+  joints.rightCalf.rotation.set(0.12, 0, 0)
+  joints.rightFoot.rotation.set(0, -0.06, 0)
   // Arms — loose at the sides but slightly forward and elbows broken,
   // not glued straight down the seam. This is what a real off-ball
   // player looks like waiting for a screen.
-  joints.leftUpperArm.rotation.set(0.18, 0, 0.22)
-  joints.leftForeArm.rotation.set(-0.20, 0, 0)
-  joints.rightUpperArm.rotation.set(0.18, 0, -0.22)
-  joints.rightForeArm.rotation.set(-0.20, 0, 0)
+  joints.leftUpperArm.rotation.set(0.12, 0, 0.30)
+  joints.leftForeArm.rotation.set(-0.28, 0, 0.05)
+  joints.rightUpperArm.rotation.set(0.25, 0, -0.18)
+  joints.rightForeArm.rotation.set(-0.16, 0, -0.05)
 }
 
 /**
