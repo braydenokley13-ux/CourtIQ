@@ -4102,35 +4102,73 @@ function buildAthleteFigure(
   headMesh.castShadow = true
   neckHead.add(headMesh)
 
-  const leftLeg = new THREE.Group()
-  leftLeg.name = 'leftLeg'
-  leftLeg.position.set(-ATH_HIP_GAP / 2, 0, 0)
-  const leftThigh = new THREE.Group()
-  leftThigh.name = 'thigh'
-  const leftCalf = new THREE.Group()
-  leftCalf.name = 'calf'
-  leftCalf.position.set(0, -ATH_THIGH_LENGTH, 0)
-  const leftFoot = new THREE.Group()
-  leftFoot.name = 'foot'
-  leftFoot.position.set(0, -ATH_CALF_LENGTH, 0)
-  leftCalf.add(leftFoot)
-  leftThigh.add(leftCalf)
-  leftLeg.add(leftThigh)
+  // Build a leg sub-tree at a given hip x offset. The thigh's pivot
+  // is at the hip, the calf pivot at the knee, the foot pivot at
+  // the ankle — so future stance code can rotate at any of those
+  // joints without translating siblings. Each segment's mesh is
+  // anchored downward from the pivot via `position.y = -length/2`,
+  // which means a `rotation.x` on the joint pitches the segment
+  // around the joint as a real bone would.
+  const buildLeg = (hipX: number) => {
+    const leg = new THREE.Group()
+    leg.position.set(hipX, 0, 0)
 
-  const rightLeg = new THREE.Group()
+    const thigh = new THREE.Group()
+    thigh.name = 'thigh'
+
+    const thighMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(
+        ATH_THIGH_TOP_R,
+        ATH_THIGH_BOT_R,
+        ATH_THIGH_LENGTH,
+        10,
+        1,
+        false,
+      ),
+      skinMat,
+    )
+    thighMesh.position.y = -ATH_THIGH_LENGTH * 0.5
+    thighMesh.castShadow = true
+    thigh.add(thighMesh)
+
+    const calf = new THREE.Group()
+    calf.name = 'calf'
+    calf.position.set(0, -ATH_THIGH_LENGTH, 0)
+    const calfMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(
+        ATH_CALF_TOP_R,
+        ATH_CALF_BOT_R,
+        ATH_CALF_LENGTH,
+        10,
+        1,
+        false,
+      ),
+      skinMat,
+    )
+    calfMesh.position.y = -ATH_CALF_LENGTH * 0.5
+    calfMesh.castShadow = true
+    calf.add(calfMesh)
+
+    const foot = new THREE.Group()
+    foot.name = 'foot'
+    foot.position.set(0, -ATH_CALF_LENGTH, 0)
+    // Shoe geometry attaches in F1A.7. Foot group exists now so the
+    // taxonomy is stable across atomic commits.
+
+    calf.add(foot)
+    thigh.add(calf)
+    leg.add(thigh)
+    return { leg, thigh, calf, foot }
+  }
+
+  const leftLegParts = buildLeg(-ATH_HIP_GAP / 2)
+  const leftLeg = leftLegParts.leg
+  leftLeg.name = 'leftLeg'
+  const leftFoot = leftLegParts.foot
+  const rightLegParts = buildLeg(ATH_HIP_GAP / 2)
+  const rightLeg = rightLegParts.leg
   rightLeg.name = 'rightLeg'
-  rightLeg.position.set(ATH_HIP_GAP / 2, 0, 0)
-  const rightThigh = new THREE.Group()
-  rightThigh.name = 'thigh'
-  const rightCalf = new THREE.Group()
-  rightCalf.name = 'calf'
-  rightCalf.position.set(0, -ATH_THIGH_LENGTH, 0)
-  const rightFoot = new THREE.Group()
-  rightFoot.name = 'foot'
-  rightFoot.position.set(0, -ATH_CALF_LENGTH, 0)
-  rightCalf.add(rightFoot)
-  rightThigh.add(rightCalf)
-  rightLeg.add(rightThigh)
+  const rightFoot = rightLegParts.foot
 
   pelvis.add(leftLeg)
   pelvis.add(rightLeg)
@@ -4343,10 +4381,6 @@ function buildAthleteFigure(
   void ATH_TOTAL_HEIGHT
   void ATH_FOOT_LENGTH
   void ATH_FOOT_WIDTH
-  void ATH_CALF_TOP_R
-  void ATH_CALF_BOT_R
-  void ATH_THIGH_TOP_R
-  void ATH_THIGH_BOT_R
   void ATH_UPPER_ARM_R
   void ATH_FORE_ARM_LENGTH
   void ATH_FORE_ARM_R
