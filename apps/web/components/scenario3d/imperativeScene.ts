@@ -452,6 +452,29 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
  * does NOT cascade to attached maps — a leaked CanvasTexture (e.g. the
  * basketball surface map) would otherwise hang around forever.
  */
+/**
+ * Phase F4 — count triangles under the given object. Walks every
+ * descendant `THREE.Mesh.geometry` and sums `index.count / 3` (or
+ * `position.count / 3` for non-indexed geometry). Used by the
+ * disposal-leak test and by ad-hoc QA to keep the per-figure budget
+ * inside the E4 §5 envelope (~900–1100 target, 1500 hard ceiling).
+ */
+export function countTriangles(group: THREE.Object3D): number {
+  let total = 0
+  group.traverse((child) => {
+    const mesh = child as THREE.Mesh
+    if (!mesh.geometry) return
+    const idx = mesh.geometry.index
+    if (idx) {
+      total += idx.count / 3
+    } else {
+      const pos = mesh.geometry.attributes.position
+      if (pos) total += pos.count / 3
+    }
+  })
+  return total
+}
+
 export function disposeGroup(group: THREE.Object3D): void {
   group.traverse((child) => {
     const mesh = child as THREE.Mesh
@@ -3344,7 +3367,7 @@ const YOKE_Y = TORSO_Y + TORSO_HEIGHT / 2 - YOKE_HEIGHT * 0.55
  * phases can add `'closeout'`, `'sag'`, `'cut'` here without changing
  * the call sites — only `buildPlayerFigure` interprets the value.
  */
-type PlayerStance =
+export type PlayerStance =
   | 'idle'
   | 'defensive'
   | 'denial'
@@ -3408,7 +3431,12 @@ const USE_ATHLETE_BUILDER = true
  * `buildBasketballGroup` do not branch on geometry strategy —
  * everything routes through here.
  */
-function buildPlayerFigure(
+/**
+ * Exported for tests (disposal-leak guard, triangle-budget assert).
+ * Production code calls `buildBasketballGroup`, which calls this
+ * indirectly. Tests must preserve the public signature.
+ */
+export function buildPlayerFigure(
   teamColor: string,
   trimColor: string,
   isUser: boolean,
