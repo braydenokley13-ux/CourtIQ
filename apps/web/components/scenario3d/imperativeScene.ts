@@ -4173,80 +4173,47 @@ function buildPremiumAthleteFigure(
 }
 
 /**
- * Phase J4 — push role / stance readability further at gameplay
- * camera by adding small, narrow visual cues that ride existing
- * inputs (`hasBall`, `stance`). No new scenario data, no new
- * indicator layers, no scoreboard changes.
+ * Phase J4 / Phase K — role-readability cues. The Phase J pass shipped
+ * a possession wristband for the ball-handler AND a defender forearm
+ * cuff for every defensive stance. Phase K screenshot QA showed the
+ * defender cuff added visual noise at the gameplay camera distance
+ * without measurable teaching value — five defenders each wearing a
+ * trim-color cuff read as a uniform detail, not as a "this is the
+ * defender" cue. The cuff has been removed.
  *
- * - Ball-handler wristband: a thin possession-color band on the
- *   right forearm whenever `hasBall` is true. Reads as "this player
- *   has the ball" even when the held basketball is occluded by
- *   another figure or hidden behind a screen.
- * - Defender forearm cuff: a thin trim-color cuff on the right
- *   forearm for defensive stances (defensive / denial / closeout /
- *   sag / shrink). Sells "geared-up defender" at a glance and helps
- *   the BDW-01 denial silhouette read against the offense at the
- *   broadcast camera distance.
+ * The ball-handler wristband stays — exactly one figure per scenario
+ * wears it, and it remains a useful read when the basketball itself
+ * is occluded (held inside the silhouette, behind a screener, mid-
+ * pass arc). The wristband geometry is also tuned a hair smaller and
+ * less metallic so the cue reads as fabric athletic tape, not a gold
+ * cuff. `stance` is no longer consumed.
  */
 function upgradePremiumRoleReadability(
   figure: THREE.Object3D,
   hasBall: boolean,
-  stance: PlayerStance,
+  _stance: PlayerStance,
 ): void {
   const rightArm = figure.getObjectByName('rightArm') as THREE.Group | null
   if (!rightArm) return
   const foreArm = rightArm.getObjectByName('foreArm') as THREE.Group | null
   if (!foreArm) return
-  // Ball-handler wristband — gold torus, low tess, near the wrist.
+  // Ball-handler wristband — slimmer + less metallic than Phase J
+  // (radius 1.35x → 1.22x of the forearm; tube 0.05 → 0.04;
+  // metalness 0.18 → 0.08) so it reads as athletic tape rather than
+  // a gold accessory at gameplay camera distance.
   if (hasBall) {
     const wristMat = new THREE.MeshStandardMaterial({
       color: POSSESSION_RING_COLOR,
-      roughness: 0.55,
-      metalness: 0.18,
+      roughness: 0.7,
+      metalness: 0.08,
     })
     const wristband = new THREE.Mesh(
-      new THREE.TorusGeometry(ATH_FORE_ARM_R * 1.35, 0.05, 4, 12),
+      new THREE.TorusGeometry(ATH_FORE_ARM_R * 1.22, 0.04, 4, 12),
       wristMat,
     )
     wristband.rotation.x = Math.PI / 2
     wristband.position.y = -ATH_FORE_ARM_LENGTH * 0.92
     foreArm.add(wristband)
-  }
-  // Defender cuff — trim-color torus slightly above the wristband so
-  // the two cues never overlap when both apply (a defender steal/
-  // possession transition is theoretically possible).
-  const isDefensive =
-    stance === 'defensive' ||
-    stance === 'denial' ||
-    stance === 'closeout' ||
-    stance === 'sag' ||
-    stance === 'shrink'
-  if (isDefensive) {
-    // Pull the trim color off the existing piping material added in
-    // J3E so we don't mint a brand new color reference per defender.
-    const torso = figure.getObjectByName('torso') as THREE.Group | null
-    let trimColor: THREE.ColorRepresentation = '#FFFFFF'
-    if (torso) {
-      for (const child of torso.children) {
-        if (child instanceof THREE.Mesh && child.geometry instanceof THREE.TorusGeometry) {
-          const m = child.material
-          if (m instanceof THREE.MeshStandardMaterial) trimColor = m.color.getHex()
-          break
-        }
-      }
-    }
-    const cuffMat = new THREE.MeshStandardMaterial({
-      color: trimColor,
-      roughness: 0.6,
-      metalness: 0.1,
-    })
-    const cuff = new THREE.Mesh(
-      new THREE.TorusGeometry(ATH_FORE_ARM_R * 1.30, 0.045, 4, 12),
-      cuffMat,
-    )
-    cuff.rotation.x = Math.PI / 2
-    cuff.position.y = -ATH_FORE_ARM_LENGTH * 0.72
-    foreArm.add(cuff)
   }
 }
 
