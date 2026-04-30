@@ -2246,4 +2246,111 @@ Phase B QA Results subsection diff.
 
 ---
 
+### Phase B QA Results
+
+> Phase B landed B1–B5 on this branch. Subsection records the
+> automated coverage and the human-in-the-loop matrix Phase H should
+> walk on a real browser before the recovery is declared done.
+
+#### Files touched (Phase B)
+
+- `apps/web/components/scenario3d/Scenario3DCanvas.tsx`
+  - Added `pausedRef` / `playbackRateRef` / `pendingPickRef`.
+  - `[paused]` / `[playbackRate]` effects now sync the refs.
+  - `[resetCounter]` effect dispatches `machine.showAgain()` from
+    `done`, otherwise calls `motion.reset()`.
+  - `[pickedChoiceId]` effect buffers a pre-`frozen` pick.
+  - State-machine `subscribe` callback re-applies playbackRate +
+    paused on every transition and flushes the buffered pick on
+    `frozen`.
+  - Cleanup paths clear `pendingPickRef` alongside
+    `consumedChoiceRef`.
+- `apps/web/components/scenario3d/Scenario3DView.tsx`
+  - Paused + path-override reset effects depend on
+    `compositeResetCounter` so both reset paths align.
+  - `onRestart` no longer needs an explicit `setPaused(false)`.
+- `apps/web/components/scenario3d/replayStateMachine.test.ts`
+  - +15 tests across `Phase B / B1`, `Phase B / B2`, `Phase B / B3`,
+    and `Phase B / B4` describes.
+
+No edits to `MotionController`, `ReplayStateMachine`,
+`PremiumOverlay`, `app/train/page.tsx`, scenario JSON, the parent
+rAF loop, the FPS guard, or the simple/full-path pin.
+
+#### Automated test coverage
+
+```
+RUN  v2.1.9 /home/user/CourtIQ/apps/web
+
+✓ components/scenario3d/replayStateMachine.test.ts (29 tests) 13ms
+
+Test Files  1 passed (1)
+     Tests  29 passed (29)
+```
+
+Coverage map (Phase B additions):
+
+- B1 — paused across leg swap
+  - `setMovements` clears the paused flag (documents existing
+    behavior)
+  - re-applying `setPaused` after `setMovements` pauses the new leg
+    at t=0
+  - subscriber-driven re-arm keeps pause across `frozen → consequence`
+  - subscriber-driven re-arm keeps pause across
+    `consequence → replaying`
+  - subscriber-driven re-arm covers the initial `start()` reset
+- B2 — restart from done dispatches showAgain
+  - `motion.reset()` from `done` leaves the machine in `done`
+    (pre-fix behavior pinned for regression safety)
+  - canvas-style state-aware reset routes through `showAgain` when
+    in `done`
+  - canvas-style state-aware reset rewinds the active leg outside
+    `done`
+- B3 — speed control across leg swaps
+  - rate set at frozen applies to the consequence leg from t=0
+  - subscriber re-arm of `setPlaybackRate` is idempotent (no t-jump)
+  - rate persists across `showAgain` (`done → replaying`)
+- B4 — robust consequence dispatch
+  - buffers a pick that arrives before frozen and flushes on freeze
+  - happy path: pick at `frozen` still dispatches immediately
+  - best-read short-circuit is observable as a state transition
+  - idempotent: re-submitting the same pick after dispatch is a
+    no-op
+
+All 14 pre-Phase-B tests still pass.
+
+#### Lint / typecheck
+
+- `pnpm --filter @courtiq/web lint` — clean.
+- `pnpm --filter @courtiq/web typecheck` — pre-existing errors in
+  `lib/services/*` (Prisma client + workspace `@courtiq/core` not
+  generated in this environment). Verified by stashing the Phase B
+  diff: the same errors existed before any Phase B edit. No new
+  typecheck error was introduced by the Phase B changes; the
+  scenario3d / replay surfaces are clean.
+
+#### Manual QA matrix (deferred to Phase H)
+
+Phase B did not include a browser-driven QA pass — the recovery
+plan's Phase H is the integration / cohesion gate. Phase H should
+walk this matrix on BDW-01 in the real `/train` flow:
+
+- Pause / Play across each leg boundary (intro → frozen → consequence,
+  consequence → replaying, replaying → done).
+- Speed switches at 0.5x / 1x / 2x at every leg boundary.
+- Restart pressed in `playing`, `frozen`, `consequence`, `replaying`,
+  `done` — each lands in a coherent state.
+- Show me again pressed multiple times in a row from the Feedback
+  panel.
+- Wrong pick → consequence → replay → done, all four BDW-01 wrong
+  choices.
+- Right pick → answer-demo replay → done.
+- 30 s of button-mashing across all controls — no stuck state.
+- Camera selector + Paths toggle still work after every fix path.
+
+Phase B's job was to make these matrices *possible*; Phase H ratifies
+them on real hardware.
+
+---
+
 
