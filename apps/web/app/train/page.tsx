@@ -65,14 +65,14 @@ const DECODER_HANDOFF: Record<
 > = {
   BACKDOOR_WINDOW: {
     teachingPoint:
-      'When your defender sits in the passing lane, the basket is open behind them.',
-    lessonConnection: 'Read the defender, not the spot.',
+      'When your defender blocks the pass, the space behind him is open. Cut there.',
+    lessonConnection: 'Cut behind him when he blocks the pass.',
     lessonSlug: 'backdoor-window',
     selfReviewChecklist: [
-      'Did I see the hand-and-foot denial?',
-      'Did I plant and go behind, not in front?',
-      'Did I cut hard enough to make it a scoring cut?',
-      'Did I show target hands at the rim?',
+      'Did I see his hand and foot blocking the pass?',
+      'Did I cut behind him, not in front?',
+      'Did I cut hard, like I wanted the layup?',
+      'Did I show my hands at the rim?',
     ],
   },
   EMPTY_SPACE_CUT: {
