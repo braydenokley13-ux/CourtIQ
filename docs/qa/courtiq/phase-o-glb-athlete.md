@@ -241,3 +241,32 @@ When O2 clears, O4 will add:
 
 Until then, the loader does not exist.
 
+### O4 implementation sketch (to follow once asset lands)
+
+The loader path, when added, will respect every Phase O constraint:
+
+- **Off by default.** `USE_GLB_ATHLETE_PREVIEW = false` literally in the
+  source — no env-var wiring, no URL flag.
+- **Try/catch protected.** The selector branch in `buildPlayerFigure`
+  wraps `buildGlbAthletePreview(...)` in `try { ... } catch { /* fall
+  through */ }` exactly like the existing skinned branch does today
+  (`imperativeScene.ts:3480`).
+- **Fallback chain order.** GLB → skinned (if its flag is on) →
+  procedural premium (Phase J) → Phase F. The procedural figure is
+  always the guaranteed last resort.
+- **Separate from generated skinned preview.** The shim lives in a new
+  `glbAthlete.ts` module with its own builder, indicator-layer
+  attachment, and dispose-friendly geometry traversal. It does not
+  share state with `skinnedAthlete.ts`.
+- **No production default.** The flag stays `false` when the loader
+  ships. Visual QA flips it locally only, exactly the way Phase N
+  handled the skinned preview.
+- **No scenario JSON change.** The selector keys off the existing
+  flag, not on per-player metadata.
+- **No BDW-01 break.** Because the flag is `false` and the procedural
+  figure remains the last resort, BDW-01 renders the same Phase J
+  athlete it ships today.
+
+The loader is **not added in this pass** — this section only records the
+shape it will take so a follow-up author has a target.
+
