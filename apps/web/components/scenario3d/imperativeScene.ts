@@ -3516,20 +3516,31 @@ export function buildPlayerFigure(
 // Phase M — Skinned athlete preview (experimental, flag-gated)
 // =====================================================================
 //
-// Stub-only at M2. Returns `null` so the selector in
-// `buildPlayerFigure` falls through to the procedural path even if
-// `USE_SKINNED_ATHLETE_PREVIEW` is somehow enabled. Subsequent
-// commits in this phase replace the stub with a real generated
-// SkinnedMesh prototype + AnimationMixer support.
+// The skinned/animated player path lives in its own module
+// (`skinnedAthlete.ts`) so the experimental code never bloats the
+// procedural builder file. The selector in `buildPlayerFigure`
+// invokes this shim only when `USE_SKINNED_ATHLETE_PREVIEW` is true;
+// the shim delegates to the real builder, returning `null` when the
+// skinned path is not available so the caller can fall back to the
+// procedural figure.
+import { buildSkinnedAthletePreview } from './skinnedAthlete'
+
 function buildSkinnedAthleteFigure(
-  _teamColor: string,
-  _trimColor: string,
-  _isUser: boolean,
-  _hasBall: boolean,
-  _jerseyNumber: string,
-  _stance: PlayerStance,
+  teamColor: string,
+  trimColor: string,
+  isUser: boolean,
+  hasBall: boolean,
+  jerseyNumber: string,
+  stance: PlayerStance,
 ): THREE.Group | null {
-  return null
+  return buildSkinnedAthletePreview(
+    teamColor,
+    trimColor,
+    isUser,
+    hasBall,
+    jerseyNumber,
+    stance,
+  )
 }
 
 // =====================================================================
