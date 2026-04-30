@@ -4130,7 +4130,77 @@ function buildPremiumAthleteFigure(
     stance,
   )
   upgradePremiumTorso(figure)
+  upgradePremiumHeadAndShoulders(figure)
   return figure
+}
+
+/**
+ * Phase J3B — soften the head/neck/shoulder transition. Adds a
+ * trapezius dome that bridges the neck base into the deltoid caps so
+ * the head no longer reads as a ball perched on a tube, and drops a
+ * subtle jaw plane below the head sphere so the silhouette tapers
+ * toward the chin from broadcast camera. Reuses the Phase F skin and
+ * jersey materials by reading them off the existing meshes — no new
+ * shared materials, so per-figure dispose count is unchanged.
+ *
+ * Indicator anchor heights (chevron, halo) are not touched: the
+ * upper-body group still owns the chevron and rides up/down with
+ * stance translations exactly as in Phase F.
+ */
+function upgradePremiumHeadAndShoulders(figure: THREE.Object3D): void {
+  const torso = figure.getObjectByName('torso') as THREE.Group | null
+  const neckHead = figure.getObjectByName('neckHead') as THREE.Group | null
+  if (!torso || !neckHead) return
+  // Look up the jersey material from the upgraded torso main mesh
+  // (LatheGeometry). The skin material is on the neck cylinder which
+  // is the first cylinder child of neckHead.
+  let jerseyMat: THREE.Material | null = null
+  for (const child of torso.children) {
+    if (child instanceof THREE.Mesh && child.geometry instanceof THREE.LatheGeometry) {
+      const m = child.material
+      if (!Array.isArray(m)) jerseyMat = m
+      break
+    }
+  }
+  let skinMat: THREE.Material | null = null
+  for (const child of neckHead.children) {
+    if (child instanceof THREE.Mesh && child.geometry instanceof THREE.CylinderGeometry) {
+      const m = child.material
+      if (!Array.isArray(m)) skinMat = m
+      break
+    }
+  }
+  if (!jerseyMat || !skinMat) return
+  // Trapezius dome — flattened sphere riding on top of the torso just
+  // below the deltoid line. Bridges neck and shoulders so the
+  // transition reads continuous, not stepped.
+  const trapMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(
+      ATH_TORSO_TOP_W * 0.42,
+      12,
+      6,
+      0,
+      Math.PI * 2,
+      0,
+      Math.PI * 0.55,
+    ),
+    jerseyMat,
+  )
+  trapMesh.position.y = ATH_TORSO_HEIGHT * 0.92
+  trapMesh.scale.set(1, 0.42, ATH_TORSO_DEPTH / ATH_TORSO_TOP_W)
+  trapMesh.castShadow = true
+  torso.add(trapMesh)
+  // Subtle jaw plane — small flattened sphere just below the head
+  // that fakes a chin/jawline instead of leaving the neck flush with
+  // the back of the head sphere.
+  const jawMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(ATH_HEAD_R * 0.78, 8, 6, 0, Math.PI * 2, Math.PI * 0.55, Math.PI * 0.45),
+    skinMat,
+  )
+  jawMesh.position.y = ATH_NECK_LENGTH + ATH_HEAD_R * 0.55
+  jawMesh.scale.set(0.92, 1.0, 0.95)
+  jawMesh.castShadow = true
+  neckHead.add(jawMesh)
 }
 
 /**
