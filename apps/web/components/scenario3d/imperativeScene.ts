@@ -4296,6 +4296,23 @@ function buildAthleteFigure(
     foreArmMesh.position.y = -ATH_FORE_ARM_LENGTH * 0.5
     foreArmMesh.castShadow = true
     foreArm.add(foreArmMesh)
+    // Elbow dome — mirrors the knee. Sells the elbow break in
+    // denial / defensive arm poses.
+    const elbowDome = new THREE.Mesh(
+      new THREE.SphereGeometry(ATH_UPPER_ARM_R * 1.1, 8, 6),
+      skinMat,
+    )
+    elbowDome.position.y = 0
+    foreArm.add(elbowDome)
+    // Hand block — simple stylized fist at the end of the forearm.
+    // No fingers per E4 §4. Sells "this is a hand" at broadcast.
+    const hand = new THREE.Mesh(
+      new THREE.SphereGeometry(ATH_FORE_ARM_R * 1.45, 8, 6),
+      skinMat,
+    )
+    hand.position.y = -ATH_FORE_ARM_LENGTH - 0.02
+    hand.scale.set(1, 1.2, 0.95)
+    foreArm.add(hand)
 
     upperArm.add(foreArm)
     arm.add(upperArm)
