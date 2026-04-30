@@ -24,3 +24,11 @@ Design specs for the 3D film-room decision scenarios.
 - You (the user) are on the weak-side wing.
 - The weak-side corner is **empty** — no teammate there, no defender camped there.
 - Your defender is the weak-side wing defender, "in the gap" between you and the ball, eyes drifting toward the ball-handler.
+
+**Decision Moment:** The play freezes the instant your defender's head fully turns toward the ball. Their chest is still pointed at you, but their eyes are gone. The baseline path between you and the empty corner is wide open.
+
+**Visible Cue:**
+- Defender's head has rotated ~90° toward the ball.
+- Defender's lead foot is "pointed" at the ball, not at you.
+- The weak-side corner is empty — no body, no shadow.
+- The baseline lane (you → empty corner) is clean.
