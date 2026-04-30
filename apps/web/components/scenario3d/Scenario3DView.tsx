@@ -90,6 +90,18 @@ export function Scenario3DView(props: Scenario3DViewProps) {
     if (!el) return
     const onChange = () => {
       setIsFullscreen(!!document.fullscreenElement)
+      // Phase K — kick the renderer's ResizeObserver and the
+      // imperative camera's per-frame `setAspect` so the new viewport
+      // size is applied on the next paint instead of waiting for the
+      // R3F internal observer to coalesce. Without this, Safari has
+      // been observed to leave the canvas at its embedded size for a
+      // few hundred milliseconds after the fullscreen transition,
+      // producing the "court in a narrow top band" symptom.
+      if (typeof window !== 'undefined') {
+        window.requestAnimationFrame(() => {
+          window.dispatchEvent(new Event('resize'))
+        })
+      }
     }
     el.addEventListener('fullscreenchange', onChange)
     return () => el.removeEventListener('fullscreenchange', onChange)

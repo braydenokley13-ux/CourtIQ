@@ -200,6 +200,31 @@ function easeOutCubic(u: number): number {
   return 1 - inv * inv * inv
 }
 
+/** Phase K — front-weighted athletic ease for explosive moves. The
+ *  pre-Phase-K `easeOutCubic` had peak velocity at u=0 (f'(0)=3),
+ *  which made cuts feel like the player teleported off their idle
+ *  pose into the move — the "robotic snap" called out in the BDW-01
+ *  screenshot QA. This curve is `smoothstep(u^0.7)`: applying the
+ *  forward time-warp `u^0.7` first (front-loads the action) then
+ *  smoothing through `r^2*(3-2r)` so both endpoints have zero
+ *  derivative. Result:
+ *    - f(0) = 0, f(1) = 1
+ *    - f'(0) = 0 (smooth start, no snap from idle)
+ *    - f'(1) = 0 (smooth arrival, settles on the spot)
+ *    - f(0.25) ≈ 0.130 (still front-loaded relative to ease-in-out
+ *      cubic's 0.0625 at the same u, so the move still reads as
+ *      decisive)
+ *    - f(0.5) ≈ 0.670 (front-loaded relative to symmetric 0.5)
+ *  Back-to-back segments blend at u=1 → u=0 without a velocity
+ *  discontinuity, which is what eliminates the segment-seam stutter.
+ */
+function easeOutAthletic(u: number): number {
+  if (u <= 0) return 0
+  if (u >= 1) return 1
+  const r = Math.pow(u, 0.7)
+  return r * r * (3 - 2 * r)
+}
+
 /** Phase C / C3 — pick the eased curve for a movement kind. Cuts /
  *  drives / jabs / rips / baseline_sneak / stop_ball get ease-out so
  *  they feel like a player making a move; defensive movements
@@ -222,8 +247,17 @@ export function easeForKind(
     case 'jab':
     case 'rip':
     case 'stop_ball':
-      return easeOutCubic(u)
+      // Phase K — switched from easeOutCubic to easeOutAthletic so
+      // the player accelerates from rest instead of starting at peak
+      // velocity. Same arrival profile (zero velocity at u=1) so the
+      // "settle on the spot" feel is preserved.
+      return easeOutAthletic(u)
     default:
       return ease(u)
   }
 }
+
+// `easeOutCubic` is preserved for any future call sites that want the
+// old explosive-but-snappy curve (e.g. ball arc Y). The active dispatch
+// in `easeForKind` no longer references it directly.
+void easeOutCubic

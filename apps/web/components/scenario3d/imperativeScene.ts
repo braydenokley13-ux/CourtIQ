@@ -584,13 +584,17 @@ export interface CameraTarget {
 // AOR-01 closeout momentum, SKR-01 opposite corner — each stays in
 // frame end-to-end.
 const SCENE_FOCUS = new THREE.Vector3(0, 4, 18)
-// Broadcast: high 3/4 film-room. Camera at 22 ft (was 18) sits high
-// enough to read paint spacing without flattening hips/feet, slight
-// off-axis (+3x) so the sideline doesn't hide the wing, and the
-// look-at is at chest height so player silhouettes read above the
-// court rather than against it.
-const BROADCAST_POSITION = new THREE.Vector3(3, 22, 46)
-const BROADCAST_LOOKAT = new THREE.Vector3(0, 4, 18)
+// Broadcast: high 3/4 film-room. Phase K re-tune from Phase 5's
+// (3, 22, 46) — that pose sat the camera high and far enough back
+// that the players occupied only the upper third of the canvas at
+// 16:9, leaving a wide gray floor across the bottom. Pulling 8 ft
+// closer in z and 3 ft lower in y keeps the high 3/4 angle while
+// nearly doubling the apparent player height. The lookAt is brought
+// 2 ft forward to BDW-01's wing zone so the action sits dead-centre
+// in the canvas instead of in the upper band. FOV unchanged so the
+// hip / shoulder geometry is not distorted on close defenders.
+const BROADCAST_POSITION = new THREE.Vector3(2, 19, 38)
+const BROADCAST_LOOKAT = new THREE.Vector3(0, 4, 16)
 const BROADCAST_FOV = 40
 // Tactical: lifted off the previous near-top-down (52 ft was too
 // abstract per Section 9: "Top-down is too abstract"). 42 ft still
@@ -741,13 +745,14 @@ function computeAutoTarget(
   scene: Scene3D,
   aspect: number,
   fov: number,
-  // Phase 5: pitch 28° → 30°. Steeper pitch reads paint / arc /
-  // baseline spacing without flattening defender hips & feet
-  // (Section 9 high 3/4 baseline). Padding 1.18 → 1.14 brings the
-  // action closer so the ESC-01 / SKR-01 weak-side helpers don't
-  // get pushed to the edge by movement endpoints.
+  // Phase K re-tune. Padding 1.14 → 1.06 — the previous 14% safety
+  // margin produced a noticeable gray border around the action and
+  // made the trainer feel small even on a 16:9 fullscreen canvas.
+  // 6% leaves enough breathing room around movement endpoints
+  // without burning canvas pixels on empty floor. Pitch stays at
+  // 30° so the high-3/4 paint read is preserved.
   pitchDeg = 30,
-  padding = 1.14,
+  padding = 1.06,
 ): CameraTarget | null {
   const points: THREE.Vector3[] = []
   for (const p of scene.players) {
@@ -776,10 +781,14 @@ function computeAutoTarget(
 
   // Floor: always include a minimal "half-court visible" envelope so we
   // never frame so tightly that the user loses sense of where the rim,
-  // wings, and elbows sit relative to the action.
-  const HALF_COURT_FLOOR_X = 22
+  // wings, and elbows sit relative to the action. Phase K shrinks the
+  // envelope from x=±22 / z=[0,28] to x=±19 / z=[0,24] so scenarios
+  // whose action concentrates near the wing or rim do not get framed
+  // with a wide rim of empty floor. The teaching context — three-point
+  // arc, paint, both elbows — still fits inside ±19 × 24 ft.
+  const HALF_COURT_FLOOR_X = 19
   const HALF_COURT_FLOOR_Z_MIN = 0
-  const HALF_COURT_FLOOR_Z_MAX = 28
+  const HALF_COURT_FLOOR_Z_MAX = 24
   points.push(new THREE.Vector3(-HALF_COURT_FLOOR_X, 0, HALF_COURT_FLOOR_Z_MIN))
   points.push(new THREE.Vector3(HALF_COURT_FLOOR_X, 0, HALF_COURT_FLOOR_Z_MAX))
 
@@ -960,25 +969,34 @@ const MOTION_PRE_DELAY_MS = 250
  * Phase C / C2 — yaw smoothing time constants in seconds. The smaller
  * the constant, the snappier the body turn.
  *
- *  - Offense (`YAW_TIME_CONSTANT_OFFENSE_S`, ~0.18s) is fast enough to
- *    make a cut feel decisive without flicking when a cutter rotates
- *    through several waypoints.
- *  - Defense (`YAW_TIME_CONSTANT_DEFENSE_S`, ~0.10s) is intentionally
- *    snappier: defenders react with their bodies the moment the ball
- *    swings or the holder changes, which is the C4 "shift attention"
- *    cue. Still slow enough that micro-jitter from frame-to-frame ball
- *    positions does not show up as a flick.
+ *  - Offense (`YAW_TIME_CONSTANT_OFFENSE_S`, ~0.20s, Phase K bumped
+ *    from 0.18s) is fast enough to make a cut feel decisive without
+ *    flicking when a cutter rotates through several waypoints. The
+ *    extra 20ms knocks down a faint visible "settle" wobble at
+ *    cut endpoints when the body yaw catches up to the held pose.
+ *  - Defense (`YAW_TIME_CONSTANT_DEFENSE_S`, ~0.14s, Phase K bumped
+ *    from 0.10s) still keeps defenders reacting faster than offense
+ *    on holder swings (the C4 "shift attention" cue) but is no
+ *    longer snappy enough to read as twitchy / robotic when the ball
+ *    crosses the perimeter quickly. The screenshot QA called out
+ *    this micro-jitter as one of the trainer's stiffest tells.
  */
-const YAW_TIME_CONSTANT_OFFENSE_S = 0.18
-const YAW_TIME_CONSTANT_DEFENSE_S = 0.1
+const YAW_TIME_CONSTANT_OFFENSE_S = 0.2
+const YAW_TIME_CONSTANT_DEFENSE_S = 0.14
 
 /**
  * Phase C / C2 — squared minimum direction magnitude before we use
  * the per-frame movement-direction or defender→ball heuristic for
  * yaw. Below this, we fall back to the static team yaw so a paused
  * scene or an idle player does not chase a sub-pixel direction signal.
+ *
+ * Phase K bumped from 0.01 ft² (0.1 ft floor) to 0.04 ft² (0.2 ft
+ * floor) so a defender standing within 0.2 ft of the ball does not
+ * flicker yaw on every frame as a stationary holder breathes within
+ * sub-foot precision; the previous floor was tight enough that
+ * sub-pixel ball position drift was visible as a yaw twitch.
  */
-const MOVEMENT_DIRECTION_EPS_SQ = 0.01
+const MOVEMENT_DIRECTION_EPS_SQ = 0.04
 
 /**
  * Phase C / C5 — ball arc tuning.
@@ -3456,32 +3474,41 @@ export function buildPlayerFigure(
 // figure reads as a 6-ft athlete from broadcast: legs are roughly
 // half the standing height, V-tapered torso, distinct knee + elbow
 // pivots, broadcast-readable shoulders.
+//
+// Phase K — limb radii and torso/pelvis widths bumped 15–25% from
+// Phase J. The previous numbers read as anatomically-correct on a
+// close-up but stick-like at the broadcast camera distance: thigh
+// diameter (≈4.8 in), calf diameter (≈4.3 in) and upper-arm
+// diameter (≈3.1 in) all sat well below the proportions of an
+// actual playing athlete on TV. Triangle counts are unchanged
+// (lathe / cylinder segment counts are constant), so the Phase J
+// 2400-tri ceiling is preserved.
 const ATH_TOTAL_HEIGHT = 5.95
 const ATH_FOOT_HEIGHT = 0.18
-const ATH_FOOT_LENGTH = 1.05
-const ATH_FOOT_WIDTH = 0.46
+const ATH_FOOT_LENGTH = 1.08
+const ATH_FOOT_WIDTH = 0.50
 const ATH_CALF_LENGTH = 1.25
-const ATH_CALF_TOP_R = 0.18
-const ATH_CALF_BOT_R = 0.13
+const ATH_CALF_TOP_R = 0.22
+const ATH_CALF_BOT_R = 0.16
 const ATH_THIGH_LENGTH = 1.45
-const ATH_THIGH_TOP_R = 0.24
-const ATH_THIGH_BOT_R = 0.19
-const ATH_PELVIS_HEIGHT = 0.55
-const ATH_PELVIS_WIDTH = 1.0
-const ATH_PELVIS_DEPTH = 0.78
-const ATH_TORSO_HEIGHT = 1.55
-const ATH_TORSO_TOP_W = 1.25
-const ATH_TORSO_BOT_W = 0.95
-const ATH_TORSO_DEPTH = 0.78
+const ATH_THIGH_TOP_R = 0.30
+const ATH_THIGH_BOT_R = 0.23
+const ATH_PELVIS_HEIGHT = 0.58
+const ATH_PELVIS_WIDTH = 1.10
+const ATH_PELVIS_DEPTH = 0.86
+const ATH_TORSO_HEIGHT = 1.58
+const ATH_TORSO_TOP_W = 1.42
+const ATH_TORSO_BOT_W = 1.05
+const ATH_TORSO_DEPTH = 0.88
 const ATH_NECK_LENGTH = 0.22
-const ATH_NECK_R = 0.14
+const ATH_NECK_R = 0.16
 const ATH_HEAD_R = 0.42
 const ATH_UPPER_ARM_LENGTH = 0.95
-const ATH_UPPER_ARM_R = 0.13
+const ATH_UPPER_ARM_R = 0.17
 const ATH_FORE_ARM_LENGTH = 0.95
-const ATH_FORE_ARM_R = 0.11
-const ATH_HIP_GAP = 0.46
-const ATH_SHOULDER_WIDTH = 1.35
+const ATH_FORE_ARM_R = 0.14
+const ATH_HIP_GAP = 0.50
+const ATH_SHOULDER_WIDTH = 1.50
 
 // Anchor heights derived once from the proportions above. `_Y` is the
 // world-space y of the *anchor pivot* on the figure root (origin =
@@ -4146,80 +4173,47 @@ function buildPremiumAthleteFigure(
 }
 
 /**
- * Phase J4 — push role / stance readability further at gameplay
- * camera by adding small, narrow visual cues that ride existing
- * inputs (`hasBall`, `stance`). No new scenario data, no new
- * indicator layers, no scoreboard changes.
+ * Phase J4 / Phase K — role-readability cues. The Phase J pass shipped
+ * a possession wristband for the ball-handler AND a defender forearm
+ * cuff for every defensive stance. Phase K screenshot QA showed the
+ * defender cuff added visual noise at the gameplay camera distance
+ * without measurable teaching value — five defenders each wearing a
+ * trim-color cuff read as a uniform detail, not as a "this is the
+ * defender" cue. The cuff has been removed.
  *
- * - Ball-handler wristband: a thin possession-color band on the
- *   right forearm whenever `hasBall` is true. Reads as "this player
- *   has the ball" even when the held basketball is occluded by
- *   another figure or hidden behind a screen.
- * - Defender forearm cuff: a thin trim-color cuff on the right
- *   forearm for defensive stances (defensive / denial / closeout /
- *   sag / shrink). Sells "geared-up defender" at a glance and helps
- *   the BDW-01 denial silhouette read against the offense at the
- *   broadcast camera distance.
+ * The ball-handler wristband stays — exactly one figure per scenario
+ * wears it, and it remains a useful read when the basketball itself
+ * is occluded (held inside the silhouette, behind a screener, mid-
+ * pass arc). The wristband geometry is also tuned a hair smaller and
+ * less metallic so the cue reads as fabric athletic tape, not a gold
+ * cuff. `stance` is no longer consumed.
  */
 function upgradePremiumRoleReadability(
   figure: THREE.Object3D,
   hasBall: boolean,
-  stance: PlayerStance,
+  _stance: PlayerStance,
 ): void {
   const rightArm = figure.getObjectByName('rightArm') as THREE.Group | null
   if (!rightArm) return
   const foreArm = rightArm.getObjectByName('foreArm') as THREE.Group | null
   if (!foreArm) return
-  // Ball-handler wristband — gold torus, low tess, near the wrist.
+  // Ball-handler wristband — slimmer + less metallic than Phase J
+  // (radius 1.35x → 1.22x of the forearm; tube 0.05 → 0.04;
+  // metalness 0.18 → 0.08) so it reads as athletic tape rather than
+  // a gold accessory at gameplay camera distance.
   if (hasBall) {
     const wristMat = new THREE.MeshStandardMaterial({
       color: POSSESSION_RING_COLOR,
-      roughness: 0.55,
-      metalness: 0.18,
+      roughness: 0.7,
+      metalness: 0.08,
     })
     const wristband = new THREE.Mesh(
-      new THREE.TorusGeometry(ATH_FORE_ARM_R * 1.35, 0.05, 4, 12),
+      new THREE.TorusGeometry(ATH_FORE_ARM_R * 1.22, 0.04, 4, 12),
       wristMat,
     )
     wristband.rotation.x = Math.PI / 2
     wristband.position.y = -ATH_FORE_ARM_LENGTH * 0.92
     foreArm.add(wristband)
-  }
-  // Defender cuff — trim-color torus slightly above the wristband so
-  // the two cues never overlap when both apply (a defender steal/
-  // possession transition is theoretically possible).
-  const isDefensive =
-    stance === 'defensive' ||
-    stance === 'denial' ||
-    stance === 'closeout' ||
-    stance === 'sag' ||
-    stance === 'shrink'
-  if (isDefensive) {
-    // Pull the trim color off the existing piping material added in
-    // J3E so we don't mint a brand new color reference per defender.
-    const torso = figure.getObjectByName('torso') as THREE.Group | null
-    let trimColor: THREE.ColorRepresentation = '#FFFFFF'
-    if (torso) {
-      for (const child of torso.children) {
-        if (child instanceof THREE.Mesh && child.geometry instanceof THREE.TorusGeometry) {
-          const m = child.material
-          if (m instanceof THREE.MeshStandardMaterial) trimColor = m.color.getHex()
-          break
-        }
-      }
-    }
-    const cuffMat = new THREE.MeshStandardMaterial({
-      color: trimColor,
-      roughness: 0.6,
-      metalness: 0.1,
-    })
-    const cuff = new THREE.Mesh(
-      new THREE.TorusGeometry(ATH_FORE_ARM_R * 1.30, 0.045, 4, 12),
-      cuffMat,
-    )
-    cuff.rotation.x = Math.PI / 2
-    cuff.position.y = -ATH_FORE_ARM_LENGTH * 0.72
-    foreArm.add(cuff)
   }
 }
 

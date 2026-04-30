@@ -5707,7 +5707,339 @@ polish** pass on top of the premium athlete:
   trainer rendering through any future regression in the
   premium builder.
 
+## Phase K — Screenshot-Based Trainer Correction Direction
 
+Phase J integrated the premium code-built athlete into the
+normal `Scenario3DCanvas → buildBasketballGroup →
+buildPlayerFigure` path successfully and the targeted tests
+all pass. Screenshot QA on BDW-01, however, shows that the
+trainer still does not feel like a premium playable
+film-room product yet. The product-feel issues that remain
+are not athlete-geometry issues — they are framing,
+camera, and motion issues that the Phase J athlete polish
+cannot fix on its own.
+
+### Issues visible in screenshots
+
+1. **Fullscreen layout / framing is broken or underused.**
+   In fullscreen mode the court collapses into a narrow top
+   band of the viewport and the bottom ~60% of the screen is
+   a giant black unused area. The user expects "fullscreen
+   film room"; what they get is a small play strip floating
+   in a black void.
+2. **Gameplay camera composition makes the trainer feel
+   small.** Even in the embedded mode, the broadcast / auto
+   framing leaves the action sitting in roughly the upper
+   half of the canvas and renders the players smaller than
+   they should be for a coaching read.
+3. **Athletes still look thin / stiff / placeholder-like.**
+   The Phase J jersey, shorts, head, and shoes shipped, but
+   from the gameplay camera the athletes still read as
+   stick-like silhouettes — the legs and arms are too thin,
+   the torso lacks shoulder mass, and the stance reads as a
+   static T-pose more than an athletic ready stance.
+4. **Animation / movement feels choppy and robotic.** The
+   rigid root translation (and yaw smoothing introduced in
+   earlier phases) leaves the players sliding from waypoint
+   to waypoint with abrupt starts and stops. The
+   ease-in-out-cubic ball arc helps the ball, but the bodies
+   still start moving instantly at segment boundaries and
+   stop instantly at endpoints.
+
+### Phase K direction
+
+Phase K will fix all four of these in narrow, reversible
+chunks on top of the existing imperative pipeline:
+
+- **Fullscreen framing.** Audit the `Scenario3DView`
+  fullscreen wrapper and `Scenario3DCanvas` container CSS so
+  the canvas fills the entire `:fullscreen` element and the
+  renderer/camera react to the post-fullscreen viewport
+  size. Keep the existing fullscreen button intact.
+- **Camera composition.** Re-tune the broadcast / auto
+  camera presets and `computeAutoTarget` so BDW-01 reads
+  larger and more centred on screen, both embedded and
+  fullscreen. Aspect-aware fit, no hardcoded magic numbers
+  in the hot path.
+- **Motion smoothness.** Add ease-in / ease-out and yaw
+  smoothing improvements to the root-motion sampler so
+  player segments do not start and stop with a hard step.
+  Preserve replay determinism, scenario timing, and the
+  freeze / consequence / replay state machine.
+- **Athlete proportions.** Thicken legs, arms, torso, and
+  shoulders on the premium figure so it reads as a real
+  athlete rather than a stick figure from the broadcast
+  camera. Stay inside the Phase J triangle ceiling where
+  possible.
+
+### Phase K non-goals
+
+- **No GLB / GLTF imports.** The Phase I follow-up gate
+  (J1–J7) still applies; Phase K stays on the premium
+  code-built path.
+- **No SkinnedMesh.** The figures stay as rigid sub-group
+  hierarchies.
+- **No AnimationMixer.** No external animation clips, no
+  named track playback. Smoothing is added to the existing
+  root-motion sampler.
+- **No new dependencies.** Three.js + React + R3F only.
+- **No scene-engine rewrite.** `Scenario3DCanvas`,
+  `Scenario3DView`, the replay state machine, and the
+  scenario JSON shape stay where they are.
+- **Phase F fallback stays.** The `USE_PREMIUM_ATHLETE`
+  flag and the `buildPlayerFigure` try/catch keep the
+  trainer rendering even if a Phase K change to the premium
+  builder regresses.
+
+### Phase K success criteria
+
+After Phase K, BDW-01 should:
+- Fill the fullscreen viewport with the court (no large
+  black unused area).
+- Read clearly from the broadcast camera with athletes
+  large enough that role and stance are obvious.
+- Move with eased starts and stops so the players feel like
+  athletes reading and reacting, not waypoint sliders.
+- Look thicker / more athletic from the gameplay camera
+  without changing the silhouette pose budget.
+- Pass the existing targeted tests
+  (`Scenario3DCanvas.test.tsx`,
+  `replayStateMachine.test.ts`,
+  `imperativeScene.athlete.test.ts`) without regressions.
+
+### Phase K Findings
+
+#### 1. What fullscreen / framing problems were addressed?
+
+The `Scenario3DView` outer div is the element passed to
+`requestFullscreen()`. With no explicit `:fullscreen` CSS, the
+browser fell back to user-agent defaults, which on Mac/Chrome
+left the inner canvas wrapper sized by its embedded-mode parent
+constraints. The result was the headline screenshot defect: a
+narrow band of court at the top of the viewport sitting on top
+of a giant black backdrop area.
+
+K2 (commit `915361e`) added two narrow fixes:
+- `app/globals.css` gained `[data-fullscreen='true']` and
+  vendor-prefixed `:fullscreen` rules that lock the fullscreen
+  element to `100vw × 100vh` and propagate `100% / 100%` to any
+  descendant carrying the new `[data-fullscreen-fill='true']`
+  attribute.
+- `Scenario3DCanvas.tsx` now stamps the `data-fullscreen-fill`
+  attribute on its wrapper div whenever it receives
+  `height={undefined}` (the path `Scenario3DView` already used
+  for fullscreen). The CSS hook does the rest.
+- `Scenario3DView.tsx` also dispatches a synthetic `resize` on
+  `fullscreenchange` so R3F's internal `ResizeObserver` and the
+  imperative camera's per-frame `setAspect` pick up the new
+  viewport dimensions on the next paint (the Safari coalescing
+  delay was visible as a half-second of stale framing right
+  after the transition).
+
+#### 2. What camera composition changes were made?
+
+K3 (commit `77214ee`) re-tuned three places in `imperativeScene.ts`:
+
+- `BROADCAST_POSITION` was pulled 8 ft closer in z (46 → 38) and
+  3 ft lower in y (22 → 19); `BROADCAST_LOOKAT` moved 2 ft
+  forward (z 18 → 16). The high-3/4 angle is preserved, but
+  players now occupy a much larger fraction of the canvas at
+  16:9 instead of being pushed into the upper third.
+- `computeAutoTarget` `padding` dropped 1.14 → 1.06. The 14%
+  safety margin produced a noticeable gray rim around the action
+  even after the broadcast retune; 6% leaves enough breathing
+  room around movement endpoints without burning canvas pixels.
+- The auto-fit floor envelope shrank from `x=±22 / z=[0,28]` to
+  `x=±19 / z=[0,24]`. Scenarios whose action concentrates near
+  the wing or rim no longer get framed with a wide rim of empty
+  floor; the teaching context (3-pt arc, paint, both elbows)
+  still fits inside ±19 × 24 ft.
+
+#### 3. What motion / choppiness changes were made?
+
+K4 (commit `cde6707`) replaced the explosive-kind ease curve in
+`lib/scenario3d/timeline.ts`. The pre-Phase-K `easeOutCubic` had
+`f'(0) = 3` (peak velocity at u=0), so the player teleported
+off their idle pose into every cut — the screenshot QA called
+this the "robotic snap." The replacement, `easeOutAthletic`, is
+`smoothstep(u^0.7)`:
+- `f(0) = 0`, `f(1) = 1` (exact endpoints, replay determinism)
+- `f'(0) = 0` (smooth start, no snap from idle)
+- `f'(1) = 0` (smooth arrival, settles on the spot)
+- `f(0.25) ≈ 0.130` (still front-loaded vs ease-in-out cubic's
+  0.0625, so cuts still feel decisive)
+- `f(0.5) ≈ 0.670` (front-loaded vs symmetric 0.5)
+
+Because both endpoints have zero derivative, back-to-back
+segments now blend at the seam without a velocity discontinuity,
+which is what eliminated the inter-segment stutter.
+
+K5 (commit `10c50a1`) softened the yaw smoothing constants in
+`imperativeScene.ts`. `YAW_TIME_CONSTANT_OFFENSE_S` went 0.18 →
+0.20s and `YAW_TIME_CONSTANT_DEFENSE_S` went 0.10 → 0.14s. The
+defense bump is the visible one — the screenshot QA called out
+the 0.10s reaction as "twitchy" when the holder swing fired.
+`MOVEMENT_DIRECTION_EPS_SQ` also moved from 0.01 ft² (0.1 ft
+floor) to 0.04 ft² (0.2 ft floor) so a defender within 0.2 ft
+of the ball does not flicker yaw on every frame as the ball
+position drifts inside its own pebble noise.
+
+#### 4. What athlete proportion changes were made?
+
+K6 (commit `64a7d77`) bumped the limb radii and torso/pelvis
+widths 15–25% across the `ATH_*` proportion constants. The
+previous numbers were anatomically plausible at close-up but
+read as stick figures at the broadcast distance:
+- `ATH_THIGH_TOP_R` 0.24 → 0.30, `ATH_THIGH_BOT_R` 0.19 → 0.23
+- `ATH_CALF_TOP_R` 0.18 → 0.22, `ATH_CALF_BOT_R` 0.13 → 0.16
+- `ATH_UPPER_ARM_R` 0.13 → 0.17, `ATH_FORE_ARM_R` 0.11 → 0.14
+- `ATH_TORSO_TOP_W` 1.25 → 1.42, `ATH_TORSO_BOT_W` 0.95 → 1.05
+- `ATH_TORSO_DEPTH` 0.78 → 0.88
+- `ATH_PELVIS_WIDTH` 1.0 → 1.10, `ATH_PELVIS_DEPTH` 0.78 → 0.86
+- `ATH_SHOULDER_WIDTH` 1.35 → 1.50, `ATH_HIP_GAP` 0.46 → 0.50
+- `ATH_FOOT_LENGTH` 1.05 → 1.08, `ATH_FOOT_WIDTH` 0.46 → 0.50
+- `ATH_NECK_R` 0.14 → 0.16
+
+Triangle counts are unchanged (lathe and cylinder segment counts
+were not touched), so the Phase J 2400-tri ceiling holds and
+the `imperativeScene.athlete.test.ts` triangle assertion still
+passes. The chevron / indicator stack was not retouched: the
+chevron still rides at `ATH_HEAD_Y + ATH_HEAD_R + 1.1`, which
+is 1.1 ft above the tallest body geometry — well clear of the
+0.5 ft test floor.
+
+K7 (commit `acfa2fe`) cleaned up the Phase J role accents. The
+defender forearm cuff was removed entirely — at gameplay camera
+distance, having every defender wear a trim-color cuff read as
+a uniform detail, not as a "this is the defender" cue, and the
+five-defender combined effect added visual noise without any
+measurable teaching value. The ball-handler wristband stays —
+exactly one figure per scenario wears it, and it remains a
+useful read when the basketball itself is occluded — but it is
+slimmer (radius 1.35× → 1.22× of the forearm), thinner (tube
+0.05 → 0.04), and less metallic (metalness 0.18 → 0.08) so it
+reads as athletic tape rather than a gold accessory.
+
+#### 5. Did BDW-01 remain on the normal renderer path?
+
+Yes. Every Phase K change was either a CSS attribute, a
+proportion / easing constant, or a tiny edit to existing
+upgrade helpers. `Scenario3DCanvas`, `Scenario3DView`,
+`buildBasketballGroup`, `buildPlayerFigure`, the replay state
+machine, and the scenario JSON shape were not restructured.
+BDW-01 still renders through the same imperative path it has
+since Phase J.
+
+#### 6. Is Phase F fallback still preserved?
+
+Yes. The `USE_PREMIUM_ATHLETE` selector and the `try/catch`
+around `buildPremiumAthleteFigure` inside `buildPlayerFigure`
+are unchanged. K6 only touched the proportion constants, which
+the Phase F figure consumes as well — so the fallback figure
+also gets the thicker proportions, which is consistent with
+the Phase J behavior where the constants were already shared.
+
+#### 7. Did replay / motion / fullscreen remain deterministic and tested?
+
+Replay determinism for player **positions** is preserved: the
+new `easeOutAthletic` is a pure function of `u`, so
+`samplePlayer(scene, timeline, id, t)` still returns the same
+position for the same `(scene, t)`. The yaw smoothing path
+already used real-time wall delta (this predates Phase K), so
+visible yaw is approximate-deterministic across runs at the
+same frame rate; nothing changed about that contract.
+
+Fullscreen behaviour was not made conditional on any new state.
+The `Scenario3DView` toggle still calls `requestFullscreen()` /
+`exitFullscreen()` on the same container ref; the four
+`fullscreen.test.ts` assertions still pass.
+
+#### 8. Did tests pass?
+
+Yes. `pnpm exec vitest run components/scenario3d/
+lib/scenario3d/` reports **143/143 tests passing across 10 test
+files**, including the Phase J athlete builder disposal /
+indicator / triangle-budget tests (`imperativeScene.athlete.
+test.ts`, 6 tests), the replay state machine tests
+(`replayStateMachine.test.ts`, 43 tests), the canvas mount /
+fallback / orbit tests (`Scenario3DCanvas.test.tsx`, 9 tests),
+the fullscreen toggle tests (`fullscreen.test.ts`, 7 tests),
+and the timeline ease / sample tests (`timeline.test.ts`, 12
+tests, with the explosive-curve assertion updated for the
+Phase K athletic ease).
+
+`pnpm exec tsc --noEmit` reports no Phase K-related errors.
+The pre-existing `lib/services/*` Prisma-namespace errors are
+unrelated and pre-Phase-K (visible on the merge base of
+`f8f480a`).
+
+#### 9. What visual risks remain?
+
+- **Fullscreen on iframes / WebViews.** The `:fullscreen` CSS
+  rule and the `[data-fullscreen='true']` attribute hook only
+  fire when the host environment grants the fullscreen API.
+  Embedded WebViews (e.g. an in-app browser) that deny the
+  request will fall back to the embedded layout — same as
+  before Phase K.
+- **Older Safari with no `:fullscreen` support.** The
+  `:-webkit-full-screen` vendor selector covers Safari, but a
+  truly ancient WebKit (`Safari < 16`) might miss both. That
+  cohort is not on the supported matrix.
+- **Coach review of the wider broadcast pose.** Pulling the
+  broadcast camera 8 ft closer is a teaching-feel change that
+  benefits from a coach review. The Phase K screenshot QA
+  checklist (`docs/qa/courtiq/phase-k-checklist.md`) already
+  has a row for that.
+- **Yaw smoothing under unusual frame-rate.** Bumping the
+  defender constant 0.10 → 0.14s makes the reaction visibly
+  slower at very low frame rates (≤ 20fps), where the
+  exponential smoothing barely advances per frame. The FPS
+  guard already downgrades the tier in that regime, so the
+  effect should not compound, but it is worth noting.
+- **Premium proportion bump on Phase F fallback.** K6
+  thickened the shared constants, so the Phase F fallback
+  figure also got bigger limbs. The Phase F fallback was
+  designed for a leaner silhouette; the change is intentional
+  (consistent feel between paths) but does shift the fallback
+  visual.
+
+#### 10. What should happen next?
+
+The Phase K commits land the four trainer-feel corrections
+(fullscreen layout, gameplay camera composition, motion
+smoothness, athlete proportions). The next pass should be a
+manual screenshot QA against `docs/qa/courtiq/phase-k-checklist.
+md` — at minimum rows 1, 3, 4, 5, 6 on Mac/Chrome. Three
+follow-ups can be staged depending on what the screenshot
+review surfaces:
+
+- **A. Further code-built athlete polish.** If the proportions
+  still read as stiff at gameplay distance after Phase K, the
+  next iteration should add subtle idle motion (a sub-foot
+  vertical "breathing" bob on stationary players) and
+  per-segment hand pose hints (gather, release) without
+  introducing a rig.
+- **B. Court / lighting / material polish.** The hardwood
+  texture, paint deeps, and ACES tone-mapping were not touched
+  in Phase K. A lighting / material polish pass is the safe
+  next move if the issue after K is "the floor and walls feel
+  flat" rather than "the players feel thin."
+- **C. License-clean GLB experiment.** Still gated on the
+  Phase I follow-up tickets (J1–J7). Only worth considering
+  after A and B; the Mac/Safari performance + licensing
+  investigations from Phase I have not been redone.
+- **D. Limited non-skeletal pose animation.** A small library
+  of authored sub-group rotations keyed off motion phase
+  (gather → drive → settle) could ship without a rig and
+  without `AnimationMixer`. This is the right next animation
+  step IF the Phase K easing does not feel sufficient AND the
+  product does not want to commit to a SkinnedMesh rewrite.
+
+Phase K is intentionally the last layer that can ship without
+SkinnedMesh / AnimationMixer / GLB. If A–D do not close the
+gap, the next phase should evaluate a SkinnedMesh + clip
+playback path in earnest, with the Phase F fallback still
+guarding the fallback contract.
 
 
 

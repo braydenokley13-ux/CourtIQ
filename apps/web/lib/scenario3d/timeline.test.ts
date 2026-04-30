@@ -60,9 +60,10 @@ describe('samplePlayer', () => {
   it('returns an interpolated position mid-movement', () => {
     const p = samplePlayer(scene, tl, 'user', 500)
     expect(p.x).toBeCloseTo(0, 4)
-    // Phase C / C3 — `cut` now uses ease-out cubic, which returns
-    // 1 - 0.5^3 = 0.875 at u=0.5. Position z = 10 + (4-10) * 0.875 = 4.75.
-    expect(p.z).toBeCloseTo(4.75, 4)
+    // Phase K — `cut` now uses the front-weighted athletic ease,
+    // `smoothstep(u^0.7)`. At u=0.5, r = 0.5^0.7 ≈ 0.6156 and
+    // f = r^2 * (3 - 2r) ≈ 0.6705. Position z = 10 + (4-10) * 0.6705 ≈ 5.978.
+    expect(p.z).toBeCloseTo(5.978, 3)
   })
 
   it('returns the static start for players with no movements', () => {
@@ -74,16 +75,21 @@ describe('samplePlayer', () => {
   })
 })
 
-describe('Phase C / C3 — easeForKind', () => {
-  it('uses ease-out cubic for explosive kinds (cut, drive, jab, …)', () => {
-    // Ease-out at u=0.5 = 1 - 0.5^3 = 0.875.
+describe('Phase C / C3 / Phase K — easeForKind', () => {
+  it('uses the Phase K front-weighted athletic ease for explosive kinds (cut, drive, jab, …)', () => {
+    // Phase K replaced ease-out cubic with `smoothstep(u^0.7)`:
+    // r = 0.5^0.7 ≈ 0.6156; f = r^2 * (3 - 2r) ≈ 0.6705.
+    // Smooth at both endpoints (f'(0)=0 — no snap from idle, f'(1)=0
+    // — settle on the spot) and still front-loaded vs symmetric
+    // ease-in-out at midpoint.
     for (const kind of ['cut', 'back_cut', 'baseline_sneak', 'drive', 'jab', 'rip', 'stop_ball'] as const) {
-      expect(easeForKind(kind, 0.5)).toBeCloseTo(0.875, 5)
+      expect(easeForKind(kind, 0.5)).toBeCloseTo(0.6705, 3)
     }
   })
 
   it('uses ease-in-out cubic for defensive / settle kinds', () => {
-    // Symmetric ease-in-out at u=0.5 = 0.5 exactly.
+    // Symmetric ease-in-out at u=0.5 = 0.5 exactly. Unchanged by
+    // Phase K — only the explosive dispatch was retuned.
     for (const kind of ['rotation', 'closeout', 'lift', 'drift', 'pass'] as const) {
       expect(easeForKind(kind, 0.5)).toBeCloseTo(0.5, 5)
     }
@@ -97,8 +103,22 @@ describe('Phase C / C3 — easeForKind', () => {
   })
 
   it('explosive curves are front-loaded (advance further than ease-in-out by mid-segment)', () => {
-    // At u=0.25, ease-out (1 - 0.75^3 = 0.578) outruns ease-in-out
-    // (4 * 0.25^3 = 0.0625) — proves cuts feel more decisive.
+    // At u=0.25, athletic ease (~0.130) outruns ease-in-out cubic
+    // (4 * 0.25^3 = 0.0625) — proves cuts still feel decisive even
+    // after the Phase K smoother-start retune.
     expect(easeForKind('cut', 0.25)).toBeGreaterThan(easeForKind('rotation', 0.25))
+  })
+
+  it('Phase K — explosive curves start with zero derivative (no snap from idle)', () => {
+    // The pre-Phase-K easeOutCubic had f'(0) = 3 (peak velocity at
+    // u=0), which the screenshot QA called out as a robotic snap
+    // when a player accelerated from a held pose into a cut. The
+    // new athletic ease has f'(0) = 0; verify by checking the slope
+    // across the first 0.5% of the segment is small relative to the
+    // peak slope at midpoint.
+    const earlySlope = easeForKind('cut', 0.005) / 0.005
+    const midSlope =
+      (easeForKind('cut', 0.55) - easeForKind('cut', 0.45)) / 0.10
+    expect(earlySlope).toBeLessThan(midSlope * 0.5)
   })
 })

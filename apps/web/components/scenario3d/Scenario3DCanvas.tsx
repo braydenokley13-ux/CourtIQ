@@ -1028,10 +1028,18 @@ export function Scenario3DCanvas({
   // camera framing — same gate as the imperative-scene mount effect.
   const controllerActive = !emergencyMode && !debugMode && simpleMode
 
+  // Phase K — when the outer view is in fullscreen mode it sets
+  // `height={undefined}` on the canvas so this wrapper fills the
+  // fullscreen element. The `data-fullscreen-fill` hook lets the
+  // global :fullscreen CSS lock the wrapper to 100% / 100% even when
+  // a stale parent constraint would otherwise collapse it back to a
+  // narrow band.
+  const fillFullscreen = height === undefined
   return (
     <div
       ref={containerRef}
       className={className}
+      data-fullscreen-fill={fillFullscreen ? 'true' : undefined}
       style={{
         height: resolvedHeight,
         minHeight: resolvedHeight,
