@@ -5058,3 +5058,127 @@ costless (it is the existing path), so the bar to ship the
 imported path is intentionally high and the bar to revert is
 intentionally low.
 
+
+### Phase I — Follow-Up Ticket List
+
+> Small, sequenced tickets for a *future* phase (provisionally
+> "Phase J" or "Phase I-Implementation"). Each one builds on
+> the current Phase F system; none replace it. **Phase I itself
+> ships zero of these.** They are the menu the next phase picks
+> from.
+
+The tickets are deliberately ordered so the riskiest decision
+(does an imported silhouette actually beat Phase F at teaching
+clarity?) is answered before any production-facing change.
+
+#### J1. Source one license-clean stylized low-poly basketball athlete GLB
+
+- Search CC0 / CC-BY libraries (e.g. Sketchfab CC0 collections,
+  Polyhaven, Quaternius) for a stylized low-poly basketball
+  athlete in a roughly neutral standing pose.
+- Audit license, file size (uncompressed and after draco /
+  meshopt), tri count, material count, texture slots used,
+  origin / scale / rotation.
+- Record findings in `docs/qa/courtiq/phase-i/asset-licences.md`
+  alongside the asset file.
+- **Done when** a single GLB is in the repo (or the ticket is
+  closed with a "no acceptable asset found" finding).
+
+#### J2. Build a scratch-only asset preview route
+
+- Add a developer-only preview route alongside
+  `/dev/scene-preview` (e.g. `/dev/asset-preview`) that loads
+  the J1 GLB into a bare scene with the same camera + lighting
+  as the gameplay route.
+- No coupling to `Scenario3DCanvas` yet; this is a sandbox.
+- The route is gated by the same dev-only conditions as
+  `/dev/scene-preview` and never appears in production.
+- **Done when** the GLB renders standalone in the dev preview.
+
+#### J3. Measure load time and FPS on Mac / Safari
+
+- Run the J2 route on a recent Mac in Safari, Chrome, and
+  Firefox; measure time-to-first-render and steady-state FPS
+  with five GLB clones.
+- Compare against the Phase F numbers captured under Phase H
+  (or capture them now if Phase H's measurement was deferred).
+- Record results in `docs/qa/courtiq/phase-i/perf-mac.md`.
+- **Done when** all three browsers are measured and the
+  imported numbers are in the doc.
+
+#### J4. Test GLB fallback to the current code-built athlete
+
+- Wire the architecture sketched in I3: feature flag,
+  `buildPlayerFigure` picks Phase F or imported, contract
+  validator, hard fallback on any contract violation.
+- Behind the flag only; default off.
+- Mirror `imperativeScene.athlete.test.ts` against the imported
+  builder and add the malformed-fixture fallback test.
+- **Done when** flag-off renders Phase F unchanged, flag-on
+  renders the imported figure when the asset is healthy, and
+  flag-on with a deliberately malformed fixture renders the
+  Phase F figure without crashing.
+
+#### J5. Test indicator alignment with the imported silhouette
+
+- Verify ring / halo / chevron / possession ring positions on
+  the imported figure match the Phase F figure within visual
+  tolerance.
+- Add a per-figure `headTopY` plumb so the chevron does not
+  hard-code `ATH_HEAD_Y`. Default to the Phase F constant when
+  the imported asset omits the field.
+- Mirror the indicator-layer test
+  (`imperativeScene.athlete.test.ts:84`) against the imported
+  builder.
+- **Done when** the indicator-layer test passes against the
+  imported builder and the bench / user / possession captures
+  match Phase F's framing.
+
+#### J6. Compare screenshots vs the Phase F code-built athlete
+
+- Capture broadcast / fullscreen / close-up framings on BDW-01
+  for both paths, both with five players. Mirror Phase F's
+  capture grid.
+- Save under `docs/qa/courtiq/phase-i/` and embed a comparison
+  table in the QA section that lands at the end of this phase.
+- **Done when** the captures are stored and the comparison
+  table is in the doc.
+
+#### J7. Decide whether the imported asset improves teaching clarity
+
+- Coach review (same surface as Phase G's manual-review queue)
+  on the J6 captures. Question: *"Which figure makes BDW-01
+  easier to teach?"*
+- Decision criterion is teaching clarity from the gameplay
+  camera, not aesthetics. Tie goes to Phase F (lower risk).
+- Capture the decision and rationale in the spike findings
+  section that closes the future implementation phase.
+- **Done when** there is a written go / no-go on the imported
+  path with rationale.
+
+#### J8. Only then consider rigged animations (Option C)
+
+- Conditional on J7 returning **go** *and* on the static
+  imported path proving stable in production (no leak / perf /
+  licence / fallback issues for a measurement window).
+- Re-evaluate Option C against the I2 risk profile (replay
+  determinism, `SkinnedMesh`/`AnimationMixer` disposal, Mac
+  performance) before any code lands.
+- This is a separate phase, not a J-series ticket. Do **not**
+  start while J1–J7 are open.
+
+#### Production-replacement gate
+
+The Phase F code-built athlete is **not** replaced by any of
+these tickets. The flag stays default-off until J1–J7 all pass
+their done-criteria *and* the imported path beats Phase F on
+all three of:
+
+- **Readability** at gameplay-camera distance (J6 / J7).
+- **Performance** on Mac/Safari at default DPR with five
+  figures (J3).
+- **Teaching clarity** per coach review (J7).
+
+Until then, Phase F is the supported path and any imported
+work is dev-route only.
+
