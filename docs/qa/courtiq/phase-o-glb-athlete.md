@@ -126,3 +126,61 @@ Phase O1 is an asset-research / licensing decision only; whether the asset
 gets bundled (and whether the GLB code path is added) is gated on the Phase
 O2 feasibility check and the constraint that the asset be physically present
 on disk before any loader is wired.
+
+## Phase O2 — Feasibility Gate
+
+The feasibility gate for Phase O implementation is:
+
+> An acceptable GLB asset is **on disk in this repo** (under `apps/web/public/`
+> or an equivalent bundled location), with a written license note checked in
+> alongside it.
+
+That gate is currently **NOT MET**. The Quaternius source has been identified
+as acceptable in §Decision, but no `.glb` or `.gltf` file currently exists in
+the repo (`find` over the workspace returns zero matches, and
+`apps/web/public/` contains only the favicon, icons, and manifest). The Phase
+O prompt explicitly forbids importing random / unverified assets, so we do
+not download a GLB on autopilot — that step requires a human to:
+
+1. Pick a specific Quaternius character pack and version,
+2. Verify the bundled `LICENSE` / `README` reads CC0 1.0,
+3. Decimate / texture-downsample the chosen GLB if it exceeds the 500 KB
+   cap, and
+4. Commit the asset under `apps/web/public/athlete/` (or equivalent) with
+   an `ATTRIBUTION.md` recording source URL + license.
+
+### Decision
+
+**Phase O implementation is gated. STOP at O2.**
+
+- ✅ Phase O1 research is complete and recorded above.
+- ❌ Phase O3 (`USE_GLB_ATHLETE_PREVIEW` flag) is **not added** in this
+   pass. Adding the flag without an asset on disk would either ship a
+   try/catch that always fails (dead code that pretends to be a feature)
+   or pretend to load an asset path that does not exist (lying to
+   future readers about what is bundled).
+- ❌ Phase O4 (minimal GLB loader) is **not added** in this pass. A
+   loader without an asset cannot be exercised by tests, cannot be
+   visually QA'd, and risks introducing a broken import path.
+
+### Production state remains unchanged
+
+- `USE_SKINNED_ATHLETE_PREVIEW = false` (Phase N default).
+- Procedural premium athlete (Phase J/K/L) remains the production figure.
+- Generated skinned prototype (Phase M) remains as the existing flag-gated
+  experiment.
+- BDW-01 trainer still renders the procedural premium figure.
+
+### Next-step recommendation
+
+Phase O should **source the asset first**, then resume O3+:
+
+1. A human contributor (or a follow-up Phase O asset-sourcing pass)
+   downloads the chosen Quaternius pack, picks a single character GLB,
+   and verifies size + license.
+2. Commit that GLB under `apps/web/public/athlete/<name>.glb` with
+   `apps/web/public/athlete/ATTRIBUTION.md` recording source URL,
+   license name (CC0 1.0), and downloaded version.
+3. Resume Phase O at O3 (flag), O4 (loader), O5 (QA notes), O6
+   (validation), O7 (findings).
+
