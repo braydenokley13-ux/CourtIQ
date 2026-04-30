@@ -1645,4 +1645,242 @@ TrainPage             Scenario3DView         Scenario3DCanvas         MotionCont
 
 ---
 
+### A2 — Broken Replay Behaviors
+
+For each Section 2.1 symptom: what the user sees, the code path most
+likely involved, the suspected cause, a confidence label
+(high / medium / low), the evidence supporting that hypothesis, and
+what Phase B should test before editing. No code is changed in this
+section.
+
+#### A2.1 Play/pause can lose sync with the visible scene
+
+- **What the user sees.** Hitting Pause sometimes leaves the scene
+  still moving (or already-frozen). Hitting Play sometimes leaves the
+  scene parked on the last paused frame. The transition between intro
+  and consequence, in particular, can "swallow" a pause press.
+- **Likely file/function.**
+  `MotionController.setMovements` (`imperativeScene.ts` ~L1376–L1394),
+  `Scenario3DCanvas` `[paused]` effect (~L847–L849), and
+  `Scenario3DView` paused state ownership.
+- **Suspected cause.** `setMovements` (called by both
+  `startConsequence` and `startReplay`) hard-resets `pausedAtT = null`
+  every time a leg swaps. The `[paused]` effect in
+  `Scenario3DCanvas` only re-fires when the React `paused` prop
+  changes, not when the underlying motion controller swaps timelines.
+  So if the user is paused at the moment of the pick, the consequence
+  leg starts playing despite the React state still being `paused=true`.
+- **Confidence.** **High.**
+- **Evidence.** `setMovements` body explicitly sets
+  `this.pausedAtT = null` and `this.startedAt = null`; the
+  Scenario3DCanvas paused effect deps are `[paused]`; there is no
+  re-application of the paused flag after a leg swap on either side.
+- **What Phase B should test before editing.**
+  - Reproduce: enter `frozen`, press Pause, then pick a wrong choice.
+    Expect the consequence leg to begin playing despite Pause being
+    visually engaged.
+  - Add a state-machine test that pauses pre-pick, calls
+    `pickChoice`, and asserts `motion.isPaused()` is still true on
+    the next tick.
+  - Decide whether `setMovements` should preserve the prior pause
+    state, or whether the canvas wiring should re-apply `paused` on
+    every leg swap.
+
+#### A2.2 Restart can leave the scene mid-trajectory
+
+- **What the user sees.** After hitting Restart in `done` (or
+  Feedback's "Replay" CTA), the user expects the scene to start over
+  cleanly. Sometimes a frame from the previous leg remains visible
+  (idle players hold an old pose, or the ball is mid-air for a beat
+  before snapping).
+- **Likely file/function.**
+  `MotionController.reset` (~L1043–L1050), `Scenario3DCanvas`
+  `[resetCounter]` effect (~L835–L837), `Scenario3DView`
+  `compositeResetCounter`.
+- **Suspected cause.** `motion.reset()` rewinds the playhead but does
+  NOT change `currentOverrides`, `freezeAtMs`, or the active timeline.
+  In `done`, the active timeline is the answer-demo leg with the
+  freeze snapshot still applied, so reset replays *the answer demo*
+  rather than the original intro. Additionally, the rendered frame
+  between the reset and the next tick can briefly show the last leg's
+  final pose because `motion.tick(now)` only re-anchors `startedAt`
+  on the next animation frame — there is no immediate forced
+  re-sample on reset.
+- **Confidence.** **Medium-High.**
+- **Evidence.** `reset` body: `startedAt = null; pausedAtT = null;
+  lastPhaseIndex = -1; pendingPassArrival = false; hasFiredFrozen =
+  false; pendingFrozen = false`. It deliberately does not touch the
+  timeline, currentOverrides, or freezeAtMs (per the comment "user's
+  selected speed is intentionally preserved"). The state machine is
+  not informed of the reset, so its `state` field stays at `done`.
+- **What Phase B should test before editing.**
+  - Reproduce: complete a wrong-pick rep, press Restart in the
+    Overlay. Expect the answer demo to replay (since that's the
+    active leg) — does the scene actually settle on t=0 of the active
+    leg, or does it bleed in the final pose for a frame?
+  - Add a state-machine test that drives the machine to `done`,
+    triggers the parent reset, and asserts the rendered positions
+    after one tick equal the leg's t=0 sample.
+  - Decide what "Restart" should mean from `done` (and from
+    `consequence`/`replaying`): rewind the active leg, restart the
+    entire rep, or call `machine.showAgain()`.
+
+#### A2.3 Speed changes do not always affect every replay leg
+
+- **What the user sees.** Switching 0.5x ↔ 2x mid-play sometimes
+  feels right and sometimes feels like the scene jumps. Speed picked
+  during a frozen state may not appear to take effect once the
+  consequence leg starts.
+- **Likely file/function.**
+  `MotionController.setPlaybackRate` (~L1068–L1076),
+  `MotionController.setMovements` (~L1376–L1394),
+  `Scenario3DCanvas` `[playbackRate]` effect (~L843–L845).
+- **Suspected cause.** `setPlaybackRate` only rebases `startedAt`
+  when the controller is unpaused AND has been anchored
+  (`startedAt !== null`). If the user changes speed while paused or
+  before the first tick of a new leg (`startedAt === null` after
+  `setMovements`), the rebase math is skipped and the new rate
+  applies instantly when the next leg starts — which can read as a
+  "jump" because the visible t suddenly maps to a different real-time
+  per-frame delta. `setMovements` itself does not re-apply the rate;
+  it merely preserves the controller-internal `playbackRate` field.
+- **Confidence.** **Medium.**
+- **Evidence.** `setPlaybackRate` rebases only inside
+  `if (this.startedAt !== null && this.pausedAtT === null)`.
+  `setMovements` resets both anchors but leaves `playbackRate`
+  untouched; the canvas `[playbackRate]` effect only fires on React
+  prop change.
+- **What Phase B should test before editing.**
+  - Reproduce: at `frozen`, change speed to 2x, then pick a wrong
+    choice. Does the consequence leg play at 2x without a perceptible
+    jump?
+  - Add a state-machine test that sets rate at `frozen`, picks, and
+    asserts the consequence leg's elapsed-ms math at known real-time
+    points matches the requested rate from the very first tick.
+  - Decide whether `setMovements` should explicitly re-apply the
+    current rate (it doesn't need to: the field is preserved) and
+    whether the canvas should call `setPlaybackRate` once after every
+    leg swap as a defensive re-arm.
+
+#### A2.4 Consequence replay can stall, skip, or play the wrong leg
+
+- **What the user sees.** A wrong pick sometimes shows no consequence
+  at all (jumping straight to the answer demo). Sometimes the
+  consequence plays but never advances to the answer demo. Sometimes
+  the wrong leg appears to play (pieces of two animations overlap).
+- **Likely file/function.**
+  `ReplayStateMachine.pickChoice` (~L1544–L1557),
+  `MotionController.startConsequence` (~L1410–L1418),
+  `Scenario3DCanvas` `[pickedChoiceId]` effect (~L820–L828),
+  `consumedChoiceRef` reset path (~L674).
+- **Suspected cause.** Three plausible contributors:
+  1. The `[pickedChoiceId]` effect early-returns if the state machine
+     is not in `frozen` when the prop arrives; the dep is
+     `[pickedChoiceId]`, so the same id will not retry on a later
+     render. If the freeze edge fires *after* the prop is set (a
+     timing race during scene rebuild), the pick is dropped and the
+     scene stays in `playing` forever.
+  2. `startConsequence` returns `false` when the picked id has no
+     entry in `wrongDemos`. The state machine treats that as a
+     best-read short-circuit and goes straight to `replaying`. If a
+     scenario JSON has a typo in the choice id or omits a wrongDemo
+     entry, the user perceives a "skip" rather than a "no demo
+     available."
+  3. `consumedChoiceRef` resets only on scene-rebuild; if the parent
+     ever re-emits the same id after a Restart while the machine has
+     re-entered `frozen` (hypothetical, not in current flow), the
+     pick will be ignored.
+- **Confidence.** **Medium** — the early-return path (#1) is highest
+  confidence; #2 is intentional design but feels like a bug to the
+  user; #3 is defensive only.
+- **Evidence.** Effect body at Scenario3DCanvas L820–L828; the
+  early-return on state mismatch; the deliberate short-circuit branch
+  in `pickChoice`.
+- **What Phase B should test before editing.**
+  - Reproduce: simulate a fast pick path where `pickedChoiceId`
+    appears before `frozen` is reached (force-mount sequence). Verify
+    the pick is captured, queued, or surfaced as a clear no-op.
+  - Add tests covering: (a) pick before frozen → buffered or
+    rejected explicitly; (b) pick with no wrongDemo → still emits
+    `consequence`-skipped event so the page can show a caption; (c)
+    pick correctly advances `consequence → replaying → done`.
+  - Decide whether the canvas should buffer a pre-`frozen`
+    `pickedChoiceId` and dispatch it once the machine reaches
+    `frozen`.
+
+#### A2.5 "Show me again" / Restart behavior may not reset cleanly
+
+- **What the user sees.** Pressing the Feedback panel's "Replay" CTA
+  in `done` plays the answer demo from t=0, but the state machine
+  stays in `done` and does not re-emit `replaying`. As a result, the
+  decoder caption that depends on `scenePhase === 'replaying'` does
+  not re-appear; the user perceives a "ghosted" replay where the
+  scene replays but the surrounding UI doesn't acknowledge it.
+- **Likely file/function.**
+  `Scenario3DView` `compositeResetCounter` and `[resetCounter]`
+  effects, `Scenario3DCanvas` `[resetCounter]` effect (~L835–L837),
+  `ReplayStateMachine.showAgain` (~L1563–L1574),
+  `app/train/page.tsx` `setReplayCounter` callsite (~L713).
+- **Suspected cause.** Neither code path that the user reaches via
+  "Show me again" or "Restart" calls `machine.showAgain()`. They both
+  drop into `motion.reset()` which rewinds the timeline but leaves
+  the state machine in whatever state it was in. This is the most
+  user-visible consequence of the "two-controllers, one reset wire"
+  design noted in A1.6.4.
+- **Confidence.** **High.**
+- **Evidence.** Grep for `showAgain` in `Scenario3DCanvas.tsx` finds
+  no callers; the imperative-scene mount effect calls
+  `machine.start()` once and never re-enters; the `[resetCounter]`
+  effect calls only `motionControllerRef.current?.reset()`.
+- **What Phase B should test before editing.**
+  - Reproduce: complete a rep (right or wrong), press Feedback's
+    "Replay" CTA. Expect `onPhase('replaying')` to fire; today it
+    stays at `done`.
+  - Add a state-machine test that asserts `showAgain()` from `done`
+    cycles `done → replaying → done` and re-emits the listener
+    snapshot.
+  - Decide which "Show me again" affordance should call
+    `machine.showAgain()` (Feedback CTA, Overlay Restart, both, or a
+    new dedicated button) and whether `motion.reset()` should be
+    deprecated as a public reset path.
+
+#### A2.6 Answer-card UI and scene state can desync
+
+- **What the user sees.** The choice cards may stay visible into the
+  consequence/answer leg, or disappear before the freeze beat lands.
+  After "Show me again," the FeedbackPanel stays mounted but the
+  canvas plays as if the user hadn't picked yet.
+- **Likely file/function.**
+  `app/train/page.tsx` (`questionReady`, `frozen`, `feedback`,
+  `selected` state), `Scenario3DCanvas` `onPhase` subscription path
+  (~L661–L666), `Scenario3DView` paused/path reset effects.
+- **Suspected cause.** The page's `frozen` flag latches true on the
+  first `onPhase('frozen')` and is only reset on `idx` change. The
+  page does not consume `'consequence' / 'replaying' / 'done'` for
+  unmounting choices — the choice cards instead unmount when
+  `feedback` is non-null (gated by `submitChoice`). That works for
+  the first pass but means a Show-Me-Again replay (which today does
+  not even re-emit phases — see A2.5) cannot drive the surrounding
+  UI to a coherent state. Compounded by the `paused` reset effect
+  using `[replayMode, resetCounterProp]`, but `restartTick` not being
+  in the deps list, so the two paths diverge.
+- **Confidence.** **Medium.**
+- **Evidence.** `app/train/page.tsx` `useEffect` at ~L312 only resets
+  on `[idx]`. `Scenario3DView` paused-reset effect deps:
+  `[replayMode, resetCounterProp]`. `pathOverride` reset effect:
+  `[replayMode, resetCounterProp]`. The `onScenePhase` callback only
+  calls `setFrozen(true)` on the `frozen` event; no other phase
+  triggers UI state changes beyond `learnPhase` derivation.
+- **What Phase B should test before editing.**
+  - Reproduce: complete a rep, hit Show me again. Observe whether
+    the FeedbackPanel, decoder lesson panel, and self-review checklist
+    behave the same as on first arrival at `done`.
+  - Verify whether a `replaying → done` re-entry would be expected to
+    emit a fresh `done` so consumers can re-react.
+  - Decide whether the page's UI gating should switch from
+    `feedback`-driven to `scenePhase`-driven for the parts that
+    correspond to scene state (caption visibility, paths default).
+
+---
+
 
