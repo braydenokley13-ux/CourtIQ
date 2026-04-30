@@ -158,6 +158,8 @@ export function Scenario3DCanvas({
   fallback,
   children,
   className,
+  // undefined signals fullscreen / fill-parent mode; the canvas container
+  // uses '100%' in that case instead of a fixed pixel height.
   height = 320,
   scene,
   concept,
@@ -944,11 +946,14 @@ export function Scenario3DCanvas({
     teachingOverlayRef.current?.setVisible(!!showPaths)
   }, [showPaths])
 
+  // When height is undefined the canvas is in fill-parent mode (e.g. fullscreen).
+  const resolvedHeight: number | string = height ?? '100%'
+
   if (mode === 'probing') {
     return (
       <div
         className={className}
-        style={{ height, background: '#3F4756', minHeight: height, position: 'relative' }}
+        style={{ height: resolvedHeight, background: '#3F4756', minHeight: resolvedHeight, position: 'relative' }}
         aria-busy="true"
       >
         <div className="flex h-full items-center justify-center text-[11px] uppercase tracking-[1.5px] text-text-dim">
@@ -982,7 +987,7 @@ export function Scenario3DCanvas({
       ? 'runtime-error'
       : 'no-webgl'
     return (
-      <div className={className} style={{ position: 'relative' }}>
+      <div className={className} style={{ position: 'relative', height: resolvedHeight, minHeight: resolvedHeight }}>
         {fallback}
         <FallbackBadge reason={fallbackReason} message={runtimeError} />
         <CanvasDiagnostics
@@ -1028,8 +1033,8 @@ export function Scenario3DCanvas({
       ref={containerRef}
       className={className}
       style={{
-        height,
-        minHeight: height,
+        height: resolvedHeight,
+        minHeight: resolvedHeight,
         width: '100%',
         position: 'relative',
         background: activeBg,

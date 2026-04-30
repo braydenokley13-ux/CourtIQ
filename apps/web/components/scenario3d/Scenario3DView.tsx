@@ -158,7 +158,16 @@ export function Scenario3DView(props: Scenario3DViewProps) {
 
   return (
     <Scenario3DErrorBoundary scenarioId={props.scene?.id}>
-      <div ref={containerRef} className="relative h-full w-full">
+      {/* Phase D — when fullscreen, the browser expands this element to the
+          full viewport. `data-fullscreen` lets CSS :fullscreen selectors
+          reach descendants when needed. The canvas receives height=undefined
+          in fullscreen mode so it fills 100% of the element instead of
+          capping at the fixed pixel default. */}
+      <div
+        ref={containerRef}
+        data-fullscreen={isFullscreen ? 'true' : undefined}
+        className="relative h-full w-full"
+      >
         <Scenario3DCanvas
           {...props}
           replayMode={replayMode}
@@ -167,6 +176,7 @@ export function Scenario3DView(props: Scenario3DViewProps) {
           playbackRate={playbackRate}
           paused={paused}
           showPaths={showPaths}
+          height={isFullscreen ? undefined : props.height}
         />
         <PremiumOverlay
           concept={props.concept}
