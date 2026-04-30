@@ -830,109 +830,165 @@ and integrates cleanly with offense/defense/user identity.
 The visible weak link of the product. Once replay and motion are
 real, the placeholder body is the most jarring thing on screen.
 
+#### Chosen path (set by E4)
+**Option B — code-built reusable low-poly stylized-athlete mesh, no
+skeletal rig, rigid sub-group posing.** See Section 16, "E4 — Chosen
+Player Geometry Path" for the full constraint list. F1–F5 below are
+specific to Option B.
+
 #### Files likely involved
 - `apps/web/components/scenario3d/imperativeScene.ts` —
-  `buildPlayerFigure` (~L3193), the per-player loop in
-  `buildBasketballGroup` (~L341–L376), palette constants (L25–L103),
-  ring/halo stack (~L3198–L3289), `disposeGroup` (~L407) +
-  `disposeMaterialTextures` (~L430).
-- Possibly a new file for an external mesh loader (only if E
-  chose option C or D).
-- `apps/web/lib/scenario3d/quality.ts` — perf tier integration if
-  geometry cost varies by tier.
+  `buildPlayerFigure` (~L3393), per-stance constants (~L3303–L3361),
+  the per-player loop in `buildBasketballGroup` (~L379–L427), palette
+  constants (~L59–L64, L107–L112), ring/halo stack (~L3714–L3858),
+  `disposeGroup` (~L455) + `disposeMaterialTextures` (~L478).
+- `apps/web/components/scenario3d/replayStateMachine.test.ts` (or a
+  new sibling test file) — disposal-leak guard added in F5.
+- `apps/web/lib/scenario3d/quality.ts` — only touched if F4 needs a
+  per-tier geometry variant.
+
+**Forbidden in Phase F**: any new file outside `imperativeScene.ts`
+unless F4 / F5 explicitly require it; any `.glb` / `.gltf` / `.png`
+asset import; any change to MotionController, ReplayStateMachine, the
+parent rAF loop, or the simple/full-path pin.
 
 #### Risks / boundaries
-- Do not break existing indicator layers (base ring, user halo,
-  possession ring, focus marks).
-- Do not change palette constants without updating the
-  visual-system plan.
-- Do not exceed the per-player tri budget called out in
-  `courtiq-premium-scene-visual-system-plan.md` Section 14.
+- Do not break existing indicator layers (`base`, `user`, `userHead`,
+  `possession`); their geometry, Y heights, and visibility rules are
+  locked. F3 verifies them.
+- Do not change palette constants (E4 §4); identity comes from the
+  existing palette via shared materials.
+- Do not exceed the per-player tri budget (E4 §5: ≤1500 tris hard
+  ceiling; ~900–1100 target).
 - Do not ship a player that hides the user's identity halo.
-- Do not break the dispose traversal (every new mesh/material
-  must be reachable by `disposeGroup`).
+- Do not break the dispose traversal (every new mesh / material must
+  be reachable by `disposeGroup`); F5 enforces.
+- Do not add `SkinnedMesh`, `AnimationMixer`, or any per-frame
+  geometry mutation.
+- Do not change `buildPlayerFigure`'s public signature
+  (`teamColor, trimColor, isUser, hasBall, jerseyNumber, stance`).
+- Do not change scene JSON schema or BDW-01 pack content. Stance
+  routing for ESC/AOR/SKR is a follow-up item, not Phase F scope.
 
 #### Acceptance criteria
 - The new player silhouette reads as an athlete from broadcast
-  distance.
-- Stance differences (idle, defensive, denial, plus any new
-  stances introduced) are visually distinct without indicator
+  distance (single-mesh-feel body, V-tapered shoulders into waist,
+  visible knee + elbow break in poses that need them).
+- Stance differences (`idle`, `defensive`, `denial`, plus the new
+  `closeout` and at least stub `cut` and `sag`/`shrink` poses)
+  are visually distinct from the default camera without indicator
   help.
-- Offense, defense, and user identity remain unmistakable.
-- Mac frame rate stays in budget; FPS guard never auto-degrades
-  on `medium` or `high` tier on BDW-01.
-- All existing tests still pass; no leaks reported on scene
-  rebuild.
+- Offense, defense, and user identity remain unmistakable; the
+  user's chevron + halo + ring stack still reads from any camera.
+- Mac frame rate stays in budget; FPS guard never auto-degrades on
+  `medium` or `high` tier on BDW-01.
+- All existing tests still pass; F5 disposal-leak test passes; no
+  leaks reported on scene rebuild.
+- Per-player tri count recorded in this doc by F4.
 
 #### Suggested model
 **Opus 4.7 Max.** Visual + perf + integration risk; max thinking is
 warranted.
 
 #### Suggested commit style
-- 4–5 implementation commits.
-- 1 perf tuning commit.
-- 1 QA commit.
+- 1 silhouette commit (F1).
+- 1 stance commit (F2).
+- 1 identity / indicator integration commit (F3).
+- 1 perf tuning + tri-count baseline commit (F4).
+- 1 QA + disposal-leak test commit (F5).
 
 #### Micro-milestones
 
-> Note: the exact micro-milestone list will be refined by Phase E4
-> based on the chosen path. The shape below assumes Option B
-> (better reusable code mesh) — the most likely default. If E
-> picks A, C, or D, F1 changes accordingly.
+**F1 — Build the new athlete mesh under a flag**
+- Objective: implement the new code-built low-poly athlete builder
+  inside `imperativeScene.ts`, behind a `USE_ATHLETE_BUILDER`
+  module-level const. Old `buildPlayerFigure` stays intact and is
+  used until the flag flips at the end of F1.
+- Likely files: `imperativeScene.ts` (new `buildAthleteFigure` next
+  to the existing `buildPlayerFigure`; per-player loop branches on
+  the flag).
+- What changes: new builder produces the sub-group taxonomy from
+  E4 §3 (`pelvis`, per-side `leftLeg` / `rightLeg` with
+  `thigh` / `calf` / `foot`, `torso`, per-side `leftArm` / `rightArm`
+  with `upperArm` / `foreArm`, `neckHead`, `shoes`); indicator
+  layers are constructed in the same place and with the same Y
+  heights as today. Flag flips on at the end of F1; old builder
+  code stays in the file until F5.
+- Exit criteria: lint + tests + typecheck clean; `USE_ATHLETE_BUILDER`
+  is true; the builder signature is preserved; the indicator
+  contract from E4 §7 is satisfied.
+- Suggested commit message: `feat(scene): rebuild player silhouette as low-poly athlete`
 
-**F1 — Player silhouette rebuild**
-- Objective: rebuild the body silhouette so it reads as an
-  athlete (shoulders, taper to waist, leg articulation, head
-  proportion) within the chosen approach.
-- Likely files: `imperativeScene.ts` (`buildPlayerFigure`).
-- What changes: replace primitive stack with the chosen mesh
-  approach; preserve the function signature.
-- Exit criteria: silhouette test screenshot shows clear athlete
-  read at broadcast distance.
-- Suggested commit message: `feat(scene): rebuild player silhouette`
-
-**F2 — Stance readability pass**
-- Objective: ensure idle / defensive / denial stances are
-  visually distinct in the new mesh; add any new stances
-  identified in Phase C (e.g., `closeout`, `cut`).
-- Likely files: `imperativeScene.ts` (`buildPlayerFigure`,
-  per-stance pose).
-- What changes: per-stance pose adjustments mapped to the new
-  geometry.
+**F2 — Stance pose pass**
+- Objective: implement the per-stance pose lookup table on the new
+  sub-groups so `idle`, `defensive`, `denial`, `closeout` are
+  visually distinct from broadcast; ship `cut` and `sag`/`shrink`
+  as visible stubs (different from `idle` / `defensive` enough to
+  be distinguishable in a future pack).
+- Likely files: `imperativeScene.ts` (`buildAthleteFigure`,
+  per-stance constants).
+- What changes: a `STANCE_POSES` table keyed by `PlayerStance`
+  containing per-sub-group rotation and translation deltas.
+  `closeout` lives on the same axis as `defensive` but with shoulder
+  forward + front-foot toe planted. `cut` and `sag`/`shrink` ship
+  as stub deltas; full polish is a follow-up. The `PlayerStance`
+  union expands to include `'closeout' | 'cut' | 'sag'`.
 - Exit criteria: stances differentiable from the default camera
-  without indicators.
+  without indicators; lint + tests + typecheck clean; no scene
+  routing change yet (closest-defender heuristic still chooses
+  `denial` / `defensive` / `idle` only — see F-follow-up below).
 - Suggested commit message: `feat(scene): tune stance readability on new mesh`
 
-**F3 — Color/trim/identity integration**
-- Objective: re-apply offense/defense/user palette and trim to
-  the new mesh; verify the user halo still reads.
-- Likely files: `imperativeScene.ts` (palette constants, per-player
-  loop).
-- What changes: material assignment for body, jersey, trim, and
-  number band; user-identity halo verification.
-- Exit criteria: user is unmistakable; offense vs. defense reads
-  in one glance.
+**F3 — Identity + indicator integration**
+- Objective: re-apply offense / defense / user palette and trim to
+  the new mesh; verify the four indicator layers still mount and
+  flip correctly; re-derive the chevron Y against the new head Y.
+- Likely files: `imperativeScene.ts` (palette wiring inside
+  `buildAthleteFigure`, indicator y-height re-derivation).
+- What changes: shared `MeshStandardMaterial` per body region
+  (jersey, shorts, skin, shoe, accent, trim) — six materials per
+  figure, same as today; jersey number panels via existing
+  `makeJerseyNumberTexture`; chevron y math updated to track new
+  `HEAD_Y`. A small unit test asserts the four indicator layers
+  exist on a default scene's user / non-user / ball-handler /
+  non-ball-handler combinations.
+- Exit criteria: user unmistakable; offense vs. defense reads in
+  one glance; chevron sits cleanly above the new head; new unit
+  test passes; lint + typecheck clean.
 - Suggested commit message: `feat(scene): integrate identity palette on new mesh`
 
-**F4 — Performance tuning**
-- Objective: keep tri counts and material counts within budget;
-  verify FPS guard doesn't auto-degrade.
-- Likely files: `imperativeScene.ts`,
-  `lib/scenario3d/quality.ts`.
-- What changes: lower-detail variant on `low` tier if needed;
-  shared materials; minimal new draw calls.
-- Exit criteria: Mac frame rate stable on BDW-01; tri-count
-  baseline recorded in this doc.
+**F4 — Performance tuning + tri-count baseline**
+- Objective: confirm the new geometry sits inside the E4 §5 budget;
+  add a per-tier geometry variant only if measurement requires it;
+  record the baseline in this doc.
+- Likely files: `imperativeScene.ts` (geometry segment counts);
+  `lib/scenario3d/quality.ts` only if a low-tier variant is
+  needed.
+- What changes: confirm shared materials per figure; tune
+  `CapsuleGeometry` / `BoxGeometry` segment counts down where the
+  silhouette is unaffected; record per-figure tri count
+  (`figure.traverse((c) => sum += (c as THREE.Mesh).geometry?.index?.count ?? 0)`)
+  for one default-scene player and append to E4 §5 as the actual
+  baseline.
+- Exit criteria: per-figure tri count ≤ 1500; total player tris on
+  BDW-01 ≤ 7500; no FPS-guard auto-degrade on `medium` or `high`
+  in any test fixture; lint + tests clean.
 - Suggested commit message: `perf(scene): tune new player geometry budget`
 
-**F5 — Player visual QA**
-- Objective: validate new geometry against the Section 15 QA
-  checklist on BDW-01 and against the static-readiness flags
-  for ESC/AOR/SKR.
-- Likely files: tests + docs.
-- What changes: append a "Geometry QA Results" subsection.
-- Exit criteria: every QA item in Section 15 still passes; no
-  regression vs. Phase 7 record.
+**F5 — QA + disposal-leak test + flag-flip cleanup**
+- Objective: lock in coverage and remove the old builder. Add a
+  vitest test that builds and disposes 100 figures and asserts no
+  monotonic geometry growth. Delete the old `buildPlayerFigure`
+  body and the `USE_ATHLETE_BUILDER` flag now that the new path is
+  proven. Append a "Geometry QA Results" subsection.
+- Likely files: a new sibling test file (e.g.
+  `imperativeScene.dispose.test.ts`) + `imperativeScene.ts` for
+  the flag removal; this doc for the QA Results.
+- What changes: add disposal-leak test; remove old builder + flag;
+  append "Phase F QA Results" subsection.
+- Exit criteria: all tests pass including the new disposal-leak
+  test; lint + typecheck clean; no dead code; QA Results
+  subsection complete.
 - Suggested commit message: `test(scene): verify new player geometry QA`
 
 ---
@@ -2680,4 +2736,933 @@ BDW-01:
 - **Yaw smoother time constants are global.** Per-stance tuning
   (e.g., a denying defender turns faster than a helper) would be a
   natural Phase F follow-on if needed.
+
+---
+
+## 15. Phase D — Fullscreen Film Room Mode
+
+### D1 — Fullscreen UX Plan
+
+> Docs-only milestone. All open questions resolved here before any
+> code is written. The answers below drive D2–D5 implementation.
+
+#### Button placement
+
+The fullscreen toggle lives in the **top-right cluster** of
+`PremiumOverlay`, to the right of the camera selector. The cluster
+already groups "what am I looking at" controls (replay badge, paths
+toggle, camera selector). Fullscreen belongs there because it is also
+a view-mode affordance, not a timeline control.
+
+```
+top-right cluster (left → right):
+  [REPLAY badge] [Paths on/off] [Camera ▾] [⛶ / ⛶ Exit]
+```
+
+The button is a compact chip matching the camera-selector aesthetic
+(`ciq-broadcast-chip`, same font/size/opacity transitions).
+
+#### Icon design
+
+- **Enter fullscreen**: four-corner expand glyph (arrows pointing
+  outward from center).
+- **Exit fullscreen**: four-corner collapse glyph (arrows pointing
+  inward).
+- Icon drawn as an inline SVG `viewBox="0 0 16 16"`,
+  `stroke="currentColor"`, consistent with the rest of the overlay
+  icon set.
+- `aria-label` changes between "Enter fullscreen" and "Exit
+  fullscreen" to reflect the current state.
+
+#### Control persistence inside fullscreen
+
+**All controls remain visible and usable inside fullscreen.** The
+overlay is positioned `absolute inset-0` over the canvas wrapper, and
+that wrapper is the fullscreen element. The overlay's DOM tree travels
+with the element into fullscreen — no control is re-mounted or
+teleported.
+
+Controls confirmed reachable in fullscreen:
+- Restart, Play/Pause, Speed selector (bottom-center transport pill)
+- Paths toggle (top-right cluster)
+- Camera selector (top-right cluster)
+- Fullscreen toggle now showing "Exit" (top-right cluster)
+- Concept chip, Replay badge (top-left / top-right, already in DOM)
+
+#### Escape behavior
+
+The browser's native `Escape` key exits fullscreen (this is mandatory
+and cannot be suppressed). A `fullscreenchange` event fires on the
+element; the listener updates `isFullscreen` state so the button icon
+and aria-label flip back to "Enter." No custom Escape binding is
+added.
+
+#### Train-page shell hiding
+
+The fullscreen element is the **canvas wrapper div** inside
+`Scenario3DView` (the same `div.relative.h-full.w-full` that wraps
+`Scenario3DCanvas` and `PremiumOverlay`). When the browser promotes
+this element to fullscreen, it renders it at full viewport size
+independent of the page's normal document flow. The decoder pill,
+answer cards, and header in `app/train/page.tsx` remain in the DOM
+but are behind the fullscreen layer — the browser stacking context
+ensures they are not visible.
+
+No changes to `app/train/page.tsx` are required for shell hiding; the
+browser fullscreen spec handles it. A minimal `data-fullscreen` hook
+is added to the container only if CSS `:fullscreen` fixes are needed
+for control sizing (deferred to D4).
+
+#### State ownership
+
+`isFullscreen: boolean` lives in **`Scenario3DView`**. It is the
+parent that owns the container ref and manages overlay state; the
+canvas stays narrowly focused on imperative rendering.
+
+```ts
+// Scenario3DView pseudo-code
+const containerRef = useRef<HTMLDivElement>(null)
+const [isFullscreen, setIsFullscreen] = useState(false)
+
+function toggleFullscreen() {
+  if (typeof document === 'undefined') return
+  if (!document.fullscreenElement) {
+    containerRef.current?.requestFullscreen()
+  } else {
+    document.exitFullscreen()
+  }
+}
+
+useEffect(() => {
+  if (typeof document === 'undefined') return
+  const el = containerRef.current
+  if (!el) return
+  const onChange = () => setIsFullscreen(!!document.fullscreenElement)
+  el.addEventListener('fullscreenchange', onChange)
+  return () => el.removeEventListener('fullscreenchange', onChange)
+}, [])
+```
+
+All access to `document.fullscreenElement`, `requestFullscreen()`, and
+`exitFullscreen()` is guarded behind `typeof document !== 'undefined'`
+checks so the component SSR-renders without errors.
+
+#### Canvas sizing in fullscreen
+
+When `isFullscreen` is true, `Scenario3DView` passes `height={undefined}`
+(or a very large sentinel) to `Scenario3DCanvas` so the canvas uses
+`height: 100%` of its container instead of the fixed `320px` default.
+The canvas's `containerRef` already sets `width: 100%` and the R3F
+`<Canvas>` uses `style={{ width: '100%', height: '100%' }}`, so no
+resize observer is required — the renderer naturally fills the
+fullscreen element. The browser's resize of the fullscreen element
+triggers R3F's size tracking which re-renders at the correct
+resolution.
+
+The DPR / FPS guard is unaffected. The fullscreen element inherits the
+same pixel ratio as before; the guard continues to degrade the tier if
+sustained low FPS is detected.
+
+#### Open questions resolved
+
+| Question | Answer |
+|---|---|
+| Where does the button live? | Top-right cluster, after camera selector |
+| What icon? | Expand/collapse SVG corners glyph, 12×12px |
+| Do controls disappear in fullscreen? | No — all controls stay |
+| Does Escape need custom handling? | No — browser native is correct |
+| Does the train shell bleed in? | No — browser fullscreen stacking handles it |
+| Is SSR safe? | Yes — typeof document guards on all API access |
+| Does canvas resize? | Yes — height becomes 100% in fullscreen element |
+| Does DPR / FPS guard change? | No — unchanged |
+
+### D5 — Phase D QA Results
+
+#### Automated test coverage
+
+New test file: `apps/web/components/scenario3d/fullscreen.test.ts`  
+Environment: `jsdom` (Vitest)  
+Approach: mock `document.fullscreenElement`, `document.exitFullscreen`, and
+`element.requestFullscreen` — does not boot WebGL or React.
+
+| Test | Result |
+|---|---|
+| calls `requestFullscreen` on container when not in fullscreen | PASS |
+| calls `document.exitFullscreen` when already in fullscreen | PASS |
+| does not call `requestFullscreen` when container ref is null | PASS |
+| does not throw when toggling out with null container | PASS |
+| fires `fullscreenchange` event listener when dispatched | PASS |
+| does not fire after listener is removed (cleanup verified) | PASS |
+| denied `requestFullscreen` (rejected promise) does not throw | PASS |
+
+Total after D5: **136 tests / 9 test files** — all passing.
+
+#### Manual QA matrix (deferred to Phase H for browser execution)
+
+Phase D did not include a live browser QA pass — Phase H is the full
+integration gate. Phase H should walk this matrix on BDW-01:
+
+**Fullscreen entry / exit**
+
+| Item | Expected | Status |
+|---|---|---|
+| Click fullscreen button (⛶) | Browser enters fullscreen, button icon flips to ⛶ collapse | Pending H |
+| Press Escape in fullscreen | Browser exits fullscreen, button icon flips back to ⛶ expand | Pending H |
+| Click collapse button (⛶) | `document.exitFullscreen()` called, state resets | Pending H |
+| Reload while in fullscreen URL | Page loads in embedded mode (fullscreen is not persisted) | Pending H |
+
+**Canvas sizing**
+
+| Item | Expected | Status |
+|---|---|---|
+| Court fills viewport in fullscreen (no letterboxing) | Canvas height = 100vw × 100vh | Pending H |
+| Court lines remain crisp in fullscreen | No DPR blowup; FPS guard unchanged | Pending H |
+| Returning from fullscreen restores embedded height | Fixed-pixel height resumes; no layout shift | Pending H |
+
+**Controls reachable in fullscreen**
+
+| Item | Expected | Status |
+|---|---|---|
+| Restart button visible and clickable | Bottom-center transport pill reachable | Pending H |
+| Play/Pause button visible and clickable | Primary CTA in transport pill reachable | Pending H |
+| Speed selector (0.5x / 1x / 2x) visible and clickable | Speed chip in transport pill reachable | Pending H |
+| Paths toggle visible (when `pathsAvailable` is true) | Top-right cluster, label always shown in fullscreen | Pending H |
+| Camera selector dropdown visible and usable | Top-right cluster, dropdown opens inside fullscreen | Pending H |
+| Fullscreen toggle button visible (Exit state) | Top-right cluster, green tint when active | Pending H |
+
+**Train-page shell bleed**
+
+| Item | Expected | Status |
+|---|---|---|
+| Decoder pill not visible in fullscreen | Browser stacking hides page shell | Pending H |
+| Choice cards not visible in fullscreen | Browser stacking hides page shell | Pending H |
+| Header / nav not visible in fullscreen | Browser stacking hides page shell | Pending H |
+
+**SSR / Edge cases**
+
+| Item | Expected | Status |
+|---|---|---|
+| Server-render does not throw (`typeof document` guard) | No SSR error | Verified (lint + typecheck clean) |
+| Fullscreen denied (sandboxed iframe) | `catch` silences error; no UI crash | Covered by unit test |
+| `fullscreenchange` listener removed on unmount | Cleanup function in `useEffect` verified | Covered by unit test |
+
+#### Remaining risks for Phase H
+
+- **Browser compat.** Safari historically lags the Fullscreen API
+  (`webkitRequestFullscreen` prefix). jsdom stubs the standard interface;
+  a Safari live test is the only real coverage.
+- **Mobile.** iOS Safari does not support the Fullscreen API at all;
+  the button will not throw (requestFullscreen rejects and the catch
+  silences it) but the user sees no feedback. A future pass could
+  detect support and hide the button on iOS.
+- **Iframe sandbox.** `allow-fullscreen` must be present in any embedding
+  iframe attribute for the API to work. Already handled by the catch block.
+
+
+---
+
+## 16. Phase E — Player Geometry Strategy Spike
+
+### E1 — Player Geometry Failure Audit
+
+> Read-only audit. Every problem below is traced to a specific decision in
+> `buildPlayerFigure` (`imperativeScene.ts` ~L3393–L3873) so Phase F can fix
+> the root cause, not the symptom. Source-of-truth dimensions are at
+> `imperativeScene.ts` ~L3303–L3361 (per-part radius / height / Y / stagger).
+
+The current procedural figure ships a stack of distinct primitives
+(`BoxGeometry` shoes, `CylinderGeometry` legs, `CapsuleGeometry` torso /
+arms, tapered cylinder shorts, capsule shoulder yoke, sphere head, hair
+hemisphere, head wedge marker), and yet — to a viewer who is not the
+person who wrote it — it still reads as "stacked primitives," not
+"basketball player." The Phase 2 polish moved the silhouette forward
+(capsule torso, tapered legs, foot stagger, V-shaped chest, jersey number
+panels, contact shadow). It did not solve the underlying problem, which is
+that the figure is **assembled, not modeled.**
+
+#### 1. Silhouette problems
+
+- **What the user sees.** From the broadcast camera the body reads as a
+  bottle on two posts on two boxes. The torso → shorts → legs transition is
+  a hard step-down in radius, not a hip line. Above the chest the shoulder
+  yoke (`YOKE_WIDTH = TORSO_WIDTH * 1.18`, ~L3334) reads as a bar laid
+  across the top of the torso rather than as deltoids that taper into arms.
+- **Why it hurts CourtIQ.** Silhouette is the first read at broadcast
+  distance. A player whose silhouette resolves to "primitives" cannot teach
+  body language, which is the entire CourtIQ thesis (read the defender,
+  not the spot — Section 6).
+- **Where in `buildPlayerFigure`.** The torso (`THREE.CapsuleGeometry`
+  with `scale.set(1.05, 1, 0.72)`, ~L3528–L3538) and the shoulder yoke
+  (~L3545–L3554) are independent primitives layered without any blending or
+  shared topology. The yoke is a horizontally-rotated capsule sitting on
+  top of the torso capsule; it never blends into a deltoid.
+
+#### 2. Body proportion problems
+
+- **What the user sees.** The torso (`TORSO_HEIGHT = 1.4`,
+  `TORSO_WIDTH = 1.55`) is wider than tall. With `scale.set(1.05, 1, 0.72)`
+  the cross-section reads as a pancake from the high 3/4 camera. The legs
+  (`LEG_HEIGHT = 2.1`) are slightly too short relative to total height
+  (~L3322–L3328 lays the body out at SHOE_Y=0.2, LEG_Y=1.25, SHORTS_Y=2.8,
+  TORSO_Y=3.9, NECK_Y=4.71, HEAD_Y=5.35). For an athletic figure the leg
+  span should be closer to half of total height; here legs are ~33%.
+- **Why it hurts CourtIQ.** Wrong proportions break the "athlete" read
+  before stance ever has a chance. Even a perfectly posed defender reads as
+  "small adult-shaped trinket," not "ballplayer."
+- **Where in `buildPlayerFigure`.** The dimension constants at
+  `imperativeScene.ts` ~L3303–L3320, plus the leg `CylinderGeometry(LEG_RADIUS * 0.95, LEG_RADIUS * 1.25, LEG_HEIGHT, 14)`
+  at ~L3483 — taper is from 0.95×0.22 to 1.25×0.22, so the leg goes from
+  20cm to 27cm radius, which broadens the calf relative to the thigh
+  (backwards from a real athletic leg).
+
+#### 3. Shoulder / torso / hip problems
+
+- **What the user sees.** No clavicle ridge, no deltoid. The shoulder yoke
+  is one centered horizontal capsule across the top of the torso; the arms
+  hang from positions that look attached at the side of the torso, not at
+  the shoulder ball. The hip transition into shorts is a vertical seam
+  (capsule torso ends, slightly-tapered cylinder shorts begin) without a
+  pelvis curve. The chest stripe (~L3584) is a visible flat strip rather
+  than a jersey neckline.
+- **Why it hurts CourtIQ.** Shoulders are the dominant facing cue from
+  high 3/4. If the shoulders are a generic horizontal bar, "this defender
+  is angled toward the ball" is invisible. The same is true for the hips:
+  hip angle is the main defender-stance signal, and a vertical cylinder
+  cannot communicate hip angle.
+- **Where in `buildPlayerFigure`.** Yoke at ~L3545–L3554 (single capsule,
+  rotated 90° around z, scaled to a thin slab); shorts at ~L3503–L3511
+  (single tapered cylinder); torso at ~L3528–L3538 (capsule). Three
+  independent primitives sharing only a y-axis — there is no shared
+  geometry that defines a "shoulder line" or "hip line."
+
+#### 4. Arm / leg / shoe problems
+
+- **Arms.** Built from `CapsuleGeometry(ARM_RADIUS=0.18, ARM_LENGTH * 0.9 = 1.26)`
+  per side (~L3597–L3627). Per-stance pose uses `arm.rotation.x/z` and
+  `arm.position` writes — the arm is a single rigid limb, no elbow break.
+  Closeout, denial, and idle all bend the same straight tube.
+- **Legs.** Single tapered cylinder per side (~L3479–L3489). No knee, no
+  calf taper toward the ankle. Stance crouch is faked by translating the
+  upper body down by `STANCE_LOWER_FT = 0.35` (~L3497) — the legs
+  themselves do not bend. From the side this is visible as torso-floats-down
+  with stiff posts beneath it.
+- **Shoes.** Box geometry `(0.5 × 0.4 × 1.0)` plus a midsole stripe
+  (~L3454–L3473). At broadcast distance these read as "blocks under
+  legs," not "shoes." Foot direction is a primary defender cue (Section 6 —
+  defender hip / foot readability) and the box gives a yes/no z-axis at
+  best — no toe, no heel.
+- **Why it hurts CourtIQ.** The decoder for AOR-01 (No Gap Go Now) will
+  ask the user to read "balanced vs out-of-control closeout." That
+  signal lives almost entirely in shin angle and shoe orientation, both
+  of which the current geometry cannot communicate.
+
+#### 5. Stance readability problems
+
+- **What the user sees.** The three current stances (`idle`, `defensive`,
+  `denial`) look almost identical from broadcast. `defensive` and `denial`
+  both translate the upper body down 0.35ft. They differ in arm pose
+  (defensive: hands-out, denial: outside arm raised) and foot stagger
+  (`FOOT_STAGGER_DEFENSIVE = 0.18` vs `FOOT_STAGGER_DENIAL = 0.1`).
+  `idle` keeps the upper body upright with `[-0.05, -0.05]` foot offsets.
+  The crouch translation makes the torso intersect the shorts visually
+  but the legs themselves are unchanged length, so the "knees bent"
+  read is implied rather than shown.
+- **Why it hurts CourtIQ.** Phase C added expressive yaw rotation per
+  frame, but the body underneath the yaw is the same shape regardless of
+  stance. The user has no honest way to distinguish "crouched defender
+  in a denial stance" from "standing defender holding their arm up." The
+  basketball read in BDW-01 — *they're sitting on the pass* — collapses
+  into "they have an arm raised."
+- **Where in `buildPlayerFigure`.** Crouch at ~L3497 (single y-translate
+  of `upperBody`); foot stagger at ~L3438–L3448; arm pose at ~L3597–L3627.
+  No leg primitive responds to stance.
+
+#### 6. Why it still looks like primitives
+
+- **Hard edges between primitives.** Capsule + capsule + cylinder + box
+  meet at right angles with no inter-primitive blending. Smooth-shading
+  on individual primitives cannot hide the seam where two primitives
+  dock.
+- **No skinning, no continuous mesh.** The body is six rigid groups
+  (legs, shorts, torso, yoke, arms, head). Stance changes pivot or
+  translate one group at a time; the body never deforms as a single
+  silhouette would.
+- **Identity comes from textures + rings, not from the body itself.**
+  The jersey number is a flat plane glued onto the torso (~L3559–L3580).
+  The team color is a uniform `MeshStandardMaterial` painted across the
+  whole torso. The user halo lives on the floor, not on the body. So
+  when you remove the rings + chevron + halos, the body is unrecognisable
+  as a player at all.
+- **Where in `buildPlayerFigure`.** Every primitive is added to either
+  `figure` or `upperBody` independently (~L3454–L3675). There is no
+  underlying mesh that all primitives blend into.
+
+#### 7. Why it does not feel like a basketball athlete
+
+- **No mass distribution.** Real ballplayers have visible quad/glute mass
+  on the lower body, V-tapered shoulders, and forearms thicker than the
+  upper arm. The current body is roughly tube-and-bottle.
+- **No leg articulation.** Cuts read as foot-sliding because the legs
+  cannot scissor or lift. Phase C eased motion timing, which helped, but
+  the body still drifts as a static stack.
+- **No gestural body language.** Real defenders shift weight, square hips,
+  drop a shoulder. The current builder has no "dropped shoulder" axis.
+- **Generic head + hair cap.** Head + hemispherical hair (~L3640–L3665)
+  reads as "snowman with shading" not "athlete head," especially when
+  combined with the soft contact shadow.
+- **Where in `buildPlayerFigure`.** The body assembly itself; nothing in
+  the per-stance pose exposes hip-square, shoulder-drop, or weight-shift
+  as parameters. The pose system writes only foot-stagger and arm-rotation.
+
+#### 8. Why prior Phase 2 polish was not enough
+
+Phase 2 (visual-system plan §12 / §6) raised the floor: capsule torso
+instead of box, tapered legs instead of cylinders, foot stagger, jersey
+number panel, shoulder yoke, contact shadow, V-shaped torso scale. Each
+change solved a real prior problem. None changed the fundamental
+**six-primitive assembly architecture**:
+
+- The polish was per-primitive, not per-figure. Each primitive got
+  better; the joints between primitives stayed seam lines.
+- Stance work was confined to translating / rotating existing primitives.
+  No leg articulation, no shoulder-drop axis, no weight shift were ever
+  added — there was nowhere for them to live.
+- Phase 2 ran inside the same builder signature (`teamColor, trimColor,
+  isUser, hasBall, jerseyNumber, stance`), so all upgrades had to fit
+  inside that frame.
+
+The result is a body that is significantly better than the original
+peg figure but still **structurally a stack**. Any further round of
+"make the cylinders nicer" inside the existing assembly hits a ceiling
+that polish cannot lift.
+
+#### 9. What must be true for the next design to succeed
+
+- **One coherent body silhouette.** Whatever geometry ships, the eye
+  must read a single continuous athlete shape from broadcast distance,
+  not a stack of primitives.
+- **Stance must affect the body, not just translate it.** Crouch must
+  bend legs (or read as bent legs). Shoulder-drop must be a real axis.
+  Hip-square must be real geometry, not implied by yoke rotation.
+- **Identity layers (rings, halos, possession, focus, feedback) keep
+  working unchanged.** The body redesign cannot rebuild the indicator
+  system; that contract is locked by Phase 3 of the visual-system plan
+  (Section 7).
+- **Stays on Mac.** Per-player tri budget, material count, and draw-call
+  count must not balloon. No skeletal rig, no realtime physics.
+- **One builder, parameterised.** The signature stays caller-compatible;
+  internal complexity is fine but the integration surface (per-player
+  loop in `buildBasketballGroup`, ~L379–L427) must not change.
+- **Scenario-aware stance routing without re-authoring.** ESC-01,
+  AOR-01, SKR-01 (visual-system plan §18.4 reopen item) need
+  `closeout`, `sag`/`shrink`, and `cut` stances. The next geometry
+  must accept those without a rebuild.
+- **Disposal hygiene preserved.** Every new mesh / material / texture
+  reachable by `disposeGroup` and `disposeMaterialTextures`.
+
+
+### E2 — Player Geometry Strategy Comparison
+
+> Four candidate paths, each evaluated against the constraints established
+> in E1 §9 plus visual-system plan Sections 6, 14 (perf rules), 17.5
+> (safest files), 18.4 (stance reopen item).
+
+#### Option A — Improve current procedural primitives again
+
+- **What it means.** Stay inside `buildPlayerFigure` and tune dimensions,
+  add a third capsule for biceps/forearms, sharpen the shoulder yoke,
+  lengthen legs, narrow shorts. No architectural change; another polish
+  pass on the existing primitive stack.
+- **Expected visual quality.** Marginal lift over today. Three rounds
+  have already gone through this loop (peg → capsule torso → V-taper +
+  yoke + foot stagger). Each round produced a smaller delta than the
+  one before. Diminishing returns are the headline finding from E1 §8.
+- **Engineering complexity.** Low. Numeric tuning + one or two extra
+  primitives.
+- **Performance risk on Mac.** Low. Per-player tri count rises by maybe
+  ~10%; well inside Section 14 budget.
+- **Compatibility with current indicators.** Perfect — nothing changes.
+- **Compatibility with stance system.** Same as today: stance still
+  reduces to "translate upper body + rotate arms." Cannot add
+  closeout / sag / cut convincingly.
+- **Compatibility with `disposeGroup` / material cleanup.** Perfect —
+  no new patterns.
+- **Risk to replay/movement.** None. Phase B/C work is decoupled.
+- **Does it solve the "gross player geometry" problem?** No. It does
+  not change the architecture that produces the "stack" read.
+- **Verdict.** **Reject.** Three rounds of this approach produced a
+  better-but-still-placeholder body. A fourth will hit the same ceiling.
+
+#### Option B — Build a better reusable low-poly player mesh in code
+
+- **What it means.** Replace the primitive stack with a hand-authored,
+  code-built low-poly athlete: a single `BufferGeometry` for the torso
+  (or a small set of merged primitives that share a topology) with V-
+  tapered shoulders, articulated arms (upper / fore / hand block),
+  articulated legs (thigh / calf / foot), distinct shoes with toe + heel,
+  and a hip ring that defines hip angle as real geometry. Stance is
+  applied to the same mesh by rotating named sub-groups
+  (`leftThigh`, `leftCalf`, `leftFoot`, `rightThigh`, `rightCalf`,
+  `rightFoot`, `torso`, `leftUpperArm`, `leftForeArm`, `rightUpperArm`,
+  `rightForeArm`) rather than translating the upper body wholesale.
+  No skeletal skinning — each segment is a rigid sub-group, and the
+  joints between them either match (shared end-cap radius) or hide
+  inside the shorts / sleeves so the seam is invisible from broadcast
+  distance.
+- **Expected visual quality.** Substantial lift. Real leg bend in
+  defensive stance, real elbow bend in denial, real toe orientation in
+  closeout. Silhouette resolves to "athlete," not "primitives." Phase
+  6 of the visual-system plan describes exactly this in §6 — "stylized
+  athletic proportions" with "stance set by pose, not by skeletal
+  animation."
+- **Engineering complexity.** Medium. A code-built low-poly mesh is
+  bigger code than the current builder, but every primitive is still
+  THREE.BufferGeometry, no loaders, no async. The hard work is sub-
+  group taxonomy + per-stance pose math; both are straightforward.
+- **Performance risk on Mac.** Low–Medium. Tri count rises (estimate
+  ~600–1100 tris per player vs. today's ~450, depending on shoe / hand
+  detail). Five players × 1100 = ~5500 player tris, comfortably below
+  the gym shell + court budget. Material count stays the same (jersey,
+  shorts, skin, shoe, accent, trim). No new draw calls.
+- **Compatibility with current indicators.** High. The base / user /
+  possession layers attach to the figure root, not the body. The
+  builder signature (`teamColor, trimColor, isUser, hasBall,
+  jerseyNumber, stance`) is preserved; indicators ride on top exactly
+  as they do today.
+- **Compatibility with stance system.** High. Adding `closeout`,
+  `sag` / `shrink`, and `cut` is a per-stance pose lookup table on
+  the new sub-groups. ESC-01 / AOR-01 / SKR-01 reopen items
+  (visual-system plan §18.4) become easy.
+- **Compatibility with `disposeGroup` / material cleanup.** High.
+  Sub-groups are still THREE.Group descendants; the existing
+  traversal walks them and frees geometry / material as before.
+  Shared materials (one jerseyMat per figure, etc.) keep dispose
+  cheap.
+- **Risk to replay/movement.** Low. The MotionController writes
+  `position` and `rotation.y` on the figure root; sub-group poses are
+  internal to the builder. Phase C's per-frame yaw remains a single
+  rotation write on the root.
+- **Does it solve the "gross player geometry" problem?** Yes. It
+  changes the architecture that produces the placeholder read.
+- **Verdict.** **Recommended.**
+
+#### Option C — Use a lightweight imported GLB / glTF model
+
+- **What it means.** Author or commission a low-poly player model in
+  Blender, export to GLB, ship via `GLTFLoader` from `three/examples`.
+  Bind a tiny rig (or pose-frames) for stances.
+- **Expected visual quality.** Potentially highest of the four if a
+  good artist authors it; potentially worst if not, because an
+  uncanny-valley model is more jarring than a clean primitive stack.
+  Quality is bounded by who builds the asset, not by the engineering.
+- **Engineering complexity.** Medium–High. New asset pipeline (Blender
+  source, GLB export step, version control of binary blobs); new
+  loader code path inside `Scenario3DCanvas` or `imperativeScene`;
+  async loading + suspense handling; per-player instance cloning of
+  the SkinnedMesh / Mesh; pose application via skeleton or morph
+  targets. Disposal becomes harder (skinned meshes have separate
+  skeleton lifetimes, animation mixers, etc.).
+- **Performance risk on Mac.** Medium. Skinned meshes cost more per
+  frame than rigid sub-groups; five animated skinned meshes is the
+  exact pattern Section 14 calls out as "no per-skinned animation
+  rigs in this phase." Even without skinning, a higher-poly imported
+  model can blow the per-player tri budget.
+- **Compatibility with current indicators.** Medium. Indicators still
+  attach to the figure root, but if the imported model has its own
+  origin / scale, indicator positions need recomputing. The user halo
+  and chevron currently assume specific Y heights (`HEAD_Y + HEAD_RADIUS + 1.1`,
+  `imperativeScene.ts` ~L3831).
+- **Compatibility with stance system.** Medium. If the model is
+  imported with bone animations, stance becomes "play animation X" —
+  loses the per-frame yaw / closeout-tilt that Phase C added on the
+  root. If imported without bones, every stance is a separate
+  pre-authored mesh, which multiplies the asset cost.
+- **Compatibility with `disposeGroup` / material cleanup.** Medium.
+  GLTFLoader-produced meshes need extra dispose handling for the
+  skeleton, animation clips, and texture cache. The existing
+  `disposeGroup` traversal would miss these.
+- **Risk to replay/movement.** Medium. Replay reliability (Phase B)
+  was hard-won; switching the body to a SkinnedMesh + animation mixer
+  reintroduces frame-rate-dependent timing, which is the exact problem
+  Phase B fixed. Even avoiding mixers, imported models have
+  surprises (bone normalisation, root motion offsets) that have a
+  history of breaking replay deterministic playback.
+- **Does it solve the "gross player geometry" problem?** Could —
+  but at the cost of a new asset pipeline and async-loading path the
+  rest of the renderer does not currently use.
+- **Verdict.** **Reject (now). Reconsider post-recovery.** The asset
+  pipeline alone is a separate workstream. The visual-system plan
+  Section 6 explicitly says "no per-skinned animation rigs in this
+  phase," and Section 14 says "no realtime cloth, no realtime fluid,
+  no per-frame shader allocations." A good GLB future is fine; this
+  phase is the wrong moment.
+
+#### Option D — Hybrid (code-built body + imported head, or code mesh + imported textures)
+
+- **What it means.** Mix-and-match: keep the body in code (Option B)
+  but import a small stylized head model from GLB, or apply imported
+  PBR material textures to the code mesh.
+- **Expected visual quality.** Same as B for body; head can be either
+  better (imported) or a wash (heads barely register at broadcast
+  distance per visual-system plan §6 "no facial detail, no hair systems
+  — faces are an attention sink and a perf cost for zero teaching
+  value at this camera distance").
+- **Engineering complexity.** Adds the GLB asset pipeline cost from
+  Option C without the rest of the model's benefit. Two loader paths
+  is worse than one.
+- **Performance risk on Mac.** Low–Medium. The body is rigid; the head
+  is small. The added cost is mostly the loader, not the geometry.
+- **Compatibility with current indicators.** Medium. Same head-Y
+  recompute risk as Option C, but limited in scope.
+- **Compatibility with stance system.** Same as B.
+- **Compatibility with `disposeGroup`.** Medium. New texture-import
+  path needs its own dispose call.
+- **Risk to replay/movement.** Low. Same as B; the head is static.
+- **Does it solve the "gross player geometry" problem?** Yes — but only
+  via the body half. The head half is decorative cost.
+- **Verdict.** **Reject.** All the plan benefit lives in the body
+  (Option B). The head is small and unimportant at broadcast distance
+  (visual-system plan §6: "no facial detail" is a *positive* design
+  choice, not a fallback). Adding a GLB asset pipeline solely for the
+  head is overengineering.
+
+#### Comparison table
+
+| Dimension | A. Repolish primitives | B. Code-built low-poly mesh | C. Imported GLB | D. Hybrid (B + GLB head) |
+|---|---|---|---|---|
+| Visual ceiling | Low | High | Highest in theory | High |
+| Implementation risk | Very low | Low–Medium | High | Medium–High |
+| Performance risk | Very low | Low–Medium | Medium | Low–Medium |
+| Time cost | S (1 commit) | M (4–5 commits) | L (asset + loader + integration) | L–M (B + asset path) |
+| Maintainability | Familiar territory | One builder file, all in code | Two pipelines (asset + code) | Worst — code + asset |
+| Compatible with indicators | Perfect | High | Medium | Medium |
+| Stance extensibility | Capped | High | Animation-dependent | High |
+| Compatible with `disposeGroup` | Perfect | High | Medium (extra cases) | Medium |
+| Replay-safe | Perfect | Perfect | At risk | Mostly perfect |
+| Solves the placeholder read | No | **Yes** | Yes (if asset is good) | Yes |
+| Best fit for CourtIQ today | No | **Yes** | No | No |
+
+#### Conclusion
+
+Option B (a reusable code-built low-poly athlete mesh, no skeletal rig,
+sub-group rigid posing) is the only candidate that resolves the
+architectural ceiling identified in E1 §6/§8 while staying inside the
+performance, dispose, and replay-safety guardrails the recovery has
+spent Phases A–D establishing. E3 designs the proof-of-concept; E4
+locks the path.
+
+
+### E3 — Player Geometry Prototype Recommendation
+
+> Decides whether Phase F should be preceded by a scratch-branch
+> prototype or proceed straight to F1 with documented constraints. The
+> recovery branch must stay clean — no experimental geometry on
+> `claude/phase-d-auto-run-B500C` or any descendant landing branch.
+
+#### 1. Recommendation: **document the prototype plan; skip the scratch branch**
+
+#### 2. Why
+
+- **The architectural decision is already made.** E2 ruled out A, C, D
+  on engineering grounds, not on visual uncertainty. The remaining
+  question is *how good* a code-built low-poly mesh can look — and
+  that question is answered by F1 itself, not by a prototype, because
+  F1 *is* the first iteration of the new builder.
+- **The scratch-branch path adds cycles without de-risking a different
+  unknown.** A scratch prototype would prove "yes, code-built low-poly
+  meshes can render on the existing canvas," which we already know
+  (the current builder is the proof). It would not answer the only
+  remaining open question, which is "do the new proportions read as an
+  athlete in the broadcast camera." That answer requires the full
+  builder integrated against real scene data, not an isolated mesh in
+  a sandbox.
+- **No new technology is being introduced.** Every primitive Option B
+  uses (`THREE.BufferGeometry`, sub-group rigid posing, shared
+  materials, indicator layers attached to the figure root) is already
+  in production today. There is no "does this loader work" or "does
+  this shader compile" question to answer offline.
+- **This environment cannot run a browser-driven QA pass anyway.**
+  Live screenshots, side-by-side comparisons, and Mac frame-rate
+  measurement happen in Phase H. A scratch prototype that cannot be
+  visually validated here would be a guess on a guess.
+- **The recovery is on a tight cadence.** Phases A–D have shipped one
+  phase per session. A scratch-branch detour breaks that cadence and
+  adds a merge risk the rest of the recovery does not have.
+
+#### 3. If the prototype were created (rejected, captured for completeness)
+
+- **Branch name:** `claude/phase-e-player-geometry-prototype` (off
+  `main`, not the recovery branch).
+- **Files touched:** a single new file
+  `apps/web/components/scenario3d/__experimental__/buildAthleteFigure.ts`
+  exporting a draft builder; a query-string-gated mount in
+  `Scenario3DCanvas.tsx` (e.g. `?proto=athlete=1` swaps figures for
+  the new builder).
+- **Visual sample:** five players (one user, two offense, two defense),
+  each in one of the five required stances (idle / defensive / denial
+  / closeout / cut). Static mount, no replay.
+- **Screenshots:** broadcast, tactical, and follow camera modes →
+  `docs/screenshots/recovery-e3/` (12 PNGs, 3 cameras × 4 stances).
+  No screenshots will be produced from this environment.
+- **Comparison:** side-by-side with current `buildPlayerFigure` output
+  in identical scene data.
+- **Performance measurement:** browser dev-tools Performance tab on
+  Mac, 30s recording per scenario; record min / median / p95 frame
+  duration.
+- **Success:** new figure clearly reads as athlete from broadcast at
+  default DPR; FPS guard never auto-degrades on `medium` tier on
+  BDW-01; tri-count per player < 1500.
+- **Failure:** silhouette no better than today, OR FPS guard
+  auto-degrades, OR tri-count exceeds budget.
+- **Why this is rejected.** Recovery cadence + no-meaningful-de-risk;
+  see §2 above.
+
+#### 4. No-prototype implementation constraints (binding on Phase F)
+
+Because Phase F starts from a documented plan rather than from a
+visual prototype, F1 carries the de-risking that a scratch prototype
+otherwise would. Phase F must obey these constraints:
+
+1. **F1 is reversible.** The new builder lives in a new file or
+   exported function so the old `buildPlayerFigure` stays intact in
+   `imperativeScene.ts` until F5 passes. The per-player loop in
+   `buildBasketballGroup` flips between old / new behind a const flag
+   (`USE_ATHLETE_BUILDER = true`) so a quick revert is one line.
+2. **F1 ships with both stances visible side-by-side via a debug URL
+   flag** (`?compare-figures=1`) — half the players use the new
+   builder, half use the old one. This gives a built-in visual diff
+   without a separate prototype branch.
+3. **Per-player tri budget is recorded in `docs/courtiq-scene-experience-recovery-plan.md`
+   inside Phase F4** before declaring F4 complete. Five-player BDW-01
+   scene total tri delta vs. today must be ≤ +50%.
+4. **The builder signature does not change.** Same parameters
+   (`teamColor, trimColor, isUser, hasBall, jerseyNumber, stance`),
+   same return type (`THREE.Group` with `userData.indicatorLayers`).
+5. **Indicator layers are attached as today.** The Phase F builder
+   constructs `baseLayer`, `userLayer`, `userHeadLayer`,
+   `possessionLayer` exactly the way the current builder does
+   (~L3714–L3858). This is the most fragile contract in the recovery;
+   no Phase F micro-milestone should change indicator topology.
+6. **No skeletal rig, no `SkinnedMesh`, no `AnimationMixer`.** Per
+   visual-system plan §6 + §14. Stance is rigid sub-group posing only.
+7. **Disposal is verified before F5 ships.** Add a unit test that
+   builds and disposes 100 figures in sequence and asserts no
+   `Geometry`, `Material`, or `Texture` allocation count climbs
+   (sample `THREE.geometry.count` if exposed, or count via a
+   wrapping helper).
+8. **No new asset files.** No `.glb`, no `.png` textures imported. All
+   identity comes from existing palette constants and the existing
+   jersey-number `CanvasTexture` helper.
+9. **Stance routing stays the same.** The `denyDefenderId` heuristic
+   in `buildBasketballGroup` (~L362–L376) is preserved. New stances
+   (`closeout`, `sag`/`shrink`, `cut`) become available but routing
+   them is a follow-up (visual-system plan §18.4 reopen item) — F2
+   only ensures the *renderer* supports them, not that
+   `buildBasketballGroup` *picks* them.
+
+#### 5. Recommended target for Phase F
+
+A reusable code-built **stylized-athlete mesh system** with:
+
+- **Tapered athletic silhouette.** V-shaped torso, distinct shoulder
+  ball into upper arm, distinct waist into hips, longer legs with
+  visible knee break.
+- **Stance-readable from broadcast.** Crouch bends legs (sub-group
+  rotations on thigh/calf), denial breaks elbow + raises forearm,
+  closeout tilts torso forward + plants front foot, cut-stance front
+  shin angles forward.
+- **Compatible with current rings/halos.** No change to base / user /
+  possession / focus / feedback indicator layers. User chevron sits
+  at the same Y above the new head as it does above the current head.
+- **Performance-safe on Mac.** ≤ ~1100 tris per figure, 6 shared
+  materials per figure (jersey, shorts, skin, shoe, accent, trim),
+  no new draw calls, no per-frame allocations, no per-stance
+  geometry rebuild.
+- **No skeletal rig.** Pose is a per-stance lookup table on rigid
+  sub-groups (`leftThigh`, `leftCalf`, `leftFoot`,
+  `leftUpperArm`, `leftForeArm`, `rightThigh`, `rightCalf`,
+  `rightFoot`, `rightUpperArm`, `rightForeArm`, `torso`,
+  `head`, plus existing `upperBody` for crouch translation).
+- **Single builder file.** Geometry construction stays inside
+  `imperativeScene.ts` per visual-system plan §17.5 (Phase 2 scope).
+  No new top-level files.
+
+
+### E4 — Chosen Player Geometry Path
+
+#### 1. Chosen option
+
+**Option B — code-built reusable low-poly stylized-athlete mesh, no
+skeletal rig, rigid sub-group posing.** Built inside
+`imperativeScene.ts`, replaces the body of `buildPlayerFigure` while
+preserving its public signature, indicator-layer contract, and disposal
+hygiene.
+
+#### 2. Why this is the best fit for CourtIQ
+
+- **Solves the architectural ceiling identified in E1.** The current
+  body reads as "stack of primitives" because it *is* a stack of
+  primitives. Code-built low-poly with named sub-groups gives us a
+  body that bends, twists, and dresses convincingly without
+  introducing a new asset pipeline.
+- **Honors every visual-system plan constraint without exception.**
+  Section 6 ("stylized athletic proportions, no facial detail, no
+  skinned animation rigs"), Section 14 ("performance-safe polish, no
+  realtime cloth, no per-frame shader allocations, prefer reusable
+  primitives"), and Section 17.5 ("Phase 2 scope: edit
+  `imperativeScene.ts` only, stay above L1600") are all preserved.
+- **Replay-safe.** The MotionController writes `position` and
+  `rotation.y` on the figure root. Sub-group poses are static within
+  a stance. Phase B/C work is untouched.
+- **Recovery-cadence-safe.** No new asset pipeline, no async loaders,
+  no scratch branch. F1–F5 fit one session each.
+- **Future-proof.** New stances (`closeout`, `sag`/`shrink`, `cut`)
+  become entries in a per-stance pose table, unblocking the
+  visual-system plan §18.4 reopen items for ESC-01 / AOR-01 / SKR-01
+  without rebuilding geometry.
+
+#### 3. What Phase F should build
+
+A new builder function (or refactor of the existing one) that produces
+a single THREE.Group whose descendants comprise:
+
+- **`pelvis` sub-group** — anchors the hip line. Holds shorts geometry
+  and the side accent stripes. Its rotation around y becomes the
+  hip-square axis (real geometry, not implied).
+- **Per-side leg sub-groups** — `leftLeg` / `rightLeg`, each containing
+  a `thigh` mesh, a `calf` mesh, and a `foot` group. Crouch is `thigh.rotation.x` +
+  `calf.rotation.x` (real bend), not a wholesale upper-body translate.
+  Foot orientation is `foot.rotation.y` driving toe direction.
+- **`torso` sub-group** — the V-tapered body. Holds the jersey number
+  panels, chest stripe, and a shoulder-girdle mesh that defines the
+  shoulder line as continuous geometry (deltoid bumps, not a yoke
+  capsule).
+- **Per-side arm sub-groups** — `leftArm` / `rightArm`, each containing
+  an `upperArm` mesh and a `foreArm` mesh meeting at an elbow. Denial,
+  defensive, and closeout each pose elbow + shoulder differently.
+  Forearm length is roughly upper-arm length so the elbow break is
+  visible from broadcast.
+- **`neckHead` sub-group** — neck capsule + head sphere + minimal hair
+  cap. No facial detail. Sits on `torso.shoulderGirdle`. The user
+  chevron continues to live in `userHeadLayer`, parented to whichever
+  sub-group is the upper body so crouch carries it down.
+- **`shoes`** — distinct toe + heel block per foot. Toe lifts ~2mm
+  above heel so foot direction reads from above.
+- **Indicator layers** unchanged: `baseLayer`, `userLayer`,
+  `userHeadLayer`, `possessionLayer`, attached at the figure root,
+  same y heights, same materials.
+
+The builder produces this tree once per scene mount; per-frame motion
+writes only the figure root's `position` and `rotation.y`. Stance is
+applied at build time (or on stance-routing-only update via a small
+`applyStance(figure, stance)` helper if the closest-defender heuristic
+changes mid-scene).
+
+#### 4. What Phase F must not build
+
+- **No skeletal rig, no `SkinnedMesh`, no `AnimationMixer`.**
+- **No imported assets.** No `.glb`, no `.gltf`, no PBR texture
+  imports. All identity comes from existing palette + the existing
+  `makeJerseyNumberTexture` canvas helper.
+- **No new draw call patterns.** Reuse one `MeshStandardMaterial` per
+  body region per figure (jersey, shorts, skin, shoe, accent, trim) —
+  do not create a material per sub-group.
+- **No facial detail.** No eyes, mouth, brows, individual hair
+  strands. Visual-system plan §6 says no, and broadcast distance
+  makes them invisible anyway.
+- **No per-finger hands.** A simple "hand block" that reads as a fist
+  / palm at broadcast distance only.
+- **No per-frame geometry mutation.** Stance pose is set at build (or
+  on rare swap), never tweened per frame. Phase C's per-frame yaw
+  remains a single root-rotation write.
+- **No changes to MotionController, ReplayStateMachine, FPS guard,
+  parent rAF loop, or the simple/full-path pin.**
+- **No changes to scene JSON schema or BDW-01 pack.** Stance routing
+  fixes for ESC/AOR/SKR are a follow-up (visual-system plan §18.4).
+
+#### 5. Performance budget assumptions
+
+| Metric | Phase 7 baseline | Phase F target | Hard ceiling |
+|---|---|---|---|
+| Tris per player | ~450 | ~900–1100 | 1500 |
+| Materials per player | 6 | 6 | 8 |
+| Sub-groups per player | ~3 | ~14 | 18 |
+| Draw calls per player | unchanged | unchanged | +0 |
+| Player textures per scene | 5 (one jersey number per player) | 5 | 5 |
+| Total player tris (5 players) | ~2250 | ~5500 | 7500 |
+| FPS guard auto-degrade on `medium` (BDW-01) | never | never | never |
+| FPS guard auto-degrade on `high` (BDW-01) | never | never | never |
+| Per-frame allocations introduced | 0 | 0 | 0 |
+
+If a Phase F change pushes any "hard ceiling" line, F4 (perf tuning)
+revises geometry until the budget holds.
+
+#### 6. Stance requirements
+
+| Stance | Build today? | Phase F must support? | Pose summary |
+|---|---|---|---|
+| `idle` | Yes | Yes | Standing tall, slight forward bias on both feet, arms relaxed at sides with small outward angle. |
+| `defensive` | Yes | Yes | Knees bent (real `thigh`/`calf` rotation), feet wider (`hipGap = 0.62`), small stagger, hands out in front, torso slightly forward. |
+| `denial` | Yes | Yes | Same crouch as defensive, asymmetric arm raise (outside arm extends toward passing lane, inside arm low), hip square toward the ball-handler. |
+| `closeout` | No | **Yes** | Mid-crouch, front foot planted with toe forward, back foot trailing, arms wide, shoulders forward. Reads as "out of control vs. balanced" — the closeout-distance read AOR-01 needs. |
+| `cut` | No | **Yes (low priority — soft requirement)** | Standing tall but tilted forward, front foot extended, arms drawn back. Reads as "first step toward the rim." Used by ESC-01 / SKR-01 cutter renders. |
+| `sag` / `shrink` | No | **Yes (low priority — soft requirement)** | Like `defensive` but with a small lateral shift toward the paint, head turned toward the strong-side ball. Used by SKR-01 over-helper render. |
+
+`closeout` is a hard requirement for Phase F because AOR-01's lesson
+turns on it and the renderer cannot teach the lesson without it.
+`cut` and `sag`/`shrink` are soft (a stub pose that visibly differs
+from `idle` / `defensive` is enough for F2; full polish can be a
+follow-up).
+
+#### 7. Indicator compatibility requirements
+
+The four named layers (visual-system plan §7.4 + recovery plan E1 §9)
+must all keep working after Phase F:
+
+| Layer | Source today | Phase F requirement |
+|---|---|---|
+| `base` (team ring + inner outline) | `buildPlayerFigure` ~L3714–L3785 | Same `RingGeometry` at the same Y (`y = 0.05` / `0.052`); attached at figure root. |
+| `user` (outer halo + soft halo) | `buildPlayerFigure` ~L3787–L3818 | Same rings at `y = 0.046` / `0.044`; visible iff `isUser`. |
+| `userHead` (mint chevron above head) | `buildPlayerFigure` ~L3820–L3849 | Same `ConeGeometry` chevron + outline; attached to the new "upper body" sub-group so crouch carries it. The y math (`HEAD_Y + HEAD_RADIUS + 1.1`) must be re-derived against the new head Y. |
+| `possession` (warm-gold ring) | `buildPlayerFigure` ~L3736–L3748 | Same `RingGeometry` at `y = 0.045`; attached at figure root; `visible = hasBall` at build time. |
+
+Phase F's F3 commit covers this contract explicitly (see updated F3
+below).
+
+#### 8. Disposal / memory requirements
+
+- Every new mesh, material, and texture created by the new builder
+  must be reachable by `disposeGroup` (`imperativeScene.ts` ~L455) via
+  the figure root's descendant traversal.
+- No `CanvasTexture` not freed by `disposeMaterialTextures` (~L478).
+  The existing jersey-number texture path is the only canvas texture;
+  do not add others.
+- Per-figure materials are scoped to the builder closure (one
+  `jerseyMat`, one `shortsMat`, one `skinMat`, etc.) and shared
+  across that figure's primitives — same pattern as today, so the
+  current dispose count per figure stays constant.
+- F5 adds a unit test that builds and disposes 100 figures and
+  asserts no monotonic geometry/material growth (the dispose-leak
+  guard from E3 §4 item 7).
+
+#### 9. Screenshot / QA requirements
+
+In-environment QA is limited to lint + tests + typecheck (per Phase
+A–D pattern). The browser-driven QA pass below is deferred to Phase
+H. Phase F still owns these in-environment checks:
+
+- `pnpm --filter web lint` clean after every micro-milestone.
+- `pnpm --filter web exec vitest run` clean after every
+  micro-milestone; new disposal-leak test passes.
+- F3 includes a static check that the four indicator layers are
+  present on a default scene's user / non-user / ball-handler /
+  non-ball-handler combinations.
+- Phase H is responsible for: broadcast / tactical / follow-camera
+  screenshots on Mac; Mac frame-rate measurement; visual diff against
+  the Phase 7 record.
+
+#### 10. Updated Phase F micro-milestones
+
+(See Phase F section above; the F1–F5 list there is rewritten by E4
+to be specific to Option B.)
 
