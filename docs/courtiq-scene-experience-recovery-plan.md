@@ -1224,5 +1224,110 @@ Run the phases in this exact order. Do not skip ahead.
    - *Do not skip ahead* to ESC-01 / AOR-01 / SKR-01 authoring
      until H4 declares ready.
 
+---
+
+## 10. Exact Prompt Sequence
+
+Paste these into a future Claude Code session, one at a time, in
+order. Each prompt is small-commit friendly and tells Claude to
+stop at the phase boundary.
+
+> Run prompts in order. Do not skip ahead. Do not bundle phases.
+
+### 10.1 Phase A — Replay Audit only
+
+```
+Read docs/courtiq-scene-experience-recovery-plan.md, Section 6,
+Phase A. Also read Section 17 of
+docs/courtiq-premium-scene-visual-system-plan.md for the file map.
+
+Do Phase A ONLY. This phase is read-only. Do NOT modify
+imperativeScene.ts, ReplayStateMachine, MotionController,
+Scenario3DCanvas, Scenario3DView, PremiumOverlay, or
+ScenarioReplayController.
+
+Inspect first:
+- apps/web/components/scenario3d/imperativeScene.ts
+  (MotionController + ReplayStateMachine)
+- apps/web/components/scenario3d/Scenario3DCanvas.tsx
+- apps/web/components/scenario3d/Scenario3DView.tsx
+- apps/web/components/scenario3d/PremiumOverlay.tsx
+- apps/web/components/scenario3d/ScenarioReplayController.tsx
+- apps/web/components/scenario3d/replayStateMachine.test.ts
+- apps/web/app/train/page.tsx (pickedChoiceId path)
+
+Produce all four micro-milestones (A1–A4) and append them as new
+subsections to docs/courtiq-scene-experience-recovery-plan.md.
+
+Commit small, one commit per micro-milestone. Stop after A4. Do
+not start Phase B.
+```
+
+### 10.2 Phase B — Replay Reliability Fix only
+
+```
+Read docs/courtiq-scene-experience-recovery-plan.md, Section 6,
+Phase B, plus the Phase A audit subsections written by the prior
+session.
+
+Implement Phase B ONLY. Do not start Phase C. Do not change
+visuals, copy, or geometry.
+
+Constraints:
+- Stay inside MotionController, ReplayStateMachine, and the
+  immediate wiring in Scenario3DCanvas / Scenario3DView /
+  PremiumOverlay.
+- Do not touch the parent rAF loop, the FPS guard, or the
+  simple/full-path pin.
+- Add tests in replayStateMachine.test.ts for each fix.
+- Each micro-milestone is its own commit.
+
+Run B1 → B2 → B3 → B4 → B5 in order. Commit small. Stop at the
+Phase B acceptance criteria.
+```
+
+### 10.3 Phase C — Movement Quality Pass only
+
+```
+Read docs/courtiq-scene-experience-recovery-plan.md, Section 6,
+Phase C, plus Section 14 of
+docs/courtiq-premium-scene-visual-system-plan.md (performance
+rules).
+
+Implement Phase C ONLY. Do not change replay logic, geometry,
+fullscreen, or copy.
+
+Constraints:
+- Stay inside imperativeScene.ts (MotionController, samplePlayer,
+  computePlayerYaw, applyBall) and the timeline helper.
+- Replay must remain Phase-B-clean — every motion change must be
+  rate-aware and pause-respecting.
+- Do not change scenario JSON timings.
+
+Run C1 → C2 → C3 → C4 → C5 → C6 in order. Commit small. Stop at
+the Phase C acceptance criteria.
+```
+
+### 10.4 Phase D — Fullscreen Film Room Mode only
+
+```
+Read docs/courtiq-scene-experience-recovery-plan.md, Section 6,
+Phase D.
+
+Implement Phase D ONLY. Do not change replay logic, motion,
+geometry, or copy.
+
+Constraints:
+- Use the Fullscreen API; SSR-guard all access.
+- Own state in Scenario3DView; surface the toggle in
+  PremiumOverlay.
+- Do not change FPS guard, quality tier resolver, or the
+  simple/full-path pin.
+- Replay controls must stay reachable inside fullscreen.
+
+Run D1 → D2 → D3 → D4 → D5 in order. Commit small. Stop at the
+Phase D acceptance criteria.
+```
+
 
 
