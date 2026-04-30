@@ -408,3 +408,16 @@ The freeze must clearly show: D4 + D5 = two paint bodies; O5 alone in the weak c
 | Strong-corner defender lock | Small "still-on-player" badge on D2 | Gray |
 
 The combination of the red paint shading + green corner patch is the signature visual: it shows "where the defense IS" and "where they're NOT" in one frame.
+
+### Feedback Text
+
+**Correct (best read — skip to weak-side corner):**
+> "Big-time read. Two in the paint always means somebody's open behind them — and it's almost always the opposite corner."
+
+**Partial (acceptable read — pass to weak-side wing):**
+> "Good — you found an open teammate. Next time, scan one more pass over: the **corner** shooter is even more open, because their defender had to leave first."
+
+**Wrong (force layup / strong-corner kick / reset):**
+> "Two defenders just collapsed on you — one of their teammates *had* to be left open. The strong-corner defender never moved, so that pass was contested. Look opposite the help next time. The shooter behind the rotation is the one who's free."
+
+---
