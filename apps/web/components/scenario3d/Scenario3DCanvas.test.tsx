@@ -32,6 +32,14 @@ describe('Scenario3DCanvas rendering guarantees', () => {
     expect(canvas).not.toContain('SceneReadySignal')
   })
 
+  it('does not mount the old primitive JSX scene on top of the imperative trainer scene', () => {
+    const canvas = source('Scenario3DCanvas.tsx')
+    expect(canvas).not.toContain("import { BasketballScene3D }")
+    expect(canvas).not.toContain('<BasketballScene3D')
+    expect(canvas).toContain("frameloop={controllerActive ? 'demand' : 'always'}")
+    expect(canvas).toContain('controllerActive ? null : <RenderHeartbeat />')
+  })
+
   it('exposes a ?debug3d=1 self-test that always renders a hero scene', () => {
     const canvas = source('Scenario3DCanvas.tsx')
     expect(canvas).toContain('isDebug3D')

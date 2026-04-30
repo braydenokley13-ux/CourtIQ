@@ -4,7 +4,6 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { AutoFitCamera } from './AutoFitCamera'
-import { BasketballScene3D } from './BasketballScene3D'
 import { Court3D } from './Court3D'
 import { Debug3DScene } from './Debug3DScene'
 import { EmergencyScene3D } from './EmergencyScene3D'
@@ -1106,14 +1105,14 @@ export function Scenario3DCanvas({
         // the floor, paint, lines, and motion paths still render at
         // the literal sRGB color we set — they are unaffected by the
         // ACES curve.
-        // R3F's default 'always' scheduler. The previous fix used
-        // `frameloop="never"` + a custom ManualLoop that pulled subscribers
-        // out of `state.internal.subscribers` — but that internal shape
-        // changed in R3F v9, so subscribers never fired and gl.render()
-        // was never called. Result: the canvas mounted, the bg color
-        // applied, but no geometry ever drew. Trusting the default
-        // scheduler restores normal rendering on every device.
-        frameloop="always"
+        // Production trainer scenes are rendered by the parent
+        // imperative rAF loop below. Keep R3F in demand mode there so
+        // it can do the first paint / setup work without also rendering
+        // continuously on top of the parent loop. Debug, emergency, and
+        // the explicit `?simple=0` diagnostic path keep R3F's default
+        // always-on scheduler because they still depend on Canvas
+        // children as their primary scene graph.
+        frameloop={controllerActive ? 'demand' : 'always'}
         dpr={[1, qualitySettings.maxPixelRatio]}
         camera={{ position: cameraPosition, fov: cameraFov, near: 0.1, far: 1000 }}
         gl={{
@@ -1180,7 +1179,7 @@ export function Scenario3DCanvas({
             // toward -Z from y=50, missing all geometry which sits at
             // y=0..8 below. <CameraTarget> / <AutoFitCamera> set lookAt
             // via useEffect, but those effects fire AFTER the first
-            // RenderHeartbeat tick paints. Aiming here guarantees the
+            // next scheduled render paints. Aiming here guarantees the
             // very first frame is correct, independent of React.
             const cam = createdCamera as THREE.PerspectiveCamera
             cam.position.set(cameraPosition[0], cameraPosition[1], cameraPosition[2])
@@ -1237,14 +1236,18 @@ export function Scenario3DCanvas({
           />
         )}
         <CameraDiagnosticsProbe onChange={setCameraStats} />
-        <RenderHeartbeat />
+        {controllerActive ? null : <RenderHeartbeat />}
 
         {emergencyMode ? (
           <EmergencyScene3D />
         ) : debugMode ? (
           <Debug3DScene />
         ) : simpleMode ? (
-          <BasketballScene3D scene={visibleScene} />
+          // Production uses the imperative scene mounted above. Leaving
+          // the old primitive JSX scene mounted here doubles the
+          // geometry and makes toy-like cylinder players overlap the
+          // upgraded athletes when R3F reconciles successfully.
+          null
         ) : (
           <SceneMotionProvider reduced={reducedMotion}>
             <SceneLighting />
@@ -1534,7 +1537,8 @@ function CameraDiagnosticsProbe({
 }
 
 /**
- * Belt-and-suspenders render driver. Even with `frameloop="always"`, on
+ * Belt-and-suspenders render driver for debug / emergency / explicit
+ * diagnostic Canvas-child paths. Even with `frameloop="always"`, on
  * some environments (specific R3F + React 19 + Next 15 builds, or when
  * Next's chunking ends up with two R3F instances after a dynamic import)
  * the default scheduler does not actually paint, leaving the canvas
@@ -1544,9 +1548,9 @@ function CameraDiagnosticsProbe({
  * `useEffect` and imperatively calls `gl.render(scene, camera)` plus
  * `camera.updateMatrixWorld()` every frame. It is fully independent of
  * `useFrame` subscribers, so it paints even when those are dead. If R3F
- * is also painting, we render twice per frame — that is wasteful but
- * not visually wrong, and is a strictly safer trade-off than a black
- * canvas.
+ * is also painting, these diagnostic paths may render twice per frame.
+ * The production imperative trainer path disables this heartbeat and
+ * uses the parent rAF loop only.
  *
  * Logs a heartbeat to the console every 60 frames so we can confirm
  * from any browser session that frames are actually being driven.
