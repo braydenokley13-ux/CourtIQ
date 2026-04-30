@@ -102,3 +102,15 @@ The empty corner, the head turn, and the open baseline lane must all be inside t
 | 1.4s | Catch and rise / shot-ready | D4 still recovering | Open corner three or one-dribble closeout attack |
 
 **Outcome:** Catch-and-shoot 3 or a clean drive against a hard closeout. High-quality possession.
+
+### Timeline B — Wrong Read (Stand Still / Wait For Pass)
+
+| t | What you do | What the defense does | Result |
+| --- | --- | --- | --- |
+| 0.0s | Stay on the weak-side wing, hands ready | D4's head is still on the ball | Empty corner is still open — but you didn't move |
+| 0.5s | Call for the ball, feet still planted | D4 re-finds you, shifts back into stance | Window starts closing |
+| 1.0s | O2 hesitates — no obvious pass | D2 pressures O2; D4 fully recovered | Empty space gone |
+| 1.5s | O2 forces a swing back to the top | Whole defense resets | Possession restarts at 0 advantage |
+| 2.0s+ | Late shot-clock heave or turnover risk | Defense in shape | Bad possession |
+
+**Outcome:** Wasted opportunity. The cue was there for ~0.5 seconds and you didn't move. The "right play" expired.
