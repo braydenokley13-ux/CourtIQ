@@ -170,11 +170,18 @@ export function Scenario3DView(props: Scenario3DViewProps) {
 
   return (
     <Scenario3DErrorBoundary scenarioId={props.scene?.id}>
-      {/* Phase D — when fullscreen, the browser expands this element to the
-          full viewport. `data-fullscreen` lets CSS :fullscreen selectors
-          reach descendants when needed. The canvas receives height=undefined
-          in fullscreen mode so it fills 100% of the element instead of
-          capping at the fixed pixel default. */}
+      {/* Phase L — fullscreen target + flex-column shell. The outer div
+          becomes the browser's fullscreen element; the global CSS
+          (`:fullscreen` rule in globals.css) flips it to
+          `display: flex; flex-direction: column` so the canvas wrapper
+          inside (marked with `data-fullscreen-fill`) can take all
+          available column space via `flex: 1 1 auto`. This avoids the
+          Phase K race where `[data-fullscreen='true']` attached one
+          frame late and left the canvas stuck at its embedded height
+          inside a 100vh shell.
+          Inline `display: contents` is intentionally NOT used — we
+          want the wrapper to participate in layout so its children
+          fill via flex. */}
       <div
         ref={containerRef}
         data-fullscreen={isFullscreen ? 'true' : undefined}

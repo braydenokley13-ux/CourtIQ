@@ -382,6 +382,54 @@ export function Scenario3DCanvas({
     }
   }, [qualitySettings])
 
+  // Phase L — fullscreen-change resize. R3F watches its parent's size
+  // via its own ResizeObserver, but the observer can coalesce or miss
+  // the fullscreen transition (especially on Safari). On every
+  // fullscreenchange, force `gl.setSize` and `controller.setAspect`
+  // from the wrapper's current clientWidth/clientHeight so the pixel
+  // buffer + camera aspect track the new viewport without waiting for
+  // R3F's observer. Idempotent if the observer already fired.
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const wrapper = containerRef.current
+    if (!wrapper) return
+    const apply = () => {
+      const gl = glRef.current
+      const cam = threeCameraRef.current
+      if (!gl) return
+      // Use the wrapper's current layout box. The fullscreen-fill CSS
+      // rule grows the wrapper to fill the fullscreen flex column;
+      // gl.setSize then resizes the renderer's drawing buffer.
+      const width = wrapper.clientWidth
+      const height = wrapper.clientHeight
+      if (width <= 0 || height <= 0) return
+      try {
+        gl.setSize(width, height, false)
+      } catch {
+        /* renderer torn down between effect and apply */
+      }
+      const ctrl = cameraControllerRef.current
+      if (ctrl) ctrl.setAspect(width / height)
+      if (cam && (cam as THREE.PerspectiveCamera).isPerspectiveCamera) {
+        const persp = cam as THREE.PerspectiveCamera
+        persp.aspect = width / height
+        persp.updateProjectionMatrix()
+      }
+      // Surface the new size to the diagnostics panel.
+      setCanvasSize({ width, height })
+    }
+    const onChange = () => {
+      // Run twice: once immediately for the case where layout has
+      // already settled, and once on the next frame for the case
+      // where the browser hasn't finished applying the fullscreen
+      // box yet.
+      apply()
+      requestAnimationFrame(apply)
+    }
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+
   // Parent-level rAF render driver. Polls glRef each frame and, once the
   // canvas has been created, calls gl.render(scene, camera) directly.
   // This loop is OWNED BY THE PARENT COMPONENT, not by a child of

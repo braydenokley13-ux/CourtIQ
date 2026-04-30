@@ -851,7 +851,15 @@ export class CameraController {
   private currentLookAt = new THREE.Vector3(SCENE_FOCUS.x, SCENE_FOCUS.y, SCENE_FOCUS.z)
   private hasTarget = false
   private snap = true
-  private easing = 0.10
+  // Phase L11 — frame-rate independent camera ease. The pre-L11
+  // controller used a fixed `easing = 0.10` per-frame lerp factor,
+  // which made the camera feel sluggish at 30fps and snappy at
+  // 120fps. The yaw smoothing already used `1 - exp(-dt/τ)` for the
+  // same reason; the camera now matches. Time constant 0.18s gives
+  // ~72% convergence in 200ms — close to what the old code produced
+  // at 60fps, but identical at every frame rate.
+  private easeTimeConstantS = 0.18
+  private lastTickWallMs = 0
 
   constructor(scene: Scene3D, aspect: number, baseFov: number) {
     this.scene = scene
@@ -892,6 +900,10 @@ export class CameraController {
   /** Forces the next tick to snap rather than ease. */
   snapNext(): void {
     this.snap = true
+    // Phase L11 — reset the wall-clock anchor so the first eased
+    // tick after the snap uses the bootstrap default (1/60s) instead
+    // of measuring a giant dt against a stale `lastTickWallMs`.
+    this.lastTickWallMs = 0
   }
 
   /** Returns the current mode (for diagnostics). */
@@ -903,10 +915,31 @@ export class CameraController {
    * Mutates the camera one step toward the current target. Safe to
    * call every frame even when the target hasn't changed — the lerp
    * resolves to a no-op once the camera has settled.
+   *
+   * Phase L11 — `t` is now derived from the wall-clock delta and the
+   * controller's time constant so the camera reaches the same
+   * convergence point in the same wall-clock time regardless of
+   * frame rate. `snapNext()` still produces an instant jump on the
+   * very next call.
    */
   tick(camera: THREE.PerspectiveCamera): void {
     if (!this.hasTarget) return
-    const t = this.snap ? 1 : this.easing
+    let t: number
+    if (this.snap) {
+      t = 1
+    } else {
+      const nowMs = typeof performance !== 'undefined' ? performance.now() : 0
+      const rawDt =
+        this.lastTickWallMs === 0
+          ? 1 / 60
+          : (nowMs - this.lastTickWallMs) / 1000
+      // Clamp dt so a backgrounded tab returning after a long pause
+      // does not snap-cut on the first frame back. The same clamp
+      // shape the yaw smoothing uses (`Math.min(rawDt, 0.1)`).
+      const dt = Math.max(0, Math.min(rawDt, 0.1))
+      t = 1 - Math.exp(-dt / this.easeTimeConstantS)
+      this.lastTickWallMs = nowMs
+    }
     camera.position.lerp(this.targetPosition, t)
     this.currentLookAt.lerp(this.targetLookAt, t)
     camera.lookAt(this.currentLookAt)
@@ -3720,20 +3753,23 @@ function buildAthleteFigure(
   headMesh.scale.set(1, 1.04, 0.97)
   headMesh.castShadow = true
   neckHead.add(headMesh)
-  // Hair cap — dark hemisphere on the top of the head so the
-  // figure reads as a person, not a flesh-tone ball. Stylized; no
-  // hair systems, no facial features per the recovery plan.
+  // Hair cap — Phase L9 lifts the hair from `#1B1208` (near-black,
+  // read as a void cap at gameplay distance) to `#2C1E12` (warm
+  // dark brown) and extends the coverage from `Math.PI * 0.55` to
+  // `Math.PI * 0.62` so the hairline reaches past the temples
+  // instead of perching on the crown like a beanie. Hair sphere is
+  // also pulled down 0.04 so it sits flush against the brow line.
   const hairMat = new THREE.MeshStandardMaterial({
-    color: '#1B1208',
-    roughness: 0.85,
+    color: '#2C1E12',
+    roughness: 0.78,
     metalness: 0,
   })
   const hairMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(ATH_HEAD_R * 1.02, 8, 4, 0, Math.PI * 2, 0, Math.PI * 0.55),
+    new THREE.SphereGeometry(ATH_HEAD_R * 1.04, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.62),
     hairMat,
   )
-  hairMesh.position.y = ATH_NECK_LENGTH + ATH_HEAD_R + 0.02
-  hairMesh.scale.set(1, 1.04, 0.97)
+  hairMesh.position.y = ATH_NECK_LENGTH + ATH_HEAD_R - 0.02
+  hairMesh.scale.set(1.02, 1.06, 0.99)
   hairMesh.castShadow = true
   neckHead.add(hairMesh)
 
@@ -4304,17 +4340,25 @@ function upgradePremiumLegsAndFeet(figure: THREE.Object3D): void {
     const calf = leg.getObjectByName('calf') as THREE.Group | null
     const foot = leg.getObjectByName('foot') as THREE.Group | null
     if (!thigh || !calf || !foot) continue
+    // Phase L7 — quad/calf mass. Phase J3D peaked the thigh at 1.10x
+    // (≈ 0.33) and the calf at 1.20x (≈ 0.264). L7 lifts the thigh peak
+    // to 1.30x (≈ 0.39) so the upper-leg silhouette carries quad mass
+    // instead of reading as a stretched cylinder, and bumps the calf
+    // belly to 1.42x (≈ 0.312) so the lower-leg-to-shoe transition has
+    // visible muscle. The hip end and knee transitions are also
+    // thickened so the segments seat into the pelvis and ankle
+    // cleanly — same lathe segment count, no triangle budget change.
     upgradeLegSegment(thigh, [
-      new THREE.Vector2(ATH_THIGH_TOP_R * 1.05, ATH_THIGH_LENGTH * 0.5),
-      new THREE.Vector2(ATH_THIGH_TOP_R * 1.10, ATH_THIGH_LENGTH * 0.22),
-      new THREE.Vector2(ATH_THIGH_TOP_R * 0.92, -ATH_THIGH_LENGTH * 0.10),
-      new THREE.Vector2(ATH_THIGH_BOT_R * 1.00, -ATH_THIGH_LENGTH * 0.5),
+      new THREE.Vector2(ATH_THIGH_TOP_R * 1.15, ATH_THIGH_LENGTH * 0.5),
+      new THREE.Vector2(ATH_THIGH_TOP_R * 1.30, ATH_THIGH_LENGTH * 0.22),
+      new THREE.Vector2(ATH_THIGH_TOP_R * 1.04, -ATH_THIGH_LENGTH * 0.10),
+      new THREE.Vector2(ATH_THIGH_BOT_R * 1.10, -ATH_THIGH_LENGTH * 0.5),
     ])
     upgradeLegSegment(calf, [
-      new THREE.Vector2(ATH_CALF_TOP_R * 1.05, ATH_CALF_LENGTH * 0.5),
-      new THREE.Vector2(ATH_CALF_TOP_R * 1.20, ATH_CALF_LENGTH * 0.18),
-      new THREE.Vector2(ATH_CALF_BOT_R * 1.05, -ATH_CALF_LENGTH * 0.20),
-      new THREE.Vector2(ATH_CALF_BOT_R * 0.95, -ATH_CALF_LENGTH * 0.5),
+      new THREE.Vector2(ATH_CALF_TOP_R * 1.18, ATH_CALF_LENGTH * 0.5),
+      new THREE.Vector2(ATH_CALF_TOP_R * 1.42, ATH_CALF_LENGTH * 0.18),
+      new THREE.Vector2(ATH_CALF_BOT_R * 1.18, -ATH_CALF_LENGTH * 0.20),
+      new THREE.Vector2(ATH_CALF_BOT_R * 1.00, -ATH_CALF_LENGTH * 0.5),
     ])
     upgradePremiumShoe(foot)
   }
@@ -4408,17 +4452,25 @@ function upgradePremiumArms(figure: THREE.Object3D): void {
     // local frame; the existing mesh is positioned at y = -L/2 so the
     // segment still anchors at the joint above and ends at the joint
     // below without a position shift.
+    //
+    // Phase L7 — bicep/tricep mass. Phase J3C peaked the upper arm
+    // at 1.18x of the base radius (≈ 0.20), which still read as a
+    // tube at gameplay-camera distance. L7 lifts the peak to 1.42x
+    // (≈ 0.241) and broadens the shoulder/joint ends 1.05 → 1.18 so
+    // the deltoid cap blends into a thicker upper-arm without a step.
+    // The forearm peak comes up to 1.30x so the hand transition reads
+    // cleaner. Triangle count is unchanged — lathe segments are still 10.
     upgradeArmSegment(upperArm, [
-      new THREE.Vector2(ATH_UPPER_ARM_R * 1.05, ATH_UPPER_ARM_LENGTH * 0.5),
-      new THREE.Vector2(ATH_UPPER_ARM_R * 1.18, ATH_UPPER_ARM_LENGTH * 0.20),
-      new THREE.Vector2(ATH_UPPER_ARM_R * 1.10, -ATH_UPPER_ARM_LENGTH * 0.12),
-      new THREE.Vector2(ATH_UPPER_ARM_R * 0.95, -ATH_UPPER_ARM_LENGTH * 0.5),
+      new THREE.Vector2(ATH_UPPER_ARM_R * 1.18, ATH_UPPER_ARM_LENGTH * 0.5),
+      new THREE.Vector2(ATH_UPPER_ARM_R * 1.42, ATH_UPPER_ARM_LENGTH * 0.20),
+      new THREE.Vector2(ATH_UPPER_ARM_R * 1.32, -ATH_UPPER_ARM_LENGTH * 0.12),
+      new THREE.Vector2(ATH_UPPER_ARM_R * 1.05, -ATH_UPPER_ARM_LENGTH * 0.5),
     ])
     upgradeArmSegment(foreArm, [
-      new THREE.Vector2(ATH_FORE_ARM_R * 1.05, ATH_FORE_ARM_LENGTH * 0.5),
-      new THREE.Vector2(ATH_FORE_ARM_R * 1.12, ATH_FORE_ARM_LENGTH * 0.25),
-      new THREE.Vector2(ATH_FORE_ARM_R * 0.98, -ATH_FORE_ARM_LENGTH * 0.15),
-      new THREE.Vector2(ATH_FORE_ARM_R * 0.85, -ATH_FORE_ARM_LENGTH * 0.5),
+      new THREE.Vector2(ATH_FORE_ARM_R * 1.12, ATH_FORE_ARM_LENGTH * 0.5),
+      new THREE.Vector2(ATH_FORE_ARM_R * 1.30, ATH_FORE_ARM_LENGTH * 0.25),
+      new THREE.Vector2(ATH_FORE_ARM_R * 1.10, -ATH_FORE_ARM_LENGTH * 0.15),
+      new THREE.Vector2(ATH_FORE_ARM_R * 0.92, -ATH_FORE_ARM_LENGTH * 0.5),
     ])
   }
 }
@@ -4510,6 +4562,31 @@ function upgradePremiumHeadAndShoulders(figure: THREE.Object3D): void {
   jawMesh.scale.set(0.92, 1.0, 0.95)
   jawMesh.castShadow = true
   neckHead.add(jawMesh)
+  // Phase L9 — brow shadow line. A thin dark torus that sits at the
+  // hair-meets-forehead boundary so the face has visible separation
+  // between the hair cap and the skin sphere. Without this the head
+  // reads as "ball with a beanie"; with it, the silhouette has a
+  // subtle hairline read at gameplay distance. Reuses no shared
+  // material — its own material because the hue is unique (this
+  // does add one material per figure to the premium path; ~14 tris).
+  const browMat = new THREE.MeshStandardMaterial({
+    color: '#1A1208',
+    roughness: 0.82,
+    metalness: 0,
+  })
+  const browLine = new THREE.Mesh(
+    new THREE.TorusGeometry(ATH_HEAD_R * 0.88, 0.025, 4, 14, Math.PI * 1.4),
+    browMat,
+  )
+  // Sit the torus at the brow level with the front-facing arc visible
+  // from the broadcast camera. The Math.PI * 1.4 arc covers temple
+  // → forehead → temple without wrapping the back of the head.
+  browLine.rotation.x = Math.PI * 0.5
+  browLine.rotation.y = Math.PI * 0.7
+  browLine.position.y = ATH_NECK_LENGTH + ATH_HEAD_R * 1.20
+  browLine.position.z = -0.02
+  browLine.scale.set(1.0, 1.0, 0.78)
+  neckHead.add(browLine)
 }
 
 /**
@@ -4542,12 +4619,19 @@ function upgradePremiumTorso(figure: THREE.Object3D): void {
   // change to the parent transform. Subtle ab/rib swell at the
   // ribcage, slightly wider pec line, then a smooth taper into the
   // shoulder cap so the deltoid sphere blends instead of perching.
+  // Phase L7 — pec/chest swell. Phase J3A peaked the chest at
+  // ATH_TORSO_TOP_W * 0.520 (≈ 0.738), which produced a smooth but
+  // shallow torso. L7 lifts the upper-chest pec line to 0.560
+  // (≈ 0.795) and the rib swell to 0.580 so the silhouette carries
+  // visible pectoral mass at the gameplay camera. The waist node is
+  // unchanged so the V-taper from chest to waist becomes more
+  // pronounced — the same shape an athletic figure makes.
   const profile: THREE.Vector2[] = [
     new THREE.Vector2(ATH_TORSO_BOT_W * 0.50, -h / 2),
-    new THREE.Vector2(ATH_TORSO_BOT_W * 0.515, -h * 0.30),
-    new THREE.Vector2(ATH_TORSO_BOT_W * 0.555, -h * 0.05),
-    new THREE.Vector2(ATH_TORSO_TOP_W * 0.520, h * 0.20),
-    new THREE.Vector2(ATH_TORSO_TOP_W * 0.512, h * 0.40),
+    new THREE.Vector2(ATH_TORSO_BOT_W * 0.520, -h * 0.30),
+    new THREE.Vector2(ATH_TORSO_BOT_W * 0.580, -h * 0.05),
+    new THREE.Vector2(ATH_TORSO_TOP_W * 0.560, h * 0.20),
+    new THREE.Vector2(ATH_TORSO_TOP_W * 0.530, h * 0.40),
     new THREE.Vector2(ATH_TORSO_TOP_W * 0.50, h / 2),
   ]
   const newGeom = new THREE.LatheGeometry(profile, 14)
@@ -4695,18 +4779,22 @@ function applyCloseoutPose(joints: AthleteJoints): void {
  */
 function applyDenialPose(joints: AthleteJoints): void {
   // Lower body — same crouch as defensive but slightly narrower
-  // stance and a small body angle toward the ball.
-  joints.upperBody.position.y = -0.16
-  joints.leftThigh.rotation.set(-0.45, 0, -0.10)
-  joints.leftCalf.rotation.set(0.45, 0, 0)
+  // stance and a small body angle toward the ball. Phase L8 deepens
+  // the crouch from t=0.45 → t=0.54 so the defender on the pass
+  // shares the athletic base of the ball-side defender, with a
+  // narrower base than full defensive (legs closer together because
+  // the defender is mid-shuffle along the lane line).
+  joints.upperBody.position.y = -0.22
+  joints.leftThigh.rotation.set(-0.54, 0, -0.12)
+  joints.leftCalf.rotation.set(0.54, 0, 0)
   joints.leftFoot.rotation.set(0, 0, 0)
-  joints.rightThigh.rotation.set(-0.45, 0, 0.10)
-  joints.rightCalf.rotation.set(0.45, 0, 0)
+  joints.rightThigh.rotation.set(-0.54, 0, 0.12)
+  joints.rightCalf.rotation.set(0.54, 0, 0)
   joints.rightFoot.rotation.set(0, 0, 0)
   // Hip / shoulder square — both rotate the same way so the body
   // reads as turned to face the passing lane, not contorted.
-  joints.pelvis.rotation.set(0.14, 0.32, 0)
-  joints.torso.rotation.set(-0.14, 0.0, 0)
+  joints.pelvis.rotation.set(0.18, 0.32, 0)
+  joints.torso.rotation.set(-0.18, 0.0, 0)
   joints.neckHead.rotation.set(0.02, -0.32, 0)
   // Arms — outside (right) arm extended toward the lane, palm in;
   // inside (left) arm low and slightly back so the silhouette is
@@ -4728,19 +4816,23 @@ function applyDefensivePose(joints: AthleteJoints): void {
   // Crouch math: thigh pitches forward by `t`, calf pitches back by
   // `t` (so the calf stays roughly vertical), and the upperBody
   // drops by `thigh_length * (1 - cos(t))` so the foot stays at
-  // the floor. With t≈0.5rad and thigh ≈ 1.45ft, drop ≈ 0.18ft.
-  joints.upperBody.position.y = -0.18
-  joints.leftThigh.rotation.set(-0.50, 0, -0.18)
-  joints.leftCalf.rotation.set(0.50, 0, 0)
+  // the floor. Phase L8 deepens the crouch from t=0.50 → t=0.60
+  // (≈ 28° → 34°) so the defender reads as in a real defensive base
+  // rather than just standing with bent knees. Drop math: 1.45 *
+  // (1 - cos(0.60)) ≈ 0.27ft, hence the upperBody.y = -0.26 anchor.
+  joints.upperBody.position.y = -0.26
+  joints.leftThigh.rotation.set(-0.60, 0, -0.22)
+  joints.leftCalf.rotation.set(0.60, 0, 0)
   joints.leftFoot.rotation.set(0, 0, 0)
-  joints.rightThigh.rotation.set(-0.50, 0, 0.18)
-  joints.rightCalf.rotation.set(0.50, 0, 0)
+  joints.rightThigh.rotation.set(-0.60, 0, 0.22)
+  joints.rightCalf.rotation.set(0.60, 0, 0)
   joints.rightFoot.rotation.set(0, 0, 0)
   // Pelvis tilts forward a touch so the back is angled toward the
-  // ball instead of straight up.
-  joints.pelvis.rotation.set(0.18, 0, 0)
-  joints.torso.rotation.set(-0.18, 0, 0)
-  joints.neckHead.rotation.set(0.05, 0, 0)
+  // ball instead of straight up. Slightly more pronounced now to
+  // match the deeper crouch.
+  joints.pelvis.rotation.set(0.22, 0, 0)
+  joints.torso.rotation.set(-0.22, 0, 0)
+  joints.neckHead.rotation.set(0.06, 0, 0)
   // Arms — both out and forward, palms-down basketball defensive
   // hands. Upper arm rotates outward + forward; forearm rotates
   // forward at the elbow so hands extend past the body.
@@ -4751,25 +4843,36 @@ function applyDefensivePose(joints: AthleteJoints): void {
 }
 
 /**
- * Idle stance — basketball-ready offensive posture. Standing tall,
- * slight forward lean on the ball of each foot, arms relaxed at the
- * sides with a small outward angle so they don't fuse to the torso.
+ * Idle stance — basketball-ready offensive posture. Phase L8: changed
+ * from a fully-upright mannequin pose to a real athletic ready stance.
+ * Slight knee bend, small forward lean, arms loosely forward with the
+ * elbow slightly broken — the body language of a player who is alert
+ * and waiting for the play to develop, not standing at attention.
  */
 function applyIdlePose(joints: AthleteJoints): void {
-  joints.pelvis.rotation.set(0, 0, 0)
-  joints.torso.rotation.set(0, 0, 0)
-  joints.neckHead.rotation.set(0, 0, 0)
-  joints.upperBody.position.y = 0
-  joints.leftThigh.rotation.set(0, 0, 0)
-  joints.leftCalf.rotation.set(0, 0, 0)
+  // Light forward lean — athlete on the balls of their feet, not flat
+  // on heels. The pelvis tilt and matching torso counter-tilt keep the
+  // shoulders over the hips so the silhouette still reads "tall".
+  joints.pelvis.rotation.set(0.06, 0, 0)
+  joints.torso.rotation.set(-0.04, 0, 0)
+  joints.neckHead.rotation.set(0.02, 0, 0)
+  // Soft knee bend (~0.16 rad ≈ 9°). Small enough that the figure
+  // still reads as standing; large enough that the silhouette is
+  // visibly an athlete rather than a marionette.
+  joints.upperBody.position.y = -0.05
+  joints.leftThigh.rotation.set(-0.16, 0, -0.04)
+  joints.leftCalf.rotation.set(0.16, 0, 0)
   joints.leftFoot.rotation.set(0, 0, 0)
-  joints.rightThigh.rotation.set(0, 0, 0)
-  joints.rightCalf.rotation.set(0, 0, 0)
+  joints.rightThigh.rotation.set(-0.16, 0, 0.04)
+  joints.rightCalf.rotation.set(0.16, 0, 0)
   joints.rightFoot.rotation.set(0, 0, 0)
-  joints.leftUpperArm.rotation.set(0, 0, 0.18)
-  joints.leftForeArm.rotation.set(0, 0, 0)
-  joints.rightUpperArm.rotation.set(0, 0, -0.18)
-  joints.rightForeArm.rotation.set(0, 0, 0)
+  // Arms — loose at the sides but slightly forward and elbows broken,
+  // not glued straight down the seam. This is what a real off-ball
+  // player looks like waiting for a screen.
+  joints.leftUpperArm.rotation.set(0.18, 0, 0.22)
+  joints.leftForeArm.rotation.set(-0.20, 0, 0)
+  joints.rightUpperArm.rotation.set(0.18, 0, -0.22)
+  joints.rightForeArm.rotation.set(-0.20, 0, 0)
 }
 
 /**
