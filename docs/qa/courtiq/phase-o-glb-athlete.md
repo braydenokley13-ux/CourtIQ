@@ -184,3 +184,60 @@ Phase O should **source the asset first**, then resume O3+:
 3. Resume Phase O at O3 (flag), O4 (loader), O5 (QA notes), O6
    (validation), O7 (findings).
 
+## Phase O3 — GLB Preview Flag (skipped)
+
+The Phase O prompt makes O3 conditional on the O2 feasibility gate:
+
+> O3 — GLB Preview Flag: **Only if feasible**, add `USE_GLB_ATHLETE_PREVIEW=false`.
+
+The O2 gate is not met (no GLB asset on disk), so **no flag is added in this
+pass**. The `imperativeScene.ts` flag block continues to expose only the two
+existing flags:
+
+- `USE_PREMIUM_ATHLETE = true` (Phase J)
+- `USE_SKINNED_ATHLETE_PREVIEW = false` (Phase M; experimental)
+
+Adding `USE_GLB_ATHLETE_PREVIEW` now would either:
+
+1. Ship a flag that is forever-false (dead code under the "no production
+   default" rule, with no asset to flip it on for); or
+2. Ship a flag whose `try` branch points at an asset path that doesn't
+   exist, so the catch always fires — also dead code, but with the
+   added cost of a lying export name.
+
+Both options violate the prompt's "GLB path must be off by default,
+try/catch protected, fallback to procedural, separate from generated
+skinned preview" expectation, because none of those guarantees can be
+verified without an asset to load. Defer until O2 gate clears.
+
+## Phase O4 — Minimal GLB Loader (skipped)
+
+Same gate. The Phase O prompt makes O4 conditional on O2 feasibility:
+
+> O4 — Minimal GLB Loader Path: **Only if feasible**, add minimal loader wiring.
+
+No asset → no loader wiring. Adding a `GLTFLoader` import or a
+`buildGlbAthletePreview` shim now would:
+
+- introduce a dependency on `three/examples/jsm/loaders/GLTFLoader` that
+  the rest of the renderer does not currently use,
+- ship an unreachable code path (no asset = catch-only behavior),
+- and lock in a public-folder asset path that may not match whatever
+  Quaternius character is eventually picked.
+
+The procedural fallback continues to be the production path. The
+generated skinned prototype continues to be the existing flag-gated
+experiment. Neither is touched.
+
+When O2 clears, O4 will add:
+
+- a single `buildGlbAthletePreview(...)` shim (parallel to the existing
+  `buildSkinnedAthletePreview`) returning `THREE.Group | null`,
+- a `loadGlbAthleteAsset()` one-shot loader that caches the parsed
+  `GLTF` so all 10 player figures share one decode,
+- selector wiring inside `buildPlayerFigure` that tries GLB first when
+  `USE_GLB_ATHLETE_PREVIEW` is true and falls through to skinned →
+  premium → Phase F on any failure.
+
+Until then, the loader does not exist.
+
