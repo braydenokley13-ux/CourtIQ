@@ -198,6 +198,11 @@ export function Scenario3DCanvas({
   // through the parent's `onPhase` callback.
   const stateMachineRef = useRef<ReplayStateMachine | null>(null)
   const consumedChoiceRef = useRef<string | null>(null)
+  // Phase B / B4 — buffer a `pickedChoiceId` that arrives before the
+  // state machine reaches `frozen`. The subscribe callback below flushes
+  // this on the `frozen` transition so a pick is never silently dropped
+  // by the early-return in the [pickedChoiceId] effect.
+  const pendingPickRef = useRef<string | null>(null)
   // Phase B / B1 — mirror the React `paused` and `playbackRate` props
   // into refs so the state-machine subscribe callback can re-apply them
   // after a leg swap. `MotionController.setMovements` (called by
@@ -697,6 +702,23 @@ export function Scenario3DCanvas({
                 m.setPlaybackRate(playbackRateRef.current)
                 if (pausedRef.current) m.setPaused(true)
               }
+              // Phase B / B4 — flush a buffered pickedChoiceId on the
+              // `frozen` transition. Covers the race where the parent
+              // forwards a pick before the machine has actually reached
+              // `frozen` (e.g., scene rebuild during a fast pick path),
+              // which previously silently dropped the pick because the
+              // [pickedChoiceId] effect's dep is the prop alone.
+              if (state === 'frozen') {
+                const pendingId = pendingPickRef.current
+                if (
+                  pendingId !== null &&
+                  consumedChoiceRef.current !== pendingId
+                ) {
+                  consumedChoiceRef.current = pendingId
+                  pendingPickRef.current = null
+                  machine.pickChoice(pendingId)
+                }
+              }
             })
             // Stash the unsubscribe on the ref so the cleanup below
             // can release it without re-importing the listener.
@@ -706,6 +728,7 @@ export function Scenario3DCanvas({
             stateMachineRef.current = null
           }
           consumedChoiceRef.current = null
+          pendingPickRef.current = null
         } catch (error) {
           // eslint-disable-next-line no-console
           console.error('[scenario3d] camera/motion init failed', error)
@@ -787,6 +810,7 @@ export function Scenario3DCanvas({
         stateMachineRef.current = null
       }
       consumedChoiceRef.current = null
+      pendingPickRef.current = null
       // Dispose the dust-mote GPU resources before the parent group is
       // disposed. disposeGroup() walks the descendants and frees the
       // points geometry+material, but the canvas-generated alpha map
@@ -851,13 +875,28 @@ export function Scenario3DCanvas({
   // (or short-circuit to replay) leg. Treated as a one-shot per id —
   // re-renders with the same id are ignored, and a scene swap clears
   // the consumed-id ref so a new scenario's picks fire correctly.
+  //
+  // Phase B / B4 — when the prop arrives before the machine has reached
+  // `frozen` (mount race / fast-pick path), stash the id in
+  // `pendingPickRef` instead of dropping it. The state-machine
+  // subscriber flushes the buffer on the `frozen` transition.
   useEffect(() => {
     if (!pickedChoiceId) return
     if (consumedChoiceRef.current === pickedChoiceId) return
     const machine = stateMachineRef.current
-    if (!machine) return
-    if (machine.getSnapshot().state !== 'frozen') return
+    if (!machine) {
+      // No machine yet (legacy scene without a freeze marker, or
+      // pre-mount race). Buffer; if a machine ever appears later, the
+      // subscriber will flush on `frozen`.
+      pendingPickRef.current = pickedChoiceId
+      return
+    }
+    if (machine.getSnapshot().state !== 'frozen') {
+      pendingPickRef.current = pickedChoiceId
+      return
+    }
     consumedChoiceRef.current = pickedChoiceId
+    pendingPickRef.current = null
     machine.pickChoice(pickedChoiceId)
   }, [pickedChoiceId])
 

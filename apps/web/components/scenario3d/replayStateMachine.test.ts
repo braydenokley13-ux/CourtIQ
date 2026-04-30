@@ -767,6 +767,137 @@ describe('Phase B / B3 — speed control across leg swaps', () => {
   })
 })
 
+describe('Phase B / B4 — robust consequence dispatch', () => {
+  // Recovery plan A2.4 #1: when a pick arrives before the state
+  // machine has reached `frozen`, the canvas's [pickedChoiceId] effect
+  // early-returns and the dep-list (`[pickedChoiceId]`) prevents the
+  // same id from retrying on a later render. Phase B buffers the id
+  // and flushes it from the state-machine subscriber on the `frozen`
+  // transition.
+  function makeCanvasLikeFlow(scene: Scene3D) {
+    const { motion } = makeMotion(scene)
+    const machine = new ReplayStateMachine(motion, scene)
+    let pendingPick: string | null = null
+    let consumedPick: string | null = null
+    machine.subscribe(({ state }) => {
+      // Phase B / B4 mirror — flush a buffered pick when `frozen` lands.
+      if (state === 'frozen' && pendingPick !== null && consumedPick !== pendingPick) {
+        consumedPick = pendingPick
+        pendingPick = null
+        machine.pickChoice(consumedPick)
+      }
+    })
+    const submitPick = (id: string) => {
+      // Same shape as the [pickedChoiceId] effect post-B4.
+      if (consumedPick === id) return
+      if (machine.getSnapshot().state !== 'frozen') {
+        pendingPick = id
+        return
+      }
+      consumedPick = id
+      pendingPick = null
+      machine.pickChoice(id)
+    }
+    return { motion, machine, submitPick, peekPending: () => pendingPick }
+  }
+
+  const sceneB4: Scene3D = {
+    id: 'sm_b4',
+    court: 'half',
+    camera: 'teaching_angle',
+    players: [
+      { id: 'user', team: 'offense', role: 'wing', start: { x: 0, z: 10 }, isUser: true },
+      { id: 'pg', team: 'offense', role: 'pg', start: { x: 5, z: 20 }, hasBall: true },
+    ],
+    ball: { start: { x: 5, z: 20 }, holderId: 'pg' },
+    movements: [
+      { id: 'cut', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 1500 },
+    ],
+    answerDemo: [
+      { id: 'demo', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 400 },
+    ],
+    wrongDemos: [
+      {
+        choiceId: 'wait',
+        movements: [
+          { id: 'recover', playerId: 'user', kind: 'rotation', to: { x: 5, z: 10 }, durationMs: 300 },
+        ],
+      },
+    ],
+    preAnswerOverlays: [],
+    postAnswerOverlays: [],
+    freezeAtMs: 500,
+    synthetic: false,
+  }
+
+  it('buffers a pick that arrives before frozen and flushes on freeze', () => {
+    const { motion, machine, submitPick, peekPending } = makeCanvasLikeFlow(sceneB4)
+    machine.start()
+    motion.tick(0)
+    // Pre-frozen pick.
+    expect(machine.getSnapshot().state).toBe('playing')
+    submitPick('wait')
+    expect(peekPending()).toBe('wait')
+    expect(machine.getSnapshot().state).toBe('playing')
+
+    // Cross the freeze cap; subscriber must flush the buffer.
+    motion.tick(0 + 250 + 600)
+    machine.tick(0 + 250 + 600)
+    expect(machine.getSnapshot().state).toBe('consequence')
+    expect(peekPending()).toBeNull()
+  })
+
+  it('happy path: pick at frozen still dispatches immediately', () => {
+    const { motion, machine, submitPick, peekPending } = makeCanvasLikeFlow(sceneB4)
+    machine.start()
+    motion.tick(0)
+    motion.tick(0 + 250 + 600)
+    machine.tick(0 + 250 + 600)
+    expect(machine.getSnapshot().state).toBe('frozen')
+    submitPick('wait')
+    expect(machine.getSnapshot().state).toBe('consequence')
+    expect(peekPending()).toBeNull()
+  })
+
+  it('best-read short-circuit is observable as a state transition', () => {
+    // A2.4 #2: when the picked id has no wrongDemos entry the machine
+    // skips `consequence` and goes straight to `replaying`. Phase B
+    // does not change this behavior, but the test pins it down so a
+    // future caption-driven UI can rely on the transition.
+    const { motion, machine, submitPick } = makeCanvasLikeFlow(sceneB4)
+    const states: ReplayState[] = []
+    machine.subscribe(({ state }) => states.push(state))
+
+    machine.start()
+    motion.tick(0)
+    motion.tick(0 + 250 + 600)
+    machine.tick(0 + 250 + 600)
+    expect(machine.getSnapshot().state).toBe('frozen')
+
+    submitPick('best_choice')
+    expect(machine.getSnapshot().state).toBe('replaying')
+    // The transition list shows frozen → replaying with no consequence
+    // entry — exactly the signal a caption layer needs to render
+    // "best read" rather than the wrong-demo caption.
+    expect(states).toContain('frozen')
+    expect(states).toContain('replaying')
+    expect(states).not.toContain('consequence')
+  })
+
+  it('idempotent: re-submitting the same pick after dispatch is a no-op', () => {
+    const { motion, machine, submitPick } = makeCanvasLikeFlow(sceneB4)
+    machine.start()
+    motion.tick(0)
+    motion.tick(0 + 250 + 600)
+    machine.tick(0 + 250 + 600)
+    submitPick('wait')
+    expect(machine.getSnapshot().state).toBe('consequence')
+    // Repeat submission should not re-trigger or break the leg.
+    submitPick('wait')
+    expect(machine.getSnapshot().state).toBe('consequence')
+  })
+})
+
 describe('Phase H — idle players honor the freeze snapshot', () => {
   // Bug fix: before Phase H, an idle player (no entry in the
   // consequence/replay leg's `byPlayer`) snapped back to its
