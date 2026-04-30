@@ -4625,10 +4625,63 @@ function applyAthleteStance(joints: AthleteJoints, stance: PlayerStance): void {
     case 'closeout':
       applyCloseoutPose(joints)
       return
+    case 'cut':
+      applyCutPose(joints)
+      return
+    case 'sag':
+    case 'shrink':
+      applySagPose(joints)
+      return
     default:
       applyIdlePose(joints)
       return
   }
+}
+
+/**
+ * Cut stub — standing tall but tilted forward with the front foot
+ * extended, arms drawn back. Reads as "first step toward the rim"
+ * for ESC/SKR cutter renders. Soft requirement; full polish lives in
+ * a follow-up.
+ */
+function applyCutPose(joints: AthleteJoints): void {
+  joints.upperBody.position.y = -0.05
+  joints.leftThigh.rotation.set(-0.18, 0, -0.05)
+  joints.leftCalf.rotation.set(0.10, 0, 0)
+  joints.leftFoot.rotation.set(-0.12, 0, 0)
+  joints.rightThigh.rotation.set(-0.40, 0, 0.05)
+  joints.rightCalf.rotation.set(0.15, 0, 0)
+  joints.rightFoot.rotation.set(-0.18, 0, 0)
+  joints.pelvis.rotation.set(0.10, 0, 0)
+  joints.torso.rotation.set(-0.20, 0, 0)
+  joints.neckHead.rotation.set(0.10, 0, 0)
+  joints.leftUpperArm.rotation.set(0.45, 0, 0.20)
+  joints.leftForeArm.rotation.set(-0.45, 0, 0)
+  joints.rightUpperArm.rotation.set(0.55, 0, -0.20)
+  joints.rightForeArm.rotation.set(-0.45, 0, 0)
+}
+
+/**
+ * Sag/shrink stub — defensive stance shifted toward help. Smaller
+ * crouch than 'defensive', body angled inward toward the paint.
+ * Soft requirement; ships as a visible stub so a follow-up packet
+ * can route SKR-01 over-helpers here without rebuilding geometry.
+ */
+function applySagPose(joints: AthleteJoints): void {
+  joints.upperBody.position.y = -0.20
+  joints.leftThigh.rotation.set(-0.35, 0, -0.10)
+  joints.leftCalf.rotation.set(0.55, 0, 0)
+  joints.leftFoot.rotation.set(-0.22, 0, 0)
+  joints.rightThigh.rotation.set(-0.35, 0, 0.10)
+  joints.rightCalf.rotation.set(0.55, 0, 0)
+  joints.rightFoot.rotation.set(-0.22, 0, 0)
+  joints.pelvis.rotation.set(0.10, -0.22, 0)
+  joints.torso.rotation.set(-0.10, 0, 0)
+  joints.neckHead.rotation.set(0.05, 0.22, 0)
+  joints.leftUpperArm.rotation.set(-0.20, 0, 0.55)
+  joints.leftForeArm.rotation.set(-0.30, 0, 0)
+  joints.rightUpperArm.rotation.set(-0.20, 0, -0.45)
+  joints.rightForeArm.rotation.set(-0.30, 0, 0)
 }
 
 /**
