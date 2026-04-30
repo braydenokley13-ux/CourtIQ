@@ -6041,5 +6041,70 @@ gap, the next phase should evaluate a SkinnedMesh + clip
 playback path in earnest, with the Phase F fallback still
 guarding the fallback contract.
 
+## Phase L — Fullscreen, Athlete Quality, and Motion Direction
+
+Phase K shipped trainer-feel corrections, but the latest
+screenshot QA shows three issues that did not get fully
+resolved:
+
+1. **Fullscreen black-space / layout bug.** The 3D scene
+   renders as a shallow strip near the top of the fullscreen
+   surface; the rest of the viewport is black, and the
+   playback controls float far below the actual court. The
+   fullscreen handoff still feels broken in practice even
+   though `fullscreen.test.ts` passes.
+2. **Athlete visuals still feel toy-like.** Players read as
+   skinny / stiff at gameplay-camera distance even after the
+   Phase K proportion bump. Limbs lack athletic mass, poses
+   still feel mannequin-upright, and the court is now visibly
+   more polished than the athletes on top of it.
+3. **Animation / motion still feels off.** Movement reads as
+   slightly robotic / choppy in spots. Direction (yaw)
+   transitions, segment seams, and replay-speed handling all
+   contribute. The replay does not yet feel like a smooth
+   playable film-room replay.
+
+Phase L will address all three, in order:
+
+- **L2–L5: Fullscreen first.** Audit the fullscreen root,
+  R3F canvas wrapper, and controls placement. Fix the
+  black-space bug at the layout level (root height, child
+  flex, embedded aspect-ratio leakage, ResizeObserver /
+  fullscreenchange handling). Add a regression test that
+  would catch the top-strip bug.
+- **L6–L9: Athlete visual quality second.** Identify the
+  remaining athlete blockers, then bump mass / silhouette,
+  basketball stance, and head / uniform readability without
+  raising the triangle budget meaningfully and without
+  breaking the Phase F fallback contract.
+- **L10–L11: Motion feel third.** Diagnose where the
+  remaining choppiness lives (camera root motion vs. player
+  root motion vs. yaw smoothing vs. segment seams), then
+  refine easing / interpolation / yaw without adding a rig.
+
+Non-negotiables for Phase L:
+
+- No GLB / GLTF imports.
+- No `SkinnedMesh`, `AnimationMixer`, or external clips.
+- No new dependencies.
+- No replay rewrite.
+- No scenario JSON change unless absolutely unavoidable.
+- Phase F fallback (`buildAthleteFigure`) remains preserved.
+- `USE_PREMIUM_ATHLETE` selector remains preserved.
+- Embedded mode and fullscreen mode must both still work.
+- Replay determinism is preserved.
+- BDW-01 teaching clarity is preserved (user player obvious,
+  ball-handler obvious, defender blocking the pass obvious,
+  cut-behind read still readable).
+
+The decision to keep the rigging escape hatch closed remains
+intentional: Phase L is the last guaranteed-non-skeletal layer
+before a SkinnedMesh / GLB experiment becomes the right next
+move. If after L the fullscreen handoff is fixed but athletes
+still read as toy-like, the Phase L Findings section will
+explicitly say so and recommend opening the GLB experiment
+(or an authored non-skeletal pose-animation phase) in a later
+prompt.
+
 
 
