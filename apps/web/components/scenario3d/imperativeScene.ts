@@ -4607,10 +4607,45 @@ function applyAthleteStance(joints: AthleteJoints, stance: PlayerStance): void {
     case 'defensive':
       applyDefensivePose(joints)
       return
+    case 'denial':
+      applyDenialPose(joints)
+      return
     default:
       applyIdlePose(joints)
       return
   }
+}
+
+/**
+ * Denial stance — defensive crouch with the outside arm extended
+ * into the passing lane and the inside arm low. Body angles toward
+ * the ball-handler so the BDW-01 "sitting on the pass" cue reads at
+ * a glance. The figure root yaw already faces the offense; the
+ * denial pose adds a hip rotation so the stance squares to the
+ * passing lane rather than the rim.
+ */
+function applyDenialPose(joints: AthleteJoints): void {
+  // Lower body — same crouch as defensive but slightly narrower
+  // stance and a small body angle toward the ball.
+  joints.upperBody.position.y = -0.30
+  joints.leftThigh.rotation.set(-0.50, 0, -0.10)
+  joints.leftCalf.rotation.set(0.78, 0, 0)
+  joints.leftFoot.rotation.set(-0.25, 0, 0)
+  joints.rightThigh.rotation.set(-0.45, 0, 0.10)
+  joints.rightCalf.rotation.set(0.72, 0, 0)
+  joints.rightFoot.rotation.set(-0.22, 0, 0)
+  // Hip / shoulder square — both rotate the same way so the body
+  // reads as turned to face the passing lane, not contorted.
+  joints.pelvis.rotation.set(0.14, 0.32, 0)
+  joints.torso.rotation.set(-0.14, 0.0, 0)
+  joints.neckHead.rotation.set(0.02, -0.32, 0)
+  // Arms — outside (right) arm extended toward the lane, palm in;
+  // inside (left) arm low and slightly back so the silhouette is
+  // unambiguously "denying the pass".
+  joints.leftUpperArm.rotation.set(0.35, 0, 0.15)
+  joints.leftForeArm.rotation.set(-0.45, 0, 0)
+  joints.rightUpperArm.rotation.set(-1.55, 0, -0.55)
+  joints.rightForeArm.rotation.set(-0.10, 0, 0)
 }
 
 /**
