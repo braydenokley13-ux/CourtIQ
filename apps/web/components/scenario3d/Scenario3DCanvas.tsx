@@ -854,8 +854,22 @@ export function Scenario3DCanvas({
   // from t=0 on the next parent rAF tick. The scene rebuild path
   // already covers scene/mode changes, so this handles the
   // "play again" button case without remounting the geometry.
+  //
+  // Phase B / B2 — state-aware dispatch. From `done`, route through
+  // `ReplayStateMachine.showAgain()` so the machine cycles
+  // `done → replaying → done` and re-emits its listener snapshot
+  // (driving captions, phase tracker, and onPhase consumers). For all
+  // other states, `motion.reset()` rewinds the currently active leg
+  // (intro / consequence / answer demo) — the same behavior callers
+  // had before Phase B. Legacy scenes without a state machine fall
+  // through to the simple motion reset.
   useEffect(() => {
-    motionControllerRef.current?.reset()
+    const machine = stateMachineRef.current
+    if (machine && machine.getSnapshot().state === 'done') {
+      machine.showAgain()
+    } else {
+      motionControllerRef.current?.reset()
+    }
   }, [resetCounter])
 
   // Push playback-rate / pause changes into the existing motion

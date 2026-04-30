@@ -542,6 +542,111 @@ describe('Phase B / B1 — paused state across leg swap', () => {
   })
 })
 
+describe('Phase B / B2 — restart from done dispatches showAgain', () => {
+  // Recovery plan A2.5: prior to Phase B, both the in-canvas Restart
+  // button and the FeedbackPanel "Replay" CTA dropped into
+  // `motion.reset()`, which rewinds the playhead but leaves the state
+  // machine in `done`. The result was a "ghosted replay" — the answer
+  // demo replayed but no `replaying` snapshot fired, so consumers like
+  // the page caption and learn-phase tracker did not re-react. The
+  // canvas now branches: in `done`, dispatch `machine.showAgain()`;
+  // otherwise call `motion.reset()` to rewind the active leg.
+  function driveToDone(scene: Scene3D): {
+    motion: MotionController
+    machine: ReplayStateMachine
+    states: ReplayState[]
+  } {
+    const { motion } = makeMotion(scene)
+    const machine = new ReplayStateMachine(motion, scene)
+    const states: ReplayState[] = []
+    machine.subscribe(({ state }) => states.push(state))
+    machine.start()
+    motion.tick(0)
+    motion.tick(0 + 250 + 600)
+    machine.tick(0 + 250 + 600)
+    machine.pickChoice('best_choice', 0 + 250 + 600)
+    motion.tick(1500)
+    motion.tick(1500 + 250 + 500)
+    machine.tick(1500 + 250 + 500)
+    return { motion, machine, states }
+  }
+
+  const sceneWithFreezeAndAnswer: Scene3D = {
+    id: 'sm_b2',
+    court: 'half',
+    camera: 'teaching_angle',
+    players: [
+      { id: 'user', team: 'offense', role: 'wing', start: { x: 0, z: 10 }, isUser: true },
+      { id: 'pg', team: 'offense', role: 'pg', start: { x: 5, z: 20 }, hasBall: true },
+    ],
+    ball: { start: { x: 5, z: 20 }, holderId: 'pg' },
+    movements: [
+      { id: 'cut', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 1500 },
+    ],
+    answerDemo: [
+      { id: 'demo', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 400 },
+    ],
+    wrongDemos: [],
+    preAnswerOverlays: [],
+    postAnswerOverlays: [],
+    freezeAtMs: 500,
+    synthetic: false,
+  }
+
+  it('motion.reset() from done leaves the machine in done (pre-fix behavior)', () => {
+    const { motion, machine, states } = driveToDone(sceneWithFreezeAndAnswer)
+    expect(states.at(-1)).toBe('done')
+    motion.reset()
+    expect(machine.getSnapshot().state).toBe('done')
+    // No additional snapshot was emitted by the reset — the listener
+    // did not see a `replaying` event, which is exactly the user-visible
+    // "ghosted replay" symptom from A2.5.
+    expect(states.filter((s) => s === 'replaying').length).toBe(1)
+  })
+
+  it('canvas-style state-aware reset routes through showAgain when in done', () => {
+    const { motion, machine, states } = driveToDone(sceneWithFreezeAndAnswer)
+    // Mirrors the canvas's [resetCounter] effect post-B2.
+    const resetEffect = () => {
+      if (machine.getSnapshot().state === 'done') {
+        machine.showAgain()
+      } else {
+        motion.reset()
+      }
+    }
+    resetEffect()
+    expect(machine.getSnapshot().state).toBe('replaying')
+    // Replaying is re-emitted, so onPhase / caption consumers re-fire.
+    expect(states.filter((s) => s === 'replaying').length).toBe(2)
+    motion.tick(3000)
+    motion.tick(3000 + 250 + 500)
+    machine.tick(3000 + 250 + 500)
+    expect(machine.getSnapshot().state).toBe('done')
+  })
+
+  it('canvas-style state-aware reset rewinds the active leg outside done', () => {
+    // From `playing`, the same effect must keep the legacy "rewind the
+    // active leg" semantics so the in-canvas Restart button still works
+    // before the user has frozen.
+    const { motion } = makeMotion(sceneWithFreezeAndAnswer)
+    const machine = new ReplayStateMachine(motion, sceneWithFreezeAndAnswer)
+    machine.start()
+    motion.tick(0)
+    motion.tick(0 + 250 + 200) // mid-intro
+    expect(motion.getElapsedMs(0 + 250 + 200)).toBeGreaterThan(0)
+
+    // Same effect closure as the canvas would apply.
+    if (machine.getSnapshot().state === 'done') {
+      machine.showAgain()
+    } else {
+      motion.reset()
+    }
+    expect(machine.getSnapshot().state).toBe('playing')
+    motion.tick(0 + 250 + 200 + 1) // immediate next tick after reset
+    expect(motion.getElapsedMs(0 + 250 + 200 + 1)).toBeLessThanOrEqual(1)
+  })
+})
+
 describe('Phase H — idle players honor the freeze snapshot', () => {
   // Bug fix: before Phase H, an idle player (no entry in the
   // consequence/replay leg's `byPlayer`) snapped back to its
