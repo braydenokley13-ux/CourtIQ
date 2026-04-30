@@ -200,6 +200,26 @@ function easeOutCubic(u: number): number {
   return 1 - inv * inv * inv
 }
 
+/** Phase K — front-weighted athletic ease for explosive moves. The
+ *  pre-Phase-K `easeOutCubic` had peak velocity at u=0 (f'(0)=3),
+ *  which made cuts feel like the player teleported off their idle
+ *  pose into the move — the "robotic snap" called out in the BDW-01
+ *  screenshot QA. This curve composes a quick warmup (`u^1.4`, so
+ *  f'(0)=0 — the player accelerates from rest) with a smoothstep cap
+ *  (`u^2 * (3 - 2u)`), then biases toward the front half so the move
+ *  still reads as decisive rather than a slow ease-in-out. The result:
+ *  the player ramps up over the first ~15% of the segment, peaks
+ *  velocity around u≈0.35, and settles into arrival on the back half.
+ *  Slope continuity at u=0 and u=1 is zero, so back-to-back segments
+ *  blend without a perceptible stutter at the seam.
+ */
+function easeOutAthletic(u: number): number {
+  if (u <= 0) return 0
+  if (u >= 1) return 1
+  const warm = Math.pow(u, 1.4)
+  return warm * warm * (3 - 2 * warm)
+}
+
 /** Phase C / C3 — pick the eased curve for a movement kind. Cuts /
  *  drives / jabs / rips / baseline_sneak / stop_ball get ease-out so
  *  they feel like a player making a move; defensive movements
@@ -222,8 +242,17 @@ export function easeForKind(
     case 'jab':
     case 'rip':
     case 'stop_ball':
-      return easeOutCubic(u)
+      // Phase K — switched from easeOutCubic to easeOutAthletic so
+      // the player accelerates from rest instead of starting at peak
+      // velocity. Same arrival profile (zero velocity at u=1) so the
+      // "settle on the spot" feel is preserved.
+      return easeOutAthletic(u)
     default:
       return ease(u)
   }
 }
+
+// `easeOutCubic` is preserved for any future call sites that want the
+// old explosive-but-snappy curve (e.g. ball arc Y). The active dispatch
+// in `easeForKind` no longer references it directly.
+void easeOutCubic
