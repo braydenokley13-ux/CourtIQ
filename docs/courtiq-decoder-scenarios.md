@@ -141,3 +141,7 @@ All overlays must clear after 1.2s into Timeline A so the player can see the cle
 > "Watch his head, not the ball. The second his eyes left you, the corner was free. You either stayed put or cut into traffic — both close the window. Try it again, and look for the head turn."
 
 ---
+
+## AOR-01
+
+**Title:** No Gap Go Now
