@@ -4038,14 +4038,69 @@ function buildAthleteFigure(
   const pelvis = new THREE.Group()
   pelvis.name = 'pelvis'
   pelvis.position.set(0, ATH_HIP_Y, 0)
+  // Pelvis = the shorts. A short, slightly tapered cylinder that
+  // belts the hip line, narrower at the top so the torso reads
+  // wider than the waist.
+  const shortsMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(
+      ATH_PELVIS_WIDTH * 0.42,
+      ATH_PELVIS_WIDTH * 0.5,
+      ATH_PELVIS_HEIGHT,
+      12,
+      1,
+      false,
+    ),
+    shortsMat,
+  )
+  shortsMesh.position.y = -ATH_PELVIS_HEIGHT * 0.45
+  shortsMesh.scale.set(1, 1, ATH_PELVIS_DEPTH / ATH_PELVIS_WIDTH)
+  shortsMesh.castShadow = true
+  shortsMesh.receiveShadow = true
+  pelvis.add(shortsMesh)
 
   const torso = new THREE.Group()
   torso.name = 'torso'
   torso.position.set(0, ATH_TORSO_BOTTOM_Y, 0)
+  // Torso = a V-tapered cylinder. Wider radius at the shoulders,
+  // narrower at the waist gives the broadcast-readable athlete
+  // silhouette without a separate yoke primitive.
+  const torsoMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(
+      ATH_TORSO_TOP_W * 0.5,
+      ATH_TORSO_BOT_W * 0.5,
+      ATH_TORSO_HEIGHT,
+      12,
+      1,
+      false,
+    ),
+    jerseyMat,
+  )
+  torsoMesh.position.y = ATH_TORSO_HEIGHT * 0.5
+  torsoMesh.scale.set(1, 1, ATH_TORSO_DEPTH / ATH_TORSO_TOP_W)
+  torsoMesh.castShadow = true
+  torsoMesh.receiveShadow = true
+  torso.add(torsoMesh)
 
   const neckHead = new THREE.Group()
   neckHead.name = 'neckHead'
-  neckHead.position.set(0, ATH_NECK_Y, 0)
+  neckHead.position.set(0, ATH_NECK_Y - ATH_TORSO_BOTTOM_Y, 0)
+  // Neck — short skin-tone cylinder.
+  const neckMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(ATH_NECK_R, ATH_NECK_R * 1.15, ATH_NECK_LENGTH, 10),
+    skinMat,
+  )
+  neckMesh.position.y = ATH_NECK_LENGTH * 0.5
+  neckHead.add(neckMesh)
+  // Head — single sphere, slight squash for a stylized look. No
+  // facial detail per E4 §4.
+  const headMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(ATH_HEAD_R, 14, 10),
+    skinMat,
+  )
+  headMesh.position.y = ATH_NECK_LENGTH + ATH_HEAD_R
+  headMesh.scale.set(1, 1.04, 0.97)
+  headMesh.castShadow = true
+  neckHead.add(headMesh)
 
   const leftLeg = new THREE.Group()
   leftLeg.name = 'leftLeg'
@@ -4281,9 +4336,6 @@ function buildAthleteFigure(
   // Materials and proportional constants are referenced by sub-group
   // geometry attached in F1A.4 onward. Suppress the unused-binding
   // lint here so the scaffold compiles before the body parts ship.
-  void jerseyMat
-  void shortsMat
-  void skinMat
   void shoeMat
   void accentMat
   void trimMat
@@ -4295,12 +4347,6 @@ function buildAthleteFigure(
   void ATH_CALF_BOT_R
   void ATH_THIGH_TOP_R
   void ATH_THIGH_BOT_R
-  void ATH_PELVIS_WIDTH
-  void ATH_PELVIS_DEPTH
-  void ATH_TORSO_TOP_W
-  void ATH_TORSO_BOT_W
-  void ATH_TORSO_DEPTH
-  void ATH_NECK_R
   void ATH_UPPER_ARM_R
   void ATH_FORE_ARM_LENGTH
   void ATH_FORE_ARM_R
