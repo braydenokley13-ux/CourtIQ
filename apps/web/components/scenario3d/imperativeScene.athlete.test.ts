@@ -100,6 +100,45 @@ describe('athlete builder disposal', () => {
     disposeGroup(figureBench)
   })
 
+  it('keeps the user chevron above all body geometry', () => {
+    // Phase J guard: the premium athlete upgrade adds a trap dome,
+    // jaw plane, shoulder piping torus, and (for ball-handlers) a
+    // wristband. None of those should poke above the chevron, which
+    // is the user's "YOU" anchor and must stay clearly above the
+    // head from the gameplay camera.
+    const figure = buildPlayerFigure('#3BFF9D', '#0F8C4E', true, true, '0', 'idle')
+    figure.updateMatrixWorld(true)
+    const layers = getPlayerIndicatorLayers(figure)
+    expect(layers).toBeTruthy()
+
+    let chevronWorldY = -Infinity
+    layers!.userHead.traverse((child) => {
+      const mesh = child as THREE.Mesh
+      if (!mesh.isMesh) return
+      if (!(mesh.geometry instanceof THREE.ConeGeometry)) return
+      const pos = new THREE.Vector3()
+      mesh.getWorldPosition(pos)
+      if (pos.y > chevronWorldY) chevronWorldY = pos.y
+    })
+    expect(chevronWorldY).toBeGreaterThan(0)
+
+    let bodyTopY = -Infinity
+    for (const subName of ['pelvis', 'torso', 'neckHead'] as const) {
+      const sub = figure.getObjectByName(subName)
+      sub?.traverse((child) => {
+        const mesh = child as THREE.Mesh
+        if (!mesh.isMesh || !mesh.geometry) return
+        const box = new THREE.Box3().setFromObject(mesh)
+        if (box.max.y > bodyTopY) bodyTopY = box.max.y
+      })
+    }
+    // Chevron rides at least 0.5 ft above the tallest body geometry
+    // so it's never visually merged with the head silhouette at
+    // gameplay distance.
+    expect(chevronWorldY).toBeGreaterThan(bodyTopY + 0.5)
+    disposeGroup(figure)
+  })
+
   it('disposes every resource owned by a single figure', () => {
     const figure = buildPlayerFigure('#FF3046', '#A10F22', false, false, '21', 'denial')
     const tracked = trackDisposal(figure)
