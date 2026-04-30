@@ -277,3 +277,7 @@ Floor markers under D4's feet are the signature visual: they make the parallel-f
 > "His hand was in your face — that's not your shot. The closeout *was* the advantage: parallel feet, forward momentum. Next rep, look at his feet the second you catch — if they're flat, you go."
 
 ---
+
+## SKR-01
+
+**Title:** Paint Touch Opposite Corner
