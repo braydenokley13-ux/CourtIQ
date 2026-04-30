@@ -851,7 +851,15 @@ export class CameraController {
   private currentLookAt = new THREE.Vector3(SCENE_FOCUS.x, SCENE_FOCUS.y, SCENE_FOCUS.z)
   private hasTarget = false
   private snap = true
-  private easing = 0.10
+  // Phase L11 — frame-rate independent camera ease. The pre-L11
+  // controller used a fixed `easing = 0.10` per-frame lerp factor,
+  // which made the camera feel sluggish at 30fps and snappy at
+  // 120fps. The yaw smoothing already used `1 - exp(-dt/τ)` for the
+  // same reason; the camera now matches. Time constant 0.18s gives
+  // ~72% convergence in 200ms — close to what the old code produced
+  // at 60fps, but identical at every frame rate.
+  private easeTimeConstantS = 0.18
+  private lastTickWallMs = 0
 
   constructor(scene: Scene3D, aspect: number, baseFov: number) {
     this.scene = scene
@@ -892,6 +900,10 @@ export class CameraController {
   /** Forces the next tick to snap rather than ease. */
   snapNext(): void {
     this.snap = true
+    // Phase L11 — reset the wall-clock anchor so the first eased
+    // tick after the snap uses the bootstrap default (1/60s) instead
+    // of measuring a giant dt against a stale `lastTickWallMs`.
+    this.lastTickWallMs = 0
   }
 
   /** Returns the current mode (for diagnostics). */
@@ -903,10 +915,31 @@ export class CameraController {
    * Mutates the camera one step toward the current target. Safe to
    * call every frame even when the target hasn't changed — the lerp
    * resolves to a no-op once the camera has settled.
+   *
+   * Phase L11 — `t` is now derived from the wall-clock delta and the
+   * controller's time constant so the camera reaches the same
+   * convergence point in the same wall-clock time regardless of
+   * frame rate. `snapNext()` still produces an instant jump on the
+   * very next call.
    */
   tick(camera: THREE.PerspectiveCamera): void {
     if (!this.hasTarget) return
-    const t = this.snap ? 1 : this.easing
+    let t: number
+    if (this.snap) {
+      t = 1
+    } else {
+      const nowMs = typeof performance !== 'undefined' ? performance.now() : 0
+      const rawDt =
+        this.lastTickWallMs === 0
+          ? 1 / 60
+          : (nowMs - this.lastTickWallMs) / 1000
+      // Clamp dt so a backgrounded tab returning after a long pause
+      // does not snap-cut on the first frame back. The same clamp
+      // shape the yaw smoothing uses (`Math.min(rawDt, 0.1)`).
+      const dt = Math.max(0, Math.min(rawDt, 0.1))
+      t = 1 - Math.exp(-dt / this.easeTimeConstantS)
+      this.lastTickWallMs = nowMs
+    }
     camera.position.lerp(this.targetPosition, t)
     this.currentLookAt.lerp(this.targetLookAt, t)
     camera.lookAt(this.currentLookAt)
