@@ -3847,6 +3847,90 @@ The single-builder file (`imperativeScene.ts`) now ships the
 athlete builder as the only player path.
 
 
+### Phase G Copy Inventory
+
+> Snapshot of every BDW-01 / Backdoor-Window user-facing string a
+> learner sees on the live-decision and feedback paths, captured
+> before any rewrite. G2–G4 will rewrite from this list; G5 will
+> re-snapshot the after state.
+
+#### A. Scenario data — `packages/db/seed/scenarios/packs/founder-v0/BDW-01.json`
+
+| # | Field | Current copy |
+|---|---|---|
+| A1 | `prompt` (L32) | "Your defender is sitting on the reversal. What is the smartest move right now?" |
+| A2 | `choices[0].label` — best (L36) | "Cut backdoor behind the defender." |
+| A3 | `choices[0].feedback_text` (L38) | "Best read. The defender is guarding the pass, not the basket — punish that with a plant-and-go." |
+| A4 | `choices[1].label` — acceptable (L43) | "V-cut out to a deeper catch point." |
+| A5 | `choices[1].feedback_text` (L44) | "Acceptable. The V-cut keeps possession alive, but you traded a layup window for a contested perimeter catch." |
+| A6 | `choices[1].partial_feedback_text` (L46) | "Re-spacing keeps the play alive — the cleaner answer is the layup window behind the denying defender." |
+| A7 | `choices[2].label` — wrong (L51) | "Stay on the wing and call for the ball." |
+| A8 | `choices[2].feedback_text` (L53) | "Wrong. The defender is already in the lane — forcing the reversal is a deflection or turnover." |
+| A9 | `choices[3].label` — wrong (L58) | "Slowly cut in front of the defender." |
+| A10 | `choices[3].feedback_text` (L60) | "Wrong. Cutting in front lets the defender ride your route — go behind them, not through them." |
+| A11 | `feedback.correct` (L77) | "Good read. You punished the denial instead of fighting for the catch." |
+| A12 | `feedback.partial` (L78) | "Re-spacing can keep the play alive, but the cleaner answer was the layup window behind the defender." |
+| A13 | `feedback.wrong` (L79) | "You stayed loyal to the spot instead of the cue. If they deny the pass, cut behind them." |
+| A14 | `decoder_teaching_point` (L74) | "When your defender sits in the passing lane, the basket is open behind them." |
+| A15 | `self_review_checklist` (L81–86) | "Did I see the hand-and-foot denial?" / "Did I plant and go behind, not in front?" / "Did I cut hard enough to make it a scoring cut?" / "Did I show target hands at the rim?" |
+| A16 | `explanation_md` (L97) | "**The Backdoor Window.** Your defender is denying the reversal — hand and foot in the lane, chest between ball and receiver, hips opened toward the sideline. That stance gives up the basket to take away the pass. The plant-and-go back-cut punishes the denial: jab the outside foot to commit the defender's hips, then explode behind them to the front of the rim before x4 can rotate. Read the defender, not the spot." |
+| A17 | wrong-demo captions (L176, L198, L228) | "Possession kept, layup window missed." / "Defender deflects the reversal." / "Defender rides the cut. Window closes." |
+
+#### B. Train page — `apps/web/app/train/page.tsx`
+
+| # | Surface | Line | Current copy |
+|---|---|---|---|
+| B1 | `DECODER_LABELS.BACKDOOR_WINDOW` | 41 | "The Backdoor Window" |
+| B2 | `DECODER_HANDOFF.BACKDOOR_WINDOW.teachingPoint` | 67–68 | "When your defender sits in the passing lane, the basket is open behind them." |
+| B3 | `DECODER_HANDOFF.BACKDOOR_WINDOW.lessonConnection` | 69 | "Read the defender, not the spot." |
+| B4 | `DECODER_HANDOFF.BACKDOOR_WINDOW.selfReviewChecklist` | 71–76 | (mirrors A15) |
+| B5 | `PRAISE` rotation | 129 | "Great read." / "Locked in." / "Smart move." / "You saw it." / "Big brain." |
+| B6 | `RECOVER` rotation | 130 | "Almost." / "So close." / "Not quite." / "Try the next one." / "Reset." |
+| B7 | `WIN_MICRO_PRAISE.BACKDOOR_WINDOW` | 134 | "You saw the help defender." |
+| B8 | `MISS_MICRO_NOTE.BACKDOOR_WINDOW` | 142 | "Read the defender, not the spot." |
+| B9 | Loading line | 179, 364 | "Setting the play…" |
+| B10 | Error CTA | 381 | "Try again" |
+| B11 | Header back link | 479 | "Quit" |
+| B12 | Pre-freeze status pill | 554 | "Watch the play" |
+| B13 | Difficulty meta | 538 | "Difficulty {n}" |
+| B14 | Question framing line | 654 | "What do you do?" |
+| B15 | Floating miss toast | 787 | "Keep going" |
+| B16 | Next-rep button | 762 | "See your results" / "Next rep" |
+| B17 | Decoder eyebrow | 578 | "Decoder" |
+
+#### C. Sub-components
+
+| # | File | Line | Current copy |
+|---|---|---|---|
+| C1 | `ChoiceCard.tsx` | 97 | "Best read" (correct-tag pill) |
+| C2 | `FeedbackPanel.tsx` | 81 | "Why" (eyebrow over feedback body) |
+| C3 | `FeedbackPanel.tsx` | 95 | "Watch the right read" (replay CTA) |
+| C4 | `FeedbackPanel.tsx` | 104 | "Show what I did" (consequence replay CTA) |
+| C5 | `DecoderLessonPanel.tsx` | 55 | "Decoder unlocked" (eyebrow) |
+| C6 | `DecoderLessonPanel.tsx` | 72 | "See the full move" (lesson CTA) |
+| C7 | `SelfReviewChecklist.tsx` | 48 | "Your check-in" (eyebrow) |
+| C8 | `SelfReviewChecklist.tsx` | 51 | "Did you see it?" (heading) |
+| C9 | `WinBurst.tsx` | 64–82 | RewardChip labels — "XP" / "IQ" / "Streak" |
+| C10 | `PhaseTracker.tsx` | 26–29 | "Watch" / "Read" / "Pick" / "Learn" |
+
+#### D. Lesson seed — `packages/db/seed/lessons/backdoor-window.json`
+
+| # | Field | Current copy summary |
+|---|---|---|
+| D1 | `lesson.title` | "Read the defender, not the spot." |
+| D2 | `lesson.body_md` (takeaway) | "When your defender sits in the passing lane, the basket is open behind them." |
+| D3 | `lesson.body_md` (coach line) | "If they deny the pass, cut behind them." |
+
+> Phase G2–G4 scope (per prompt): rewrite the BDW-01 scenario JSON
+> strings (A1–A17), the train-page decoder/handoff strings touching
+> Backdoor Window (B2–B4, B7–B8, B14), and the praise/miss
+> rotations + key shell labels (B5–B6, B9–B12, B15–B16). The
+> sub-component eyebrows in §C are reviewed in G4 alongside the
+> handoff. The lesson body in §D is academy-side and out of Phase G
+> rewrite scope; the train-page handoff still owns the cue and
+> stays the unit of truth Phase G rewrites.
+
+
 ### Future Phase I — True Trainer Asset Pipeline Spike
 
 Phase F deliberately stayed inside a code-built mesh boundary so
