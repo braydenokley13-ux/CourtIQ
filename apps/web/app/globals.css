@@ -92,37 +92,44 @@ body {
       0 0 24px -6px rgba(59, 227, 131, 0.4);
   }
 
-  /* Phase K — Fullscreen film-room sizing. The Scenario3DView outer
-     div is the fullscreen target; without an explicit :fullscreen
-     rule, browsers leave the inner canvas wrapper sized by its
-     normal-flow parents which can collapse to a narrow band on top
-     of a black ::backdrop. Force the fullscreen target and every
-     descendant `data-fullscreen-fill` element to fill the viewport
-     so the court fills the full screen on Mac/Chrome and Mac/Safari. */
-  [data-fullscreen='true'] {
+  /* Phase L — Fullscreen film-room sizing. The Scenario3DView outer
+     div is the fullscreen target. Phase K relied on a
+     `[data-fullscreen='true']` attribute selector that React applied
+     in a `fullscreenchange` handler — but the browser enters
+     fullscreen visually one frame BEFORE React re-renders the
+     attribute, leaving a window where the layout is wrong (canvas
+     stuck at the embedded 280px height, controls floating below it).
+     Phase L flips the layout to flex-column on the `:fullscreen`
+     pseudo-class itself so the column layout is correct from the
+     moment the browser enters fullscreen, regardless of React. */
+  [data-fullscreen='true'],
+  :fullscreen,
+  :-webkit-full-screen {
     width: 100vw !important;
     height: 100vh !important;
+    /* dynamic-vh fallback for mobile Safari URL bar */
+    height: 100dvh !important;
     max-width: 100vw !important;
     max-height: 100vh !important;
     background: #0a0b0e;
-    display: block;
+    display: flex !important;
+    flex-direction: column !important;
   }
 
-  [data-fullscreen='true'] [data-fullscreen-fill='true'] {
+  /* Phase L — fullscreen-fill children use flex:1 so they take ALL
+     remaining space in the fullscreen column layout. Percentage
+     heights (Phase K) needed an explicit-height parent and could
+     collapse if the parent's height value race-conditioned with the
+     React attribute swap; flex:1 1 auto cannot collapse because the
+     parent is a flex column. */
+  [data-fullscreen='true'] [data-fullscreen-fill='true'],
+  :fullscreen [data-fullscreen-fill='true'],
+  :-webkit-full-screen [data-fullscreen-fill='true'] {
+    flex: 1 1 auto !important;
     width: 100% !important;
-    height: 100% !important;
-    min-height: 100% !important;
-    max-height: 100% !important;
-  }
-
-  /* Vendor-prefixed selectors so older Safari builds match the same
-     declarations. Listed individually because browsers drop the entire
-     selector list when one selector is unrecognized. */
-  :fullscreen {
-    background: #0a0b0e;
-  }
-  :-webkit-full-screen {
-    background: #0a0b0e;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
   }
 
   /* Broadcast-graphics chip — paths toggle, replay badge, camera
