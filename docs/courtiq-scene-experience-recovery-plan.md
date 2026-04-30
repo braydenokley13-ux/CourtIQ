@@ -4859,3 +4859,202 @@ By construction, this sketch preserves:
 This sketch does not require Phase C movement work, Phase D
 fullscreen work, or Phase G copy work to be redone.
 
+
+### Phase I — Asset Spike Risk Register
+
+> Risks for any future imported-athlete experiment. Each entry
+> lists likelihood, impact, mitigation, and the **go / no-go
+> signal** that decides whether the imported path can ship or
+> whether the spike falls back to the Phase F figure.
+> "Likelihood" and "impact" are coarse ratings (low / medium /
+> high) anchored to "what would happen on the BDW-01 trainer."
+
+#### R1. Asset licensing
+
+- **Likelihood.** Medium. Permissively-licensed (CC0 / CC-BY)
+  stylized basketball-stance assets exist but are sparse and
+  often inconsistent in scale / pivot.
+- **Impact.** High if missed — a non-permissive asset blocks
+  shipping or forces a re-do.
+- **Mitigation.** License audit *before* any model is downloaded
+  into the repo; record source URL + licence per file in
+  `docs/qa/courtiq/phase-i/asset-licences.md`. Prefer CC0; CC-BY
+  is acceptable with attribution; anything stricter is rejected.
+- **Go / no-go.** Asset shipped only if licence is CC0 or CC-BY
+  with attribution captured in the doc above. Any other licence:
+  **no-go**.
+
+#### R2. Bundle size
+
+- **Likelihood.** Medium. A naive stylized GLB can be 1–3 MB.
+- **Impact.** Medium. Inflates initial scenario load and
+  Mac/Safari memory use.
+- **Mitigation.** Draco / meshopt compression, texture atlas
+  consolidation, vertex-count audit before adopting any model.
+- **Go / no-go.** Total imported athlete payload ≤ 1 MB on the
+  wire (after compression). Above that: **no-go** until
+  re-optimised.
+
+#### R3. Load latency
+
+- **Likelihood.** Medium. Cold cache + Safari decode can push
+  first-scene mount past 1 s.
+- **Impact.** Medium. The current sub-second scenario load is
+  part of the trainer's "feels responsive" feel.
+- **Mitigation.** Warm-up before first scene, async with a
+  Phase F fallback that renders immediately while the warm-up
+  pends. One-time decode budget ≤ 200 ms total.
+- **Go / no-go.** Five-player BDW-01 mount with the flag on
+  must come up in ≤ 1.2 × the Phase F mount time after
+  warm-up. **No-go** if the warm cache still regresses mount
+  time meaningfully.
+
+#### R4. Safari / WebGL2 compatibility
+
+- **Likelihood.** Medium. Safari has a history of GLTFLoader
+  edge cases (KTX2, some draco builds, occasional shader
+  compile differences).
+- **Impact.** High — Mac/Safari is part of the explicit Phase H
+  performance target.
+- **Mitigation.** Test on Safari first, not last. Reject any
+  asset that requires KTX2 or a non-default GLTF extension that
+  isn't broadly supported.
+- **Go / no-go.** Imported figures render correctly on a
+  Mac/Safari smoke run before the flag is allowed to default
+  on. **No-go** otherwise.
+
+#### R5. Disposal leaks
+
+- **Likelihood.** Medium. `GLTFLoader` materials carry texture
+  slots the current `disposeMaterialTextures` sweeps; new GLB
+  models may use additional slots (e.g. `clearcoatMap`,
+  `transmissionMap`).
+- **Impact.** High on a five-figure scene re-mount loop.
+- **Mitigation.** Extend `disposeMaterialTextures`'s slot list
+  to cover every standard PBR slot the imported assets use;
+  mirror the 100-figure leak test on the imported builder.
+- **Go / no-go.** `disposed === allocated` invariant holds for
+  the imported figure across all stances and roles. **No-go**
+  if any leak detected.
+
+#### R6. Material explosion
+
+- **Likelihood.** Medium. Imported assets often ship one
+  material per body part (head, torso, shorts, shoes, accents,
+  laces, etc.) where Phase F shares six total per figure.
+- **Impact.** Medium — more draw calls, larger per-figure
+  dispose cost, GPU state churn.
+- **Mitigation.** Material consolidation pass on each adopted
+  asset (merge by texture / colour / role); reject assets that
+  cannot be consolidated to ≤ 8 materials.
+- **Go / no-go.** Per-figure material count ≤ 8. **No-go**
+  above 10.
+
+#### R7. Animation timing breaking replay clarity
+
+- **Likelihood.** N/A for Option B (no animation), high for
+  Option C / D.
+- **Impact.** High for C / D — clip-driven motion can drift
+  scrub / pause / step behaviour that Phase B locked in.
+- **Mitigation.** Out of scope for the recommended Phase I
+  spike (Option B is static-pose). If a future Option C is
+  attempted, drive `AnimationMixer.update` from the same tick
+  source as `MotionController`, not from wall-clock time.
+- **Go / no-go.** Option B: not applicable. Option C: Phase B
+  scrub / pause / step tests must pass against the rigged
+  figure. **No-go** if any replay regression appears.
+
+#### R8. SkinnedMesh complexity
+
+- **Likelihood.** N/A for Option B, high for Option C / D.
+- **Impact.** High — `SkinnedMesh` carries a `Skeleton`,
+  `Bone[]`, and `InverseBindMatrices` that the current
+  disposal traversal does not reach.
+- **Mitigation.** Stay on Option B. If Option C is attempted,
+  ship a dedicated `disposeSkinnedFigure` helper alongside
+  `disposeGroup`.
+- **Go / no-go.** Option B: not applicable. Option C: skinned
+  resources reachable from the figure root and freed by the
+  per-figure disposer. **No-go** otherwise.
+
+#### R9. AnimationMixer complexity
+
+- **Likelihood.** N/A for Option B, high for Option C / D.
+- **Impact.** High — adds a separate per-figure object with its
+  own time source and event listeners.
+- **Mitigation.** Stay on Option B. If Option C is attempted,
+  attach the mixer to the figure root's `userData` and dispose
+  it explicitly.
+- **Go / no-go.** Option B: not applicable. Option C: every
+  mixer is freed on figure dispose. **No-go** otherwise.
+
+#### R10. Inconsistent scale / origin / pivot
+
+- **Likelihood.** High. Stylized basketball assets often ship at
+  unit-metres, with origins at the model centre rather than the
+  feet.
+- **Impact.** High — misaligned figures break ring / halo /
+  chevron / possession ring positioning and break floor
+  contact.
+- **Mitigation.** Pre-normalise each adopted asset (scale to
+  match Phase F proportions, translate origin to between-feet,
+  zero rotation, +Z forward) at import time; document the
+  normalisation steps in `docs/qa/courtiq/phase-i/asset-import-checklist.md`.
+- **Go / no-go.** Imported figure's bounding box matches the
+  Phase F figure's bounding box within ±5 %. **No-go**
+  otherwise.
+
+#### R11. Indicator misalignment
+
+- **Likelihood.** Medium. The chevron rides the `upperBody`
+  anchor; its world-space y depends on `ATH_HEAD_Y +
+  ATH_HEAD_R + 1.1`. An imported figure with a different head
+  height shifts the chevron.
+- **Impact.** Medium — breaks the "user obvious within 1 second"
+  test.
+- **Mitigation.** Imported figures provide an explicit
+  `headTopY` that the chevron parent uses, instead of hard-
+  coding `ATH_HEAD_Y`. The default falls back to the Phase F
+  constant.
+- **Go / no-go.** Indicator-layer test
+  (`imperativeScene.athlete.test.ts:84`, mirrored against the
+  imported builder) passes; chevron sits visibly above the
+  imported figure's head. **No-go** otherwise.
+
+#### R12. Losing the teaching clarity of current simple poses
+
+- **Likelihood.** Medium. A more detailed silhouette can read
+  as "noisier" from broadcast distance — extra creases, hair,
+  uniform folds compete with the indicator stack for attention.
+- **Impact.** High — teaching clarity is the entire point.
+- **Mitigation.** Side-by-side screenshot QA from the gameplay
+  camera against Phase F, on BDW-01 with five figures and the
+  full overlay stack. Run a coach review (the same surface
+  Phase G manual-review queue uses).
+- **Go / no-go.** Imported figure is *at least as readable* as
+  Phase F at gameplay-camera distance. Anything ambiguous:
+  **no-go**, fall back to Phase F.
+
+#### R13. Over-prioritising "cool" over "teaches better"
+
+- **Likelihood.** High. Imported athletes look obviously cooler
+  in stills; that is exactly why this is tempting.
+- **Impact.** High if it ships unjustified — adds load /
+  bundle / disposal / licensing cost without teaching
+  improvement.
+- **Mitigation.** The decision criterion in the I6 findings is
+  **teaching clarity from the gameplay camera**, not still
+  beauty. The screenshot QA surface compares stances and
+  indicator alignment, not aesthetics.
+- **Go / no-go.** Imported path ships only if the coach review
+  picks it on teaching clarity, not on aesthetics. **No-go**
+  if the only argument for it is "it looks better."
+
+#### Aggregate signal
+
+If any single risk above lands a **no-go** on the imported
+path, the trainer stays on the Phase F figure. The fallback is
+costless (it is the existing path), so the bar to ship the
+imported path is intentionally high and the bar to revert is
+intentionally low.
+
