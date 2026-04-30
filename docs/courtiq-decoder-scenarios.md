@@ -171,3 +171,5 @@ All overlays must clear after 1.2s into Timeline A so the player can see the cle
 - Defender's head: high, eyes on the ball.
 - Their forward momentum is still carrying into the catch.
 - The lane behind them is empty.
+
+**Question Prompt:** "He flew at you. No gap to shoot. What do you do?"
