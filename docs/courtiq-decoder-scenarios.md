@@ -365,3 +365,15 @@ The play runs for ~2.4 seconds:
 5. **FREEZE** at 1.5s — both feet of D5 are inside the paint, D4 is right behind O4, and the weak corner is unmistakably empty.
 
 The freeze must clearly show: D4 + D5 = two paint bodies; O5 alone in the weak corner; no defender in the skip-pass arc above ~10 ft of air.
+
+### Timeline A — Best Read (Skip to Opposite Corner)
+
+| t | What you do | What the defense does | Result |
+| --- | --- | --- | --- |
+| 0.0s | Stop on two feet at the elbow, eyes up | D4 + D5 collapse on you | Two-on-one in the paint against you |
+| 0.3s | Step-through fake toward rim with eyes | D5 commits one more inch into the paint | The window opens fully |
+| 0.5s | One-handed skip pass over the top | D5 starts to recover — too far | Pass on its way |
+| 1.0s | O5 catches in rhythm | D5 sprinting back to corner | Recovery distance ~16 ft |
+| 1.4s | O5 rises and shoots | D5 contests with hand up but late | Open or near-open three |
+
+**Outcome:** A clean (or barely contested) corner three. The highest-value shot in the half-court.
