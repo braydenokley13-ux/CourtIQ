@@ -584,13 +584,17 @@ export interface CameraTarget {
 // AOR-01 closeout momentum, SKR-01 opposite corner — each stays in
 // frame end-to-end.
 const SCENE_FOCUS = new THREE.Vector3(0, 4, 18)
-// Broadcast: high 3/4 film-room. Camera at 22 ft (was 18) sits high
-// enough to read paint spacing without flattening hips/feet, slight
-// off-axis (+3x) so the sideline doesn't hide the wing, and the
-// look-at is at chest height so player silhouettes read above the
-// court rather than against it.
-const BROADCAST_POSITION = new THREE.Vector3(3, 22, 46)
-const BROADCAST_LOOKAT = new THREE.Vector3(0, 4, 18)
+// Broadcast: high 3/4 film-room. Phase K re-tune from Phase 5's
+// (3, 22, 46) — that pose sat the camera high and far enough back
+// that the players occupied only the upper third of the canvas at
+// 16:9, leaving a wide gray floor across the bottom. Pulling 8 ft
+// closer in z and 3 ft lower in y keeps the high 3/4 angle while
+// nearly doubling the apparent player height. The lookAt is brought
+// 2 ft forward to BDW-01's wing zone so the action sits dead-centre
+// in the canvas instead of in the upper band. FOV unchanged so the
+// hip / shoulder geometry is not distorted on close defenders.
+const BROADCAST_POSITION = new THREE.Vector3(2, 19, 38)
+const BROADCAST_LOOKAT = new THREE.Vector3(0, 4, 16)
 const BROADCAST_FOV = 40
 // Tactical: lifted off the previous near-top-down (52 ft was too
 // abstract per Section 9: "Top-down is too abstract"). 42 ft still
@@ -741,13 +745,14 @@ function computeAutoTarget(
   scene: Scene3D,
   aspect: number,
   fov: number,
-  // Phase 5: pitch 28° → 30°. Steeper pitch reads paint / arc /
-  // baseline spacing without flattening defender hips & feet
-  // (Section 9 high 3/4 baseline). Padding 1.18 → 1.14 brings the
-  // action closer so the ESC-01 / SKR-01 weak-side helpers don't
-  // get pushed to the edge by movement endpoints.
+  // Phase K re-tune. Padding 1.14 → 1.06 — the previous 14% safety
+  // margin produced a noticeable gray border around the action and
+  // made the trainer feel small even on a 16:9 fullscreen canvas.
+  // 6% leaves enough breathing room around movement endpoints
+  // without burning canvas pixels on empty floor. Pitch stays at
+  // 30° so the high-3/4 paint read is preserved.
   pitchDeg = 30,
-  padding = 1.14,
+  padding = 1.06,
 ): CameraTarget | null {
   const points: THREE.Vector3[] = []
   for (const p of scene.players) {
@@ -776,10 +781,14 @@ function computeAutoTarget(
 
   // Floor: always include a minimal "half-court visible" envelope so we
   // never frame so tightly that the user loses sense of where the rim,
-  // wings, and elbows sit relative to the action.
-  const HALF_COURT_FLOOR_X = 22
+  // wings, and elbows sit relative to the action. Phase K shrinks the
+  // envelope from x=±22 / z=[0,28] to x=±19 / z=[0,24] so scenarios
+  // whose action concentrates near the wing or rim do not get framed
+  // with a wide rim of empty floor. The teaching context — three-point
+  // arc, paint, both elbows — still fits inside ±19 × 24 ft.
+  const HALF_COURT_FLOOR_X = 19
   const HALF_COURT_FLOOR_Z_MIN = 0
-  const HALF_COURT_FLOOR_Z_MAX = 28
+  const HALF_COURT_FLOOR_Z_MAX = 24
   points.push(new THREE.Vector3(-HALF_COURT_FLOOR_X, 0, HALF_COURT_FLOOR_Z_MIN))
   points.push(new THREE.Vector3(HALF_COURT_FLOOR_X, 0, HALF_COURT_FLOOR_Z_MAX))
 
