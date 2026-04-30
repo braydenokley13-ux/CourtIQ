@@ -4173,27 +4173,64 @@ function buildAthleteFigure(
   pelvis.add(leftLeg)
   pelvis.add(rightLeg)
 
-  const leftArm = new THREE.Group()
-  leftArm.name = 'leftArm'
-  leftArm.position.set(-ATH_SHOULDER_WIDTH / 2, ATH_SHOULDER_Y - ATH_TORSO_BOTTOM_Y, 0)
-  const leftUpperArm = new THREE.Group()
-  leftUpperArm.name = 'upperArm'
-  const leftForeArm = new THREE.Group()
-  leftForeArm.name = 'foreArm'
-  leftForeArm.position.set(0, -ATH_UPPER_ARM_LENGTH, 0)
-  leftUpperArm.add(leftForeArm)
-  leftArm.add(leftUpperArm)
+  // Build an arm sub-tree at a given shoulder offset. Like the leg,
+  // each segment's mesh is anchored downward from its pivot so a
+  // future stance pose can rotate at shoulder or elbow without
+  // translating siblings. Skin-tone arms; sleeve coloring is a
+  // future polish (Phase H).
+  const buildArm = (shoulderX: number, neutralOutSide: number) => {
+    const arm = new THREE.Group()
+    arm.position.set(shoulderX, ATH_SHOULDER_Y - ATH_TORSO_BOTTOM_Y, 0)
 
-  const rightArm = new THREE.Group()
+    const upperArm = new THREE.Group()
+    upperArm.name = 'upperArm'
+    // Default neutral: small outward angle so arms don't fuse to
+    // the torso. Stance code in F2 overrides this.
+    upperArm.rotation.z = neutralOutSide
+    const upperArmMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(
+        ATH_UPPER_ARM_R * 1.05,
+        ATH_UPPER_ARM_R * 0.95,
+        ATH_UPPER_ARM_LENGTH,
+        8,
+        1,
+        false,
+      ),
+      skinMat,
+    )
+    upperArmMesh.position.y = -ATH_UPPER_ARM_LENGTH * 0.5
+    upperArmMesh.castShadow = true
+    upperArm.add(upperArmMesh)
+
+    const foreArm = new THREE.Group()
+    foreArm.name = 'foreArm'
+    foreArm.position.set(0, -ATH_UPPER_ARM_LENGTH, 0)
+    const foreArmMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(
+        ATH_FORE_ARM_R * 1.05,
+        ATH_FORE_ARM_R * 0.85,
+        ATH_FORE_ARM_LENGTH,
+        8,
+        1,
+        false,
+      ),
+      skinMat,
+    )
+    foreArmMesh.position.y = -ATH_FORE_ARM_LENGTH * 0.5
+    foreArmMesh.castShadow = true
+    foreArm.add(foreArmMesh)
+
+    upperArm.add(foreArm)
+    arm.add(upperArm)
+    return { arm, upperArm, foreArm }
+  }
+
+  const leftArmParts = buildArm(-ATH_SHOULDER_WIDTH / 2, 0.18)
+  const leftArm = leftArmParts.arm
+  leftArm.name = 'leftArm'
+  const rightArmParts = buildArm(ATH_SHOULDER_WIDTH / 2, -0.18)
+  const rightArm = rightArmParts.arm
   rightArm.name = 'rightArm'
-  rightArm.position.set(ATH_SHOULDER_WIDTH / 2, ATH_SHOULDER_Y - ATH_TORSO_BOTTOM_Y, 0)
-  const rightUpperArm = new THREE.Group()
-  rightUpperArm.name = 'upperArm'
-  const rightForeArm = new THREE.Group()
-  rightForeArm.name = 'foreArm'
-  rightForeArm.position.set(0, -ATH_UPPER_ARM_LENGTH, 0)
-  rightUpperArm.add(rightForeArm)
-  rightArm.add(rightUpperArm)
 
   torso.add(leftArm)
   torso.add(rightArm)
@@ -4381,9 +4418,6 @@ function buildAthleteFigure(
   void ATH_TOTAL_HEIGHT
   void ATH_FOOT_LENGTH
   void ATH_FOOT_WIDTH
-  void ATH_UPPER_ARM_R
-  void ATH_FORE_ARM_LENGTH
-  void ATH_FORE_ARM_R
   void ATH_FOOT_Y
 
   return figure
