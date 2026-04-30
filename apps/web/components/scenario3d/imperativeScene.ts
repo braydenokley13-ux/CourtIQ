@@ -934,12 +934,20 @@ export type MotionMode = 'static' | 'intro' | 'answer'
 const MOTION_PRE_DELAY_MS = 250
 
 /**
- * Phase C / C2 — yaw smoothing time constant in seconds. The smaller
- * this is, the snappier the body turn. ~0.18s is fast enough to make
- * a cut feel decisive without flicking when a defender tracks a fast
- * ball swing.
+ * Phase C / C2 — yaw smoothing time constants in seconds. The smaller
+ * the constant, the snappier the body turn.
+ *
+ *  - Offense (`YAW_TIME_CONSTANT_OFFENSE_S`, ~0.18s) is fast enough to
+ *    make a cut feel decisive without flicking when a cutter rotates
+ *    through several waypoints.
+ *  - Defense (`YAW_TIME_CONSTANT_DEFENSE_S`, ~0.10s) is intentionally
+ *    snappier: defenders react with their bodies the moment the ball
+ *    swings or the holder changes, which is the C4 "shift attention"
+ *    cue. Still slow enough that micro-jitter from frame-to-frame ball
+ *    positions does not show up as a flick.
  */
-const YAW_TIME_CONSTANT_S = 0.18
+const YAW_TIME_CONSTANT_OFFENSE_S = 0.18
+const YAW_TIME_CONSTANT_DEFENSE_S = 0.1
 
 /**
  * Phase C / C2 — squared minimum direction magnitude before we use
@@ -1304,10 +1312,13 @@ export class MotionController {
       : (nowMs - this.lastYawTickWallMs) / 1000
     const dt = Math.max(0, Math.min(rawDt, 0.1))
     this.lastYawTickWallMs = nowMs
-    // Exponential smoothing factor. Time constant ~0.18s — fast
-    // enough that a cut feels decisive, slow enough that a defender
-    // tracking a ball swing doesn't flick.
-    const k = 1 - Math.exp(-dt / YAW_TIME_CONSTANT_S)
+    // Phase C / C4 — per-team smoothing. Defenders react with their
+    // bodies a beat faster than offense, which is the "shift attention
+    // when the holder changes" cue called out in the recovery plan.
+    // Both constants are pre-computed per call so the per-player loop
+    // does not re-do the Math.exp.
+    const kOffense = 1 - Math.exp(-dt / YAW_TIME_CONSTANT_OFFENSE_S)
+    const kDefense = 1 - Math.exp(-dt / YAW_TIME_CONSTANT_DEFENSE_S)
 
     // Find the current ball holder once per tick (same lookup
     // applyBall did). The holder is null while the ball is in flight
@@ -1348,6 +1359,7 @@ export class MotionController {
         targetYaw = computePlayerYaw(player.team, px, pz)
       }
 
+      const k = player.team === 'defense' ? kDefense : kOffense
       const current = this.currentYaw.get(player.id)
       if (current === undefined) {
         // First yaw application this mount: snap to the build-time

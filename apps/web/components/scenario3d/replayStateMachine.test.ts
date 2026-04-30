@@ -1083,3 +1083,69 @@ describe('Phase C / C2 — per-frame yaw update', () => {
     }
   })
 })
+
+describe('Phase C / C4 — defender reaction speed', () => {
+  // Defenders use a smaller yaw time constant so they shift attention
+  // to a moving ball / changing holder a beat faster than offense.
+  // To isolate the smoothing rate from the target-selection branch,
+  // we drive both a defender and an offense player through identical
+  // movement segments — the active-movement branch picks the same
+  // target yaw for both, so only the team-specific smoothing constant
+  // differs.
+  function buildReactionScene(): Scene3D {
+    const userMove = { x: 0, z: 0 } // both players move toward (0, 0)
+    return {
+      id: 'reaction_scene',
+      court: 'half',
+      camera: 'teaching_angle',
+      players: [
+        { id: 'x2', team: 'defense', role: 'denying', start: { x: 6, z: 6 } },
+        { id: 'wing', team: 'offense', role: 'wing', start: { x: 6, z: 6 } },
+      ],
+      ball: { start: userMove, holderId: undefined },
+      movements: [
+        // Identical from→to for both players — same movement-direction
+        // target yaw via active-movement branch.
+        { id: 'def_close', playerId: 'x2', kind: 'rotation', to: userMove, durationMs: 600 },
+        { id: 'off_cut', playerId: 'wing', kind: 'rotation', to: userMove, durationMs: 600 },
+      ],
+      answerDemo: [],
+      wrongDemos: [],
+      preAnswerOverlays: [],
+      postAnswerOverlays: [],
+      freezeAtMs: null,
+      synthetic: false,
+    }
+  }
+
+  it('defender body converges toward its target faster than offense', () => {
+    const scene = buildReactionScene()
+    const { motion, players } = makeMotion(scene)
+    const x2 = players.get('x2')!
+    const wing = players.get('wing')!
+
+    // Seed both at the same starting yaw, far enough from the target
+    // that the smoothing rate dominates the result. Picking 0 keeps
+    // the angular distance to atan2(-6, -6) ≈ -2.36 well above zero.
+    x2.rotation.y = 0
+    wing.rotation.y = 0
+
+    motion.tick(0)
+    for (let i = 1; i <= 6; i++) motion.tick(i * 16) // ~96ms
+
+    // Both have the same active movement → same direction target.
+    // Movement direction: from (6,6) to (0,0) → atan2(-6, -6).
+    const dirTarget = Math.atan2(-6, -6)
+    const angularDist = (a: number, b: number): number => {
+      let d = ((a - b) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2)
+      if (d > Math.PI) d = Math.PI * 2 - d
+      return d
+    }
+    const defenderDist = angularDist(x2.rotation.y, dirTarget)
+    const offenseDist = angularDist(wing.rotation.y, dirTarget)
+
+    // Strict ordering: defender (faster smoothing) closes the gap
+    // more than offense given the same elapsed time.
+    expect(defenderDist).toBeLessThan(offenseDist)
+  })
+})
