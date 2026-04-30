@@ -3931,6 +3931,238 @@ athlete builder as the only player path.
 > stays the unit of truth Phase G rewrites.
 
 
+### CourtIQ Young-Player Copy Rules
+
+> Style target for every learner-facing string CourtIQ ships from
+> Phase G forward. Authored to be writeable blind by another
+> contributor. Future scenarios should adopt this section by
+> default; phrases that do not fit live behind a coach-review note
+> in this doc.
+
+#### Voice
+- A clear youth coach. Simple, direct, encouraging.
+- Not corny, not robotic, not cringe-hype, not "app tutorial."
+- No baby voice and no fake excitement.
+
+#### Sentence shape
+- Short sentences. Six to twelve words is the target.
+- One idea per sentence. If two ideas show up, split the sentence.
+- Lead with the cue ("Your defender is blocking the pass."), then
+  the action ("Cut behind him."). Cue first, action second.
+- No long abstract explanations. Replace "punish the denial" with
+  "cut behind him."
+
+#### Words
+- Default vocabulary: cut, space, open, behind, pass, defender,
+  ball, teammate, basket, layup, good read, try again, watch his
+  body, he is too high, he is blocking the pass.
+- Allowed harder basketball words: backdoor, deny / denial, read,
+  wing, help defender, closeout, rotation, skip pass, advantage,
+  reset.
+  - Use them only when they're important for the lesson.
+  - Define a harder word the first time it appears in a learner's
+    flow ("backdoor" — cut behind your defender).
+- Avoid: punish, exposed, route, ride your shoulder, perimeter
+  catch, plant-and-go, target hands, smartest move, contested,
+  reversal (as a noun), commit your hips.
+
+#### Feedback formula
+Every correct / partial / wrong feedback string follows three beats:
+1. **What happened.** ("Your defender blocked the pass.")
+2. **What cue mattered.** ("The space behind him was open.")
+3. **What to remember next time.** ("Cut behind him.")
+
+A wrong-answer string can replace beat 1 with the corrective
+("Watch his body.") and still hit the same shape.
+
+#### Branding
+- Decoder names ("The Backdoor Window") stay as written. They are
+  brand language that the academy lesson reuses.
+- Decoder eyebrow ("Decoder", "Decoder unlocked") and panel
+  headlines stay as written.
+
+#### Things copy must not do
+- Do not change basketball meaning to make wording easier. If a
+  rewrite would teach the wrong read, keep the harder word and
+  define it.
+- Do not pre-grade the user. Headlines react to the actual answer
+  ("Good read." / "Almost.") — they don't preface the answer with
+  praise the user hasn't earned.
+- Do not stack adjectives. "Real, smart, big-brain read" is three
+  words for the same idea.
+
+
+### Phase G QA Results
+
+> Phase G shipped a copy-only rewrite of every BDW-01 / Backdoor-
+> Window learner-facing string on the live-decision and feedback
+> paths. Scene logic, replay logic, scoring, scenario schema,
+> player geometry, motion, camera, indicators, and answer-
+> correctness are unchanged. Tests, hooks, and components are
+> unchanged. The scenario JSON shape (`id` / `quality` / `order` /
+> `feedback_text` / `partial_feedback_text`) is unchanged.
+
+#### 1. What copy surfaces changed?
+
+- **BDW-01 scenario JSON** — `prompt`, four `choices[].label`,
+  four `choices[].feedback_text`, one `partial_feedback_text`,
+  the top-level `feedback.{correct,partial,wrong}` block,
+  `decoder_teaching_point`, `self_review_checklist` (4 items),
+  `explanation_md`, three `scene.wrongDemos[].caption` strings.
+- **train page** — `PRAISE` and `RECOVER` rotations,
+  `WIN_MICRO_PRAISE.BACKDOOR_WINDOW`,
+  `MISS_MICRO_NOTE.BACKDOOR_WINDOW`,
+  `DECODER_HANDOFF.BACKDOOR_WINDOW.{teachingPoint,
+  lessonConnection, selfReviewChecklist}`.
+- Sub-component eyebrows (`Best read`, `Why`, `Decoder unlocked`,
+  `Did you see it?`) and shell labels (`Setting the play…`,
+  `Watch the play`, `Quit`, `Try again`, `Keep going`,
+  `Next rep`, `See your results`, `What do you do?`) are already
+  short enough; G4 reviewed and kept them as written. The
+  decoder pill eyebrow `Decoder` is brand chrome and stays.
+
+#### 2. Reading-level improvements
+
+| Surface | Before | After |
+|---|---|---|
+| Prompt | "Your defender is sitting on the reversal. What is the smartest move right now?" | "Your defender is blocking the pass. What do you do?" |
+| Best choice | "Cut backdoor behind the defender." | "Cut behind him to the basket." |
+| Wrong choice | "Slowly cut in front of the defender." | "Cut in front of the defender." |
+| Correct feedback | "Good read. You punished the denial instead of fighting for the catch." | "Good read. Your defender blocked the pass, so the space behind him was open. You took the layup." |
+| Wrong feedback | "You stayed loyal to the spot instead of the cue. If they deny the pass, cut behind them." | "Watch his body. If your defender is blocking the pass, the space behind him is open. Cut behind him." |
+| Teaching point | "When your defender sits in the passing lane, the basket is open behind them." | "When your defender blocks the pass, the space behind him is open. Cut there." |
+| Lesson connection | "Read the defender, not the spot." | "Cut behind him when he blocks the pass." |
+| Miss micro-note | "Read the defender, not the spot." | "Watch the defender. If he blocks the pass, cut behind him." |
+| Self-review #1 | "Did I see the hand-and-foot denial?" | "Did I see his hand and foot blocking the pass?" |
+| Wrong-demo caption | "Possession kept, layup window missed." | "You kept the ball. You missed the open layup." |
+
+Sentences are now mostly under 12 words. Most run 6–10 words.
+Every feedback string is a chain of short clauses, not one long
+clause. The cue (what to look at) leads; the action (what to do)
+follows.
+
+#### 3. Basketball terms kept and why
+
+- **Backdoor Window.** Branded decoder name. Survives in
+  `DECODER_LABELS`, the decoder eyebrow, the academy lesson
+  title, and the `explanation_md` heading.
+- **Layup.** Universally understood by the target age and adds a
+  scoreboard reward to the cue ("for the layup", "the open
+  layup"). Replaces the abstract "scoring window."
+- **Pass / pass lane.** "Pass" stays; "passing lane" is dropped
+  for "blocking the pass."
+- **Defender.** Stays. Universal.
+- **Cue (in the rules doc only).** Internal authoring word. Not
+  surfaced in player copy.
+
+#### 4. Terms simplified
+
+- "denial" / "denying the reversal" → "blocking the pass."
+- "the reversal" (noun) → dropped; replaced with the action.
+- "punish" → "cut behind him" / "took the layup."
+- "passing lane" → "blocking the pass."
+- "plant-and-go" / "plant the outside foot" → "take a hard step
+  toward the ball" / dropped.
+- "target hands at the rim" → "show my hands at the rim."
+- "smartest move" → "what do you do?"
+- "exposed the backdoor window" → "the space behind him is
+  open."
+- "ride your route" → "follow you."
+- "deflection or turnover" / "deflects the reversal" → "steals
+  the pass."
+
+#### 5. How the new copy supports watch → choose → replay → understand
+
+- **Watch.** Pre-freeze status pill ("Watch the play") and the
+  scene's wrong-demo captions are now event-shaped — "The
+  defender stole the pass." names what just happened so a young
+  player can connect the visual to the word.
+- **Choose.** Prompt + four labels each fit on one line and read
+  cue → action ("Your defender is blocking the pass. What do you
+  do?" / "Cut behind him to the basket."). The basketball
+  question matches the cue the scene is showing.
+- **Replay.** Best-read replay CTA stays "Watch the right read",
+  which already passes the rules; the new captions sit under the
+  replay so the cue line repeats while the scene shows it.
+- **Understand.** Feedback follows the three-beat formula
+  (what happened → what cue mattered → what to remember). The
+  decoder handoff repeats the same cue ("When your defender
+  blocks the pass, the space behind him is open. Cut there.") so
+  the academy module opens on the same words the player just
+  saw.
+
+#### 6. What still needs manual coach review
+
+These were rewritten with the rules above but should be confirmed
+on field with a youth coach:
+
+- The new `explanation_md` body. It now uses "take a hard step
+  toward the ball, then cut behind him to the rim" in place of
+  "jab the outside foot." The two read the same way to most
+  youth coaches; the older "jab" wording is technically more
+  precise. If a coach prefers "jab step," the rules above allow
+  reintroducing it as a defined hard word.
+- Whether the partial-feedback string ("Stepping back kept the
+  play alive…") sets the right tone. The basketball read is the
+  same — the question is whether "okay" reads as encouraging
+  enough to a 7–10 year old.
+- The wrong-cut caption "The defender followed your cut. No
+  layup." vs. "The defender stayed with you" — both read at
+  level; coach can pick the one that lands clearer.
+
+#### 7. What Phase H should check
+
+- That the prompt + choice strings still wrap inside the
+  `ChoiceCard` and prompt block at mobile width without
+  overflow.
+- That the new `feedback.{correct,partial,wrong}` strings render
+  inside `FeedbackPanel`'s "Why" body without clipping.
+- That the new `selfReviewChecklist` items render inside
+  `SelfReviewChecklist` without forcing a third line at mobile
+  width.
+- That the decoder handoff lesson connection ("Cut behind him
+  when he blocks the pass.") still routes to the same academy
+  module slug (`backdoor-window`) — the `lessonSlug` was not
+  changed, but a pass-through render check is cheap.
+- That `pnpm seed:scenarios -- --dry-run` parses cleanly on a
+  developer machine that has node_modules installed (the seed
+  schema enforces `prompt.max(140)`; the new prompt is 51 chars,
+  every choice label and feedback string sits well under the
+  cap).
+
+#### Tests
+
+- Searched the repo for an existing copy / snapshot / fixture-
+  string test pattern. None exists for BDW-01 strings — the
+  scenario tests under `apps/web/components/scenario3d/` cover
+  geometry, replay, and scene shape; none assert prompt or
+  feedback text. Per the prompt, no new test infrastructure was
+  introduced for Phase G.
+- The seed-time `zod` schema in `scripts/seed-scenarios.ts`
+  enforces the per-string caps (prompt ≤ 140 chars, label ≥ 1,
+  feedback_text ≥ 1). All new strings pass the manual length
+  check; the dry-run validator should be re-run on a developer
+  machine before the next seed.
+
+#### Validation summary (Phase G tip)
+
+- **JSON parse** — `BDW-01.json` parses cleanly via `node
+  -e "JSON.parse(...)"` after every edit.
+- **Schema cap check** — every new string sits inside the seed
+  validator's caps (manual `node -e` measurement; full `tsx`
+  dry-run not runnable in this environment per Phase F note).
+- **Type signatures unchanged** — `PRAISE`, `RECOVER`,
+  `WIN_MICRO_PRAISE`, `MISS_MICRO_NOTE`, `DECODER_HANDOFF` and
+  the JSON shape are byte-compatible with their pre-G types.
+  No callers required updates.
+- **`pnpm typecheck` / `pnpm lint` / `pnpm test`** — not run in
+  this environment; same constraint Phase F documented (web app
+  needs `pnpm install` + Prisma generate before tsc can run).
+  Phase G changed only string literals and string array values,
+  so the failure surface is the JSON parse + schema cap, both
+  already green.
+
+
 ### Future Phase I — True Trainer Asset Pipeline Spike
 
 Phase F deliberately stayed inside a code-built mesh boundary so
