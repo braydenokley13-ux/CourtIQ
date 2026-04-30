@@ -3295,3 +3295,139 @@ performance, dispose, and replay-safety guardrails the recovery has
 spent Phases A–D establishing. E3 designs the proof-of-concept; E4
 locks the path.
 
+
+### E3 — Player Geometry Prototype Recommendation
+
+> Decides whether Phase F should be preceded by a scratch-branch
+> prototype or proceed straight to F1 with documented constraints. The
+> recovery branch must stay clean — no experimental geometry on
+> `claude/phase-d-auto-run-B500C` or any descendant landing branch.
+
+#### 1. Recommendation: **document the prototype plan; skip the scratch branch**
+
+#### 2. Why
+
+- **The architectural decision is already made.** E2 ruled out A, C, D
+  on engineering grounds, not on visual uncertainty. The remaining
+  question is *how good* a code-built low-poly mesh can look — and
+  that question is answered by F1 itself, not by a prototype, because
+  F1 *is* the first iteration of the new builder.
+- **The scratch-branch path adds cycles without de-risking a different
+  unknown.** A scratch prototype would prove "yes, code-built low-poly
+  meshes can render on the existing canvas," which we already know
+  (the current builder is the proof). It would not answer the only
+  remaining open question, which is "do the new proportions read as an
+  athlete in the broadcast camera." That answer requires the full
+  builder integrated against real scene data, not an isolated mesh in
+  a sandbox.
+- **No new technology is being introduced.** Every primitive Option B
+  uses (`THREE.BufferGeometry`, sub-group rigid posing, shared
+  materials, indicator layers attached to the figure root) is already
+  in production today. There is no "does this loader work" or "does
+  this shader compile" question to answer offline.
+- **This environment cannot run a browser-driven QA pass anyway.**
+  Live screenshots, side-by-side comparisons, and Mac frame-rate
+  measurement happen in Phase H. A scratch prototype that cannot be
+  visually validated here would be a guess on a guess.
+- **The recovery is on a tight cadence.** Phases A–D have shipped one
+  phase per session. A scratch-branch detour breaks that cadence and
+  adds a merge risk the rest of the recovery does not have.
+
+#### 3. If the prototype were created (rejected, captured for completeness)
+
+- **Branch name:** `claude/phase-e-player-geometry-prototype` (off
+  `main`, not the recovery branch).
+- **Files touched:** a single new file
+  `apps/web/components/scenario3d/__experimental__/buildAthleteFigure.ts`
+  exporting a draft builder; a query-string-gated mount in
+  `Scenario3DCanvas.tsx` (e.g. `?proto=athlete=1` swaps figures for
+  the new builder).
+- **Visual sample:** five players (one user, two offense, two defense),
+  each in one of the five required stances (idle / defensive / denial
+  / closeout / cut). Static mount, no replay.
+- **Screenshots:** broadcast, tactical, and follow camera modes →
+  `docs/screenshots/recovery-e3/` (12 PNGs, 3 cameras × 4 stances).
+  No screenshots will be produced from this environment.
+- **Comparison:** side-by-side with current `buildPlayerFigure` output
+  in identical scene data.
+- **Performance measurement:** browser dev-tools Performance tab on
+  Mac, 30s recording per scenario; record min / median / p95 frame
+  duration.
+- **Success:** new figure clearly reads as athlete from broadcast at
+  default DPR; FPS guard never auto-degrades on `medium` tier on
+  BDW-01; tri-count per player < 1500.
+- **Failure:** silhouette no better than today, OR FPS guard
+  auto-degrades, OR tri-count exceeds budget.
+- **Why this is rejected.** Recovery cadence + no-meaningful-de-risk;
+  see §2 above.
+
+#### 4. No-prototype implementation constraints (binding on Phase F)
+
+Because Phase F starts from a documented plan rather than from a
+visual prototype, F1 carries the de-risking that a scratch prototype
+otherwise would. Phase F must obey these constraints:
+
+1. **F1 is reversible.** The new builder lives in a new file or
+   exported function so the old `buildPlayerFigure` stays intact in
+   `imperativeScene.ts` until F5 passes. The per-player loop in
+   `buildBasketballGroup` flips between old / new behind a const flag
+   (`USE_ATHLETE_BUILDER = true`) so a quick revert is one line.
+2. **F1 ships with both stances visible side-by-side via a debug URL
+   flag** (`?compare-figures=1`) — half the players use the new
+   builder, half use the old one. This gives a built-in visual diff
+   without a separate prototype branch.
+3. **Per-player tri budget is recorded in `docs/courtiq-scene-experience-recovery-plan.md`
+   inside Phase F4** before declaring F4 complete. Five-player BDW-01
+   scene total tri delta vs. today must be ≤ +50%.
+4. **The builder signature does not change.** Same parameters
+   (`teamColor, trimColor, isUser, hasBall, jerseyNumber, stance`),
+   same return type (`THREE.Group` with `userData.indicatorLayers`).
+5. **Indicator layers are attached as today.** The Phase F builder
+   constructs `baseLayer`, `userLayer`, `userHeadLayer`,
+   `possessionLayer` exactly the way the current builder does
+   (~L3714–L3858). This is the most fragile contract in the recovery;
+   no Phase F micro-milestone should change indicator topology.
+6. **No skeletal rig, no `SkinnedMesh`, no `AnimationMixer`.** Per
+   visual-system plan §6 + §14. Stance is rigid sub-group posing only.
+7. **Disposal is verified before F5 ships.** Add a unit test that
+   builds and disposes 100 figures in sequence and asserts no
+   `Geometry`, `Material`, or `Texture` allocation count climbs
+   (sample `THREE.geometry.count` if exposed, or count via a
+   wrapping helper).
+8. **No new asset files.** No `.glb`, no `.png` textures imported. All
+   identity comes from existing palette constants and the existing
+   jersey-number `CanvasTexture` helper.
+9. **Stance routing stays the same.** The `denyDefenderId` heuristic
+   in `buildBasketballGroup` (~L362–L376) is preserved. New stances
+   (`closeout`, `sag`/`shrink`, `cut`) become available but routing
+   them is a follow-up (visual-system plan §18.4 reopen item) — F2
+   only ensures the *renderer* supports them, not that
+   `buildBasketballGroup` *picks* them.
+
+#### 5. Recommended target for Phase F
+
+A reusable code-built **stylized-athlete mesh system** with:
+
+- **Tapered athletic silhouette.** V-shaped torso, distinct shoulder
+  ball into upper arm, distinct waist into hips, longer legs with
+  visible knee break.
+- **Stance-readable from broadcast.** Crouch bends legs (sub-group
+  rotations on thigh/calf), denial breaks elbow + raises forearm,
+  closeout tilts torso forward + plants front foot, cut-stance front
+  shin angles forward.
+- **Compatible with current rings/halos.** No change to base / user /
+  possession / focus / feedback indicator layers. User chevron sits
+  at the same Y above the new head as it does above the current head.
+- **Performance-safe on Mac.** ≤ ~1100 tris per figure, 6 shared
+  materials per figure (jersey, shorts, skin, shoe, accent, trim),
+  no new draw calls, no per-frame allocations, no per-stance
+  geometry rebuild.
+- **No skeletal rig.** Pose is a per-stance lookup table on rigid
+  sub-groups (`leftThigh`, `leftCalf`, `leftFoot`,
+  `leftUpperArm`, `leftForeArm`, `rightThigh`, `rightCalf`,
+  `rightFoot`, `rightUpperArm`, `rightForeArm`, `torso`,
+  `head`, plus existing `upperBody` for crouch translation).
+- **Single builder file.** Geometry construction stays inside
+  `imperativeScene.ts` per visual-system plan §17.5 (Phase 2 scope).
+  No new top-level files.
+
