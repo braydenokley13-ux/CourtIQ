@@ -1416,5 +1416,27 @@ Run H1 → H2 → H3 → H4 in order. Commit small. Stop after H4. Do
 not start scenario authoring.
 ```
 
+---
+
+## 11. One-Page Summary
+
+- **Biggest blocker:** replay does not work correctly. Until it
+  does, every other improvement compounds the wrong baseline.
+- **Biggest product weakness:** the scene moves like a diagram and
+  looks like placeholders. Replay reliability + movement quality +
+  geometry redesign are the three structural fixes.
+- **Best next step:** Phase A — Replay Audit. Read-only, low-risk,
+  produces the work list that drives everything that follows.
+- **What should wait:** new scenarios (ESC-01 / AOR-01 / SKR-01),
+  visual feature additions, and any refactor not required by a
+  named phase.
+- **What success looks like:** BDW-01 plays end-to-end as a
+  trustworthy film-room rep — watch, freeze, choose, replay
+  consequence, understand, optionally fullscreen — with bodies
+  that look like athletes, motion that shows the basketball
+  reason, and copy a third grader can follow. The product earns
+  the right to grow into ESC-01, AOR-01, SKR-01, and beyond.
+
+---
 
 
