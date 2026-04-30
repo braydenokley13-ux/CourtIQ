@@ -4392,10 +4392,27 @@ function buildAthleteFigure(
   figure.add(pelvis)
   figure.add(torso)
 
-  // --- Per-stance pose hook. Real stance application lands in F2.
-  // The early reference here keeps the unused-arg lint clean and
-  // documents intent.
-  void stance
+  // --- Stance pose. Applied via rigid sub-group rotations on the
+  // named handles (E4 §3) — no SkinnedMesh / AnimationMixer.
+  applyAthleteStance(
+    {
+      pelvis,
+      torso,
+      neckHead,
+      leftThigh: leftLegParts.thigh,
+      leftCalf: leftLegParts.calf,
+      leftFoot: leftLegParts.foot,
+      rightThigh: rightLegParts.thigh,
+      rightCalf: rightLegParts.calf,
+      rightFoot: rightLegParts.foot,
+      leftUpperArm: leftArmParts.upperArm,
+      leftForeArm: leftArmParts.foreArm,
+      rightUpperArm: rightArmParts.upperArm,
+      rightForeArm: rightArmParts.foreArm,
+      upperBody,
+    },
+    stance,
+  )
 
   // --- Indicator layers — same contract as the legacy builder
   // (E4 §7 / recovery plan §16). Same Y heights, same materials,
@@ -4551,6 +4568,68 @@ function buildAthleteFigure(
   void ATH_FOOT_Y
 
   return figure
+}
+
+/**
+ * Phase F — non-owning bundle of the named sub-groups the stance
+ * lookup table writes into. Each field is a THREE.Group whose pivot
+ * sits at the corresponding joint (hip / knee / ankle / shoulder /
+ * elbow). Stance application is `rotation.x/y/z` writes only — no
+ * geometry rebuild, no per-frame mutation.
+ */
+interface AthleteJoints {
+  pelvis: THREE.Group
+  torso: THREE.Group
+  neckHead: THREE.Group
+  leftThigh: THREE.Group
+  leftCalf: THREE.Group
+  leftFoot: THREE.Group
+  rightThigh: THREE.Group
+  rightCalf: THREE.Group
+  rightFoot: THREE.Group
+  leftUpperArm: THREE.Group
+  leftForeArm: THREE.Group
+  rightUpperArm: THREE.Group
+  rightForeArm: THREE.Group
+  upperBody: THREE.Group
+}
+
+/**
+ * Phase F2 — apply a stance pose to the athlete sub-groups. Lookup
+ * table dispatch keeps each pose readable as data and lets future
+ * stances slot in without changing the call site.
+ */
+function applyAthleteStance(joints: AthleteJoints, stance: PlayerStance): void {
+  switch (stance) {
+    case 'idle':
+      applyIdlePose(joints)
+      return
+    default:
+      applyIdlePose(joints)
+      return
+  }
+}
+
+/**
+ * Idle stance — basketball-ready offensive posture. Standing tall,
+ * slight forward lean on the ball of each foot, arms relaxed at the
+ * sides with a small outward angle so they don't fuse to the torso.
+ */
+function applyIdlePose(joints: AthleteJoints): void {
+  joints.pelvis.rotation.set(0, 0, 0)
+  joints.torso.rotation.set(0, 0, 0)
+  joints.neckHead.rotation.set(0, 0, 0)
+  joints.upperBody.position.y = 0
+  joints.leftThigh.rotation.set(0, 0, 0)
+  joints.leftCalf.rotation.set(0, 0, 0)
+  joints.leftFoot.rotation.set(0, 0, 0)
+  joints.rightThigh.rotation.set(0, 0, 0)
+  joints.rightCalf.rotation.set(0, 0, 0)
+  joints.rightFoot.rotation.set(0, 0, 0)
+  joints.leftUpperArm.rotation.set(0, 0, 0.18)
+  joints.leftForeArm.rotation.set(0, 0, 0)
+  joints.rightUpperArm.rotation.set(0, 0, -0.18)
+  joints.rightForeArm.rotation.set(0, 0, 0)
 }
 
 /**
