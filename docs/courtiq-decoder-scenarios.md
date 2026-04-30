@@ -32,3 +32,5 @@ Design specs for the 3D film-room decision scenarios.
 - Defender's lead foot is "pointed" at the ball, not at you.
 - The weak-side corner is empty — no body, no shadow.
 - The baseline lane (you → empty corner) is clean.
+
+**Question Prompt:** "Your defender just looked away. What do you do?"
