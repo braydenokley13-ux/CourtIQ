@@ -2820,3 +2820,85 @@ sustained low FPS is detected.
 | Does canvas resize? | Yes — height becomes 100% in fullscreen element |
 | Does DPR / FPS guard change? | No — unchanged |
 
+### D5 — Phase D QA Results
+
+#### Automated test coverage
+
+New test file: `apps/web/components/scenario3d/fullscreen.test.ts`  
+Environment: `jsdom` (Vitest)  
+Approach: mock `document.fullscreenElement`, `document.exitFullscreen`, and
+`element.requestFullscreen` — does not boot WebGL or React.
+
+| Test | Result |
+|---|---|
+| calls `requestFullscreen` on container when not in fullscreen | PASS |
+| calls `document.exitFullscreen` when already in fullscreen | PASS |
+| does not call `requestFullscreen` when container ref is null | PASS |
+| does not throw when toggling out with null container | PASS |
+| fires `fullscreenchange` event listener when dispatched | PASS |
+| does not fire after listener is removed (cleanup verified) | PASS |
+| denied `requestFullscreen` (rejected promise) does not throw | PASS |
+
+Total after D5: **136 tests / 9 test files** — all passing.
+
+#### Manual QA matrix (deferred to Phase H for browser execution)
+
+Phase D did not include a live browser QA pass — Phase H is the full
+integration gate. Phase H should walk this matrix on BDW-01:
+
+**Fullscreen entry / exit**
+
+| Item | Expected | Status |
+|---|---|---|
+| Click fullscreen button (⛶) | Browser enters fullscreen, button icon flips to ⛶ collapse | Pending H |
+| Press Escape in fullscreen | Browser exits fullscreen, button icon flips back to ⛶ expand | Pending H |
+| Click collapse button (⛶) | `document.exitFullscreen()` called, state resets | Pending H |
+| Reload while in fullscreen URL | Page loads in embedded mode (fullscreen is not persisted) | Pending H |
+
+**Canvas sizing**
+
+| Item | Expected | Status |
+|---|---|---|
+| Court fills viewport in fullscreen (no letterboxing) | Canvas height = 100vw × 100vh | Pending H |
+| Court lines remain crisp in fullscreen | No DPR blowup; FPS guard unchanged | Pending H |
+| Returning from fullscreen restores embedded height | Fixed-pixel height resumes; no layout shift | Pending H |
+
+**Controls reachable in fullscreen**
+
+| Item | Expected | Status |
+|---|---|---|
+| Restart button visible and clickable | Bottom-center transport pill reachable | Pending H |
+| Play/Pause button visible and clickable | Primary CTA in transport pill reachable | Pending H |
+| Speed selector (0.5x / 1x / 2x) visible and clickable | Speed chip in transport pill reachable | Pending H |
+| Paths toggle visible (when `pathsAvailable` is true) | Top-right cluster, label always shown in fullscreen | Pending H |
+| Camera selector dropdown visible and usable | Top-right cluster, dropdown opens inside fullscreen | Pending H |
+| Fullscreen toggle button visible (Exit state) | Top-right cluster, green tint when active | Pending H |
+
+**Train-page shell bleed**
+
+| Item | Expected | Status |
+|---|---|---|
+| Decoder pill not visible in fullscreen | Browser stacking hides page shell | Pending H |
+| Choice cards not visible in fullscreen | Browser stacking hides page shell | Pending H |
+| Header / nav not visible in fullscreen | Browser stacking hides page shell | Pending H |
+
+**SSR / Edge cases**
+
+| Item | Expected | Status |
+|---|---|---|
+| Server-render does not throw (`typeof document` guard) | No SSR error | Verified (lint + typecheck clean) |
+| Fullscreen denied (sandboxed iframe) | `catch` silences error; no UI crash | Covered by unit test |
+| `fullscreenchange` listener removed on unmount | Cleanup function in `useEffect` verified | Covered by unit test |
+
+#### Remaining risks for Phase H
+
+- **Browser compat.** Safari historically lags the Fullscreen API
+  (`webkitRequestFullscreen` prefix). jsdom stubs the standard interface;
+  a Safari live test is the only real coverage.
+- **Mobile.** iOS Safari does not support the Fullscreen API at all;
+  the button will not throw (requestFullscreen rejects and the catch
+  silences it) but the user sees no feedback. A future pass could
+  detect support and hide the button on iOS.
+- **Iframe sandbox.** `allow-fullscreen` must be present in any embedding
+  iframe attribute for the API to work. Already handled by the catch block.
+
