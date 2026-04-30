@@ -4653,3 +4653,209 @@ fallback.** Defer Options C and D until Option B has either
 proved or disproved that imported silhouettes beat the Phase F
 figure on teaching clarity, performance, and disposal safety.
 
+
+### Phase I — Recommended Future Asset Architecture
+
+> Sketch only — **no code, no installs, no model files, no asset
+> pipeline yet.** The goal is to describe the smallest viable
+> imported-athlete experiment that could ship without disturbing
+> Phase B–H guarantees, and to spell out what a future phase
+> would build if Option B is greenlit.
+
+#### Shape of the layer
+
+A future Phase J / Phase I-Implementation would add an **optional
+imported low-poly GLB athlete layer** that sits *behind* the
+existing `buildPlayerFigure` entry point, never in front of it.
+The call site (`buildBasketballGroup`) keeps its current
+signature; the entry point picks the path:
+
+- **Default path (flag off).** `buildPlayerFigure` returns the
+  Phase F `buildAthleteFigure` figure exactly as today.
+- **Imported path (flag on, asset loaded).** `buildPlayerFigure`
+  returns a figure whose body sub-tree comes from a cached GLB,
+  wrapped in the same root that already carries the four
+  indicator layers, contact shadow, and stance-driven pose
+  hooks.
+- **Imported path (flag on, asset failed).** `buildPlayerFigure`
+  silently falls back to `buildAthleteFigure`. The trainer
+  behaves identically to the default path.
+
+The flag's default is **off** until screenshot QA, Mac/Safari
+performance measurement, and the contract tests in I1 prove the
+imported layer is safe.
+
+#### Feature flag design
+
+- **Name.** A single boolean, e.g.
+  `NEXT_PUBLIC_USE_IMPORTED_ATHLETES` (env-driven so it can be
+  toggled without a code change), mirrored by a runtime override
+  on the dev preview route only.
+- **Default.** `false` in every environment until launch.
+- **Scope.** Build-time read inside `buildPlayerFigure`; no
+  per-render check, so toggling the flag rebuilds the scene on
+  the next mount, matching the existing `Scenario3DCanvas`
+  lifecycle.
+- **Kill switch.** A one-line revert (flag → `false`) restores
+  the Phase F path with zero rebuild. This is the same revert
+  posture Phase F shipped with via `USE_ATHLETE_BUILDER` before
+  F5B removed it.
+- **Per-scenario opt-out.** Out of scope for the spike. The flag
+  is global; per-scenario behaviour stays consistent.
+
+#### Asset loading boundary
+
+- **Loader.** Static-import a single shared `GLTFLoader` instance
+  inside the imperative scene module; never instantiate per
+  figure. (Loader code is explicitly *not* added in Phase I —
+  this is a sketch.)
+- **Cache.** Load each GLB once per session, keyed by stance (or
+  per stance × team). Subsequent figures clone the cached body
+  sub-tree using `SkeletonUtils.clone` semantics where required;
+  for static silhouettes, a shallow geometry / material reuse
+  pattern suffices.
+- **Lifecycle.** The cache lives at module scope, not at scene
+  scope. `Scenario3DCanvas` unmount disposes per-figure clones
+  via `disposeGroup`; the cache itself is freed only on a
+  developer-route reset.
+- **Loading boundary.** Asset I/O is hidden behind a single
+  async warm-up (e.g. `warmAthleteAssets`) that runs before the
+  first scenario builds. While it pends, the scene builds with
+  the Phase F path; the warm-up either resolves to the imported
+  path on the next scene mount or stays in the fallback if it
+  rejects.
+- **Error handling.** Any loader rejection, decode failure, or
+  missing-stance asset flips a process-local guard that pins the
+  trainer to the Phase F path for the rest of the session. No
+  retries, no spinners on the gameplay route.
+
+#### Fallback behaviour
+
+The fallback is the entire reason Phase I exists as a spike.
+Required behaviour:
+
+1. **Asset fetch fails (network / 404).** Log once; pin to
+   Phase F path; do not block scene mount.
+2. **Asset decodes but is malformed (missing required sub-tree).**
+   Same as above; the figure built from the asset never reaches
+   the scene graph.
+3. **Asset decodes but breaks the contract** (missing indicator
+   anchor, taxonomy mismatch, tri count > 1500, dispose leak in
+   the test harness). Same as above; the contract validator
+   refuses to install the imported builder.
+4. **Asset succeeds but performance regresses on Mac/Safari.**
+   The flag stays off in production. Performance gating is a
+   pre-launch step, not a runtime fallback.
+
+In every failure mode, the trainer renders the Phase F figure.
+The user-visible behaviour is indistinguishable from today.
+
+#### Disposal requirements
+
+The imported path must not increase the per-scene disposal
+surface. Concretely:
+
+- Every `BufferGeometry`, `Material`, `Texture`, and any
+  GLB-specific resource (e.g. KTX2 textures, draco-decoded
+  buffers) must be reachable from the figure root passed back to
+  the caller.
+- `disposeGroup` must remain the single per-figure disposer.
+  If the imported assets carry materials with texture slots not
+  currently swept by `disposeMaterialTextures`, those slots are
+  added to the existing list rather than introducing a parallel
+  disposer.
+- The 100-figure build/dispose loop test from
+  `imperativeScene.athlete.test.ts:111` is mirrored for the
+  imported path; the no-leak invariant
+  (`disposed === allocated`) is the gate.
+- Cached, module-scope resources (the loader itself, decoded
+  geometry that is reused across figures) are documented as
+  intentionally long-lived and excluded from the per-figure
+  invariant. Their lifetime is the module's lifetime.
+
+#### Triangle / material / texture budget
+
+- **Per-figure tris.** ≤ 1500 hard, target ~900–1100 (E4 §5).
+  No relaxation for imported assets.
+- **Materials per figure.** Target ≤ 8 (vs. the current 6).
+  Anything over 10 is a fail.
+- **Textures per figure.** Target ≤ 2 small atlases (jersey +
+  skin/shoe). Anything beyond a single normal map per material
+  is a fail unless it demonstrably improves teaching clarity.
+- **Bundle size.** Total imported athlete assets ≤ 1 MB before
+  draco / meshopt compression, ≤ 300 KB after. Hard ceiling 1 MB
+  on the wire.
+
+#### Mac / Safari budget assumptions
+
+- **Target.** 60 fps at default DPR with five players on
+  BDW-01 on a recent MacBook running Safari, matching the Phase
+  H performance target the recovery plan still owes.
+- **Floor.** No regression vs. the Phase F path on the same
+  scene; if the imported path costs > 5 % FPS at default DPR,
+  the flag stays off.
+- **Quality tiers.** The existing `medium` / `high` quality tiers
+  govern lighting / DPR; the imported path does not introduce a
+  new tier and must work on `medium`.
+- **Decode cost.** First-scene mount may pay a one-time decode
+  budget of ≤ 200 ms total; subsequent mounts must reuse the
+  cache and pay zero decode cost.
+
+#### Screenshot QA requirements
+
+The Phase F0 harness (`pnpm qa:scene:screenshots`,
+`/dev/scene-preview` route) is the existing tool. The imported
+path requires:
+
+- Side-by-side captures of Phase F vs. imported figure on the
+  same scenario, same camera, same lighting, for `idle`,
+  `defensive`, `denial`, `closeout` stances.
+- Broadcast / fullscreen / close-up framings as in Phase F QA.
+- Indicator-stack captures showing ring + halo + chevron +
+  possession ring align identically to the Phase F figure.
+- A "before / after" pair for BDW-01 from the gameplay camera.
+
+The captures are stored under `docs/qa/courtiq/phase-i/` so
+reviewers can compare against `docs/qa/courtiq/phase-f/`
+without losing the baseline.
+
+#### Test coverage required before shipping
+
+Before the imported path's flag flips on for any non-developer:
+
+- New file `imperativeScene.imported-athlete.test.ts` mirrors
+  every test in `imperativeScene.athlete.test.ts` (taxonomy,
+  indicator layers, single-figure disposal, 100-figure leak,
+  triangle budget) against the imported builder, with the
+  loader stubbed to a synchronous test fixture.
+- A new fallback test asserts that a deliberately malformed
+  fixture causes `buildPlayerFigure` to return the Phase F
+  figure, with the indicator layers and taxonomy matching the
+  Phase F expectations.
+- A new performance smoke (Playwright on the dev preview
+  route) measures FPS on five-figure BDW-01 with the flag on
+  vs. off; the diff gate is ≤ 5 %.
+- Existing Phases B / C / D / G / H tests remain green
+  unchanged. The imported path is forbidden from touching those
+  test files.
+
+#### What this architecture preserves
+
+By construction, this sketch preserves:
+
+- `buildPlayerFigure` public behaviour (signature unchanged,
+  Phase F figure when flag off or asset fails).
+- The Phase F code-built athlete as the live fallback.
+- The four indicator layers and the named sub-group taxonomy.
+- `MotionController` and `ReplayStateMachine` (no clip-driven
+  motion in this layer; motion is still root `position` /
+  `rotation.y`).
+- The Phase D fullscreen camera framing (silhouette envelope
+  must stay inside the existing player bounding cylinder).
+- The Phase G young-player copy (no copy strings reference
+  visual asset state).
+- The scenario JSON format (no new fields, no new stance names).
+
+This sketch does not require Phase C movement work, Phase D
+fullscreen work, or Phase G copy work to be redone.
+
