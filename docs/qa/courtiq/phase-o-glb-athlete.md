@@ -270,3 +270,71 @@ The loader path, when added, will respect every Phase O constraint:
 The loader is **not added in this pass** — this section only records the
 shape it will take so a follow-up author has a target.
 
+## Phase O5 — BDW-01 Athlete Preview Comparison
+
+Three figure builders are now in scope for BDW-01:
+
+1. **Procedural premium athlete** (Phase J/K/L) — production default.
+2. **Generated skinned prototype** (Phase M) — flag-gated experiment.
+3. **License-clean GLB skinned athlete** (Phase O target) — not yet
+   implementable; comparison below is projected from the asset survey
+   in §Source survey, not from a live build.
+
+Live screenshot capture for all three remains gated on the existing
+`pnpm qa:auth` → `pnpm qa:screenshot` flow on Mac/Chrome; the entries
+below are implementation-level QA derived from code and the documented
+asset behavior.
+
+| dimension              | procedural (default) | generated skinned (flag) | GLB skinned (projected) |
+| ---------------------- | -------------------- | ------------------------ | ----------------------- |
+| static silhouette      | premium              | low-poly cylinders       | stylized premium        |
+| close-up read          | clean rigid joints   | visible cylinder seams   | real geometry, hands    |
+| broadcast read         | strong               | acceptable               | strong                  |
+| motion clarity         | rigid sub-groups     | real bone deformation    | real bone deformation   |
+| idle_ready freeze      | static stance        | calm sway                | clip-driven idle        |
+| cut_sprint replay      | path-only            | hip / arm phase          | retargeted run cycle    |
+| defense_slide replay   | path-only            | wide stance, hands up    | retargeted slide        |
+| indicator stability    | stable               | stable                   | stable (planned)        |
+| fullscreen behavior    | stable               | stable                   | stable (planned)        |
+| asset payload          | 0 KB                 | 0 KB (code only)         | ≤ 500 KB GLB            |
+| triangle budget        | within Phase J cap   | < 8000 added tris        | ≤ ~12000 (cap TBD)      |
+| draw calls per figure  | several              | 1 SkinnedMesh            | 1 SkinnedMesh           |
+| risk to BDW-01         | none (is default)    | none (flag off)          | none (flag off)         |
+| license posture        | code-only            | code-only                | CC0 (Quaternius)        |
+
+### Path-by-path BDW-01 read
+
+**Procedural premium (production).** Same QA as
+`phase-n-skinned-vs-procedural.md` § "Phase N — Procedural BDW-01 Visual
+QA". No regression. This stays the production default.
+
+**Generated skinned (flag).** Same QA as
+`phase-n-skinned-vs-procedural.md` § "Phase N — Skinned Preview BDW-01
+Visual QA". Wins on motion clarity, regresses on static silhouette. Stays
+flag-gated, off by default.
+
+**GLB skinned (projected).** Recovers the static-silhouette regression
+because the Quaternius rig has real shoulders, hands, and head geometry
+instead of merged cylinders. Inherits the motion-clarity win because the
+Phase M clips (`idle_ready`, `cut_sprint`, `defense_slide`) retarget onto
+the standard humanoid skeleton the asset already exposes. Indicator
+stability, fullscreen behavior, and replay framing are unchanged because
+those concerns are owned by the parent figure root, not the figure mesh.
+
+### Decision against changing default
+
+Production default stays procedural premium. Reasoning is unchanged from
+Phase N:
+
+- The procedural path is the safety net. Even with a license-clean GLB
+  on disk, the procedural figure remains the guaranteed-last-resort
+  builder so the trainer cannot crash on asset load failure.
+- BDW-01 ships today on the procedural path; flipping the default in
+  the same pass that adds GLB support would conflate "ship the new
+  asset" with "ship the new default," which is the failure mode the
+  Phase O prompt explicitly forbids.
+- The asset is not yet on disk, so this comparison is partly
+  projection. A real visual sign-off has to wait for the asset and a
+  live screenshot pass.
+
+
