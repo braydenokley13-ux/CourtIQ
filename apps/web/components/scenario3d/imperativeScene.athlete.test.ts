@@ -174,9 +174,11 @@ describe('athlete builder disposal', () => {
     expect(allocated).toBeGreaterThan(0)
   })
 
-  it('keeps per-figure triangle count inside the E4 §5 ceiling', () => {
+  it('keeps per-figure triangle count inside the Phase J ceiling', () => {
     // Sample multiple stance × isUser combinations because the user
-    // halo + chevron add ring/cone tris on top of the base body.
+    // halo + chevron add ring/cone tris on top of the base body and
+    // the premium path adds wristband / cuff geometry conditional on
+    // hasBall / defensive stance.
     const samples: Array<{ user: boolean; ball: boolean; stance: 'idle' | 'defensive' | 'denial' | 'closeout' | 'cut' | 'sag' }> = [
       { user: false, ball: false, stance: 'idle' },
       { user: false, ball: false, stance: 'defensive' },
@@ -190,9 +192,15 @@ describe('athlete builder disposal', () => {
       const figure = buildPlayerFigure('#2D8AFF', '#0A4FB8', s.user, s.ball, '4', s.stance)
       const tris = countTriangles(figure)
       expect(tris).toBeGreaterThan(0)
-      // Hard ceiling per E4 §5 (1500). Recorded baselines on the
-      // tip of Phase F: 1190 tris (non-user) / 1398 tris (user).
-      expect(tris).toBeLessThanOrEqual(1500)
+      // Phase J ceiling: 2400 tris per figure. The Phase F fallback
+      // (still available; the recovery plan's recorded baselines
+      // were 1190 non-user / 1398 user) keeps Phase F's own budget
+      // when the premium flag is off. The premium path adds body
+      // lathes, trap/jaw, toe-cap/heel, shoulder piping + shorts
+      // hem, and — conditional on inputs — a ball-handler wristband
+      // and a defender cuff. The cap leaves headroom for future
+      // narrow polish.
+      expect(tris).toBeLessThanOrEqual(2400)
       disposeGroup(figure)
     }
   })
