@@ -153,3 +153,12 @@ All overlays must clear after 1.2s into Timeline A so the player can see the cle
 **Player Role:** Wing scorer (on-ball, just caught a swing pass)
 
 **Game Context:** 3rd quarter, your team is down 4. The ball just swung from one wing to the other. You're catching the pass on the right wing with your defender flying at you. You have to make a decision the instant the ball hits your hands.
+
+**Possession Setup:**
+- Formation: 5-out (no post — keeps the lane wide open).
+- Top of the key: PG who just made the swing pass.
+- Strong-side (left) corner: a teammate spaced and ready.
+- Weak-side wing & weak-side corner: two more teammates, spaced.
+- You (the user) are on the **right wing**, just catching the pass.
+- Your defender was helping one pass away and is now sprinting at you to closeout.
+- The lane is empty — no rim protector, no help defender low.
