@@ -53,6 +53,20 @@ interface SkinnedIndicatorLayers {
 export const SKINNED_ATHLETE_USER_DATA_KEY = 'skinnedAthlete'
 
 /**
+ * Names of the deterministic animation clips Phase M ships. Adding
+ * a clip requires both extending this union and registering the
+ * clip in `buildAnimationClips`. Keep the set small — Phase M is a
+ * three-clip experiment.
+ */
+export type SkinnedAthleteAnimationName =
+  | 'idle_ready'
+  | 'cut_sprint'
+  | 'defense_slide'
+
+export const SKINNED_ATHLETE_ANIMATION_NAMES: readonly SkinnedAthleteAnimationName[] =
+  ['idle_ready', 'cut_sprint', 'defense_slide'] as const
+
+/**
  * Per-figure handle returned alongside the figure root. Holds the
  * mixer, named clip actions, and root bone so the scene's motion
  * controller can drive animation deterministically.
@@ -114,6 +128,19 @@ export function buildSkinnedAthletePreview(
     figure.add(rootBone)
     figure.add(skinnedMesh)
 
+    const mixer = new THREE.AnimationMixer(skinnedMesh)
+    const clips = buildAnimationClips(bones)
+    const actions: Record<string, THREE.AnimationAction> = {}
+    for (const clip of clips) {
+      const action = mixer.clipAction(clip)
+      action.loop = THREE.LoopRepeat
+      action.enabled = true
+      actions[clip.name] = action
+    }
+    // Default clip is `idle_ready` — figures with no replay-state
+    // mapping yet stay in a calm ready stance instead of T-posing.
+    actions['idle_ready']?.play()
+
     // Indicator layers — empty Groups parented to the figure root
     // so the existing chevron / halo / possession ring system can
     // attach the same primitives it does for the procedural figure.
@@ -145,23 +172,354 @@ export function buildSkinnedAthletePreview(
     const handle: SkinnedAthleteHandle = {
       figure,
       rootBone,
-      mixer: null,
-      actions: {},
+      mixer,
+      actions,
       indicatorLayers,
     }
     ;(figure.userData as Record<string, unknown>)[
       SKINNED_ATHLETE_USER_DATA_KEY
     ] = handle
 
-    // Suppress unused — bones map will be consumed by M5 when
-    // animation clips are wired.
-    void bones
-
     return figure
   } catch {
     return null
   }
 }
+
+// =====================================================================
+// Animation clip builders
+// =====================================================================
+//
+// Phase M ships three short looping clips, all built from
+// procedural keyframes against the bone names above. Each clip is
+// short (1.0–1.4s) and loops; the mixer's `update(dt)` advances
+// playback deterministically when called from a controlled `dt`.
+//
+// Important: clips affect bone rotation only. Replay still owns
+// root motion — the figure root's world position is set by the
+// motion controller from the timeline, not by the clip.
+
+function buildAnimationClips(bones: BoneSet): THREE.AnimationClip[] {
+  return [
+    buildIdleReadyClip(bones),
+    buildCutSprintClip(bones),
+    buildDefenseSlideClip(bones),
+  ]
+}
+
+/**
+ * Calm "ready" stance — slight knee bend, slow breathing-style
+ * spine sway, hands relaxed at the sides.
+ */
+function buildIdleReadyClip(bones: BoneSet): THREE.AnimationClip {
+  const duration = 2.4
+  const t = [0, duration * 0.5, duration]
+  const tracks: THREE.KeyframeTrack[] = []
+
+  // Slow sway in the spine, ~3deg amplitude.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.spine.name}.quaternion`,
+      t,
+      flattenQuats([
+        eulerQuat(0.04, 0, 0),
+        eulerQuat(-0.04, 0, 0),
+        eulerQuat(0.04, 0, 0),
+      ]),
+    ),
+  )
+  // Hips static.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.hips.name}.quaternion`,
+      [0, duration],
+      flattenQuats([eulerQuat(0, 0, 0), eulerQuat(0, 0, 0)]),
+    ),
+  )
+  // Small shoulder relaxation — both arms hang slightly forward.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.leftUpperArm.name}.quaternion`,
+      [0, duration],
+      flattenQuats([eulerQuat(0.1, 0, -0.05), eulerQuat(0.1, 0, -0.05)]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.rightUpperArm.name}.quaternion`,
+      [0, duration],
+      flattenQuats([eulerQuat(0.1, 0, 0.05), eulerQuat(0.1, 0, 0.05)]),
+    ),
+  )
+  // Knees slightly bent.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.leftThigh.name}.quaternion`,
+      [0, duration],
+      flattenQuats([eulerQuat(-0.05, 0, 0), eulerQuat(-0.05, 0, 0)]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.rightThigh.name}.quaternion`,
+      [0, duration],
+      flattenQuats([eulerQuat(-0.05, 0, 0), eulerQuat(-0.05, 0, 0)]),
+    ),
+  )
+
+  return new THREE.AnimationClip('idle_ready', duration, tracks)
+}
+
+/**
+ * Drive / cut clip — alternating leg drive and arm swing with
+ * phase opposition (left arm forward when right leg forward).
+ */
+function buildCutSprintClip(bones: BoneSet): THREE.AnimationClip {
+  const duration = 0.8
+  const t = [0, duration * 0.5, duration]
+  const tracks: THREE.KeyframeTrack[] = []
+
+  // Hips counter-rotate slightly with each stride.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.hips.name}.quaternion`,
+      t,
+      flattenQuats([
+        eulerQuat(0, -0.12, 0),
+        eulerQuat(0, 0.12, 0),
+        eulerQuat(0, -0.12, 0),
+      ]),
+    ),
+  )
+  // Spine leans forward and counters hip yaw.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.spine.name}.quaternion`,
+      t,
+      flattenQuats([
+        eulerQuat(0.18, 0.06, 0),
+        eulerQuat(0.18, -0.06, 0),
+        eulerQuat(0.18, 0.06, 0),
+      ]),
+    ),
+  )
+
+  // Arms swing in opposition — left arm forward when right is back.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.leftUpperArm.name}.quaternion`,
+      t,
+      flattenQuats([
+        eulerQuat(0.85, 0, -0.05),
+        eulerQuat(-0.6, 0, -0.05),
+        eulerQuat(0.85, 0, -0.05),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.rightUpperArm.name}.quaternion`,
+      t,
+      flattenQuats([
+        eulerQuat(-0.6, 0, 0.05),
+        eulerQuat(0.85, 0, 0.05),
+        eulerQuat(-0.6, 0, 0.05),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.leftForeArm.name}.quaternion`,
+      t,
+      flattenQuats([
+        eulerQuat(-1.0, 0, 0),
+        eulerQuat(-0.4, 0, 0),
+        eulerQuat(-1.0, 0, 0),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.rightForeArm.name}.quaternion`,
+      t,
+      flattenQuats([
+        eulerQuat(-0.4, 0, 0),
+        eulerQuat(-1.0, 0, 0),
+        eulerQuat(-0.4, 0, 0),
+      ]),
+    ),
+  )
+
+  // Legs in opposition. Front leg drives forward; back leg pulls
+  // through. The shin bends back while the thigh drives.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.leftThigh.name}.quaternion`,
+      t,
+      flattenQuats([
+        eulerQuat(0.65, 0, 0),
+        eulerQuat(-0.45, 0, 0),
+        eulerQuat(0.65, 0, 0),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.rightThigh.name}.quaternion`,
+      t,
+      flattenQuats([
+        eulerQuat(-0.45, 0, 0),
+        eulerQuat(0.65, 0, 0),
+        eulerQuat(-0.45, 0, 0),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.leftShin.name}.quaternion`,
+      t,
+      flattenQuats([
+        eulerQuat(-0.55, 0, 0),
+        eulerQuat(-1.1, 0, 0),
+        eulerQuat(-0.55, 0, 0),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.rightShin.name}.quaternion`,
+      t,
+      flattenQuats([
+        eulerQuat(-1.1, 0, 0),
+        eulerQuat(-0.55, 0, 0),
+        eulerQuat(-1.1, 0, 0),
+      ]),
+    ),
+  )
+
+  return new THREE.AnimationClip('cut_sprint', duration, tracks)
+}
+
+/**
+ * Defensive slide / closeout clip — wide stance, low hips, hands
+ * up. The body rocks side-to-side as the defender shuffles.
+ */
+function buildDefenseSlideClip(bones: BoneSet): THREE.AnimationClip {
+  const duration = 1.0
+  const t = [0, duration * 0.5, duration]
+  const tracks: THREE.KeyframeTrack[] = []
+
+  // Hips rock side-to-side.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.hips.name}.quaternion`,
+      t,
+      flattenQuats([
+        eulerQuat(0, 0, 0.06),
+        eulerQuat(0, 0, -0.06),
+        eulerQuat(0, 0, 0.06),
+      ]),
+    ),
+  )
+  // Spine slight forward lean — defensive stance.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.spine.name}.quaternion`,
+      [0, duration],
+      flattenQuats([eulerQuat(0.2, 0, 0), eulerQuat(0.2, 0, 0)]),
+    ),
+  )
+  // Arms held up, slightly out — active hands.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.leftUpperArm.name}.quaternion`,
+      [0, duration],
+      flattenQuats([eulerQuat(0.4, 0, -0.55), eulerQuat(0.4, 0, -0.55)]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.rightUpperArm.name}.quaternion`,
+      [0, duration],
+      flattenQuats([eulerQuat(0.4, 0, 0.55), eulerQuat(0.4, 0, 0.55)]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.leftForeArm.name}.quaternion`,
+      [0, duration],
+      flattenQuats([eulerQuat(-1.05, 0, 0), eulerQuat(-1.05, 0, 0)]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.rightForeArm.name}.quaternion`,
+      [0, duration],
+      flattenQuats([eulerQuat(-1.05, 0, 0), eulerQuat(-1.05, 0, 0)]),
+    ),
+  )
+
+  // Legs in deep, wide stance — thigh splayed outward, knees bent.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.leftThigh.name}.quaternion`,
+      t,
+      flattenQuats([
+        eulerQuat(-0.55, 0, 0.22),
+        eulerQuat(-0.65, 0, 0.22),
+        eulerQuat(-0.55, 0, 0.22),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.rightThigh.name}.quaternion`,
+      t,
+      flattenQuats([
+        eulerQuat(-0.65, 0, -0.22),
+        eulerQuat(-0.55, 0, -0.22),
+        eulerQuat(-0.65, 0, -0.22),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.leftShin.name}.quaternion`,
+      [0, duration],
+      flattenQuats([eulerQuat(0.35, 0, 0), eulerQuat(0.35, 0, 0)]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${bones.rightShin.name}.quaternion`,
+      [0, duration],
+      flattenQuats([eulerQuat(0.35, 0, 0), eulerQuat(0.35, 0, 0)]),
+    ),
+  )
+
+  return new THREE.AnimationClip('defense_slide', duration, tracks)
+}
+
+const _scratchEuler = new THREE.Euler()
+const _scratchQuat = new THREE.Quaternion()
+
+function eulerQuat(x: number, y: number, z: number): THREE.Quaternion {
+  _scratchEuler.set(x, y, z, 'XYZ')
+  return new THREE.Quaternion().setFromEuler(_scratchEuler)
+}
+
+function flattenQuats(quats: THREE.Quaternion[]): number[] {
+  const out: number[] = []
+  for (const q of quats) {
+    out.push(q.x, q.y, q.z, q.w)
+  }
+  return out
+}
+
+// Suppress unused — `_scratchQuat` reserved for follow-up where
+// the action interpolant is reused across figures without
+// per-update allocation.
+void _scratchQuat
 
 interface BoneSet {
   hips: THREE.Bone
@@ -427,4 +785,52 @@ export function updateSkinnedAthletePose(
   const handle = getSkinnedAthleteHandle(figure)
   if (!handle || !handle.mixer) return
   handle.mixer.update(dt)
+}
+
+/**
+ * Switch the active animation on a skinned figure. No-op for
+ * procedural figures and for skinned figures whose mixer was not
+ * built (the figure is rendered statically). When the requested
+ * clip is already playing, this is a no-op so callers can call it
+ * every tick from the replay-state mapper without restarting the
+ * clip.
+ */
+export function setSkinnedAthleteAnimation(
+  figure: THREE.Object3D,
+  name: SkinnedAthleteAnimationName,
+  options?: { fadeSeconds?: number },
+): void {
+  const handle = getSkinnedAthleteHandle(figure)
+  if (!handle || !handle.mixer) return
+  const next = handle.actions[name]
+  if (!next) return
+  if (next.isRunning() && next.getEffectiveWeight() > 0.95) return
+  const fade = options?.fadeSeconds ?? 0.15
+  for (const [otherName, action] of Object.entries(handle.actions)) {
+    if (otherName === name) continue
+    if (action.isRunning()) action.fadeOut(fade)
+  }
+  next.reset()
+  next.fadeIn(fade)
+  next.play()
+}
+
+/**
+ * Dispose every mixer/action attached to the skinned figure.
+ * Geometry, materials, and textures are freed by the existing
+ * `disposeGroup` traversal in `imperativeScene.ts` because the
+ * skinned figure follows the same "everything reachable via
+ * descendants" contract; this helper only handles the
+ * AnimationMixer state that is *not* a Three.js Object3D.
+ */
+export function disposeSkinnedAthlete(figure: THREE.Object3D): void {
+  const handle = getSkinnedAthleteHandle(figure)
+  if (!handle) return
+  if (handle.mixer) {
+    handle.mixer.stopAllAction()
+    handle.mixer.uncacheRoot(handle.mixer.getRoot())
+  }
+  for (const action of Object.values(handle.actions)) {
+    action.stop()
+  }
 }
