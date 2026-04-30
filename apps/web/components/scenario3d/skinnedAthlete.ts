@@ -141,9 +141,16 @@ export function buildSkinnedAthletePreview(
     // mapping yet stay in a calm ready stance instead of T-posing.
     actions['idle_ready']?.play()
 
-    // Indicator layers — empty Groups parented to the figure root
-    // so the existing chevron / halo / possession ring system can
-    // attach the same primitives it does for the procedural figure.
+    // Indicator layers. Parenting policy:
+    //   - base / user / possession: parented to the figure root so
+    //     they live on the floor at y ≈ 0.05 and never rotate with
+    //     the body. Same convention as the procedural figure.
+    //   - userHead: parented to the figure root (NOT the head
+    //     bone) so the chevron stays vertical and at a fixed
+    //     height above the resting head position. Anchoring to the
+    //     head bone would let the chevron rotate with the body
+    //     during cut_sprint / defense_slide, which the existing
+    //     `userHeadLayer.visible` test guard treats as a fail.
     const baseLayer = new THREE.Group()
     baseLayer.name = 'indicator-layer-base'
     const userLayer = new THREE.Group()
@@ -159,6 +166,16 @@ export function buildSkinnedAthletePreview(
     figure.add(userLayer)
     figure.add(possessionLayer)
     figure.add(userHeadLayer)
+
+    populateSkinnedIndicators({
+      baseLayer,
+      userLayer,
+      userHeadLayer,
+      possessionLayer,
+      isUser,
+      hasBall,
+      teamColor,
+    })
 
     const indicatorLayers: SkinnedIndicatorLayers = {
       base: baseLayer,
@@ -183,6 +200,113 @@ export function buildSkinnedAthletePreview(
     return figure
   } catch {
     return null
+  }
+}
+
+// =====================================================================
+// Indicator attachment (Phase M7)
+// =====================================================================
+//
+// The skinned figure must preserve the same indicator contract the
+// procedural figure ships:
+//   - base ring: thin team-colored ring on the floor under the
+//     figure, always visible
+//   - user halo: brighter ring on top of the base ring, visible iff
+//     the figure is the user
+//   - user head chevron: cone above the head, visible iff the
+//     figure is the user
+//   - possession ring: warm gold ring on the floor under the figure,
+//     visible iff the figure currently holds the ball
+//
+// All four anchor at *figure root coordinates* (not bone-local) so
+// the indicators stay world-stable while the body animates. The
+// floor-level rings sit at y ≈ 0.05 to match the procedural floor
+// shadow lift.
+
+const SKINNED_FLOOR_LIFT = 0.05
+const SKINNED_BASE_RING_RADIUS = 0.95
+const SKINNED_USER_HALO_RADIUS = 1.45
+const SKINNED_POSSESSION_RING_RADIUS = 1.1
+const SKINNED_CHEVRON_HEIGHT_ABOVE_HEAD = 1.1
+
+function populateSkinnedIndicators(args: {
+  baseLayer: THREE.Group
+  userLayer: THREE.Group
+  userHeadLayer: THREE.Group
+  possessionLayer: THREE.Group
+  isUser: boolean
+  hasBall: boolean
+  teamColor: string
+}): void {
+  const { baseLayer, userLayer, userHeadLayer, possessionLayer, isUser, hasBall, teamColor } = args
+
+  // Base ring — always present.
+  const baseRing = new THREE.Mesh(
+    new THREE.RingGeometry(SKINNED_BASE_RING_RADIUS - 0.06, SKINNED_BASE_RING_RADIUS, 32),
+    new THREE.MeshBasicMaterial({
+      color: teamColor,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.55,
+    }),
+  )
+  baseRing.rotation.x = -Math.PI / 2
+  baseRing.position.y = SKINNED_FLOOR_LIFT
+  baseLayer.add(baseRing)
+
+  if (isUser) {
+    // Floor halo — bright ring just outside the base.
+    const halo = new THREE.Mesh(
+      new THREE.RingGeometry(SKINNED_BASE_RING_RADIUS + 0.05, SKINNED_USER_HALO_RADIUS, 32),
+      new THREE.MeshBasicMaterial({
+        color: '#3BFF9D',
+        toneMapped: false,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.45,
+      }),
+    )
+    halo.rotation.x = -Math.PI / 2
+    halo.position.y = SKINNED_FLOOR_LIFT - 0.005
+    userLayer.add(halo)
+
+    // Head chevron — cone above the head pointing down. Anchored
+    // at figure-root coordinates so animation does not rotate it.
+    const chevron = new THREE.Mesh(
+      new THREE.ConeGeometry(0.42, 0.85, 16),
+      new THREE.MeshBasicMaterial({
+        color: '#3BFF9D',
+        toneMapped: false,
+      }),
+    )
+    chevron.rotation.x = Math.PI
+    chevron.position.set(
+      0,
+      SK_HEAD_Y + SK_HEAD_R + SKINNED_CHEVRON_HEIGHT_ABOVE_HEAD,
+      0,
+    )
+    userHeadLayer.add(chevron)
+  }
+
+  if (hasBall) {
+    const possessionRing = new THREE.Mesh(
+      new THREE.RingGeometry(
+        SKINNED_POSSESSION_RING_RADIUS - 0.05,
+        SKINNED_POSSESSION_RING_RADIUS,
+        32,
+      ),
+      new THREE.MeshBasicMaterial({
+        color: '#FFCB44',
+        toneMapped: false,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.85,
+      }),
+    )
+    possessionRing.rotation.x = -Math.PI / 2
+    possessionRing.position.y = SKINNED_FLOOR_LIFT - 0.002
+    possessionLayer.add(possessionRing)
   }
 }
 
@@ -634,6 +758,14 @@ function buildSkinnedHumanoid(teamColor: string): {
   // skinned to a single bone (hard skinning, weight 1.0). We merge
   // them by hand so the SkinnedMesh has one geometry / one material
   // pair.
+  //
+  // SkinnedMesh vertex space is *mesh-local* — i.e. the world
+  // coordinates each vertex should occupy at bind time when the
+  // SkinnedMesh sits at the world origin with identity transform.
+  // The bone bind-matrix inverses + bone-current-matrices on the GPU
+  // do the rest. So each segment is positioned in world coordinates
+  // at the bone's bind world position; rotation around the bone
+  // emerges automatically from the skinning shader.
   const segments: Array<{ geom: THREE.BufferGeometry; boneIndex: number }> =
     []
 
@@ -641,33 +773,50 @@ function buildSkinnedHumanoid(teamColor: string): {
     radius: number,
     height: number,
     boneIndex: number,
-    yOffset: number,
+    centerY: number,
+    centerX: number = 0,
   ) => {
     const geom = new THREE.CylinderGeometry(radius, radius, height, 8, 1)
-    geom.translate(0, yOffset, 0)
+    geom.translate(centerX, centerY, 0)
     segments.push({ geom, boneIndex })
   }
 
-  // Hips/pelvis block
-  cyl(0.42, 0.5, 0, 0.0)
-  // Spine (chest)
-  cyl(0.5, SK_NECK_Y - SK_CHEST_Y, 1, (SK_NECK_Y - SK_CHEST_Y) * 0.5)
-  // Head: small sphere centred on head bone
+  // Hips/pelvis block — straddles the hips bone at world y = SK_HIP_Y.
+  cyl(0.42, 0.5, 0, SK_HIP_Y)
+  // Spine (chest) — straddles the spine bone region. Bone is at
+  // SK_CHEST_Y; the chest cylinder runs from chest to neck.
+  cyl(
+    0.5,
+    SK_NECK_Y - SK_CHEST_Y,
+    1,
+    (SK_CHEST_Y + SK_NECK_Y) * 0.5,
+  )
+  // Head: sphere centred on the head's bind world position.
   {
     const headGeom = new THREE.SphereGeometry(SK_HEAD_R, 12, 10)
-    headGeom.translate(0, SK_HEAD_R * 0.6, 0)
+    headGeom.translate(0, SK_HEAD_Y, 0)
     segments.push({ geom: headGeom, boneIndex: 2 })
   }
-  // Arms
-  cyl(0.16, SK_ARM_UPPER_LEN, 3, -SK_ARM_UPPER_LEN * 0.5)
-  cyl(0.13, SK_ARM_LOWER_LEN, 4, -SK_ARM_LOWER_LEN * 0.5)
-  cyl(0.16, SK_ARM_UPPER_LEN, 5, -SK_ARM_UPPER_LEN * 0.5)
-  cyl(0.13, SK_ARM_LOWER_LEN, 6, -SK_ARM_LOWER_LEN * 0.5)
-  // Legs
-  cyl(0.24, SK_LEG_UPPER_LEN, 7, -SK_LEG_UPPER_LEN * 0.5)
-  cyl(0.18, SK_LEG_LOWER_LEN, 8, -SK_LEG_LOWER_LEN * 0.5)
-  cyl(0.24, SK_LEG_UPPER_LEN, 9, -SK_LEG_UPPER_LEN * 0.5)
-  cyl(0.18, SK_LEG_LOWER_LEN, 10, -SK_LEG_LOWER_LEN * 0.5)
+  // Arms. Bone bind positions:
+  //   leftUpperArm  at  (+SK_SHOULDER_HALF_W, SK_NECK_Y, 0)
+  //   leftForeArm   at  (+SK_SHOULDER_HALF_W, SK_NECK_Y - SK_ARM_UPPER_LEN, 0)
+  //   right* mirror on -x
+  const leftShoulderY = SK_NECK_Y
+  const leftElbowY = SK_NECK_Y - SK_ARM_UPPER_LEN
+  const leftWristY = leftElbowY - SK_ARM_LOWER_LEN
+  cyl(0.16, SK_ARM_UPPER_LEN, 3, (leftShoulderY + leftElbowY) * 0.5, +SK_SHOULDER_HALF_W)
+  cyl(0.13, SK_ARM_LOWER_LEN, 4, (leftElbowY + leftWristY) * 0.5, +SK_SHOULDER_HALF_W)
+  cyl(0.16, SK_ARM_UPPER_LEN, 5, (leftShoulderY + leftElbowY) * 0.5, -SK_SHOULDER_HALF_W)
+  cyl(0.13, SK_ARM_LOWER_LEN, 6, (leftElbowY + leftWristY) * 0.5, -SK_SHOULDER_HALF_W)
+  // Legs. Bone bind positions:
+  //   leftThigh  at  (+SK_HIP_HALF_W, SK_HIP_Y, 0)
+  //   leftShin   at  (+SK_HIP_HALF_W, SK_HIP_Y - SK_LEG_UPPER_LEN, 0)
+  const kneeY = SK_HIP_Y - SK_LEG_UPPER_LEN
+  const ankleY = kneeY - SK_LEG_LOWER_LEN
+  cyl(0.24, SK_LEG_UPPER_LEN, 7, (SK_HIP_Y + kneeY) * 0.5, +SK_HIP_HALF_W)
+  cyl(0.18, SK_LEG_LOWER_LEN, 8, (kneeY + ankleY) * 0.5, +SK_HIP_HALF_W)
+  cyl(0.24, SK_LEG_UPPER_LEN, 9, (SK_HIP_Y + kneeY) * 0.5, -SK_HIP_HALF_W)
+  cyl(0.18, SK_LEG_LOWER_LEN, 10, (kneeY + ankleY) * 0.5, -SK_HIP_HALF_W)
 
   // Merge into one geometry + skin weights / indices.
   const positions: number[] = []
