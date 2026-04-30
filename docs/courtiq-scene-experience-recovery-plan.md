@@ -817,5 +817,123 @@ thinking is worth the spend.
   chosen path.
 - Suggested commit message: `docs: choose player geometry path`
 
+---
+
+### Phase F — Player Geometry Redesign
+
+#### Goal
+Implement the path chosen in Phase E. Ship a player that reads as
+an athlete, preserves Mac performance, keeps stance readability,
+and integrates cleanly with offense/defense/user identity.
+
+#### Why this phase matters
+The visible weak link of the product. Once replay and motion are
+real, the placeholder body is the most jarring thing on screen.
+
+#### Files likely involved
+- `apps/web/components/scenario3d/imperativeScene.ts` —
+  `buildPlayerFigure` (~L3193), the per-player loop in
+  `buildBasketballGroup` (~L341–L376), palette constants (L25–L103),
+  ring/halo stack (~L3198–L3289), `disposeGroup` (~L407) +
+  `disposeMaterialTextures` (~L430).
+- Possibly a new file for an external mesh loader (only if E
+  chose option C or D).
+- `apps/web/lib/scenario3d/quality.ts` — perf tier integration if
+  geometry cost varies by tier.
+
+#### Risks / boundaries
+- Do not break existing indicator layers (base ring, user halo,
+  possession ring, focus marks).
+- Do not change palette constants without updating the
+  visual-system plan.
+- Do not exceed the per-player tri budget called out in
+  `courtiq-premium-scene-visual-system-plan.md` Section 14.
+- Do not ship a player that hides the user's identity halo.
+- Do not break the dispose traversal (every new mesh/material
+  must be reachable by `disposeGroup`).
+
+#### Acceptance criteria
+- The new player silhouette reads as an athlete from broadcast
+  distance.
+- Stance differences (idle, defensive, denial, plus any new
+  stances introduced) are visually distinct without indicator
+  help.
+- Offense, defense, and user identity remain unmistakable.
+- Mac frame rate stays in budget; FPS guard never auto-degrades
+  on `medium` or `high` tier on BDW-01.
+- All existing tests still pass; no leaks reported on scene
+  rebuild.
+
+#### Suggested model
+**Opus 4.7 Max.** Visual + perf + integration risk; max thinking is
+warranted.
+
+#### Suggested commit style
+- 4–5 implementation commits.
+- 1 perf tuning commit.
+- 1 QA commit.
+
+#### Micro-milestones
+
+> Note: the exact micro-milestone list will be refined by Phase E4
+> based on the chosen path. The shape below assumes Option B
+> (better reusable code mesh) — the most likely default. If E
+> picks A, C, or D, F1 changes accordingly.
+
+**F1 — Player silhouette rebuild**
+- Objective: rebuild the body silhouette so it reads as an
+  athlete (shoulders, taper to waist, leg articulation, head
+  proportion) within the chosen approach.
+- Likely files: `imperativeScene.ts` (`buildPlayerFigure`).
+- What changes: replace primitive stack with the chosen mesh
+  approach; preserve the function signature.
+- Exit criteria: silhouette test screenshot shows clear athlete
+  read at broadcast distance.
+- Suggested commit message: `feat(scene): rebuild player silhouette`
+
+**F2 — Stance readability pass**
+- Objective: ensure idle / defensive / denial stances are
+  visually distinct in the new mesh; add any new stances
+  identified in Phase C (e.g., `closeout`, `cut`).
+- Likely files: `imperativeScene.ts` (`buildPlayerFigure`,
+  per-stance pose).
+- What changes: per-stance pose adjustments mapped to the new
+  geometry.
+- Exit criteria: stances differentiable from the default camera
+  without indicators.
+- Suggested commit message: `feat(scene): tune stance readability on new mesh`
+
+**F3 — Color/trim/identity integration**
+- Objective: re-apply offense/defense/user palette and trim to
+  the new mesh; verify the user halo still reads.
+- Likely files: `imperativeScene.ts` (palette constants, per-player
+  loop).
+- What changes: material assignment for body, jersey, trim, and
+  number band; user-identity halo verification.
+- Exit criteria: user is unmistakable; offense vs. defense reads
+  in one glance.
+- Suggested commit message: `feat(scene): integrate identity palette on new mesh`
+
+**F4 — Performance tuning**
+- Objective: keep tri counts and material counts within budget;
+  verify FPS guard doesn't auto-degrade.
+- Likely files: `imperativeScene.ts`,
+  `lib/scenario3d/quality.ts`.
+- What changes: lower-detail variant on `low` tier if needed;
+  shared materials; minimal new draw calls.
+- Exit criteria: Mac frame rate stable on BDW-01; tri-count
+  baseline recorded in this doc.
+- Suggested commit message: `perf(scene): tune new player geometry budget`
+
+**F5 — Player visual QA**
+- Objective: validate new geometry against the Section 15 QA
+  checklist on BDW-01 and against the static-readiness flags
+  for ESC/AOR/SKR.
+- Likely files: tests + docs.
+- What changes: append a "Geometry QA Results" subsection.
+- Exit criteria: every QA item in Section 15 still passes; no
+  regression vs. Phase 7 record.
+- Suggested commit message: `test(scene): verify new player geometry QA`
+
 
 
