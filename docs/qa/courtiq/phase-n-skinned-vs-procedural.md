@@ -51,3 +51,9 @@ These notes are implementation-level QA derived from the Phase M builder + tests
 - `cut_sprint` (0.8s loop): hip yaw + spine forward lean + arm/leg phase opposition. Reads as a real stride at replay distance.
 - `defense_slide` (1.0s loop): wide stance, hands up, hips rocking. Distinct from idle and cut.
 - All three clips are visually distinct — the mapper should land defenders on `defense_slide` and ball-handler/cutters on `cut_sprint` exactly when the timeline says they are moving.
+
+### Embedded camera, fullscreen, freeze, replay
+- Embedded gameplay camera: same auto-fit framing as procedural; the skinned figure does not break Box3 bounds.
+- Fullscreen: indicator anchors are at figure-root coordinates so the chevron stays vertical when the canvas grows. No layout regressions vs procedural.
+- Freeze decision moment: `idle_ready` holds a calm pose; defenders in `defense_slide` read as actively defending without t-pose risk.
+- Replay motion: clips loop deterministically off `mixer.update(dt)`; root motion still owned by the timeline so the figure does not slide off the path.
