@@ -3360,12 +3360,33 @@ export function computePlayerYaw(team: SceneTeam, x: number, z: number): number 
 }
 
 /**
- * Phase F — public builder entry point. Builds the code-built
- * low-poly stylized-athlete figure described in the recovery plan
- * §16 E4. Signature is locked: `(teamColor, trimColor, isUser,
- * hasBall, jerseyNumber, stance) → THREE.Group`. Exported so the
- * disposal-leak / budget tests can build figures in isolation;
- * production rendering routes through `buildBasketballGroup`.
+ * Phase J — when true, `buildPlayerFigure` produces the premium
+ * code-built athlete (Option B of the Phase J implementation
+ * direction). When false, the original Phase F figure is rendered
+ * unchanged. The boundary lives here so disposal/triangle tests and
+ * the production renderer all flow through the same selector.
+ *
+ * The premium path is wrapped in a try/catch by `buildPlayerFigure`
+ * so any unexpected error reverts to the Phase F figure at runtime —
+ * the trainer never crashes if the premium builder regresses.
+ */
+const USE_PREMIUM_ATHLETE = true
+
+/**
+ * Phase F / J — public builder entry point. Returns the premium
+ * code-built athlete (Phase J, Option B) when `USE_PREMIUM_ATHLETE`
+ * is true; otherwise returns the Phase F low-poly stylized athlete
+ * (E4 §3 contract). Signature is locked across both paths:
+ * `(teamColor, trimColor, isUser, hasBall, jerseyNumber, stance) →
+ * THREE.Group`. Exported so the disposal-leak / budget tests can
+ * build figures in isolation; production rendering routes through
+ * `buildBasketballGroup`.
+ *
+ * Fallback policy: if the premium path throws for any reason (e.g.
+ * a regression on a new geometry helper), `buildPlayerFigure`
+ * silently falls back to the Phase F figure so the trainer keeps
+ * rendering. The fallback is the same code path that shipped at the
+ * tip of Phase H, so callers see no contract change.
  */
 export function buildPlayerFigure(
   teamColor: string,
@@ -3375,6 +3396,21 @@ export function buildPlayerFigure(
   jerseyNumber: string,
   stance: PlayerStance,
 ): THREE.Group {
+  if (USE_PREMIUM_ATHLETE) {
+    try {
+      return buildPremiumAthleteFigure(
+        teamColor,
+        trimColor,
+        isUser,
+        hasBall,
+        jerseyNumber,
+        stance,
+      )
+    } catch {
+      // Phase J fallback — premium path failed, render the
+      // Phase F figure so the scene never crashes.
+    }
+  }
   return buildAthleteFigure(teamColor, trimColor, isUser, hasBall, jerseyNumber, stance)
 }
 
@@ -4048,6 +4084,43 @@ function buildAthleteFigure(
   void ATH_FOOT_Y
 
   return figure
+}
+
+// =====================================================================
+// Phase J — Premium code-built athlete (Option B of the Phase J
+// implementation direction). Builds on top of the Phase F figure with
+// upgraded silhouette, smoother body proportions, clearer jersey /
+// shorts / shoe separation, and richer materials. Stance is still
+// applied by the existing `applyAthleteStance` lookup so replay
+// determinism, indicator alignment, and disposal stay identical to the
+// Phase F path.
+//
+// The premium path is opt-in via `USE_PREMIUM_ATHLETE` and wrapped in
+// a try/catch inside `buildPlayerFigure`, so the Phase F figure is
+// always available as the live fallback.
+// =====================================================================
+
+/**
+ * Phase J — premium athlete builder. Initially delegates to the
+ * Phase F builder so the boundary is observable without changing the
+ * rendered geometry. Subsequent commits in this phase replace the
+ * delegated call with an upgraded silhouette while preserving the
+ * sub-group taxonomy, indicator layers, and disposal contract.
+ *
+ * Same public signature as `buildPlayerFigure` / `buildAthleteFigure`.
+ */
+function buildPremiumAthleteFigure(
+  teamColor: string,
+  trimColor: string,
+  isUser: boolean,
+  hasBall: boolean,
+  jerseyNumber: string,
+  stance: PlayerStance,
+): THREE.Group {
+  // J2 boundary: the premium builder exists and is wired through
+  // `buildPlayerFigure`, but for this commit it returns the Phase F
+  // figure unchanged. J3 substantively upgrades the geometry.
+  return buildAthleteFigure(teamColor, trimColor, isUser, hasBall, jerseyNumber, stance)
 }
 
 /**
