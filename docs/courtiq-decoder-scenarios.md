@@ -309,3 +309,14 @@ Floor markers under D4's feet are the signature visual: they make the parallel-f
 - Strong-side corner defender is *still* glued to the strong corner (they did NOT help — only the weak-side stunted).
 
 **Question Prompt:** "Two defenders just collapsed on you. Where's the open shooter?"
+
+**Best Read:** Skip pass (one-handed, over the top) to the **opposite (weak-side) corner** shooter. The weak-side corner defender is too far from their player to recover in time.
+
+**Acceptable Reads:**
+- Pass to the weak-side wing (left wing) — open, but not as open as the corner; the wing defender can recover faster.
+- Step-back jumper at the elbow (only if you can't see the skip — the help is committed, so the elbow may be open enough; but it's the lower-value read here).
+
+**Bad Reads:**
+- Force a layup through both defenders (charge or block).
+- Kick to the strong-side corner (their defender never helped — they're still right there).
+- Pass back to the top (resets the offense; throws away the advantage).
