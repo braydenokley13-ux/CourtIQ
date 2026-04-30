@@ -4,3 +4,5 @@
 - Default value is `false`.
 - With flag `false`, `buildPlayerFigure` skips the skinned branch and uses the procedural premium / Phase F path.
 - With flag `true`, `buildPlayerFigure` attempts `buildSkinnedAthletePreview` first.
+- If the skinned path returns `null` or throws, the selector falls back to the procedural premium → Phase F figure.
+- Phase N visual QA must NOT make the skinned path the production default.
