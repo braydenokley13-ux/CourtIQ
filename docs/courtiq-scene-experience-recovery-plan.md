@@ -5182,3 +5182,170 @@ all three of:
 Until then, Phase F is the supported path and any imported
 work is dev-route only.
 
+
+### Phase I Spike Findings
+
+> Phase I is closed as a **strategy / architecture / risk
+> spike**. No code shipped. No dependencies installed. No model
+> files added. No asset pipeline introduced. The Phase F
+> code-built athlete remains the production path and continues
+> to govern the renderer.
+
+#### 1. Should CourtIQ replace the current Phase F athlete system now?
+
+**No.** The Phase F builder is the only renderer that has
+already passed disposal, triangle-budget, indicator-taxonomy,
+replay-determinism, motion-timing, fullscreen, and integration
+QA across Phases B–H. Replacing it now would re-open every
+guarantee Phases B–H spent six phases locking in. The visual
+ceiling gap (broadcast-camera silhouette feels stylized) is
+real but is partly a lighting / camera / scene-composition
+problem, not just a geometry problem.
+
+#### 2. Should CourtIQ keep the current code-built athlete as fallback?
+
+**Yes — permanently.** Even if a future imported-athlete layer
+ships, the Phase F figure stays as:
+
+- the default behind the feature flag,
+- the live runtime fallback when an imported asset fails to
+  load / decode / validate,
+- the disposal-safe, license-clean, sub-second-mount baseline
+  that Mac/Safari is guaranteed to handle,
+- the fixture against which all imported screenshots are
+  compared in coach review.
+
+The fallback is costless because it is the existing path. Its
+permanence is the entire reason a future imported layer is
+allowed to be tried.
+
+#### 3. Which future asset path is recommended?
+
+**Option B — optional imported low-poly GLB athlete behind a
+feature flag, with the Phase F figure as the live fallback.**
+Rationale:
+
+- Highest "lift per unit risk" of the four options. The
+  silhouette ceiling moves with a static stylized mesh; the
+  determinism / motion / animation surface stays code-built.
+- Preserves `buildPlayerFigure`'s public contract (I1), the
+  named indicator and sub-group taxonomy, the `MotionController`
+  / `ReplayStateMachine` guarantees, and the scenario JSON.
+- Has a clean revert posture — flag off restores Phase F with
+  zero rebuild, mirroring the `USE_ATHLETE_BUILDER` revert
+  posture Phase F shipped with.
+- Sets up Option C (rigged) as a *follow-on* decision rather
+  than a coupled bet.
+
+#### 4. What should NOT be attempted yet?
+
+- A `GLB` / `GLTF` loader, `SkinnedMesh`, or `AnimationMixer` in
+  any code path.
+- A new asset pipeline, build step, or compression step.
+- Importing model files into the repo.
+- Authoring new scenarios or adding new stance names.
+- Replacing `Scenario3DCanvas` or `Scenario3DView`.
+- Replacing or refactoring `buildPlayerFigure` /
+  `buildAthleteFigure`.
+- Replacing `disposeGroup` or its texture-slot sweep.
+- Touching Phase B replay, Phase C movement, Phase D
+  fullscreen, or Phase G copy in service of imported athletes.
+- Option C (rigged GLB) and Option D (full animation system)
+  until Option B has shipped *and* proved the imported path
+  meaningfully improves teaching clarity in production.
+
+#### 5. What must be true before imported athletes ship?
+
+All of the following must be true *before* the feature flag
+defaults to on for any non-developer:
+
+- A license-clean (CC0 or CC-BY) stylized basketball-athlete
+  GLB sourced and audited (R1 / J1).
+- Total imported athlete payload ≤ 1 MB on the wire (R2 / J3).
+- Five-player BDW-01 mount on Mac/Safari ≤ 1.2 × the Phase F
+  baseline after warm-up (R3 / J3).
+- Per-figure tris ≤ 1500, materials ≤ 8 (R6 / J4).
+- 100-figure leak test mirrored against the imported builder
+  passes (R5 / J4).
+- Indicator-layer test mirrored against the imported builder
+  passes; chevron sits visibly above the imported figure's
+  head (R11 / J5).
+- Malformed-fixture test confirms hard fallback to Phase F
+  without crash (J4).
+- Side-by-side screenshot QA on BDW-01 broadcast / fullscreen /
+  close-up shows the imported figure is *at least as readable*
+  as the Phase F figure (R12 / J6).
+- Coach review picks the imported figure on **teaching
+  clarity**, not aesthetics; tie goes to Phase F (R13 / J7).
+
+If any one of these fails, the imported path stays dev-only
+and the trainer continues to render the Phase F figure.
+
+#### 6. How does this build on Phase F instead of replacing it?
+
+The recommended architecture (I3) puts the imported layer
+**behind** `buildPlayerFigure`, not in front of it. The call
+site keeps its current signature; the entry point picks the
+path. Default and fallback are the Phase F figure. The
+imported figure has to satisfy the same I1 contract — same
+public signature, same `PlayerStance` union, same indicator
+layers, same sub-group taxonomy, same triangle / material
+budget, same disposal reachability, same root-only motion,
+same build determinism. The imported builder's tests are
+**additive** to the Phase F suite, not a replacement. Phases
+B / C / D / G / H test files are forbidden from changing for
+the imported path.
+
+In short: Phase F is the load-bearing baseline. The imported
+layer is an optional visual upgrade that has to earn its place
+without putting any of Phases B–H at risk.
+
+#### 7. What is the exact next phase recommendation?
+
+The next phase is **not** a Phase J. The recovery plan is
+closed; Phases B–H ship the BDW-01 trainer as one coherent
+product. The right next move depends on product priorities:
+
+- **If silhouette ceiling is the highest pain point**, open a
+  separate "Phase J — Optional Imported Athlete Layer" that
+  works through tickets J1 → J7 in order, with J7's coach
+  review as the gate to flipping the flag on. Do **not** start
+  J8 (rigged) until J1–J7 ship and the layer has run in
+  production for a measurable window.
+- **If the visual gap is bottlenecked on lighting / camera /
+  scene composition rather than geometry**, run a separate
+  "Lighting + camera polish" pass against the existing Phase F
+  athlete first. The Phase F QA "honest answer" already
+  flagged this possibility (the reference image's premium feel
+  may not be a geometry problem).
+- **If the trainer's next biggest problem is content** (more
+  scenarios, ESC / AOR / SKR routing), neither imported
+  athletes nor lighting polish is the right next move; open a
+  scenario-content phase instead.
+
+The Phase I spike's job was to make the imported-athlete
+question answerable without committing to it. **Answered: do
+not replace the current system; treat the imported layer as
+an optional, flag-gated future experiment behind the Phase F
+fallback.**
+
+
+#### Final validation summary (Phase I spike)
+
+- **Scope.** Documentation only. No code, no installs, no
+  asset files. Six new subsections appended to this plan
+  (Phase I — Current Athlete Baseline, Asset Path Options,
+  Recommended Future Asset Architecture, Asset Spike Risk
+  Register, Follow-Up Ticket List, Spike Findings).
+- **Markdown integrity.** Doc edits are pure appends to the
+  end of the file, leaving every prior phase untouched.
+- **Code surface.** Unchanged. `buildPlayerFigure`,
+  `buildAthleteFigure`, `disposeGroup`, `countTriangles`, the
+  indicator layers, and the athlete tests are not modified by
+  this phase.
+- **Test surface.** Unchanged. The full vitest /
+  `imperativeScene.athlete.test.ts` suite continues to govern
+  the renderer.
+- **Production behaviour.** Unchanged. The trainer renders the
+  Phase F figure exactly as it did at the tip of Phase H.
+
