@@ -40,6 +40,12 @@ describe('Scenario3DCanvas rendering guarantees', () => {
     expect(canvas).toContain('controllerActive ? null : <RenderHeartbeat />')
   })
 
+  it('keeps pass-arrival camera shake deterministic instead of random jitter', () => {
+    const canvas = source('Scenario3DCanvas.tsx')
+    expect(canvas).toContain('Smooth deterministic shake')
+    expect(canvas).not.toContain('Math.random()')
+  })
+
   it('exposes a ?debug3d=1 self-test that always renders a hero scene', () => {
     const canvas = source('Scenario3DCanvas.tsx')
     expect(canvas).toContain('isDebug3D')

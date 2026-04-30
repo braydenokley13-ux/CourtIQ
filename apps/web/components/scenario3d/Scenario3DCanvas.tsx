@@ -522,10 +522,16 @@ export function Scenario3DCanvas({
             if (elapsed >= shake.duration) {
               shakeRef.current = null
             } else {
-              const remaining = 1 - elapsed / shake.duration
+              const u = elapsed / shake.duration
+              const remaining = 1 - u
               const amp = shake.amplitude * remaining * remaining
-              cam.position.x += (Math.random() - 0.5) * 2 * amp
-              cam.position.y += (Math.random() - 0.5) * 2 * amp * 0.4
+              // Smooth deterministic shake. The previous per-frame
+              // random offset read as jitter on lower frame
+              // rates and made identical replays feel slightly
+              // different. A damped wave keeps the pass-arrival bump
+              // without adding random camera noise.
+              cam.position.x += Math.sin(u * Math.PI * 7) * amp
+              cam.position.y += Math.sin(u * Math.PI * 5 + Math.PI / 4) * amp * 0.32
               cam.updateMatrixWorld()
             }
           }
