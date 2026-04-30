@@ -2902,3 +2902,205 @@ integration gate. Phase H should walk this matrix on BDW-01:
 - **Iframe sandbox.** `allow-fullscreen` must be present in any embedding
   iframe attribute for the API to work. Already handled by the catch block.
 
+
+---
+
+## 16. Phase E — Player Geometry Strategy Spike
+
+### E1 — Player Geometry Failure Audit
+
+> Read-only audit. Every problem below is traced to a specific decision in
+> `buildPlayerFigure` (`imperativeScene.ts` ~L3393–L3873) so Phase F can fix
+> the root cause, not the symptom. Source-of-truth dimensions are at
+> `imperativeScene.ts` ~L3303–L3361 (per-part radius / height / Y / stagger).
+
+The current procedural figure ships a stack of distinct primitives
+(`BoxGeometry` shoes, `CylinderGeometry` legs, `CapsuleGeometry` torso /
+arms, tapered cylinder shorts, capsule shoulder yoke, sphere head, hair
+hemisphere, head wedge marker), and yet — to a viewer who is not the
+person who wrote it — it still reads as "stacked primitives," not
+"basketball player." The Phase 2 polish moved the silhouette forward
+(capsule torso, tapered legs, foot stagger, V-shaped chest, jersey number
+panels, contact shadow). It did not solve the underlying problem, which is
+that the figure is **assembled, not modeled.**
+
+#### 1. Silhouette problems
+
+- **What the user sees.** From the broadcast camera the body reads as a
+  bottle on two posts on two boxes. The torso → shorts → legs transition is
+  a hard step-down in radius, not a hip line. Above the chest the shoulder
+  yoke (`YOKE_WIDTH = TORSO_WIDTH * 1.18`, ~L3334) reads as a bar laid
+  across the top of the torso rather than as deltoids that taper into arms.
+- **Why it hurts CourtIQ.** Silhouette is the first read at broadcast
+  distance. A player whose silhouette resolves to "primitives" cannot teach
+  body language, which is the entire CourtIQ thesis (read the defender,
+  not the spot — Section 6).
+- **Where in `buildPlayerFigure`.** The torso (`THREE.CapsuleGeometry`
+  with `scale.set(1.05, 1, 0.72)`, ~L3528–L3538) and the shoulder yoke
+  (~L3545–L3554) are independent primitives layered without any blending or
+  shared topology. The yoke is a horizontally-rotated capsule sitting on
+  top of the torso capsule; it never blends into a deltoid.
+
+#### 2. Body proportion problems
+
+- **What the user sees.** The torso (`TORSO_HEIGHT = 1.4`,
+  `TORSO_WIDTH = 1.55`) is wider than tall. With `scale.set(1.05, 1, 0.72)`
+  the cross-section reads as a pancake from the high 3/4 camera. The legs
+  (`LEG_HEIGHT = 2.1`) are slightly too short relative to total height
+  (~L3322–L3328 lays the body out at SHOE_Y=0.2, LEG_Y=1.25, SHORTS_Y=2.8,
+  TORSO_Y=3.9, NECK_Y=4.71, HEAD_Y=5.35). For an athletic figure the leg
+  span should be closer to half of total height; here legs are ~33%.
+- **Why it hurts CourtIQ.** Wrong proportions break the "athlete" read
+  before stance ever has a chance. Even a perfectly posed defender reads as
+  "small adult-shaped trinket," not "ballplayer."
+- **Where in `buildPlayerFigure`.** The dimension constants at
+  `imperativeScene.ts` ~L3303–L3320, plus the leg `CylinderGeometry(LEG_RADIUS * 0.95, LEG_RADIUS * 1.25, LEG_HEIGHT, 14)`
+  at ~L3483 — taper is from 0.95×0.22 to 1.25×0.22, so the leg goes from
+  20cm to 27cm radius, which broadens the calf relative to the thigh
+  (backwards from a real athletic leg).
+
+#### 3. Shoulder / torso / hip problems
+
+- **What the user sees.** No clavicle ridge, no deltoid. The shoulder yoke
+  is one centered horizontal capsule across the top of the torso; the arms
+  hang from positions that look attached at the side of the torso, not at
+  the shoulder ball. The hip transition into shorts is a vertical seam
+  (capsule torso ends, slightly-tapered cylinder shorts begin) without a
+  pelvis curve. The chest stripe (~L3584) is a visible flat strip rather
+  than a jersey neckline.
+- **Why it hurts CourtIQ.** Shoulders are the dominant facing cue from
+  high 3/4. If the shoulders are a generic horizontal bar, "this defender
+  is angled toward the ball" is invisible. The same is true for the hips:
+  hip angle is the main defender-stance signal, and a vertical cylinder
+  cannot communicate hip angle.
+- **Where in `buildPlayerFigure`.** Yoke at ~L3545–L3554 (single capsule,
+  rotated 90° around z, scaled to a thin slab); shorts at ~L3503–L3511
+  (single tapered cylinder); torso at ~L3528–L3538 (capsule). Three
+  independent primitives sharing only a y-axis — there is no shared
+  geometry that defines a "shoulder line" or "hip line."
+
+#### 4. Arm / leg / shoe problems
+
+- **Arms.** Built from `CapsuleGeometry(ARM_RADIUS=0.18, ARM_LENGTH * 0.9 = 1.26)`
+  per side (~L3597–L3627). Per-stance pose uses `arm.rotation.x/z` and
+  `arm.position` writes — the arm is a single rigid limb, no elbow break.
+  Closeout, denial, and idle all bend the same straight tube.
+- **Legs.** Single tapered cylinder per side (~L3479–L3489). No knee, no
+  calf taper toward the ankle. Stance crouch is faked by translating the
+  upper body down by `STANCE_LOWER_FT = 0.35` (~L3497) — the legs
+  themselves do not bend. From the side this is visible as torso-floats-down
+  with stiff posts beneath it.
+- **Shoes.** Box geometry `(0.5 × 0.4 × 1.0)` plus a midsole stripe
+  (~L3454–L3473). At broadcast distance these read as "blocks under
+  legs," not "shoes." Foot direction is a primary defender cue (Section 6 —
+  defender hip / foot readability) and the box gives a yes/no z-axis at
+  best — no toe, no heel.
+- **Why it hurts CourtIQ.** The decoder for AOR-01 (No Gap Go Now) will
+  ask the user to read "balanced vs out-of-control closeout." That
+  signal lives almost entirely in shin angle and shoe orientation, both
+  of which the current geometry cannot communicate.
+
+#### 5. Stance readability problems
+
+- **What the user sees.** The three current stances (`idle`, `defensive`,
+  `denial`) look almost identical from broadcast. `defensive` and `denial`
+  both translate the upper body down 0.35ft. They differ in arm pose
+  (defensive: hands-out, denial: outside arm raised) and foot stagger
+  (`FOOT_STAGGER_DEFENSIVE = 0.18` vs `FOOT_STAGGER_DENIAL = 0.1`).
+  `idle` keeps the upper body upright with `[-0.05, -0.05]` foot offsets.
+  The crouch translation makes the torso intersect the shorts visually
+  but the legs themselves are unchanged length, so the "knees bent"
+  read is implied rather than shown.
+- **Why it hurts CourtIQ.** Phase C added expressive yaw rotation per
+  frame, but the body underneath the yaw is the same shape regardless of
+  stance. The user has no honest way to distinguish "crouched defender
+  in a denial stance" from "standing defender holding their arm up." The
+  basketball read in BDW-01 — *they're sitting on the pass* — collapses
+  into "they have an arm raised."
+- **Where in `buildPlayerFigure`.** Crouch at ~L3497 (single y-translate
+  of `upperBody`); foot stagger at ~L3438–L3448; arm pose at ~L3597–L3627.
+  No leg primitive responds to stance.
+
+#### 6. Why it still looks like primitives
+
+- **Hard edges between primitives.** Capsule + capsule + cylinder + box
+  meet at right angles with no inter-primitive blending. Smooth-shading
+  on individual primitives cannot hide the seam where two primitives
+  dock.
+- **No skinning, no continuous mesh.** The body is six rigid groups
+  (legs, shorts, torso, yoke, arms, head). Stance changes pivot or
+  translate one group at a time; the body never deforms as a single
+  silhouette would.
+- **Identity comes from textures + rings, not from the body itself.**
+  The jersey number is a flat plane glued onto the torso (~L3559–L3580).
+  The team color is a uniform `MeshStandardMaterial` painted across the
+  whole torso. The user halo lives on the floor, not on the body. So
+  when you remove the rings + chevron + halos, the body is unrecognisable
+  as a player at all.
+- **Where in `buildPlayerFigure`.** Every primitive is added to either
+  `figure` or `upperBody` independently (~L3454–L3675). There is no
+  underlying mesh that all primitives blend into.
+
+#### 7. Why it does not feel like a basketball athlete
+
+- **No mass distribution.** Real ballplayers have visible quad/glute mass
+  on the lower body, V-tapered shoulders, and forearms thicker than the
+  upper arm. The current body is roughly tube-and-bottle.
+- **No leg articulation.** Cuts read as foot-sliding because the legs
+  cannot scissor or lift. Phase C eased motion timing, which helped, but
+  the body still drifts as a static stack.
+- **No gestural body language.** Real defenders shift weight, square hips,
+  drop a shoulder. The current builder has no "dropped shoulder" axis.
+- **Generic head + hair cap.** Head + hemispherical hair (~L3640–L3665)
+  reads as "snowman with shading" not "athlete head," especially when
+  combined with the soft contact shadow.
+- **Where in `buildPlayerFigure`.** The body assembly itself; nothing in
+  the per-stance pose exposes hip-square, shoulder-drop, or weight-shift
+  as parameters. The pose system writes only foot-stagger and arm-rotation.
+
+#### 8. Why prior Phase 2 polish was not enough
+
+Phase 2 (visual-system plan §12 / §6) raised the floor: capsule torso
+instead of box, tapered legs instead of cylinders, foot stagger, jersey
+number panel, shoulder yoke, contact shadow, V-shaped torso scale. Each
+change solved a real prior problem. None changed the fundamental
+**six-primitive assembly architecture**:
+
+- The polish was per-primitive, not per-figure. Each primitive got
+  better; the joints between primitives stayed seam lines.
+- Stance work was confined to translating / rotating existing primitives.
+  No leg articulation, no shoulder-drop axis, no weight shift were ever
+  added — there was nowhere for them to live.
+- Phase 2 ran inside the same builder signature (`teamColor, trimColor,
+  isUser, hasBall, jerseyNumber, stance`), so all upgrades had to fit
+  inside that frame.
+
+The result is a body that is significantly better than the original
+peg figure but still **structurally a stack**. Any further round of
+"make the cylinders nicer" inside the existing assembly hits a ceiling
+that polish cannot lift.
+
+#### 9. What must be true for the next design to succeed
+
+- **One coherent body silhouette.** Whatever geometry ships, the eye
+  must read a single continuous athlete shape from broadcast distance,
+  not a stack of primitives.
+- **Stance must affect the body, not just translate it.** Crouch must
+  bend legs (or read as bent legs). Shoulder-drop must be a real axis.
+  Hip-square must be real geometry, not implied by yoke rotation.
+- **Identity layers (rings, halos, possession, focus, feedback) keep
+  working unchanged.** The body redesign cannot rebuild the indicator
+  system; that contract is locked by Phase 3 of the visual-system plan
+  (Section 7).
+- **Stays on Mac.** Per-player tri budget, material count, and draw-call
+  count must not balloon. No skeletal rig, no realtime physics.
+- **One builder, parameterised.** The signature stays caller-compatible;
+  internal complexity is fine but the integration surface (per-player
+  loop in `buildBasketballGroup`, ~L379–L427) must not change.
+- **Scenario-aware stance routing without re-authoring.** ESC-01,
+  AOR-01, SKR-01 (visual-system plan §18.4 reopen item) need
+  `closeout`, `sag`/`shrink`, and `cut` stances. The next geometry
+  must accept those without a rebuild.
+- **Disposal hygiene preserved.** Every new mesh / material / texture
+  reachable by `disposeGroup` and `disposeMaterialTextures`.
+
