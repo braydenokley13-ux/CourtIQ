@@ -20,3 +20,11 @@ Capture context: live screenshots require an authenticated `/train` session (`pn
 ### Fullscreen
 - Phase K fullscreen layout fix holds: court fills the canvas, no large gray border around the action.
 - Indicator anchor heights (chevron, halo) scale with figure root, so the user marker remains readable when the canvas grows.
+
+### Freeze decision moment
+- Body holds a static stance pose (defenders read as defensive, offense reads as idle) — no t-pose, no jitter at the freeze beat.
+- Possession ring stays under the ball-handler; chevron stays above the user. The freeze is a clean "read the play" frame.
+
+### Replay motion
+- Procedural motion comes from `MovementPath3D` lerp + sub-group rotations on the figure. Reads as smooth at 1x and 0.5x; 2x replay is fast but legible.
+- No skinning means joint deformation is rigid — visible at close-up but acceptable at the broadcast distance BDW-01 ships at.
