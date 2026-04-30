@@ -250,3 +250,17 @@ Defender's feet, your hands, and the empty lane behind D4 must all be visible at
 | 0.8s | Long rebound | Defense secures the ball | Possession lost |
 
 **Outcome:** Contested 3 → miss → fast break the other way. The advantage was real; you wasted it on a low-percentage shot.
+
+### Overlays (toggle in the freeze view)
+
+| Overlay | Show | Color / style |
+| --- | --- | --- |
+| Defender hips/feet — D4 | Two foot-shaped markers under D4 with a line showing the parallel stance | Bright cyan |
+| Momentum arrow — D4 | Arrow from D4's chest pointing forward (the direction they can't reverse) | Yellow arrow |
+| Vision cone — D4 | Cone from D4's head pointed at the ball/your hands | Translucent yellow |
+| Open space highlight | The lane behind D4 (right elbow → rim) | Soft green floor patch |
+| Drive lane (best) | Curved arrow from O4 around D4's lead foot to the rim | Bright green dashed |
+| Closeout vector | Arrow showing D4's path *into* the closeout (history) | White, fading |
+| Bad shot indicator | Red "X" hovering above the ball when the shoot option is hovered | Red (only on hover) |
+
+Floor markers under D4's feet are the signature visual: they make the parallel-feet cue impossible to miss.
