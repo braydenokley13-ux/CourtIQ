@@ -52,6 +52,32 @@ interface SkinnedIndicatorLayers {
  */
 export const SKINNED_ATHLETE_USER_DATA_KEY = 'skinnedAthlete'
 
+// =====================================================================
+// Performance budget — Phase M8
+// =====================================================================
+//
+// The skinned preview is experimental, so the budget is
+// intentionally conservative:
+//
+//   per-figure triangle cap   ≤ 800 tris (target ~500-700)
+//   per-figure bone count     11 bones
+//   per-figure draw calls     1 (single SkinnedMesh, single material)
+//   per-figure textures       0 (no maps, no canvas textures)
+//   shared clips              3 cached on first build
+//
+// The scene currently builds 10 player figures per scenario. Even
+// at the cap the skinned path adds < 8000 tris and ten draw calls
+// to the existing rig, well under the procedural figure's per-
+// scenario triangle budget (Phase J / Phase L hold ~12000 player
+// tris alone). Mixer cost is per-bone-per-action, ~330 floats per
+// figure per tick — negligible.
+//
+// If a follow-up bumps the cap, update both this comment and the
+// matching test in `skinnedAthlete.test.ts`.
+export const SKINNED_ATHLETE_TRI_CAP = 800
+export const SKINNED_ATHLETE_BONE_COUNT = 11
+export const SKINNED_ATHLETE_DRAW_CALL_COUNT = 1
+
 /**
  * Names of the deterministic animation clips Phase M ships. Adding
  * a clip requires both extending this union and registering the
@@ -129,7 +155,11 @@ export function buildSkinnedAthletePreview(
     figure.add(skinnedMesh)
 
     const mixer = new THREE.AnimationMixer(skinnedMesh)
-    const clips = buildAnimationClips(bones)
+    // Phase M8 — clips depend only on bone *names*, which are
+    // constant across figures. Build once, share forever. Saves a
+    // KeyframeTrack array per figure and keeps the experimental
+    // path's allocation budget tight.
+    const clips = getCachedAnimationClips(bones)
     const actions: Record<string, THREE.AnimationAction> = {}
     for (const clip of clips) {
       const action = mixer.clipAction(clip)
@@ -329,6 +359,31 @@ function buildAnimationClips(bones: BoneSet): THREE.AnimationClip[] {
     buildCutSprintClip(bones),
     buildDefenseSlideClip(bones),
   ]
+}
+
+let _cachedClips: THREE.AnimationClip[] | null = null
+
+/**
+ * Returns the three skinned-athlete clips from a process-wide
+ * cache. The clips reference bone *names* only (not specific bone
+ * instances) so a single AnimationClip array is reusable across
+ * every figure — the AnimationMixer resolves names per-figure.
+ *
+ * Exported via `_resetSkinnedAthleteClipCache` for tests.
+ */
+function getCachedAnimationClips(bones: BoneSet): THREE.AnimationClip[] {
+  if (_cachedClips) return _cachedClips
+  _cachedClips = buildAnimationClips(bones)
+  return _cachedClips
+}
+
+/**
+ * Test-only — reset the clip cache between cases so a regression
+ * in clip construction shows up in the next test run rather than
+ * silently sharing the cached clips from a prior figure.
+ */
+export function _resetSkinnedAthleteClipCache(): void {
+  _cachedClips = null
 }
 
 /**
