@@ -228,3 +228,14 @@ The play runs for ~1.6 seconds:
 4. **FREEZE** at 1.5s — the ball just hit O4's hands; D4 is two feet away with parallel feet, momentum still forward.
 
 Defender's feet, your hands, and the empty lane behind D4 must all be visible at the freeze.
+
+### Timeline A — Best Read (Rip and Drive)
+
+| t | What you do | What the defense does | Result |
+| --- | --- | --- | --- |
+| 0.0s | Catch, rip ball low across body, push off back foot | D4 still flying forward, parallel feet | You're already moving |
+| 0.3s | First dribble past D4's lead foot, attacking middle | D4 tries to drop a foot back — too late, you're past their hip | Blow-by |
+| 0.6s | Second dribble into the paint | D1 has to leave PG to help; D5 stays on right corner | Lane is open |
+| 1.0s | Gather at the elbow, rim attack | D1 contesting late | Layup or kick to weak-side corner |
+
+**Outcome:** Layup or a 2-on-1 advantage with the help defender pulling off another shooter. Best-case basketball.
