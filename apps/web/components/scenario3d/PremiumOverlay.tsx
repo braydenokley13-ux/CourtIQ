@@ -78,10 +78,16 @@ export function PremiumOverlay({
   // instead of per-button JS state.
   const idleAttention = paused
 
-  // Phase D — in fullscreen the viewport is large; push controls away
-  // from the edge for breathing room and always show label text.
-  const inset = isFullscreen ? '20px' : '12px'
-  const bottomInset = isFullscreen ? '20px' : '12px'
+  // Phase L — in fullscreen the viewport is large; push controls
+  // away from the edge with intentional breathing room and always
+  // show label text. The bottom inset is pulled in further than the
+  // top inset (38px vs 24px) so the transport sits cleanly above the
+  // hardwood floor with film-room margin instead of crowding the
+  // bottom edge — Phase K used a flat 20px which felt cramped at
+  // 1080p+ resolutions and contributed to the "controls floating in
+  // black space" report when the canvas itself failed to fill.
+  const inset = isFullscreen ? '24px' : '12px'
+  const bottomInset = isFullscreen ? '38px' : '12px'
 
   return (
     <div
