@@ -181,3 +181,24 @@ To sign this packet off in production:
 
 If any of the above fails, file a follow-up under "Packet I —
 post-merge regression" and do not advance to Packet J.
+
+---
+
+## Player Visual and Performance Diagnosis
+
+Scene pass run on 2026-04-30 after syncing `main` to `49521e1`.
+
+Top visual blockers:
+- The athlete is still assembled from many obvious primitive parts, so the head, arms, legs, shoes, and uniform read as stacked pieces instead of one body.
+- The stance table poses the whole rigid figure at build time only; movement updates translate and yaw the root, so cuts still feel like sliding figures with fixed limbs.
+- From the gameplay camera, the trim rings, number panels, and dark hair/head shapes compete with the body silhouette, making the player read like a toy instead of an athletic figure.
+
+Top performance blockers:
+- The production canvas currently renders through R3F's `frameloop="always"` while a parent `requestAnimationFrame` loop also calls `gl.render()`, so normal scenes can be rendered twice per browser frame.
+- A default imperative scene measured 10 players, 672 meshes, 671 unique geometries, 376 materials, and about 36k triangles before overlays, which is high for a teaching scene that also animates overlays and camera.
+- Per-player indicators and polish use many transparent ring/cone/circle meshes, and the high-detail overlay path uses dense tube/ring geometry; even when indicators are necessary, their segment counts are higher than needed at the gameplay camera.
+
+Motion diagnosis:
+- Replay positions remain deterministic and allocation-light, but `findActivePlayerMovement()` and ball-phase lookup still scan small arrays every frame.
+- Camera smoothing is frame-rate independent and not the primary lag source by itself; the bigger feel issue is extra rendering work plus rigid limb poses.
+- Dust motes are already high-tier only and mutate buffers in place, so they are a secondary cost rather than the first thing to remove.
