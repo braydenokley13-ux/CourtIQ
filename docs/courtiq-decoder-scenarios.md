@@ -307,3 +307,5 @@ Floor markers under D4's feet are the signature visual: they make the parallel-f
 - **Weak-side corner defender stunting** — both feet inside the paint, eyes on you, body angled away from their own player.
 - The weak-side corner is wide open — visibly so.
 - Strong-side corner defender is *still* glued to the strong corner (they did NOT help — only the weak-side stunted).
+
+**Question Prompt:** "Two defenders just collapsed on you. Where's the open shooter?"
