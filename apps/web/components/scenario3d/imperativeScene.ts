@@ -4132,7 +4132,107 @@ function buildPremiumAthleteFigure(
   upgradePremiumTorso(figure)
   upgradePremiumHeadAndShoulders(figure)
   upgradePremiumArms(figure)
+  upgradePremiumLegsAndFeet(figure)
   return figure
+}
+
+/**
+ * Phase J3D — replace thigh/calf cylinders with lathe profiles that
+ * carry subtle quad/calf swell, and add a toe-cap dome on each shoe so
+ * the sneaker reads as athletic footwear instead of a flat block.
+ * Pivots, lengths, and parent transforms are preserved; stance
+ * application is untouched.
+ */
+function upgradePremiumLegsAndFeet(figure: THREE.Object3D): void {
+  for (const legName of ['leftLeg', 'rightLeg'] as const) {
+    const leg = figure.getObjectByName(legName) as THREE.Group | null
+    if (!leg) continue
+    const thigh = leg.getObjectByName('thigh') as THREE.Group | null
+    const calf = leg.getObjectByName('calf') as THREE.Group | null
+    const foot = leg.getObjectByName('foot') as THREE.Group | null
+    if (!thigh || !calf || !foot) continue
+    upgradeLegSegment(thigh, [
+      new THREE.Vector2(ATH_THIGH_TOP_R * 1.05, ATH_THIGH_LENGTH * 0.5),
+      new THREE.Vector2(ATH_THIGH_TOP_R * 1.10, ATH_THIGH_LENGTH * 0.22),
+      new THREE.Vector2(ATH_THIGH_TOP_R * 0.92, -ATH_THIGH_LENGTH * 0.10),
+      new THREE.Vector2(ATH_THIGH_BOT_R * 1.00, -ATH_THIGH_LENGTH * 0.5),
+    ])
+    upgradeLegSegment(calf, [
+      new THREE.Vector2(ATH_CALF_TOP_R * 1.05, ATH_CALF_LENGTH * 0.5),
+      new THREE.Vector2(ATH_CALF_TOP_R * 1.20, ATH_CALF_LENGTH * 0.18),
+      new THREE.Vector2(ATH_CALF_BOT_R * 1.05, -ATH_CALF_LENGTH * 0.20),
+      new THREE.Vector2(ATH_CALF_BOT_R * 0.95, -ATH_CALF_LENGTH * 0.5),
+    ])
+    upgradePremiumShoe(foot)
+  }
+}
+
+function upgradeLegSegment(
+  segment: THREE.Group,
+  profile: THREE.Vector2[],
+): void {
+  for (const child of segment.children) {
+    if (child instanceof THREE.Mesh && child.geometry instanceof THREE.CylinderGeometry) {
+      const oldGeom = child.geometry
+      child.geometry = new THREE.LatheGeometry(profile, 10)
+      oldGeom.dispose()
+      return
+    }
+  }
+}
+
+/**
+ * Phase J3D — add a toe-cap dome and a heel cap on top of the existing
+ * Phase F shoe block. Reuses the shoe / accent materials read off the
+ * existing shoe meshes so per-figure material count is unchanged.
+ */
+function upgradePremiumShoe(foot: THREE.Group): void {
+  let shoeMat: THREE.Material | null = null
+  let accentMat: THREE.Material | null = null
+  for (const child of foot.children) {
+    if (!(child instanceof THREE.Mesh)) continue
+    const m = child.material
+    if (Array.isArray(m)) continue
+    if (!shoeMat && child.geometry instanceof THREE.BoxGeometry) {
+      // First box is the shoe block (shoe color); midsole is the
+      // taller-but-thinner box (accent color). The shoe block was
+      // added first.
+      shoeMat = m
+    } else if (!accentMat) {
+      accentMat = m
+    }
+  }
+  if (!shoeMat || !accentMat) return
+  // Toe-cap dome at the front of the foot — sells "this is a shoe".
+  const toeCap = new THREE.Mesh(
+    new THREE.SphereGeometry(
+      ATH_FOOT_WIDTH * 0.48,
+      10,
+      6,
+      0,
+      Math.PI * 2,
+      0,
+      Math.PI * 0.55,
+    ),
+    shoeMat,
+  )
+  toeCap.position.set(0, ATH_FOOT_HEIGHT * 0.55, -ATH_FOOT_LENGTH * 0.55)
+  toeCap.scale.set(1, 0.9, 1.05)
+  toeCap.castShadow = true
+  foot.add(toeCap)
+  // Heel counter — small accent block at the back of the shoe so the
+  // silhouette has a clear forward direction from above.
+  const heelCounter = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      ATH_FOOT_WIDTH * 0.95,
+      ATH_FOOT_HEIGHT * 0.85,
+      ATH_FOOT_LENGTH * 0.22,
+    ),
+    accentMat,
+  )
+  heelCounter.position.set(0, ATH_FOOT_HEIGHT * 0.55, ATH_FOOT_LENGTH * 0.32)
+  heelCounter.castShadow = true
+  foot.add(heelCounter)
 }
 
 /**
