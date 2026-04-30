@@ -65,3 +65,13 @@ These notes are implementation-level QA derived from the Phase M builder + tests
 - Caveat: the low-poly silhouette is uglier at close-up than the procedural premium athlete, so the skinned path improves *motion clarity* but regresses *static visual quality*.
 
 ## Phase N — Skinned vs Procedural Decision
+
+| dimension              | procedural (default) | skinned preview        | winner       |
+| ---------------------- | -------------------- | ---------------------- | ------------ |
+| athlete look           | premium silhouette   | low-poly cylinder rig  | procedural   |
+| motion feel            | rigid sub-group      | real bone deformation  | skinned      |
+| gameplay-camera read   | clean                | clean                  | tie          |
+| fullscreen behavior    | stable               | stable                 | tie          |
+| indicator stability    | stable               | stable                 | tie          |
+| performance            | well under budget    | well under budget      | tie          |
+| teaching clarity       | clear                | clearer at replay      | skinned      |
