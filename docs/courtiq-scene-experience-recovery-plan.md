@@ -1329,5 +1329,92 @@ Run D1 → D2 → D3 → D4 → D5 in order. Commit small. Stop at the
 Phase D acceptance criteria.
 ```
 
+### 10.5 Phase E — Player Geometry Strategy Spike only
+
+```
+Read docs/courtiq-scene-experience-recovery-plan.md, Section 6,
+Phase E. Also read Sections 6, 13, 14, and 17.5 of
+docs/courtiq-premium-scene-visual-system-plan.md.
+
+Do Phase E ONLY. This is a decision phase, not an implementation
+phase. Do NOT land redesign code on the recovery branch.
+
+Inspect first:
+- apps/web/components/scenario3d/imperativeScene.ts
+  (buildPlayerFigure ~L3193, palette L25–L103, ring stack
+  ~L3198–L3289)
+- the Phase 7 record in
+  docs/courtiq-premium-scene-visual-system-plan.md Section 18 for
+  current QA bar
+
+Output the four E micro-milestones (E1–E4) appended to this doc.
+Any prototype lives in a scratch branch only and is not merged.
+
+Commit small. Stop after E4. Do not start Phase F.
+```
+
+### 10.6 Phase F — Player Geometry Redesign only
+
+```
+Read docs/courtiq-scene-experience-recovery-plan.md, Section 6,
+Phase F, plus the Phase E "Chosen Path" subsection written by
+the prior session.
+
+Implement Phase F ONLY using the chosen path. Do not change
+replay, motion, fullscreen, or copy.
+
+Constraints:
+- Preserve all existing indicator layers (base ring, user halo,
+  possession ring, focus marks, contact shadow).
+- Stay within Section 14 performance rules; record tri-count
+  baseline.
+- Every new mesh/material/texture must be reachable by
+  disposeGroup / disposeMaterialTextures.
+- Do not change palette constants without a docs note.
+
+Run F1 → F2 → F3 → F4 → F5 in order. Commit small. Stop at the
+Phase F acceptance criteria.
+```
+
+### 10.7 Phase G — Young-Player Copy Pass only
+
+```
+Read docs/courtiq-scene-experience-recovery-plan.md, Section 6,
+Phase G.
+
+Implement Phase G ONLY. Do not change scene logic, replay, or
+geometry.
+
+Constraints:
+- Live-decision copy first (G3), feedback second (G4).
+- Preserve basketball meaning. If a rewrite would teach the
+  wrong read, leave the harder word.
+- Do not author new scenarios. Only BDW-01 strings are in scope.
+- Honor any existing i18n wrapping.
+
+Run G1 → G2 → G3 → G4 → G5 in order. Commit small. Stop at the
+Phase G acceptance criteria.
+```
+
+### 10.8 Phase H — Final QA / Integration only
+
+```
+Read docs/courtiq-scene-experience-recovery-plan.md, Section 6,
+Phase H, plus Section 15 of
+docs/courtiq-premium-scene-visual-system-plan.md (QA checklist).
+
+Do Phase H ONLY. No new features, no new scenarios, no new
+visuals beyond constant tuning.
+
+Inspect first:
+- the surfaces touched in Phases B–G
+- the Section 15 QA checklist
+- the replay matrix and fullscreen matrix subsections from
+  Phases B and D
+
+Run H1 → H2 → H3 → H4 in order. Commit small. Stop after H4. Do
+not start scenario authoring.
+```
+
 
 
