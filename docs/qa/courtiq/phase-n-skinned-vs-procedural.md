@@ -83,3 +83,12 @@ Path **D — hybrid**: keep procedural as the production default now, but contin
 - The generated low-poly prototype proves the SkinnedMesh + AnimationMixer architecture works (clips, indicators, fallback, budget) but does not on its own clear the bar for premium static visuals.
 - The motion-clarity win is real. The static-look regression is also real. A license-clean GLB rig is the smallest next step that lets us keep the motion architecture and recover premium look.
 - Procedural fallback remains the safety net. Do not delete the procedural path. Do not flip `USE_SKINNED_ATHLETE_PREVIEW` to `true` for production. Do not ship a GLB until the licensing + retargeting pass is scoped.
+
+## Phase N Findings
+
+1. Did the skinned preview render path exist? Yes — `buildSkinnedAthletePreview` ships an 11-bone SkinnedMesh + AnimationMixer with three named clips, gated by `USE_SKINNED_ATHLETE_PREVIEW`.
+2. Is skinned the default? No — flag default is `false`; production renders the procedural premium / Phase F figure.
+3. Which path wins now? Procedural for static look; skinned for motion clarity. Production stays procedural.
+4. Biggest blocker? The generated low-poly cylinder rig regresses static visual quality vs the procedural premium athlete.
+5. What should happen next? Phase O — source a license-clean GLB rig, retarget the three Phase M clips onto it, and run the same comparison.
+6. What should NOT happen next? Do not flip the flag for production, do not delete procedural, do not start broad polish before the GLB experiment lands.
