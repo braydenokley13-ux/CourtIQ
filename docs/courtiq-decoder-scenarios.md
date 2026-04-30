@@ -173,3 +173,14 @@ All overlays must clear after 1.2s into Timeline A so the player can see the cle
 - The lane behind them is empty.
 
 **Question Prompt:** "He flew at you. No gap to shoot. What do you do?"
+
+**Best Read:** Rip and drive — one hard dribble past their lead foot, attack the empty lane immediately. Their parallel feet can't change direction in time.
+
+**Acceptable Reads:**
+- Sweep dribble across the body to attack baseline (slightly slower but same idea — uses their forward momentum).
+- Shot fake then drive (only if you're certain — the fake adds a beat that lets feet recover).
+
+**Bad Reads:**
+- Shoot a contested 3 (no gap, hand in face — low percentage).
+- Hold and reset to swing (advantage was *real*; you wasted it).
+- Pump fake and stand (their feet are flat, they're not jumping; you just hand the advantage back).
