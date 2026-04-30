@@ -128,3 +128,16 @@ The empty corner, the head turn, and the open baseline lane must all be inside t
 | Bad-cut lane | Straight line from O4 up to the top of the key | Red dashed (only shown after a wrong answer) |
 
 All overlays must clear after 1.2s into Timeline A so the player can see the clean catch.
+
+### Feedback Text
+
+**Correct (best read — baseline sneak):**
+> "Smart move. His eyes left, your feet moved. That's the whole decoder."
+
+**Partial (acceptable read — slow drift / shake-then-go):**
+> "Right idea — you used the empty corner. Next time push off harder the moment his head turns; you'll get there a half-second sooner."
+
+**Wrong (stand still / cut up / cut under rim):**
+> "Watch his head, not the ball. The second his eyes left you, the corner was free. You either stayed put or cut into traffic — both close the window. Try it again, and look for the head turn."
+
+---
