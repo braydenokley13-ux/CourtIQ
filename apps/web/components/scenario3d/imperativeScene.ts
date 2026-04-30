@@ -4044,7 +4044,7 @@ function buildAthleteFigure(
   const shortsMesh = new THREE.Mesh(
     new THREE.CylinderGeometry(
       ATH_PELVIS_WIDTH * 0.42,
-      ATH_PELVIS_WIDTH * 0.5,
+      ATH_PELVIS_WIDTH * 0.55,
       ATH_PELVIS_HEIGHT,
       12,
       1,
@@ -4057,6 +4057,20 @@ function buildAthleteFigure(
   shortsMesh.castShadow = true
   shortsMesh.receiveShadow = true
   pelvis.add(shortsMesh)
+  // Side stripes on the shorts — thin trim-color bands hugging both
+  // hips so the uniform reads symmetrically from any yaw.
+  for (const sign of [-1, 1] as const) {
+    const stripe = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06, ATH_PELVIS_HEIGHT * 0.85, ATH_PELVIS_DEPTH * 0.78),
+      trimMat,
+    )
+    stripe.position.set(
+      sign * ATH_PELVIS_WIDTH * 0.5,
+      -ATH_PELVIS_HEIGHT * 0.45,
+      0,
+    )
+    pelvis.add(stripe)
+  }
 
   const torso = new THREE.Group()
   torso.name = 'torso'
@@ -4080,6 +4094,39 @@ function buildAthleteFigure(
   torsoMesh.castShadow = true
   torsoMesh.receiveShadow = true
   torso.add(torsoMesh)
+  // Deltoid cap — a flattened sphere that sits on top of the torso
+  // shoulders. Reads as the rounded muscle line under a sleeveless
+  // jersey instead of a bar across the top of a tube.
+  const shoulderCap = new THREE.Mesh(
+    new THREE.SphereGeometry(ATH_TORSO_TOP_W * 0.55, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.6),
+    jerseyMat,
+  )
+  shoulderCap.position.y = ATH_TORSO_HEIGHT * 0.95
+  shoulderCap.scale.set(1, 0.5, ATH_TORSO_DEPTH / ATH_TORSO_TOP_W)
+  shoulderCap.castShadow = true
+  torso.add(shoulderCap)
+  // Chest accent — thin trim band across the upper chest so the
+  // jersey reads as a real uniform.
+  const chestStripe = new THREE.Mesh(
+    new THREE.BoxGeometry(ATH_TORSO_TOP_W * 0.92, 0.08, ATH_TORSO_DEPTH * 0.85),
+    trimMat,
+  )
+  chestStripe.position.y = ATH_TORSO_HEIGHT * 0.78
+  torso.add(chestStripe)
+  // Waistband — thin trim band where the jersey meets the shorts so
+  // the uniform reads as two pieces from the broadcast camera.
+  const waistband = new THREE.Mesh(
+    new THREE.CylinderGeometry(
+      ATH_TORSO_BOT_W * 0.51,
+      ATH_TORSO_BOT_W * 0.51,
+      0.12,
+      12,
+    ),
+    trimMat,
+  )
+  waistband.position.y = 0.06
+  waistband.scale.set(1, 1, ATH_TORSO_DEPTH / ATH_TORSO_TOP_W)
+  torso.add(waistband)
 
   const neckHead = new THREE.Group()
   neckHead.name = 'neckHead'
