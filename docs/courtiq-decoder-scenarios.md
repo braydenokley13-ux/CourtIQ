@@ -45,3 +45,11 @@ Design specs for the 3D film-room decision scenarios.
 - Stand still and hold your spot (kills the empty space).
 - Cut up to the top of the key (cuts toward your defender's eyes, not behind them).
 - Run all the way under the rim (drags the help defender into the corner you wanted).
+
+**Common Miss Reason:** Players watch the ball instead of the defender. They wait to be passed to instead of moving when the defender's eyes leave them. The empty corner closes in 1 second.
+
+**Why the Best Read Works:** Defenders can only react to what they're looking at. The instant their head turns, you have a free half-second of motion before they can recover. The empty corner means there's no second defender close enough to switch onto you — the space stays open all the way to the catch.
+
+**Lesson Connection:** Decoder 1 — *The Empty-Space Cut*. The cue here is **head turn + empty space**. Same cue, every time, in every scenario.
+
+**One-Sentence Teaching Point:** "When the eyes leave, the feet move."
