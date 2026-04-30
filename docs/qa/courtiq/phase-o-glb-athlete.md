@@ -373,5 +373,67 @@ Phase N:
    QA with all three paths live) → O6 (validation) → O7 (findings
    refresh).
 
+## Phase O-ASSET — Selection (OA1)
+
+The asset selected for the smallest-safe GLB preview path is:
+
+- **Pack:** Quaternius Universal Animation Library 2 — Standard.
+- **Specific file:** `Female Mannequin/Unreal-Godot/Mannequin_F.glb`.
+- **Distribution archive:** `universal_animation_library_2standard.zip`,
+  hosted at
+  <https://opengameart.org/content/universal-animation-library-2>
+  (mirror of the Quaternius release at
+  <https://quaternius.com/packs/universalanimationlibrary2.html>).
+- **License:** CC0 1.0 Universal — confirmed by the bundled
+  `License.txt` ("CC0 1.0 Universal (CC0 1.0) Public Domain
+  Dedication") and the OpenGameArt CC0 badge on the listing page.
+
+### Why this specific file
+
+| gate                         | result                                                    |
+| ---------------------------- | --------------------------------------------------------- |
+| license is acceptable        | ✅ CC0 1.0, public-domain dedication                       |
+| humanoid rig is usable       | ✅ 65-bone UE5/Unreal-Godot skeleton (root, pelvis, spine_01..03, neck_01, Head, clavicle_l/r, upperarm_l/r, lowerarm_l/r, hand_l/r, thigh_l/r, calf_l/r, foot_l/r) |
+| single SkinnedMesh           | ✅ one mesh, one primitive, one buffer (10,070 verts / 6,415 tris) |
+| works with our render path   | ✅ no textures (2 materials we override at runtime), so team colors apply cleanly |
+| file size target (≤ 500 KB)  | ⚠ **1.4 MB** — exceeds soft cap; see deviation note below |
+| broadcast-distance silhouette | ✅ real shoulders, hands, feet, separated knees — recovers Phase N static-look regression |
+
+### Size deviation from the 500 KB soft target
+
+The smallest CC0 humanoid GLB available from Quaternius is the
+1,442,824-byte `Mannequin_F.glb`. The other GLB in the same pack —
+`UAL2_Standard.glb` at 7.7 MB — is the rig + 43 themed animations and
+is far too large; its animations (lantern, rail, shield, ninja, sword,
+zombie, etc.) are also not basketball-style, so it buys us nothing for
+the BDW-01 scene. There is no smaller CC0 humanoid GLB on Quaternius.
+
+We accept the 1.4 MB cold-load weight because:
+
+- The asset is shared across all 10 BDW-01 figures (loaded once, the
+  parsed `GLTF` is cached so each figure clones a `SkinnedMesh` view
+  rather than re-parsing the buffer).
+- The flag is `false` by default, so production traffic never pays
+  this cost. Only flag-on visual-QA sessions touch the asset.
+- Decimating below 1.4 MB would require a Blender / gltf-pipeline /
+  gltf-transform / Draco pipeline that is not currently part of this
+  repo's tooling. Adding that pipeline is explicitly out of scope for
+  Phase O-ASSET (the prompt forbids "a huge asset pipeline").
+
+### What this asset does NOT include
+
+- **No embedded animations.** Per the Quaternius README, the female
+  mannequin file ships without animations on purpose; the UAL2
+  Standard companion file holds the 43 shared clips. Even those clips
+  are themed, not basketball — none of them are `idle_ready`,
+  `cut_sprint`, or `defense_slide`. Animation strategy is therefore
+  deferred (see OA5 below).
+- **No textures.** The two embedded materials are flat shaders; team
+  colors are applied at runtime by the loader so the user / offense /
+  defense jerseys render correctly.
+
+The asset itself is committed in OA2.
+
+
 
 
