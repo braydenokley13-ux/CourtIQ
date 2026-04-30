@@ -935,5 +935,112 @@ warranted.
   regression vs. Phase 7 record.
 - Suggested commit message: `test(scene): verify new player geometry QA`
 
+---
+
+### Phase G — Young-Player Copy Pass
+
+#### Goal
+Rewrite live-decision and feedback copy at roughly a 3rd-grade
+reading level while preserving real basketball meaning. Live-
+decision wording first, then feedback.
+
+#### Why this phase matters
+Today's copy is gettable for adults but bounces younger players.
+Wording is the cheapest place CourtIQ loses users. Fixing it after
+the scene works (Phases B–F) means the lesson and the visual now
+match in tone.
+
+#### Files likely involved
+- `apps/web/app/train/page.tsx` — `DECODER_LABELS`,
+  `DECODER_HANDOFF`, prompt strings, "Show me again" button copy,
+  miss-toast text (~L40–L111 plus shell strings).
+- `packages/db/seed/scenarios/packs/founder-v0/BDW-01.json` —
+  prompt, choices, feedback strings.
+- `apps/web/app/train/{ChoiceCard,FeedbackPanel,PhaseTracker,DecoderLessonPanel,SelfReviewChecklist}.tsx`
+  — labels, microcopy.
+- `apps/web/lib/services/scenarioService.ts` — any service-level
+  copy.
+- Optional: a new `apps/web/lib/copy/` module if Phase G2 decides
+  copy needs a single home.
+
+#### Risks / boundaries
+- Do not change scene logic, replay logic, or scoring logic.
+- Do not author new scenarios or new decoders.
+- Do not change basketball meaning to make copy easier — if a
+  rewrite would teach the wrong read, leave the harder word.
+- Do not break i18n if any copy is wrapped in a translator
+  helper (check before editing).
+
+#### Acceptance criteria
+- Live-decision prompts and choice strings on BDW-01 score at or
+  below ~3rd-grade Flesch-Kincaid.
+- Feedback strings on BDW-01 follow the same target with a
+  small allowance for one teaching term per feedback block.
+- Basketball meaning preserved: every decoder still teaches its
+  intended read.
+- A "Copy Rules" subsection exists in this doc that future
+  scenarios can adopt.
+
+#### Suggested model
+**Sonnet 4.6 Medium-High.** Writing-heavy, low engineering risk.
+
+#### Suggested commit style
+- 1 audit commit.
+- 1 rules commit.
+- 2–3 rewrite commits (live-decision, feedback, shell labels).
+- 1 QA commit.
+
+#### Micro-milestones
+
+**G1 — Copy source audit**
+- Objective: list every file that holds user-facing copy on the
+  live-decision and feedback paths; capture current strings.
+- Likely files: docs only (sourced from the files above).
+- What changes: append a "Copy Source Audit" subsection.
+- Exit criteria: every BDW-01 user-facing string is named with
+  source file/line.
+- Suggested commit message: `docs: audit copy source locations`
+
+**G2 — Global copy rules**
+- Objective: establish the copy rules — short sentences, one
+  basketball idea per line, allowed teaching terms list, banned
+  jargon list, tone target.
+- Likely files: docs only.
+- What changes: append a "Copy Rules" subsection.
+- Exit criteria: rules concrete enough that another writer
+  could follow them blind.
+- Suggested commit message: `docs: define young-player copy rules`
+
+**G3 — BDW-01 live-decision rewrite**
+- Objective: rewrite the prompt, choice cards, and any
+  pre-decision shell text on BDW-01 to the new rules.
+- Likely files: `BDW-01.json`, `app/train/page.tsx`,
+  `ChoiceCard.tsx`.
+- What changes: string edits only; verify reading-level target.
+- Exit criteria: prompt + each choice readable to a 3rd grader;
+  meaning preserved.
+- Suggested commit message: `copy(bdw-01): simplify live-decision wording`
+
+**G4 — BDW-01 feedback rewrite**
+- Objective: rewrite the post-decision feedback, decoder lesson
+  copy, and self-review checklist on BDW-01.
+- Likely files: `BDW-01.json`, `FeedbackPanel.tsx`,
+  `DecoderLessonPanel.tsx`, `SelfReviewChecklist.tsx`.
+- What changes: string edits only.
+- Exit criteria: feedback reads at target level; teaching points
+  intact.
+- Suggested commit message: `copy(bdw-01): simplify feedback wording`
+
+**G5 — Copy QA pass**
+- Objective: read every new string aloud as if a 3rd grader is
+  reading it; spot-check meaning with a basketball reviewer if
+  available; lock the rules.
+- Likely files: docs.
+- What changes: append a "Copy QA Notes" subsection; flag any
+  rewrite that lost meaning.
+- Exit criteria: no string fails the reading-level target; no
+  string fails the meaning check.
+- Suggested commit message: `docs: record copy QA results`
+
 
 
