@@ -354,5 +354,130 @@ output. Max thinking budget is unnecessary; high is enough.
   estimated diff size (S / M / L), and a dependency on prior items.
 - Suggested commit message: `docs: recommend replay Phase B work list`
 
+---
+
+### Phase B — Replay Reliability Fix
+
+#### Goal
+Implement the Phase A recommendations so play, pause, restart,
+speed control, and consequence replay behave correctly and never
+strand the scene in a stuck state.
+
+#### Why this phase matters
+Replay is the learning loop. Until B lands, no other fix is
+trustworthy because every other fix gets observed *through* a
+broken replay.
+
+#### Files likely involved
+- `apps/web/components/scenario3d/imperativeScene.ts` —
+  `MotionController.setPaused`, `setPlaybackRate`, `reset`,
+  `swapMode`, the elapsed-ms math at L1107 and rebase math at
+  L1086–L1095; `ReplayStateMachine.transition` and `pick` /
+  `showAgain` paths.
+- `apps/web/components/scenario3d/Scenario3DCanvas.tsx` — the
+  paused/playbackRate effects (L844–L849) and the resetCounter
+  pipeline.
+- `apps/web/components/scenario3d/Scenario3DView.tsx` — the
+  replayMode/resetCounter reset effect; the `restartTick` /
+  `compositeResetCounter` composition.
+- `apps/web/components/scenario3d/PremiumOverlay.tsx` — control
+  button states; speed selector.
+- `apps/web/components/scenario3d/replayStateMachine.test.ts` —
+  add tests covering each fix.
+
+#### Risks / boundaries
+- Do not redesign the state machine. Fix transitions and rebases.
+- Do not touch the parent rAF loop or FPS guard.
+- Do not alter `MOTION_PRE_DELAY_MS` unless A4 explicitly says so.
+- No new visual features. No motion-feel changes (that is Phase C).
+
+#### Acceptance criteria
+- Play, pause, and restart are reliable on every replay leg
+  (intro, frozen, consequence, answer, done).
+- 0.5x / 1x / 2x apply on all legs without jumping the timeline.
+- Restart from any state returns to the start of the active leg
+  with paused = false and the user's chosen speed preserved.
+- "Show me again" cycles `done → replaying → done` cleanly.
+- No stuck state is reachable from button mashing in <30 s of
+  interaction on BDW-01.
+- All existing tests in `replayStateMachine.test.ts` still pass;
+  at least 3 new tests cover the previously broken behaviors.
+
+#### Suggested model
+**Opus 4.7 Max.** State-machine + timing fixes carry high
+regression risk; max thinking is worth the cost.
+
+#### Suggested commit style
+- 0 audit commits (Phase A delivered the audit).
+- 4–5 implementation commits, one per micro-milestone.
+- 1 QA/tuning commit.
+
+#### Micro-milestones
+
+**B1 — Fix play/pause state consistency**
+- Objective: ensure `paused` prop, `MotionController.isPaused()`,
+  and the visible scene always agree, including after a leg swap.
+- Likely files: `imperativeScene.ts` (`setPaused`, `getElapsedMs`),
+  `Scenario3DCanvas.tsx` (paused effect), `Scenario3DView.tsx`.
+- What changes: tighten the rebase math in `setPaused`, ensure
+  `swapMode` preserves or resets `pausedAtT` deliberately, ensure
+  the canvas effect re-applies `paused` after a leg swap.
+- Exit criteria: pause is honored across an intro→frozen
+  transition and a consequence leg; resume continues from the
+  paused frame.
+- Suggested commit message: `fix(replay): make pause survive leg swaps`
+
+**B2 — Fix restart/reset behavior**
+- Objective: restart returns to the start of the active leg with
+  paused cleared, user's speed preserved, and no half-played
+  motion artifacts.
+- Likely files: `imperativeScene.ts` (`reset`), `Scenario3DView.tsx`
+  (`restartTick`, `compositeResetCounter`), `Scenario3DCanvas.tsx`.
+- What changes: clarify which leg `reset` returns to, ensure the
+  `compositeResetCounter` effect cancels in-flight transitions,
+  reset `pausedAtT` and rebase `startedAt`.
+- Exit criteria: hammering Restart 10 times in a row leaves the
+  scene at frame 0 of the current leg, paused = false, speed
+  preserved.
+- Suggested commit message: `fix(replay): stabilize restart and reset`
+
+**B3 — Fix speed-control application**
+- Objective: speed changes apply on every leg without timeline
+  jumps; speed survives leg swaps and restarts.
+- Likely files: `imperativeScene.ts` (`setPlaybackRate`,
+  `getElapsedMs`), `Scenario3DCanvas.tsx`.
+- What changes: confirm the rebase formula at L1071–L1075 is
+  applied identically on every code path that changes rate, and
+  that `swapMode` carries the rate forward.
+- Exit criteria: switching 0.5x ↔ 2x mid-play does not jump the
+  scene; switching speed during a frozen state takes effect on
+  resume.
+- Suggested commit message: `fix(replay): apply speed cleanly across legs`
+
+**B4 — Fix consequence replay path**
+- Objective: wrong picks play the matching wrongDemo leg end-to-end
+  and then transition to `done` cleanly; right picks short-circuit
+  to the answer leg.
+- Likely files: `imperativeScene.ts` (`ReplayStateMachine.pick`,
+  `swapMode`), `Scenario3DCanvas.tsx`, `app/train/page.tsx`
+  (`pickedChoiceId`).
+- What changes: ensure `pickedChoiceId` reaches the state machine,
+  the matching wrongDemo is loaded, and the `consequence → replaying`
+  transition does not double-fire.
+- Exit criteria: each authored choice in BDW-01 produces the
+  correct leg sequence and arrives at `done` exactly once.
+- Suggested commit message: `fix(replay): correct consequence leg dispatch`
+
+**B5 — Replay QA pass**
+- Objective: regression-test the full replay matrix on BDW-01
+  with the simple path and the full path; lock in test coverage.
+- Likely files: `replayStateMachine.test.ts`, manual QA notes
+  appended to this doc.
+- What changes: add tests for B1–B4, run lint + typecheck +
+  tests, append a QA results subsection.
+- Exit criteria: all tests pass, manual QA checklist clean on
+  BDW-01.
+- Suggested commit message: `test(replay): cover Phase B regressions`
+
 
 
