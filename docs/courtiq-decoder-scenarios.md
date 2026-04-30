@@ -328,3 +328,20 @@ Floor markers under D4's feet are the signature visual: they make the parallel-f
 **Lesson Connection:** Decoder 3 — *Skip the Rotation*. The cue here is **2 in the paint + a stunting weak-side defender**. Same cue, every drive-and-kick.
 
 **One-Sentence Teaching Point:** "Look opposite the help. The shooter you can't see first is the one who's open."
+
+### 3D Court Setup
+
+Coordinates in feet, origin at rim, +x = right, +z = toward half-court. You are driving from the **right wing** to the **right elbow**.
+
+| ID | Role | x | z | Notes |
+| --- | --- | --- | --- | --- |
+| O1 | PG | 0 | 19 | Top — original passer |
+| O2 | Strong-side (right) corner | 22 | 1 | Spaced — defender stayed |
+| O3 | Weak-side (left) wing | -18 | 8 | Spaced — defender stayed |
+| **O4** | **You — driver at elbow** | 5 | 14 | At freeze; originally at (18, 8) |
+| O5 | **Weak-side corner shooter — OPEN** | -22 | 1 | The skip target |
+| D1 | On O1 | 0 | 17 | Drop, ball-watching |
+| D2 | On O2 | 21 | 3 | Tight on strong corner — **never helped** |
+| D3 | On O3 | -15 | 9 | Ball-watching, still on their player |
+| D4 | Trailing you | 7 | 13 | **First body in paint** — behind your hip |
+| **D5** | **Stunting from weak corner** | -12 | 6 | **Second body in paint** — left O5 to over-help |
