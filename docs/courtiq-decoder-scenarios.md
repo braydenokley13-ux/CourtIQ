@@ -90,3 +90,15 @@ The play runs for ~2.0 seconds:
 4. **FREEZE** at 1.5s — the exact frame where D4's head reaches its peak rotation toward the ball, before D4 can re-find you.
 
 The empty corner, the head turn, and the open baseline lane must all be inside the frame at the freeze.
+
+### Timeline A — Best Read (Baseline Sneak)
+
+| t | What you do | What the defense does | Result |
+| --- | --- | --- | --- |
+| 0.0s | Plant outside foot, push off toward baseline | D4 still has head on the ball | You gain a half-step |
+| 0.4s | Sprint along the baseline at ~3-foot depth | D4's head snaps back, body tries to chase | You're past D4's hip |
+| 0.8s | Arrive at empty corner (-22, 1), low and ready | D4 trailing by 4 feet; D5 still glued to post | You are wide open |
+| 1.0s | O2 fires the skip pass | D3 closes out late from strong corner | Catch is clean |
+| 1.4s | Catch and rise / shot-ready | D4 still recovering | Open corner three or one-dribble closeout attack |
+
+**Outcome:** Catch-and-shoot 3 or a clean drive against a hard closeout. High-quality possession.
