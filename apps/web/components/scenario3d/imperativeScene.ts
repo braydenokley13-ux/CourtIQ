@@ -4604,10 +4604,47 @@ function applyAthleteStance(joints: AthleteJoints, stance: PlayerStance): void {
     case 'idle':
       applyIdlePose(joints)
       return
+    case 'defensive':
+      applyDefensivePose(joints)
+      return
     default:
       applyIdlePose(joints)
       return
   }
+}
+
+/**
+ * Defensive stance — knees bent, hips low, feet wider than
+ * shoulders, hands out. Real leg articulation: thigh rotates
+ * forward, calf rotates back, so the knee actually breaks. Torso
+ * tilts forward and the upperBody anchor drops so the figure reads
+ * as crouched, not like a standing player who shrunk.
+ */
+function applyDefensivePose(joints: AthleteJoints): void {
+  // Lower body — stance lower, wider feet, real bent knees.
+  joints.upperBody.position.y = -0.32
+  // Spread feet outward by widening the leg pivots' z-rotation. Use
+  // a small outward kick on each thigh so the knees splay athletic-
+  // style; the calf bends back so the foot stays roughly under the
+  // hip from the side view.
+  joints.leftThigh.rotation.set(-0.55, 0, -0.18)
+  joints.leftCalf.rotation.set(0.85, 0, 0)
+  joints.leftFoot.rotation.set(-0.30, 0, 0)
+  joints.rightThigh.rotation.set(-0.55, 0, 0.18)
+  joints.rightCalf.rotation.set(0.85, 0, 0)
+  joints.rightFoot.rotation.set(-0.30, 0, 0)
+  // Pelvis tilts forward a touch so the back is angled toward the
+  // ball instead of straight up.
+  joints.pelvis.rotation.set(0.18, 0, 0)
+  joints.torso.rotation.set(-0.18, 0, 0)
+  joints.neckHead.rotation.set(0.05, 0, 0)
+  // Arms — both out and forward, palms-down basketball defensive
+  // hands. Upper arm rotates outward + forward; forearm rotates
+  // forward at the elbow so hands extend past the body.
+  joints.leftUpperArm.rotation.set(-0.55, 0, 0.85)
+  joints.leftForeArm.rotation.set(-0.45, 0, 0)
+  joints.rightUpperArm.rotation.set(-0.55, 0, -0.85)
+  joints.rightForeArm.rotation.set(-0.45, 0, 0)
 }
 
 /**
