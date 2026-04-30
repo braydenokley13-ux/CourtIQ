@@ -4127,6 +4127,32 @@ function buildAthleteFigure(
   waistband.position.y = 0.06
   waistband.scale.set(1, 1, ATH_TORSO_DEPTH / ATH_TORSO_TOP_W)
   torso.add(waistband)
+  // Jersey number panels (front + back). Reuses the existing canvas
+  // texture helper so the disposal path stays unchanged. Front face
+  // is -z by Three.js convention; the figure root is rotated so -z
+  // points toward the camera for offense / away from rim for
+  // defense, matching the legacy builder.
+  const numberTex = makeJerseyNumberTexture(jerseyNumber, teamColor, trimColor)
+  if (numberTex) {
+    const numberMat = new THREE.MeshBasicMaterial({
+      map: numberTex,
+      toneMapped: false,
+      transparent: false,
+    })
+    const frontPanel = new THREE.Mesh(
+      new THREE.PlaneGeometry(ATH_TORSO_TOP_W * 0.7, ATH_TORSO_HEIGHT * 0.55),
+      numberMat,
+    )
+    frontPanel.position.set(0, ATH_TORSO_HEIGHT * 0.5, -ATH_TORSO_DEPTH * 0.32)
+    frontPanel.rotation.y = Math.PI
+    torso.add(frontPanel)
+    const backPanel = new THREE.Mesh(
+      new THREE.PlaneGeometry(ATH_TORSO_TOP_W * 0.7, ATH_TORSO_HEIGHT * 0.55),
+      numberMat,
+    )
+    backPanel.position.set(0, ATH_TORSO_HEIGHT * 0.5, ATH_TORSO_DEPTH * 0.32)
+    torso.add(backPanel)
+  }
 
   const neckHead = new THREE.Group()
   neckHead.name = 'neckHead'
@@ -4521,8 +4547,6 @@ function buildAthleteFigure(
   // Materials and proportional constants are referenced by sub-group
   // geometry attached in F1A.4 onward. Suppress the unused-binding
   // lint here so the scaffold compiles before the body parts ship.
-  void trimMat
-  void jerseyNumber
   void ATH_TOTAL_HEIGHT
   void ATH_FOOT_Y
 
