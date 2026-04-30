@@ -320,3 +320,11 @@ Floor markers under D4's feet are the signature visual: they make the parallel-f
 - Force a layup through both defenders (charge or block).
 - Kick to the strong-side corner (their defender never helped — they're still right there).
 - Pass back to the top (resets the offense; throws away the advantage).
+
+**Common Miss Reason:** Players see "two defenders collapsing" and panic. Their eyes go to the closest teammate (top of key or strong-side corner). But "closest" is also the most defended — those defenders never had to leave. The open shooter is always **opposite the rotation**.
+
+**Why the Best Read Works:** The defense can only collapse by leaving someone. The player who got left is **never** the closest one to the ball — that defender didn't move. It's always the player on the **opposite side**, behind the help. The skip pass is longer through the air than a kick-out, but the recovery distance for the defender is much longer too — so it's actually a higher-value pass.
+
+**Lesson Connection:** Decoder 3 — *Skip the Rotation*. The cue here is **2 in the paint + a stunting weak-side defender**. Same cue, every drive-and-kick.
+
+**One-Sentence Teaching Point:** "Look opposite the help. The shooter you can't see first is the one who's open."
