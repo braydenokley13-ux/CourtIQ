@@ -1439,4 +1439,210 @@ not start scenario authoring.
 
 ---
 
+## 12. Replay Audit (Phase A)
+
+> Read-only audit produced by Phase A — micro-milestones A1, A2, A3, A4.
+> No replay code, no scenario JSON, and no wiring file was modified by
+> this section. The findings below feed directly into Phase B.
+
+### A1 — Replay Flow Map
+
+#### A1.1 Plain-English replay flow
+
+The user lands on `/train`. The session API returns one or more
+scenarios; for a decoder scenario (today: BDW-01) the page mounts the
+3D canvas, asks it to play through to the authored freeze marker, then
+mounts the question UI on the freeze edge. After the user picks, the
+canvas plays the matching wrong-demo leg (or short-circuits to the
+answer-demo leg when no wrong-demo matches the picked id), then the
+answer-demo leg, then settles into `done`. From `done` the user can
+press "Show me again" (Feedback panel) to replay the answer demo, or
+press the bottom-center Restart button to restart the active leg from
+t=0. Throughout, the user can pause/play and switch speed via the
+in-canvas `PremiumOverlay` transport.
+
+In rough English:
+
+1. **Page load.** `app/train/page.tsx` renders, fetches a session,
+   resolves a `Scene3D` via `useScenarioSceneData`, and mounts
+   `<Scenario3DView>` with `replayMode='intro'`, `forceFullPath=true`
+   (decoder), and `pickedChoiceId=null`.
+2. **Watch.** `Scenario3DView` mounts `<Scenario3DCanvas>` which
+   builds the imperative scene, constructs `MotionController` and (for
+   decoder scenes) `ReplayStateMachine`, and the parent rAF loop
+   begins ticking. The state machine transitions
+   `idle → setup → playing` immediately on `start()`.
+3. **Freeze.** When elapsed time crosses `scene.freezeAtMs`, the motion
+   controller fires `pendingFrozen` once. The state machine consumes
+   it on the next `tick()`, snapshots player + ball positions, and
+   transitions to `frozen`. `onPhase('frozen')` propagates up to the
+   train page, which flips `frozen=true` so the prompt + choice cards
+   mount and a 700 ms timer-arm delay starts.
+4. **Choose.** The user clicks a `ChoiceCard`. The train page sets
+   `selected=choiceId`, posts to `/api/session/.../attempt`, sets
+   `feedback`, and (because `isDecoder`) passes `pickedChoiceId` down
+   through `Scenario3DView` to `Scenario3DCanvas`. The canvas's
+   `[pickedChoiceId]` effect calls `machine.pickChoice(choiceId)`.
+5. **Consequence (wrong picks).** `pickChoice` calls
+   `motion.startConsequence(id, snapshot)`. If a `wrongDemos[id]`
+   entry exists, the controller swaps in that movement list (preserving
+   the freeze pose for idle players) and the state machine transitions
+   to `consequence`. The leg plays to its end; the next `tick()` after
+   completion calls `motion.startReplay(snapshot)` and transitions to
+   `replaying`.
+6. **Replay (right picks short-circuit here).** The answer-demo
+   movement list plays from the freeze pose. On completion the state
+   machine transitions to `done`.
+7. **Done.** The Feedback panel surfaces with "Why" body and a
+   "Replay" CTA wired to `setReplayCounter(n+1)`. The decoder lesson
+   panel and self-review checklist mount alongside it.
+8. **Show me again.** Pressing the Feedback "Replay" CTA bumps the
+   parent's `replayCounter`. That flows into `Scenario3DView` as
+   `resetCounterProp`, which raises `compositeResetCounter` and the
+   canvas effect calls `motion.reset()`. The bottom-center Restart
+   button (in `PremiumOverlay`) instead bumps the View-local
+   `restartTick`, which also raises `compositeResetCounter` and calls
+   `motion.reset()` — but it additionally clears `paused`. Neither
+   path calls `machine.showAgain()` today.
+9. **Next rep.** "Next rep" advances `idx`. The train page resets
+   `selected`, `feedback`, `frozen`, etc. The new scene flows in;
+   `Scenario3DCanvas`'s scene-build effect tears down the state
+   machine + motion controller and rebuilds them for the new scene.
+
+#### A1.2 File-level responsibility map
+
+| Concern | File | Notes |
+|---|---|---|
+| Page shell, decoder gating, choice submit, "Show me again" CTA | `apps/web/app/train/page.tsx` | Owns `selected`, `feedback`, `frozen`, `replayCounter`, `scenePhase`. Forwards `pickedChoiceId` only when `isDecoder`. |
+| Overlay state ownership | `apps/web/components/scenario3d/Scenario3DView.tsx` | Owns `paused`, `playbackRate`, `restartTick`, `cameraMode`, `pathOverride`. Composes `compositeResetCounter = resetCounterProp + restartTick`. |
+| In-canvas chrome (transport, speed, paths, camera) | `apps/web/components/scenario3d/PremiumOverlay.tsx` | Pure controlled UI: emits onPausedChange / onPlaybackRateChange / onRestart. No replay state of its own. |
+| Imperative scene build, parent rAF, FPS guard, controller wiring | `apps/web/components/scenario3d/Scenario3DCanvas.tsx` | Constructs `MotionController` + `ReplayStateMachine` inside `tryMount`. Forwards `paused` / `playbackRate` / `resetCounter` / `pickedChoiceId` via dedicated effects. Subscribes the state machine listener and dispatches `onPhase`. |
+| Motion timing math | `MotionController` in `imperativeScene.ts` (~L972–L1452) | Owns `startedAt`, `pausedAtT`, `playbackRate`, `freezeAtMs`, `currentOverrides`. `tick`, `reset`, `setPaused`, `setPlaybackRate`, `setMovements`, `startConsequence`, `startReplay`, `snapshotPositions`. |
+| Replay state transitions | `ReplayStateMachine` in `imperativeScene.ts` (~L1498–L1628) | Owns `state`, `chosenChoiceId`, `freezeSnapshot`. `start`, `pickChoice`, `showAgain`, `reset`, `tick`. Subscribers receive `(state, choiceId)` snapshots. |
+| Legacy JSX replay path (off in production) | `apps/web/components/scenario3d/ScenarioReplayController.tsx` | Mounted only under `?simple=0`. The imperative path now drives decoder scenarios via the imperative `ReplayStateMachine`; this file is kept for the JSX escape hatch. |
+| State machine unit tests | `apps/web/components/scenario3d/replayStateMachine.test.ts` | Covers freeze cap, leg swaps, idle-player snapshot honoring, BDW-01 budgets. |
+
+#### A1.3 State ownership map
+
+| Concern | Owner | Sources of change |
+|---|---|---|
+| `paused` (boolean) | `Scenario3DView` | `PremiumOverlay.onPausedChange`; reset to `false` in a `[replayMode, resetCounterProp]` effect; reset to `false` in `onRestart`. NOT reset on `restartTick` alone. |
+| `playbackRate` (0.5/1/2) | `Scenario3DView` | `PremiumOverlay.onPlaybackRateChange`. Never auto-reset. |
+| `restartTick` | `Scenario3DView` | `PremiumOverlay.onRestart` increments. |
+| `compositeResetCounter` | `Scenario3DView` | Derived: `resetCounterProp + restartTick`. |
+| `cameraMode` | `Scenario3DView` | URL `?camera=` on first mount, then `PremiumOverlay`. |
+| `pathOverride` | `Scenario3DView` | Reset to `null` on `[replayMode, resetCounterProp]` (NOT `restartTick`). |
+| `replayCounter` (parent) | `app/train/page.tsx` | "Show me again" CTA in `FeedbackPanel`; reset on `idx` change. |
+| `selected`, `feedback`, `frozen`, `scenePhase` | `app/train/page.tsx` | UI state + `onPhase` callback from canvas. |
+| `MotionController.startedAt`, `pausedAtT`, `playbackRate`, `freezeAtMs`, `currentOverrides` | imperative motion controller (canvas-owned ref) | `setPaused`, `setPlaybackRate`, `setFreezeAtMs`, `setMovements`, `reset`, `startConsequence`, `startReplay`, plus the `[paused]` / `[playbackRate]` / `[resetCounter]` effects in `Scenario3DCanvas`. |
+| `ReplayStateMachine.state`, `chosenChoiceId`, `freezeSnapshot` | imperative state machine (canvas-owned ref) | `start`, `pickChoice`, `showAgain`, `reset`, `tick`. Re-built on scene/`replayMode` change. |
+| `consumedChoiceRef` | `Scenario3DCanvas` | Set when a `pickedChoiceId` is forwarded to the machine; cleared on scene rebuild + cleanup. |
+
+#### A1.4 Text sequence diagram
+
+```
+TrainPage             Scenario3DView         Scenario3DCanvas         MotionController          ReplayStateMachine
+   │                       │                       │                         │                         │
+   │── render scene ──────▶│                       │                         │                         │
+   │                       │── Canvas + Overlay ──▶│                         │                         │
+   │                       │                       │── tryMount() ──────────▶│ new MotionController     │
+   │                       │                       │                         │ (anchored on next tick) │
+   │                       │                       │                         │                         │
+   │                       │                       │── if freezeAtMs!=null ─▶│                         │── new ReplayStateMachine
+   │                       │                       │                         │                         │
+   │                       │                       │── machine.start() ─────────────────────────────▶ │ idle→setup→playing
+   │                       │                       │   subscribe(onPhase) ─────────────────────────── ▶│
+   │                       │                       │                         │                         │
+   │                       │                       │  (parent rAF tick)      │                         │
+   │                       │                       │── motion.tick(now) ────▶│ advance t, fire frozen │
+   │                       │                       │── machine.tick(now) ───────────────────────────▶ │ playing→frozen
+   │   onPhase('frozen') ◀───────────────────────── │                         │ snapshot positions     │
+   │   setFrozen(true)     │                       │                         │                         │
+   │                       │                       │                         │                         │
+   │── user clicks card    │                       │                         │                         │
+   │   submitChoice(id)    │                       │                         │                         │
+   │   setSelected(id)     │                       │                         │                         │
+   │   pickedChoiceId=id ─▶│── pickedChoiceId=id ─▶│  effect [pickedChoiceId]│                         │
+   │                       │                       │  if state==='frozen'    │                         │
+   │                       │                       │  consumedChoiceRef=id   │                         │
+   │                       │                       │── machine.pickChoice ────────────────────────── ▶│
+   │                       │                       │                         │ startConsequence/Replay│ frozen→consequence
+   │   onPhase('consequence') ◀───────────────────  │                         │                         │
+   │                       │                       │                         │                         │
+   │                       │                       │  (rAF ticks until leg complete)                   │
+   │                       │                       │── motion.tick ─────────▶│ isPlaybackComplete=true│
+   │                       │                       │── machine.tick ────────────────────────────────▶ │ consequence→replaying
+   │                       │                       │                         │ startReplay(snapshot)  │
+   │                       │                       │                         │                         │
+   │                       │                       │── motion.tick ─────────▶│ leg ends                │
+   │                       │                       │── machine.tick ────────────────────────────────▶ │ replaying→done
+   │   onPhase('done') ◀── │                       │                         │                         │
+   │                       │                       │                         │                         │
+   │── user presses        │                       │                         │                         │
+   │   FeedbackPanel.Replay│                       │                         │                         │
+   │   replayCounter+=1 ──▶│ resetCounterProp+=1   │                         │                         │
+   │                       │ compositeResetCounter│                         │                         │
+   │                       │ ── compositeReset ──▶ │ effect [resetCounter]   │                         │
+   │                       │                       │── motion.reset() ──────▶│ startedAt=null         │
+   │                       │  paused→false (effect on resetCounterProp)      │                         │
+   │                       │  pathOverride→null                              │                         │
+   │                       │                       │   ⚠ machine.showAgain() NOT called               │
+   │                       │                       │                         │                         │
+   │── user presses        │                       │                         │                         │
+   │   Overlay.Restart     │ restartTick+=1        │                         │                         │
+   │                       │ paused→false          │                         │                         │
+   │                       │ ── compositeReset ──▶ │── motion.reset() ──────▶│                         │
+   │                       │                       │   ⚠ machine.showAgain() NOT called               │
+   │                       │                       │                         │                         │
+   │                       │                       │   ⚠ pathOverride NOT reset on restartTick alone  │
+```
+
+#### A1.5 Known uncertainty
+
+- **Restart semantics are ambiguous.** `motion.reset()` on a fresh
+  `compositeResetCounter` rewinds whatever leg the controller is
+  currently driving. From `done` that's the answer-demo leg; from
+  `consequence` that's the consequence leg; from `playing` it's the
+  intro leg. The button label says "Restart replay," which a user
+  will likely read as "restart the whole rep from the beginning" — but
+  the actual behavior is "restart the active leg." Phase B should
+  decide which semantics to ship.
+- **Show-me-again is split across two affordances.** The Feedback
+  panel "Replay" CTA and the Overlay's bottom-center Restart button
+  both go through `motion.reset()`. They differ subtly: Feedback CTA
+  bumps `resetCounterProp` (which clears `paused` and `pathOverride`
+  via the `[replayMode, resetCounterProp]` effects); Overlay Restart
+  bumps only `restartTick` (clears `paused` only because `onRestart`
+  does it explicitly; does not clear `pathOverride`).
+- **`pickedChoiceId` race.** The canvas effect early-returns if the
+  state machine isn't yet `frozen` when the prop arrives. Today the
+  train page gates choices behind `frozen`, so this can only fire if
+  a future change exposes choices earlier. Worth a defensive check.
+- **`forceFullPath` is intentionally ignored.** The canvas
+  hard-pins to the imperative path. The JSX `ScenarioReplayController`
+  in `ScenarioReplayController.tsx` only mounts under `?simple=0` and
+  is not on the production path; tests / audits should refer to the
+  imperative `ReplayStateMachine` in `imperativeScene.ts`.
+
+#### A1.6 A1 findings (short)
+
+1. The replay loop is genuinely owned by **two cooperating
+   controllers** in `imperativeScene.ts` (`MotionController` and
+   `ReplayStateMachine`) plus three layers of React wiring
+   (`Scenario3DCanvas` effects, `Scenario3DView` overlay state,
+   `app/train/page.tsx` decoder gating).
+2. Every replay control flows down through `Scenario3DCanvas` as a
+   prop change → effect → controller method call. Of the four control
+   props (`paused`, `playbackRate`, `resetCounter`, `pickedChoiceId`),
+   only `pickedChoiceId` reaches the state machine; the other three
+   reach the motion controller only.
+3. `resetCounter` and `restartTick` collapse into one
+   `compositeResetCounter`, which is why the Feedback "Replay" CTA
+   and the Overlay Restart button feel almost-but-not-quite the same.
+4. The state machine has no public "rewind to active leg start" or
+   "snap-to-done" entry point. The only existing recovery affordance
+   from `done` is `showAgain()`, which the parent never calls.
+
+---
+
 
