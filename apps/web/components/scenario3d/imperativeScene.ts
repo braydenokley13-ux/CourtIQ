@@ -3377,20 +3377,49 @@ export function computePlayerYaw(team: SceneTeam, x: number, z: number): number 
 }
 
 /**
- * Builds a single humanoid player figure as a THREE.Group. Local
- * coordinate frame: origin at the floor between the feet, +y up,
- * default facing toward -z. Caller is expected to set position and
- * rotation.y on the returned group.
+ * Phase F — flag-flip target for the new code-built athlete builder.
+ * When `true`, `buildPlayerFigure` dispatches to the new
+ * `buildAthleteFigure` (named sub-group taxonomy, articulated limbs,
+ * stance lookup table). When `false`, the legacy primitive-stack
+ * builder runs unchanged.
  *
- * The upper body (shorts, torso, jersey, shoulder yoke, arms, neck,
- * head, hair, facing wedge, user chevron) is parented to a sub-group
- * so a single translation drops the player into a defensive crouch
- * without rebuilding any geometry. Legs stay full length; the shorts
- * cover the resulting hip overlap, which from broadcast distance reads
- * as bent knees. This keeps stance changes to a position write rather
- * than a per-frame skeletal rig.
+ * Kept until F5 so a one-line revert is available if Phase F's
+ * later micro-milestones uncover a regression. F5 deletes both this
+ * flag and the legacy builder.
+ */
+const USE_ATHLETE_BUILDER = false
+
+/**
+ * Public builder entry point. Signature is locked by Phase F4 §4 of
+ * the recovery plan: `(teamColor, trimColor, isUser, hasBall,
+ * jerseyNumber, stance) → THREE.Group`. Call sites in
+ * `buildBasketballGroup` do not branch on geometry strategy —
+ * everything routes through here.
  */
 function buildPlayerFigure(
+  teamColor: string,
+  trimColor: string,
+  isUser: boolean,
+  hasBall: boolean,
+  jerseyNumber: string,
+  stance: PlayerStance,
+): THREE.Group {
+  if (USE_ATHLETE_BUILDER) {
+    return buildAthleteFigure(teamColor, trimColor, isUser, hasBall, jerseyNumber, stance)
+  }
+  return buildPlayerFigureLegacy(teamColor, trimColor, isUser, hasBall, jerseyNumber, stance)
+}
+
+/**
+ * Legacy primitive-stack player figure (Phase 2 polish era). Retained
+ * behind `USE_ATHLETE_BUILDER` until F5 so a single-line revert is
+ * available if the new builder regresses. Removed at F5.
+ *
+ * Local coordinate frame: origin at the floor between the feet, +y up,
+ * default facing toward -z. Upper body is parented to a sub-group so
+ * a translation drops the figure into a defensive crouch.
+ */
+function buildPlayerFigureLegacy(
   teamColor: string,
   trimColor: string,
   isUser: boolean,
@@ -3871,6 +3900,27 @@ function buildPlayerFigure(
   ;(figure.userData as Record<string, unknown>).indicatorLayers = indicatorLayers
 
   return figure
+}
+
+/**
+ * Phase F — code-built low-poly stylized-athlete builder. Replaces the
+ * primitive-stack legacy builder when `USE_ATHLETE_BUILDER` is true.
+ *
+ * Phase F1A — scaffold stub. Delegates to the legacy builder so the
+ * dispatcher compiles end-to-end while the real geometry, sub-group
+ * taxonomy, and stance table are introduced in subsequent atomic
+ * commits (F1A.3 onward). Same public signature as
+ * `buildPlayerFigure`.
+ */
+function buildAthleteFigure(
+  teamColor: string,
+  trimColor: string,
+  isUser: boolean,
+  hasBall: boolean,
+  jerseyNumber: string,
+  stance: PlayerStance,
+): THREE.Group {
+  return buildPlayerFigureLegacy(teamColor, trimColor, isUser, hasBall, jerseyNumber, stance)
 }
 
 /**
