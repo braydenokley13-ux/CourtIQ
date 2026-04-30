@@ -28,3 +28,9 @@ Capture context: live screenshots require an authenticated `/train` session (`pn
 ### Replay motion
 - Procedural motion comes from `MovementPath3D` lerp + sub-group rotations on the figure. Reads as smooth at 1x and 0.5x; 2x replay is fast but legible.
 - No skinning means joint deformation is rigid — visible at close-up but acceptable at the broadcast distance BDW-01 ships at.
+
+### Player quality, indicators, teaching, perf
+- Player quality: premium athlete reads as athletic (Phase J/K/L silhouette work) at the framed distance. Close-up reveals rigid joint handoff.
+- Indicator stability: chevron/halo/possession ring all anchor at figure-root coordinates and stay world-stable through movement.
+- Teaching clarity: BDW-01 cue beats (Watch → Read → Pick → Learn) read clearly because the procedural figure does not draw eye away from the decoder UI.
+- Performance feel: 10 procedural figures + ball + court hold steady on the QA hardware baseline. No new perf regressions over Phase L.
