@@ -4086,7 +4086,7 @@ function buildAthleteFigure(
       ATH_PELVIS_WIDTH * 0.42,
       ATH_PELVIS_WIDTH * 0.55,
       ATH_PELVIS_HEIGHT,
-      12,
+      10,
       1,
       false,
     ),
@@ -4123,7 +4123,7 @@ function buildAthleteFigure(
       ATH_TORSO_TOP_W * 0.5,
       ATH_TORSO_BOT_W * 0.5,
       ATH_TORSO_HEIGHT,
-      12,
+      10,
       1,
       false,
     ),
@@ -4138,7 +4138,7 @@ function buildAthleteFigure(
   // shoulders. Reads as the rounded muscle line under a sleeveless
   // jersey instead of a bar across the top of a tube.
   const shoulderCap = new THREE.Mesh(
-    new THREE.SphereGeometry(ATH_TORSO_TOP_W * 0.55, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.6),
+    new THREE.SphereGeometry(ATH_TORSO_TOP_W * 0.55, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.6),
     jerseyMat,
   )
   shoulderCap.position.y = ATH_TORSO_HEIGHT * 0.95
@@ -4205,9 +4205,9 @@ function buildAthleteFigure(
   neckMesh.position.y = ATH_NECK_LENGTH * 0.5
   neckHead.add(neckMesh)
   // Head — single sphere, slight squash for a stylized look. No
-  // facial detail per E4 §4.
+  // facial detail per E4 §4. Tessellation tuned down for the budget.
   const headMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(ATH_HEAD_R, 14, 10),
+    new THREE.SphereGeometry(ATH_HEAD_R, 8, 6),
     skinMat,
   )
   headMesh.position.y = ATH_NECK_LENGTH + ATH_HEAD_R
@@ -4223,7 +4223,7 @@ function buildAthleteFigure(
     metalness: 0,
   })
   const hairMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(ATH_HEAD_R * 1.02, 14, 7, 0, Math.PI * 2, 0, Math.PI * 0.55),
+    new THREE.SphereGeometry(ATH_HEAD_R * 1.02, 8, 4, 0, Math.PI * 2, 0, Math.PI * 0.55),
     hairMat,
   )
   hairMesh.position.y = ATH_NECK_LENGTH + ATH_HEAD_R + 0.02
@@ -4250,7 +4250,7 @@ function buildAthleteFigure(
         ATH_THIGH_TOP_R,
         ATH_THIGH_BOT_R,
         ATH_THIGH_LENGTH,
-        10,
+        8,
         1,
         false,
       ),
@@ -4268,7 +4268,7 @@ function buildAthleteFigure(
         ATH_CALF_TOP_R,
         ATH_CALF_BOT_R,
         ATH_CALF_LENGTH,
-        10,
+        8,
         1,
         false,
       ),
@@ -4280,7 +4280,7 @@ function buildAthleteFigure(
     // Knee dome — small skin-tone sphere at the joint so the leg
     // reads as two segments connected at a knee, not a single tube.
     const kneeDome = new THREE.Mesh(
-      new THREE.SphereGeometry(ATH_CALF_TOP_R * 1.05, 10, 6),
+      new THREE.SphereGeometry(ATH_CALF_TOP_R * 1.05, 6, 4),
       skinMat,
     )
     kneeDome.position.y = 0
@@ -4381,7 +4381,7 @@ function buildAthleteFigure(
     // Elbow dome — mirrors the knee. Sells the elbow break in
     // denial / defensive arm poses.
     const elbowDome = new THREE.Mesh(
-      new THREE.SphereGeometry(ATH_UPPER_ARM_R * 1.1, 8, 6),
+      new THREE.SphereGeometry(ATH_UPPER_ARM_R * 1.1, 6, 4),
       skinMat,
     )
     elbowDome.position.y = 0
@@ -4389,7 +4389,7 @@ function buildAthleteFigure(
     // Hand block — simple stylized fist at the end of the forearm.
     // No fingers per E4 §4. Sells "this is a hand" at broadcast.
     const hand = new THREE.Mesh(
-      new THREE.SphereGeometry(ATH_FORE_ARM_R * 1.45, 8, 6),
+      new THREE.SphereGeometry(ATH_FORE_ARM_R * 1.45, 6, 4),
       skinMat,
     )
     hand.position.y = -ATH_FORE_ARM_LENGTH - 0.02
@@ -4469,8 +4469,10 @@ function buildAthleteFigure(
   userHeadLayer.name = 'indicator-layer-user-head'
   userHeadLayer.visible = isUser
 
+  // Possession ring tessellation tuned to fit the per-figure tri
+  // budget (E4 §5). Reads identical at default DPR.
   const possession = new THREE.Mesh(
-    new THREE.RingGeometry(PLAYER_RADIUS + 0.55, PLAYER_RADIUS + 0.85, 48),
+    new THREE.RingGeometry(PLAYER_RADIUS + 0.55, PLAYER_RADIUS + 0.85, 36),
     new THREE.MeshBasicMaterial({
       color: POSSESSION_RING_COLOR,
       toneMapped: false,
@@ -4485,8 +4487,10 @@ function buildAthleteFigure(
 
   const ringInner = PLAYER_RADIUS + 0.2
   const ringOuter = isUser ? PLAYER_RADIUS + 0.7 : PLAYER_RADIUS + 0.55
+  // Ring segments dropped from 64 → 48 to fit the per-figure tri
+  // budget; the floor disc reads identical at default DPR.
   const ring = new THREE.Mesh(
-    new THREE.RingGeometry(ringInner, ringOuter, 64),
+    new THREE.RingGeometry(ringInner, ringOuter, 36),
     new THREE.MeshBasicMaterial({
       color: teamColor,
       toneMapped: false,
@@ -4500,7 +4504,7 @@ function buildAthleteFigure(
   baseLayer.add(ring)
 
   const innerOutline = new THREE.Mesh(
-    new THREE.RingGeometry(ringInner - 0.07, ringInner, 64),
+    new THREE.RingGeometry(ringInner - 0.07, ringInner, 36),
     new THREE.MeshBasicMaterial({
       color: '#FFFFFF',
       toneMapped: false,
@@ -4515,7 +4519,7 @@ function buildAthleteFigure(
 
   if (isUser) {
     const halo = new THREE.Mesh(
-      new THREE.RingGeometry(ringOuter + 0.05, ringOuter + 0.6, 64),
+      new THREE.RingGeometry(ringOuter + 0.05, ringOuter + 0.6, 36),
       new THREE.MeshBasicMaterial({
         color: USER_COLOR,
         toneMapped: false,
@@ -4529,7 +4533,7 @@ function buildAthleteFigure(
     userLayer.add(halo)
 
     const softHalo = new THREE.Mesh(
-      new THREE.RingGeometry(ringOuter + 0.65, ringOuter + 1.4, 64),
+      new THREE.RingGeometry(ringOuter + 0.65, ringOuter + 1.4, 36),
       new THREE.MeshBasicMaterial({
         color: USER_COLOR,
         toneMapped: false,
@@ -4543,7 +4547,7 @@ function buildAthleteFigure(
     userLayer.add(softHalo)
 
     const chevron = new THREE.Mesh(
-      new THREE.ConeGeometry(0.42, 0.85, 24),
+      new THREE.ConeGeometry(0.42, 0.85, 16),
       new THREE.MeshBasicMaterial({
         color: USER_COLOR,
         toneMapped: false,
@@ -4554,7 +4558,7 @@ function buildAthleteFigure(
     userHeadLayer.add(chevron)
 
     const chevronOutline = new THREE.Mesh(
-      new THREE.ConeGeometry(0.5, 1.0, 24),
+      new THREE.ConeGeometry(0.5, 1.0, 16),
       new THREE.MeshBasicMaterial({
         color: '#062118',
         toneMapped: false,
@@ -4571,7 +4575,7 @@ function buildAthleteFigure(
   // Soft contact shadow under the figure (matches the legacy
   // builder so the floor weight is identical between paths).
   const contactShadow = new THREE.Mesh(
-    new THREE.CircleGeometry(PLAYER_RADIUS + 0.55, 32),
+    new THREE.CircleGeometry(PLAYER_RADIUS + 0.55, 24),
     new THREE.MeshBasicMaterial({
       color: CONTACT_SHADOW_COLOR,
       toneMapped: false,
