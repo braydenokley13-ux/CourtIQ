@@ -8,3 +8,7 @@
 - Phase N visual QA must NOT make the skinned path the production default.
 
 ## Phase N — Procedural BDW-01 Visual QA
+
+Mode: `USE_SKINNED_ATHLETE_PREVIEW = false` (production default; renders Phase J premium athlete with Phase F fallback).
+
+Capture context: live screenshots require an authenticated `/train` session (`pnpm qa:auth` → `pnpm qa:screenshot`). Notes below are implementation-level QA against the procedural builder; manual screenshot capture on Mac/Chrome is still required to land the visual sign-off.
