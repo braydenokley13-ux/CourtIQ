@@ -57,3 +57,9 @@ These notes are implementation-level QA derived from the Phase M builder + tests
 - Fullscreen: indicator anchors are at figure-root coordinates so the chevron stays vertical when the canvas grows. No layout regressions vs procedural.
 - Freeze decision moment: `idle_ready` holds a calm pose; defenders in `defense_slide` read as actively defending without t-pose risk.
 - Replay motion: clips loop deterministically off `mixer.update(dt)`; root motion still owned by the timeline so the figure does not slide off the path.
+
+### Indicator stability, performance, teaching clarity
+- Indicators: chevron stays vertical (parented to figure root, not the head bone), halo + base + possession rings at floor `y ≈ 0.05`. Test guard verifies chevron is ≥ 0.5 ft above the SkinnedMesh bounding box.
+- Performance: < 8000 added tris and ~10 extra draw calls across 10 figures; well under the procedural per-figure budget. Mixer cost is per-bone-per-action and negligible.
+- Teaching clarity: the visible motion difference between sprint and slide makes "who is moving" easier to read at replay speed than the procedural rigid joints.
+- Caveat: the low-poly silhouette is uglier at close-up than the procedural premium athlete, so the skinned path improves *motion clarity* but regresses *static visual quality*.
