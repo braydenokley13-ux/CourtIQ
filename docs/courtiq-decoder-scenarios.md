@@ -162,3 +162,12 @@ All overlays must clear after 1.2s into Timeline A so the player can see the cle
 - You (the user) are on the **right wing**, just catching the pass.
 - Your defender was helping one pass away and is now sprinting at you to closeout.
 - The lane is empty — no rim protector, no help defender low.
+
+**Decision Moment:** The play freezes the instant the ball lands in your hands. Your defender is two feet away, chest-to-chest, **feet parallel and close together**, hips squared, momentum still moving forward. There is **no gap to shoot** — but there is no way they can change direction either.
+
+**Visible Cue:**
+- Defender's feet: parallel, narrow stance, both heels on the ground.
+- Defender's hips: square to you (not turned, not staggered).
+- Defender's head: high, eyes on the ball.
+- Their forward momentum is still carrying into the catch.
+- The lane behind them is empty.
