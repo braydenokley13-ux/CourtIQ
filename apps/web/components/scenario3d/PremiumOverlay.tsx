@@ -78,6 +78,11 @@ export function PremiumOverlay({
   // instead of per-button JS state.
   const idleAttention = paused
 
+  // Phase D — in fullscreen the viewport is large; push controls away
+  // from the edge for breathing room and always show label text.
+  const inset = isFullscreen ? '20px' : '12px'
+  const bottomInset = isFullscreen ? '20px' : '12px'
+
   return (
     <div
       className="group/overlay pointer-events-none absolute inset-0"
@@ -88,7 +93,10 @@ export function PremiumOverlay({
           full when the overlay is engaged. Hidden on decoder scenarios
           where the train header decoder pill plays this role. */}
       {concept ? (
-        <div className="ciq-broadcast-chip pointer-events-none absolute left-3 top-3 flex max-w-[55%] items-center gap-2 rounded-full px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[1.6px] text-white/90 transition-opacity duration-200 [opacity:0.65] group-hover/overlay:[opacity:1] group-focus-within/overlay:[opacity:1] group-data-[attention=on]/overlay:[opacity:1]">
+        <div
+          className="ciq-broadcast-chip pointer-events-none absolute flex max-w-[55%] items-center gap-2 rounded-full px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[1.6px] text-white/90 transition-opacity duration-200 [opacity:0.65] group-hover/overlay:[opacity:1] group-focus-within/overlay:[opacity:1] group-data-[attention=on]/overlay:[opacity:1]"
+          style={{ left: inset, top: inset }}
+        >
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#3BFF9D] shadow-[0_0_8px_#3BFF9D]" />
           <span className="truncate">{concept}</span>
         </div>
@@ -100,7 +108,10 @@ export function PremiumOverlay({
           it next to the camera selector groups all "what am I looking
           at" controls in one zone and frees the bottom edge for the
           caption + transport. */}
-      <div className="pointer-events-none absolute right-3 top-3 flex items-center gap-1.5 transition-opacity duration-200 [opacity:0.7] group-hover/overlay:[opacity:1] group-focus-within/overlay:[opacity:1] group-data-[attention=on]/overlay:[opacity:1]">
+      <div
+        className="pointer-events-none absolute flex items-center gap-1.5 transition-opacity duration-200 [opacity:0.7] group-hover/overlay:[opacity:1] group-focus-within/overlay:[opacity:1] group-data-[attention=on]/overlay:[opacity:1]"
+        style={{ right: inset, top: inset }}
+      >
         {isReplay ? (
           <div
             data-active="true"
@@ -125,13 +136,17 @@ export function PremiumOverlay({
             }`}
           >
             <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />
-            <span className="hidden sm:inline">{showPaths ? 'Paths on' : 'Paths off'}</span>
-            <span className="sm:hidden">Paths</span>
+            {/* Always show the label in fullscreen; fall back to sm: responsive outside. */}
+            <span className={isFullscreen ? undefined : 'hidden sm:inline'}>
+              {showPaths ? 'Paths on' : 'Paths off'}
+            </span>
+            {isFullscreen ? null : <span className="sm:hidden">Paths</span>}
           </button>
         ) : null}
         <CameraSelector
           value={cameraMode}
           onChange={onCameraModeChange}
+          isFullscreen={isFullscreen}
         />
         {onFullscreenToggle ? (
           <button
@@ -139,7 +154,9 @@ export function PremiumOverlay({
             onClick={onFullscreenToggle}
             aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
             title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-            className="ciq-broadcast-chip pointer-events-auto flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-white/80 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70"
+            className={`ciq-broadcast-chip pointer-events-auto flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70 ${
+              isFullscreen ? 'text-[#3BFF9D] hover:text-[#5cffae]' : 'text-white/80 hover:text-white'
+            }`}
           >
             {isFullscreen ? <CollapseIcon /> : <ExpandIcon />}
           </button>
@@ -152,7 +169,10 @@ export function PremiumOverlay({
           but quietly dims to ~70% while playing so the eye lands on
           the action; pause flips it back to full strength because the
           user is now thinking about controls. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center px-3">
+      <div
+        className="pointer-events-none absolute inset-x-0 flex justify-center px-3"
+        style={{ bottom: bottomInset }}
+      >
         <div
           role="toolbar"
           aria-label="Replay controls"
@@ -249,9 +269,11 @@ function SpeedSelector({
 function CameraSelector({
   value,
   onChange,
+  isFullscreen = false,
 }: {
   value: CameraMode
   onChange: (mode: CameraMode) => void
+  isFullscreen?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -287,7 +309,8 @@ function CameraSelector({
         className="ciq-broadcast-chip flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-white/80 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3BFF9D]/70"
       >
         <CameraIcon />
-        <span className="hidden sm:inline">{active.label}</span>
+        {/* Always show label in fullscreen; sm: responsive outside fullscreen. */}
+        <span className={isFullscreen ? undefined : 'hidden sm:inline'}>{active.label}</span>
         <ChevronIcon open={open} />
       </button>
       {open ? (
