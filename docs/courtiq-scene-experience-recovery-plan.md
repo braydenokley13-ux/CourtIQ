@@ -606,5 +606,120 @@ is already in place; this is tuning + a few targeted upgrades.
 - Exit criteria: tests pass, manual QA matrix clean.
 - Suggested commit message: `test(scene): cover movement quality changes`
 
+---
+
+### Phase D — Fullscreen Film Room Mode
+
+#### Goal
+Add a real fullscreen toggle that expands the canvas to full
+viewport, keeps replay controls visible and usable, and exits
+cleanly. Must work with existing replay state and Mac performance.
+
+#### Why this phase matters
+Fullscreen is the difference between "embedded widget" and
+"playable film room." It also relieves the cramped scenario shell
+without redesigning it.
+
+#### Files likely involved
+- `apps/web/components/scenario3d/PremiumOverlay.tsx` — add a
+  fullscreen toggle button next to the camera selector.
+- `apps/web/components/scenario3d/Scenario3DView.tsx` — own
+  `isFullscreen` state and the Fullscreen API calls; expose a ref
+  to the canvas wrapper element.
+- `apps/web/components/scenario3d/Scenario3DCanvas.tsx` — ensure
+  the canvas resizes correctly on fullscreen change (resize
+  observer / pixel-ratio recomputation).
+- `apps/web/app/train/page.tsx` — let the canvas frame opt out of
+  the train shell layout while in fullscreen.
+- Optional: `apps/web/lib/scenario3d/feature.ts` — flag for
+  fullscreen-disabled environments.
+
+#### Risks / boundaries
+- Do not change replay controls. They should appear inside
+  fullscreen with the same component.
+- Do not bind escape keys to anything other than the standard
+  fullscreen exit.
+- Do not break SSR. All Fullscreen API access must be guarded.
+- Do not change the FPS guard or quality tier resolver.
+
+#### Acceptance criteria
+- A fullscreen button is visible in the overlay; clicking it
+  enters fullscreen on the canvas wrapper.
+- Inside fullscreen: replay controls, camera selector, paths
+  toggle, and the new fullscreen button (now showing "Exit") are
+  all visible.
+- Escape key exits fullscreen; the button toggles correctly.
+- Canvas resizes to fill the viewport without stretching or
+  letterboxing the court.
+- The train-page shell does not bleed into the fullscreen view
+  (no decoder pill, no answer cards visible at the top of the
+  fullscreen canvas).
+- Mac frame rate is preserved (FPS guard active, no DPR blowup).
+
+#### Suggested model
+**Sonnet 4.6 Medium-High.** Self-contained UI feature with a
+well-known browser API; does not need Opus.
+
+#### Suggested commit style
+- 1 UX/plan commit (docs).
+- 3–4 implementation commits.
+- 1 QA/tuning commit.
+
+#### Micro-milestones
+
+**D1 — Fullscreen UX plan**
+- Objective: decide button placement, icon, control persistence
+  rules inside fullscreen, escape behavior, and what hides from
+  the train-page shell.
+- Likely files: docs only.
+- What changes: append a "Fullscreen UX Plan" subsection to this
+  doc.
+- Exit criteria: open questions resolved (where the button
+  lives, what stays visible, exit affordance).
+- Suggested commit message: `docs: plan fullscreen film room UX`
+
+**D2 — Fullscreen toggle wiring**
+- Objective: implement the toggle button and the Fullscreen API
+  request/exit path; own state in `Scenario3DView`.
+- Likely files: `Scenario3DView.tsx`, `PremiumOverlay.tsx`.
+- What changes: add `isFullscreen` state; use a
+  `requestFullscreen` / `exitFullscreen` pair; listen for
+  `fullscreenchange` to keep state in sync; SSR-guard.
+- Exit criteria: button enters and exits fullscreen on a click;
+  ESC also exits and updates state; no console warnings.
+- Suggested commit message: `feat(scene): wire fullscreen toggle`
+
+**D3 — Responsive canvas/container behavior**
+- Objective: ensure the canvas + overlay container fills the
+  viewport in fullscreen and resets cleanly on exit.
+- Likely files: `Scenario3DView.tsx`, `Scenario3DCanvas.tsx`,
+  `app/train/page.tsx`.
+- What changes: drop fixed heights when fullscreen; trigger a
+  resize observer pass on transition; suppress train-shell
+  layout while fullscreen.
+- Exit criteria: canvas fills the viewport; lines remain crisp;
+  exit returns to the previous embedded layout.
+- Suggested commit message: `feat(scene): make canvas responsive in fullscreen`
+
+**D4 — Fullscreen controls polish**
+- Objective: ensure replay controls, camera selector, paths
+  toggle, and the fullscreen button are all readable and
+  reachable inside fullscreen at typical viewport sizes.
+- Likely files: `PremiumOverlay.tsx`.
+- What changes: layout/spacing tweaks for the in-canvas chrome
+  to read at fullscreen sizes; ensure no shell element overlaps.
+- Exit criteria: all controls visible and clickable at 1920x1080
+  and 1440x900; no z-index fights with the canvas.
+- Suggested commit message: `feat(scene): polish fullscreen controls`
+
+**D5 — Fullscreen QA pass**
+- Objective: validate fullscreen on the supported browsers,
+  including the resize-on-rotate edge cases and ESC exit.
+- Likely files: tests + docs only.
+- What changes: add a Fullscreen QA matrix to this doc; add
+  tests where feasible.
+- Exit criteria: matrix clean on Chrome + Safari + Firefox on Mac.
+- Suggested commit message: `test(scene): verify fullscreen behavior`
+
 
 
