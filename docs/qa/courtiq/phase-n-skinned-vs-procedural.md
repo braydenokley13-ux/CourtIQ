@@ -34,3 +34,5 @@ Capture context: live screenshots require an authenticated `/train` session (`pn
 - Indicator stability: chevron/halo/possession ring all anchor at figure-root coordinates and stay world-stable through movement.
 - Teaching clarity: BDW-01 cue beats (Watch → Read → Pick → Learn) read clearly because the procedural figure does not draw eye away from the decoder UI.
 - Performance feel: 10 procedural figures + ball + court hold steady on the QA hardware baseline. No new perf regressions over Phase L.
+
+## Phase N — Skinned Preview BDW-01 Visual QA
