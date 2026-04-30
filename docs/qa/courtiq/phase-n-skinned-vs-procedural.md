@@ -36,3 +36,7 @@ Capture context: live screenshots require an authenticated `/train` session (`pn
 - Performance feel: 10 procedural figures + ball + court hold steady on the QA hardware baseline. No new perf regressions over Phase L.
 
 ## Phase N — Skinned Preview BDW-01 Visual QA
+
+Mode: `USE_SKINNED_ATHLETE_PREVIEW = true` (LOCAL ONLY — flag is reverted before commit; production default stays `false`).
+
+These notes are implementation-level QA derived from the Phase M builder + tests; live screenshot capture on Mac/Chrome is still required to land a visual sign-off and is gated on the local `pnpm qa:auth` flow.
