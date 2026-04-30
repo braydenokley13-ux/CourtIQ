@@ -184,3 +184,11 @@ All overlays must clear after 1.2s into Timeline A so the player can see the cle
 - Shoot a contested 3 (no gap, hand in face — low percentage).
 - Hold and reset to swing (advantage was *real*; you wasted it).
 - Pump fake and stand (their feet are flat, they're not jumping; you just hand the advantage back).
+
+**Common Miss Reason:** Players think "no gap to shoot = no advantage." They reset the ball. But a closeout with parallel feet is one of the biggest advantages in basketball — the defender literally can't slide. The window is ~0.4 seconds.
+
+**Why the Best Read Works:** A defender flying forward with parallel feet is **stuck in their momentum**. To stop you, they need to drop a foot back and turn their hips — that takes a half-second. One hard dribble past their lead foot beats them every time, and the lane behind them is empty.
+
+**Lesson Connection:** Decoder 2 — *Advantage or Reset*. The cue here is **parallel feet + forward momentum**. Same cue, every closeout, every time.
+
+**One-Sentence Teaching Point:** "If his feet are flat and square, you go — right now."
