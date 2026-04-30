@@ -4148,6 +4148,22 @@ function buildAthleteFigure(
   headMesh.scale.set(1, 1.04, 0.97)
   headMesh.castShadow = true
   neckHead.add(headMesh)
+  // Hair cap — dark hemisphere on the top of the head so the
+  // figure reads as a person, not a flesh-tone ball. Stylized; no
+  // hair systems, no facial features per the recovery plan.
+  const hairMat = new THREE.MeshStandardMaterial({
+    color: '#1B1208',
+    roughness: 0.85,
+    metalness: 0,
+  })
+  const hairMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(ATH_HEAD_R * 1.02, 14, 7, 0, Math.PI * 2, 0, Math.PI * 0.55),
+    hairMat,
+  )
+  hairMesh.position.y = ATH_NECK_LENGTH + ATH_HEAD_R + 0.02
+  hairMesh.scale.set(1, 1.04, 0.97)
+  hairMesh.castShadow = true
+  neckHead.add(hairMesh)
 
   // Build a leg sub-tree at a given hip x offset. The thigh's pivot
   // is at the hip, the calf pivot at the knee, the foot pivot at
