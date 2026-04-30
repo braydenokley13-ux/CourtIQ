@@ -2521,3 +2521,163 @@ id, t, overrides) so replays are byte-identical for the same inputs.
   that mid-pass freeze still lands at the authored cap.
 
 
+
+### Phase C QA Results
+
+> Phase C landed C1–C6 on this branch. This subsection records the
+> automated coverage and the human-in-the-loop matrix Phase H should
+> walk on a real browser before the recovery is declared done.
+
+#### Files touched (Phase C)
+
+- `apps/web/components/scenario3d/imperativeScene.ts`
+  - Exported `computePlayerYaw` and `smoothAngle` for tests.
+  - New constants: `YAW_TIME_CONSTANT_OFFENSE_S`,
+    `YAW_TIME_CONSTANT_DEFENSE_S`, `MOVEMENT_DIRECTION_EPS_SQ`,
+    `BALL_PEAK_MULT_PASS`, `BALL_PEAK_MULT_SKIP`, `BALL_PEAK_MIN_FT`,
+    `BALL_PEAK_MAX_FT`.
+  - `MotionController` gained `currentYaw` Map +
+    `lastYawTickWallMs` + `applyPlayerYaw(now, t)` +
+    `findActivePlayerMovement`.
+  - `tick(now)` now drives a yaw pass after `applyBall(t)` so
+    defenders / non-mover heuristics can read up-to-date ball
+    position.
+  - `reset()` and `setMovements()` clear `currentYaw` and
+    `lastYawTickWallMs` so leg swaps re-snap to the team default.
+  - `applyBall` switched to kind-aware peak height +
+    eased-aligned y arc + 0.7 ft floor for short hand-offs +
+    `skip_pass` line-drive multiplier.
+- `apps/web/lib/scenario3d/timeline.ts`
+  - Added `easeForKind(kind, u)` dispatch:
+    `cut / back_cut / baseline_sneak / drive / jab / rip / stop_ball`
+    → ease-out cubic; everything else → ease-in-out cubic (existing).
+  - `samplePlayer` now calls `easeForKind` instead of the static
+    `ease`. Endpoints are unchanged so authored final positions still
+    land exactly on the authored `to` point.
+- `apps/web/components/scenario3d/replayStateMachine.test.ts`
+  - Stub `Group` now exposes `rotation.y` so the yaw pass has
+    something to write into.
+  - +14 tests across `Phase C / C2`, `Phase C / C4`, `Phase C / C5`.
+- `apps/web/lib/scenario3d/timeline.test.ts`
+  - Updated mid-segment expectation to match the new `cut` ease-out
+    curve.
+  - +4 `easeForKind` tests covering explosive vs. defensive kinds,
+    endpoint exactness, and front-loaded ordering.
+
+No edits to `Scenario3DCanvas.tsx`, `Scenario3DView.tsx`,
+`PremiumOverlay.tsx`, `app/train/page.tsx`,
+`imperativeTeachingOverlay.ts`, scenario JSON, `schema.ts`,
+`presets.ts`, the parent rAF loop, the FPS guard, or the
+simple/full-path pin.
+
+#### Movement changes made
+
+- **Per-frame body facing.** Players, including idle defenders, now
+  rotate to face the basketball action: cutters / drivers face the
+  segment direction; stationary defenders face the ball; the current
+  ball-holder faces the rim. Smoothing is dt-based so the visible
+  responsiveness is the same at 30 fps and 120 fps; rate-independent
+  because it uses wall time, not playback time.
+- **Defender-specific responsiveness.** Defenders use a smaller yaw
+  time constant (~0.10 s) than offense (~0.18 s), so a holder change
+  reads as a quick attention shift on the defenders' bodies — the C4
+  "shift attention when holder changes" cue.
+- **Kind-aware easing.** Cuts, back-cuts, drives, jabs, rips,
+  baseline sneaks, and stop-ball moves now use ease-out cubic in
+  `samplePlayer`. They accelerate fast off the start and settle into
+  the arrival point — reads as a basketball move instead of a
+  marker glide. Defensive rotations / closeouts / lifts / drifts /
+  passes keep the symmetric ease-in-out curve.
+- **Ball arc.** Skip passes now use a 0.10 multiplier (line drive);
+  standard passes keep 0.25. Short hand-offs use a 0.7 ft floor so
+  they don't pop above the passer's shoulder. Y motion follows the
+  same eased curve as X/Z so the apex aligns with the visual
+  midpoint instead of landing too early on short throws.
+- **Freeze accuracy.** Unchanged at the math level. A new
+  `Phase C / C5` test pins the in-flight freeze case so a freeze
+  marker landing inside a pass holds the ball at the exact arc
+  position for `t = freezeAtMs`.
+
+#### Validation results
+
+- `pnpm --filter @courtiq/web test` — **129 tests passed**, 0
+  failed. Test files: scenario3d / lib / app combined.
+  - +18 new tests across Phase C: 8 in `replayStateMachine.test.ts`
+    (yaw helpers, per-frame yaw update, defender reaction,
+    ball arc, freeze accuracy) and 4 in `timeline.test.ts`
+    (`easeForKind` dispatch).
+  - All Phase B tests (29) still pass; all 14 pre-Phase-B tests
+    still pass.
+- `pnpm --filter @courtiq/web lint` — clean.
+- `pnpm --filter @courtiq/web typecheck` — pre-existing errors in
+  `lib/services/*` (Prisma client + workspace `@courtiq/core` not
+  generated in this environment). Same baseline as Phase B; no new
+  typecheck error introduced. The `scenario3d`, `replay`, and
+  `timeline` surfaces have zero typecheck errors.
+
+#### Phase B replay reliability — intact
+
+- All 29 Phase B regression tests still pass.
+- The new yaw pass runs **after** `applyBall(t)`, so the existing
+  ball-arrival camera-shake hook still observes the ball position
+  the way it did before Phase C.
+- `reset()` and `setMovements()` clear yaw state alongside the
+  Phase B state-clears, so the Phase B subscriber re-arm of paused /
+  rate continues to work correctly across leg swaps.
+- Ball arc changes are pure tuning; the `findPhase` /
+  `consumePassArrival` hooks are unchanged, so the Phase B
+  consequence-leg dispatch and the `done → replaying → done`
+  show-again cycle behave identically.
+
+#### Manual QA matrix (deferred to Phase H)
+
+Phase C did not include a browser-driven QA pass — Phase H is the
+integration / cohesion gate. Phase H should walk this matrix on
+BDW-01:
+
+- Movement feel — eyeball test:
+  - Cutters visibly accelerate off the start, settle on arrival.
+  - Drives feel decisive, not like marker slides.
+  - Defenders rotate toward the ball during a pass.
+  - The denying defender on BDW-01 (x2) still reads as denying
+    the user.
+  - No yaw jitter or snapping, including at low frame rate.
+- Ball arc — eyeball test:
+  - Standard passes arc convincingly at 0.5x / 1x / 2x.
+  - Skip passes (if any authored) read as line drives.
+  - Short hand-offs stay below shoulder height.
+  - Apex of the arc aligns with the visual midpoint of the pass.
+- Freeze — eyeball test:
+  - Freeze at the authored beat lands exactly on the marker.
+  - No overshoot or rebound between freeze and the question UI
+    mounting.
+- Replay reliability regression — re-walk the Phase B QA matrix:
+  - Pause / Play across each leg boundary.
+  - Speed switches at 0.5x / 1x / 2x.
+  - Restart from each state.
+  - Show me again from the Feedback panel.
+
+#### Remaining movement risks
+
+- **Foot-sliding visibility.** With sharper ease-out cuts the body
+  visibly accelerates, but the legs are still rigid (Phase F
+  territory). On a long fast cut this might emphasize the slide.
+  Phase F's geometry redesign is the long-term fix.
+- **`closeout` movement curve.** Currently uses ease-in-out (the
+  defensive default). Real closeouts decelerate hard at arrival. If
+  authored content adds many closeouts, Phase F's stance work or a
+  later C6.x extension may revisit.
+- **No defender lateral lean.** C4 only rotates yaw. A small
+  position lean toward the ball was considered and skipped — would
+  conflict with authored spacing. If Phase F adds a torso-tilt
+  primitive, a later pass could add a subtle lean alongside yaw.
+- **Pre-pass passer pivot.** The passer faces the rim while
+  holding; on the pass it does not pre-rotate toward the catcher.
+  Could be added later as a small "look-ahead" lookup that biases
+  the holder's yaw target toward the next pass `to` point in the
+  upcoming phase. Out of scope for Phase C given the constraint to
+  not redesign the body model.
+- **Yaw smoother time constants are global.** Per-stance tuning
+  (e.g., a denying defender turns faster than a helper) would be a
+  natural Phase F follow-on if needed.
+
