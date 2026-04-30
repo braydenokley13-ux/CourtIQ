@@ -281,3 +281,9 @@ Floor markers under D4's feet are the signature visual: they make the parallel-f
 ## SKR-01
 
 **Title:** Paint Touch Opposite Corner
+
+**Decoder / Principle:** Skip the Rotation — when two defenders are committed in the paint, someone is open behind the rotation. Skip the pass instead of kicking to the nearest player.
+
+**Difficulty:** 4 / 5 (advanced — requires reading two defenders at once and trusting the skip)
+
+**Player Role:** Driver (you have the ball, attacking the paint off a wing)
