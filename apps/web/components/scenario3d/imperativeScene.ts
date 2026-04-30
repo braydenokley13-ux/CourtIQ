@@ -4152,8 +4152,30 @@ function buildAthleteFigure(
     const foot = new THREE.Group()
     foot.name = 'foot'
     foot.position.set(0, -ATH_CALF_LENGTH, 0)
-    // Shoe geometry attaches in F1A.7. Foot group exists now so the
-    // taxonomy is stable across atomic commits.
+    // Shoe — a slim block with a separate accent toe pad in front.
+    // Toe-forward by half the foot length so the figure has a clear
+    // facing direction from above (the legacy boxy shoe was symmetric
+    // and read as "block under leg" not "shoe").
+    const shoeMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(ATH_FOOT_WIDTH, ATH_FOOT_HEIGHT, ATH_FOOT_LENGTH),
+      shoeMat,
+    )
+    shoeMesh.position.set(0, ATH_FOOT_HEIGHT * 0.5, -ATH_FOOT_LENGTH * 0.18)
+    shoeMesh.castShadow = true
+    shoeMesh.receiveShadow = true
+    foot.add(shoeMesh)
+    // Midsole stripe in accent color so the silhouette reads as an
+    // athletic shoe at broadcast distance.
+    const midsoleMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(
+        ATH_FOOT_WIDTH + 0.02,
+        ATH_FOOT_HEIGHT * 0.32,
+        ATH_FOOT_LENGTH + 0.02,
+      ),
+      accentMat,
+    )
+    midsoleMesh.position.set(0, ATH_FOOT_HEIGHT * 0.16, -ATH_FOOT_LENGTH * 0.18)
+    foot.add(midsoleMesh)
 
     calf.add(foot)
     thigh.add(calf)
@@ -4411,13 +4433,9 @@ function buildAthleteFigure(
   // Materials and proportional constants are referenced by sub-group
   // geometry attached in F1A.4 onward. Suppress the unused-binding
   // lint here so the scaffold compiles before the body parts ship.
-  void shoeMat
-  void accentMat
   void trimMat
   void jerseyNumber
   void ATH_TOTAL_HEIGHT
-  void ATH_FOOT_LENGTH
-  void ATH_FOOT_WIDTH
   void ATH_FOOT_Y
 
   return figure
