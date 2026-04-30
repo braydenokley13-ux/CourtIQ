@@ -204,20 +204,25 @@ function easeOutCubic(u: number): number {
  *  pre-Phase-K `easeOutCubic` had peak velocity at u=0 (f'(0)=3),
  *  which made cuts feel like the player teleported off their idle
  *  pose into the move — the "robotic snap" called out in the BDW-01
- *  screenshot QA. This curve composes a quick warmup (`u^1.4`, so
- *  f'(0)=0 — the player accelerates from rest) with a smoothstep cap
- *  (`u^2 * (3 - 2u)`), then biases toward the front half so the move
- *  still reads as decisive rather than a slow ease-in-out. The result:
- *  the player ramps up over the first ~15% of the segment, peaks
- *  velocity around u≈0.35, and settles into arrival on the back half.
- *  Slope continuity at u=0 and u=1 is zero, so back-to-back segments
- *  blend without a perceptible stutter at the seam.
+ *  screenshot QA. This curve is `smoothstep(u^0.7)`: applying the
+ *  forward time-warp `u^0.7` first (front-loads the action) then
+ *  smoothing through `r^2*(3-2r)` so both endpoints have zero
+ *  derivative. Result:
+ *    - f(0) = 0, f(1) = 1
+ *    - f'(0) = 0 (smooth start, no snap from idle)
+ *    - f'(1) = 0 (smooth arrival, settles on the spot)
+ *    - f(0.25) ≈ 0.130 (still front-loaded relative to ease-in-out
+ *      cubic's 0.0625 at the same u, so the move still reads as
+ *      decisive)
+ *    - f(0.5) ≈ 0.670 (front-loaded relative to symmetric 0.5)
+ *  Back-to-back segments blend at u=1 → u=0 without a velocity
+ *  discontinuity, which is what eliminates the segment-seam stutter.
  */
 function easeOutAthletic(u: number): number {
   if (u <= 0) return 0
   if (u >= 1) return 1
-  const warm = Math.pow(u, 1.4)
-  return warm * warm * (3 - 2 * warm)
+  const r = Math.pow(u, 0.7)
+  return r * r * (3 - 2 * r)
 }
 
 /** Phase C / C3 — pick the eased curve for a movement kind. Cuts /
