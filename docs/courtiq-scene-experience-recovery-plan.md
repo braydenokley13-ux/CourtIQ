@@ -5707,7 +5707,105 @@ polish** pass on top of the premium athlete:
   trainer rendering through any future regression in the
   premium builder.
 
+## Phase K — Screenshot-Based Trainer Correction Direction
 
+Phase J integrated the premium code-built athlete into the
+normal `Scenario3DCanvas → buildBasketballGroup →
+buildPlayerFigure` path successfully and the targeted tests
+all pass. Screenshot QA on BDW-01, however, shows that the
+trainer still does not feel like a premium playable
+film-room product yet. The product-feel issues that remain
+are not athlete-geometry issues — they are framing,
+camera, and motion issues that the Phase J athlete polish
+cannot fix on its own.
+
+### Issues visible in screenshots
+
+1. **Fullscreen layout / framing is broken or underused.**
+   In fullscreen mode the court collapses into a narrow top
+   band of the viewport and the bottom ~60% of the screen is
+   a giant black unused area. The user expects "fullscreen
+   film room"; what they get is a small play strip floating
+   in a black void.
+2. **Gameplay camera composition makes the trainer feel
+   small.** Even in the embedded mode, the broadcast / auto
+   framing leaves the action sitting in roughly the upper
+   half of the canvas and renders the players smaller than
+   they should be for a coaching read.
+3. **Athletes still look thin / stiff / placeholder-like.**
+   The Phase J jersey, shorts, head, and shoes shipped, but
+   from the gameplay camera the athletes still read as
+   stick-like silhouettes — the legs and arms are too thin,
+   the torso lacks shoulder mass, and the stance reads as a
+   static T-pose more than an athletic ready stance.
+4. **Animation / movement feels choppy and robotic.** The
+   rigid root translation (and yaw smoothing introduced in
+   earlier phases) leaves the players sliding from waypoint
+   to waypoint with abrupt starts and stops. The
+   ease-in-out-cubic ball arc helps the ball, but the bodies
+   still start moving instantly at segment boundaries and
+   stop instantly at endpoints.
+
+### Phase K direction
+
+Phase K will fix all four of these in narrow, reversible
+chunks on top of the existing imperative pipeline:
+
+- **Fullscreen framing.** Audit the `Scenario3DView`
+  fullscreen wrapper and `Scenario3DCanvas` container CSS so
+  the canvas fills the entire `:fullscreen` element and the
+  renderer/camera react to the post-fullscreen viewport
+  size. Keep the existing fullscreen button intact.
+- **Camera composition.** Re-tune the broadcast / auto
+  camera presets and `computeAutoTarget` so BDW-01 reads
+  larger and more centred on screen, both embedded and
+  fullscreen. Aspect-aware fit, no hardcoded magic numbers
+  in the hot path.
+- **Motion smoothness.** Add ease-in / ease-out and yaw
+  smoothing improvements to the root-motion sampler so
+  player segments do not start and stop with a hard step.
+  Preserve replay determinism, scenario timing, and the
+  freeze / consequence / replay state machine.
+- **Athlete proportions.** Thicken legs, arms, torso, and
+  shoulders on the premium figure so it reads as a real
+  athlete rather than a stick figure from the broadcast
+  camera. Stay inside the Phase J triangle ceiling where
+  possible.
+
+### Phase K non-goals
+
+- **No GLB / GLTF imports.** The Phase I follow-up gate
+  (J1–J7) still applies; Phase K stays on the premium
+  code-built path.
+- **No SkinnedMesh.** The figures stay as rigid sub-group
+  hierarchies.
+- **No AnimationMixer.** No external animation clips, no
+  named track playback. Smoothing is added to the existing
+  root-motion sampler.
+- **No new dependencies.** Three.js + React + R3F only.
+- **No scene-engine rewrite.** `Scenario3DCanvas`,
+  `Scenario3DView`, the replay state machine, and the
+  scenario JSON shape stay where they are.
+- **Phase F fallback stays.** The `USE_PREMIUM_ATHLETE`
+  flag and the `buildPlayerFigure` try/catch keep the
+  trainer rendering even if a Phase K change to the premium
+  builder regresses.
+
+### Phase K success criteria
+
+After Phase K, BDW-01 should:
+- Fill the fullscreen viewport with the court (no large
+  black unused area).
+- Read clearly from the broadcast camera with athletes
+  large enough that role and stance are obvious.
+- Move with eased starts and stops so the players feel like
+  athletes reading and reacting, not waypoint sliders.
+- Look thicker / more athletic from the gameplay camera
+  without changing the silhouette pose budget.
+- Pass the existing targeted tests
+  (`Scenario3DCanvas.test.tsx`,
+  `replayStateMachine.test.ts`,
+  `imperativeScene.athlete.test.ts`) without regressions.
 
 
 
