@@ -63,3 +63,5 @@ These notes are implementation-level QA derived from the Phase M builder + tests
 - Performance: < 8000 added tris and ~10 extra draw calls across 10 figures; well under the procedural per-figure budget. Mixer cost is per-bone-per-action and negligible.
 - Teaching clarity: the visible motion difference between sprint and slide makes "who is moving" easier to read at replay speed than the procedural rigid joints.
 - Caveat: the low-poly silhouette is uglier at close-up than the procedural premium athlete, so the skinned path improves *motion clarity* but regresses *static visual quality*.
+
+## Phase N — Skinned vs Procedural Decision
