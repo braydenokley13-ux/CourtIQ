@@ -4392,17 +4392,17 @@ function buildAthleteFigure(
   shoes.add(leftFoot)
   shoes.add(rightFoot)
 
-  // upperBody is the legacy crouch anchor that the existing
-  // userHead chevron parents to. Phase F preserves the contract: we
-  // pin pelvis + torso to figure root and let `upperBody` carry the
-  // chevron only. Crouch translation is a no-op here in F1A; F2 may
-  // shift it for stance translation if needed.
+  // upperBody is the crouch anchor for everything above the floor —
+  // pelvis, torso, arms, head, indicator chevron. Lowering
+  // `upperBody.position.y` for defensive / denial / closeout poses
+  // drops the visible body together with the chevron, so the user's
+  // "YOU" mark always rides above the head regardless of stance.
   const upperBody = new THREE.Group()
   upperBody.name = 'player-upper'
   figure.add(upperBody)
 
-  figure.add(pelvis)
-  figure.add(torso)
+  upperBody.add(pelvis)
+  upperBody.add(torso)
 
   // --- Stance pose. Applied via rigid sub-group rotations on the
   // named handles (E4 §3) — no SkinnedMesh / AnimationMixer.
