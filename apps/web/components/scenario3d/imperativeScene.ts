@@ -3474,32 +3474,41 @@ export function buildPlayerFigure(
 // figure reads as a 6-ft athlete from broadcast: legs are roughly
 // half the standing height, V-tapered torso, distinct knee + elbow
 // pivots, broadcast-readable shoulders.
+//
+// Phase K — limb radii and torso/pelvis widths bumped 15–25% from
+// Phase J. The previous numbers read as anatomically-correct on a
+// close-up but stick-like at the broadcast camera distance: thigh
+// diameter (≈4.8 in), calf diameter (≈4.3 in) and upper-arm
+// diameter (≈3.1 in) all sat well below the proportions of an
+// actual playing athlete on TV. Triangle counts are unchanged
+// (lathe / cylinder segment counts are constant), so the Phase J
+// 2400-tri ceiling is preserved.
 const ATH_TOTAL_HEIGHT = 5.95
 const ATH_FOOT_HEIGHT = 0.18
-const ATH_FOOT_LENGTH = 1.05
-const ATH_FOOT_WIDTH = 0.46
+const ATH_FOOT_LENGTH = 1.08
+const ATH_FOOT_WIDTH = 0.50
 const ATH_CALF_LENGTH = 1.25
-const ATH_CALF_TOP_R = 0.18
-const ATH_CALF_BOT_R = 0.13
+const ATH_CALF_TOP_R = 0.22
+const ATH_CALF_BOT_R = 0.16
 const ATH_THIGH_LENGTH = 1.45
-const ATH_THIGH_TOP_R = 0.24
-const ATH_THIGH_BOT_R = 0.19
-const ATH_PELVIS_HEIGHT = 0.55
-const ATH_PELVIS_WIDTH = 1.0
-const ATH_PELVIS_DEPTH = 0.78
-const ATH_TORSO_HEIGHT = 1.55
-const ATH_TORSO_TOP_W = 1.25
-const ATH_TORSO_BOT_W = 0.95
-const ATH_TORSO_DEPTH = 0.78
+const ATH_THIGH_TOP_R = 0.30
+const ATH_THIGH_BOT_R = 0.23
+const ATH_PELVIS_HEIGHT = 0.58
+const ATH_PELVIS_WIDTH = 1.10
+const ATH_PELVIS_DEPTH = 0.86
+const ATH_TORSO_HEIGHT = 1.58
+const ATH_TORSO_TOP_W = 1.42
+const ATH_TORSO_BOT_W = 1.05
+const ATH_TORSO_DEPTH = 0.88
 const ATH_NECK_LENGTH = 0.22
-const ATH_NECK_R = 0.14
+const ATH_NECK_R = 0.16
 const ATH_HEAD_R = 0.42
 const ATH_UPPER_ARM_LENGTH = 0.95
-const ATH_UPPER_ARM_R = 0.13
+const ATH_UPPER_ARM_R = 0.17
 const ATH_FORE_ARM_LENGTH = 0.95
-const ATH_FORE_ARM_R = 0.11
-const ATH_HIP_GAP = 0.46
-const ATH_SHOULDER_WIDTH = 1.35
+const ATH_FORE_ARM_R = 0.14
+const ATH_HIP_GAP = 0.50
+const ATH_SHOULDER_WIDTH = 1.50
 
 // Anchor heights derived once from the proportions above. `_Y` is the
 // world-space y of the *anchor pivot* on the figure root (origin =
