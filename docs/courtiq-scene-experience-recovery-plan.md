@@ -250,3 +250,109 @@ The cheapest path is: fix the engine, then fill it with content.
 
 ---
 
+## 6. Phase-by-Phase Plan
+
+### Phase A — Replay Audit
+
+#### Goal
+Produce a written, file-level map of the replay system: data flow,
+state transitions, control wiring, and a ranked list of where it
+actually breaks. No code changes.
+
+#### Why this phase matters
+Phase B cannot land safely without knowing whether the replay bugs
+are state-machine, timing, UI-wiring, or all three. Guessing the
+fix risks regressions in `MotionController` or `ReplayStateMachine`,
+both of which are explicitly flagged as risky-touch in
+`courtiq-premium-scene-visual-system-plan.md` Section 17.6.
+
+#### Files likely involved
+- `apps/web/components/scenario3d/imperativeScene.ts` —
+  `MotionController` (~L972+), `ReplayStateMachine` (~L1454+),
+  `MOTION_PRE_DELAY_MS`, `swapMode`, `reset`.
+- `apps/web/components/scenario3d/Scenario3DCanvas.tsx` —
+  paused/playbackRate/resetCounter wiring, parent rAF loop,
+  `motion.setPaused` / `motion.setPlaybackRate` effects.
+- `apps/web/components/scenario3d/Scenario3DView.tsx` — overlay
+  state ownership (`paused`, `playbackRate`, `restartTick`),
+  `compositeResetCounter`, replayMode/resetCounter reset effect.
+- `apps/web/components/scenario3d/PremiumOverlay.tsx` — restart,
+  play/pause, speed selector buttons.
+- `apps/web/components/scenario3d/ScenarioReplayController.tsx` —
+  full-path replay phase emitter (frozen / consequence / answer).
+- `apps/web/components/scenario3d/replayStateMachine.test.ts` —
+  existing test scaffolding for the state machine.
+- `apps/web/app/train/page.tsx` — picks the choice id, drives
+  `pickedChoiceId`, "Show me again" button, `resetCounter` source.
+
+#### Risks / boundaries
+- **Read-only.** Do not edit `MotionController`, `ReplayStateMachine`,
+  or any wiring file in this phase.
+- Do not touch `Scenario3DCanvas` parent rAF loop or FPS guard.
+- Do not alter the simple/full-path pin or quality tiers.
+- Do not start authoring scenarios.
+
+#### Acceptance criteria
+- A new audit section exists at the bottom of this doc (or as a
+  sibling doc) describing replay flow, broken behaviors, and
+  recommended fix points.
+- Each known replay symptom from Section 2.1 is mapped to at least
+  one concrete file/line range.
+- Each fix point is labeled "safe to edit," "edit with care," or
+  "do not edit in Phase B."
+- The audit ends with a 5–10 item ranked Phase B work list.
+
+#### Suggested model
+**Opus 4.7 High.** Reading-heavy, reasoning-heavy, no large code
+output. Max thinking budget is unnecessary; high is enough.
+
+#### Suggested commit style
+- 1 audit commit (docs only).
+- 0 implementation commits.
+- 0 QA commits.
+
+#### Micro-milestones
+
+**A1 — Map replay flow**
+- Objective: produce a sequence diagram (text or ASCII) of the
+  replay flow from page load → freeze → choose → consequence →
+  answer-leg → done → "show me again."
+- Likely files: `imperativeScene.ts`, `Scenario3DCanvas.tsx`,
+  `Scenario3DView.tsx`, `app/train/page.tsx`.
+- What changes: append a "Replay Flow Map" subsection to this doc.
+- Exit criteria: every state transition and every prop edge is
+  named with the file and approximate line.
+- Suggested commit message: `docs: map replay flow for recovery audit`
+
+**A2 — Isolate broken behaviors**
+- Objective: list each user-visible replay bug from Section 2.1
+  and trace it to a specific code path or wiring gap.
+- Likely files: same as A1.
+- What changes: append a "Broken Behaviors" subsection with one
+  entry per symptom.
+- Exit criteria: every symptom has (a) reproduction notes, (b) a
+  hypothesis pointing at a file/range, and (c) a confidence label
+  (high/med/low).
+- Suggested commit message: `docs: isolate replay broken behaviors`
+
+**A3 — Identify safest fix points**
+- Objective: classify each candidate fix surface as safe, careful,
+  or off-limits.
+- Likely files: same as A1.
+- What changes: append a "Fix Surface Classification" table.
+- Exit criteria: every method named in A2 hypotheses appears in
+  the table with a class label and one-line rationale.
+- Suggested commit message: `docs: classify replay fix surfaces`
+
+**A4 — Produce Phase B recommendation**
+- Objective: emit a ranked Phase B work list (5–10 items, each
+  scoped to a single micro-milestone) and a "do not touch in
+  Phase B" list.
+- Likely files: this doc only.
+- What changes: append a "Phase B Recommendation" subsection.
+- Exit criteria: each item has a one-sentence change summary, an
+  estimated diff size (S / M / L), and a dependency on prior items.
+- Suggested commit message: `docs: recommend replay Phase B work list`
+
+
+
