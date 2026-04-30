@@ -6106,5 +6106,58 @@ explicitly say so and recommend opening the GLB experiment
 (or an authored non-skeletal pose-animation phase) in a later
 prompt.
 
+### Phase L — Remaining Athlete Visual Gaps
+
+After fixing fullscreen layout (L2–L5), the athlete-quality
+audit produced the following ranked list of code-built blockers
+visible at the gameplay-camera distance (broadcast pose,
+~y=18 z=48 fov=42):
+
+1. **Upper arms read as too thin (#1 blocker).**
+   `ATH_UPPER_ARM_R = 0.17` with the Phase J3C lathe bulge
+   reaching `1.18x ≈ 0.20`. For a figure that is ~5.5 units
+   tall, a peak upper-arm radius of 0.20 means the arm
+   silhouette is barely thicker than the wristband torus —
+   it reads as a tube, not a muscle. The bicep/tricep mass
+   needs to come up to ~0.24–0.28 at the peak.
+2. **Thighs read as too thin (#2 blocker).**
+   `ATH_THIGH_TOP_R = 0.30` with a `1.10x ≈ 0.33` peak.
+   Real basketball thighs are ~25% of thigh length at the
+   peak; here `0.33 / 1.45 = 0.227 (~23%)`. Bumping the
+   peak to ~`0.40` (28%) gives the lower body the mass it
+   needs to look athletic.
+3. **Calves slightly underweight.** `ATH_CALF_TOP_R = 0.22`,
+   peak `1.20x = 0.264`. Slightly thin for the leg-to-foot
+   transition. A bump to `0.30+` at the peak ties the calf
+   into the shoe better.
+4. **Torso wide enough, but flat through the chest.** The
+   Phase J3A lathe profile uses `ATH_TORSO_TOP_W * 0.520` at
+   the upper chest. The pec line never swells — the
+   silhouette goes straight from waist to deltoid cap. A
+   small bump near `h * 0.28` (chest line) gives the torso a
+   pectoral plane that reads as muscle, not cardboard.
+5. **Stance still mostly upright.** `applyDefensivePose` /
+   `applyDenialPose` apply some knee/hip flex but the visible
+   defenders still read mannequin-upright at gameplay
+   distance. The off-ball defender pose in particular could
+   take more knee bend and a wider stance to match a real
+   defensive base.
+6. **Head/hair currently a single uniform skin sphere.** The
+   Phase J3B jaw plane helped, but the cranium is still a
+   plain sphere with no hair plane or eyebrow shadow line.
+   At gameplay distance this reads as "ball on top of a
+   tube" more than the L2/L3 fix exposes.
+7. **Indicator overlap is fine.** The chevron, halo, and
+   wristband do not visually compete with the body geometry
+   — Phase K already removed the defender forearm cuff. No
+   change needed here in L7–L9.
+
+Biggest single blocker: **upper-arm + thigh radii**.
+Phase L7 will lift those without raising the triangle budget
+(lathe profiles are radial-only — a thicker peak does not
+add segments). Phase F fallback constants are NOT touched in
+L7 so the fallback figure keeps its leaner Phase F silhouette
+exactly as the recovery plan committed to.
+
 
 
