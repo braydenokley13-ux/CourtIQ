@@ -145,3 +145,9 @@ All overlays must clear after 1.2s into Timeline A so the player can see the cle
 ## AOR-01
 
 **Title:** No Gap Go Now
+
+**Decoder / Principle:** Advantage or Reset — every catch is a decision. A hard closeout with no shooting gap **is** the advantage. Drive it now or you lose it.
+
+**Difficulty:** 3 / 5 (intermediate — requires reading feet, not just space)
+
+**Player Role:** Wing scorer (on-ball, just caught a swing pass)
