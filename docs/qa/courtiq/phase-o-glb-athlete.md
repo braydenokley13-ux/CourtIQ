@@ -337,4 +337,41 @@ Phase N:
   projection. A real visual sign-off has to wait for the asset and a
   live screenshot pass.
 
+## Phase O Findings
+
+1. **Selected asset or no-go reason?** Quaternius (CC0 1.0) is the
+   selected source — license, rig, size, and silhouette all clear the
+   gates. **No specific GLB file was downloaded or committed in this
+   pass**, so the implementation gate (asset on disk) remains unmet.
+2. **Was a GLB code path implemented?** No. Per the Phase O prompt's
+   "only if feasible" rule, O3 (flag) and O4 (loader) were both
+   recorded as deferred until the asset is committed. No new
+   TypeScript code was added; the `imperativeScene.ts` flag block is
+   byte-identical to its pre-Phase-O state.
+3. **Does procedural remain the production default?** Yes.
+   `USE_PREMIUM_ATHLETE = true` and `USE_SKINNED_ATHLETE_PREVIEW =
+   false` are both unchanged. BDW-01 still renders the procedural
+   premium athlete (Phase J/K/L), with the Phase F figure as the
+   guaranteed last resort.
+4. **Did the experimental skinned path get touched?** No.
+   `skinnedAthlete.ts` and the M-flag remain exactly as Phase N left
+   them. The flag is still off by default.
+5. **Did the scenario JSON or BDW-01 wiring change?** No. Scenario
+   schema (`lib/scenario3d/schema.ts`) and the trainer flow are
+   untouched.
+6. **Validation summary.** Targeted vitest run on
+   `components/scenario3d/` and `lib/scenario3d/` passes —
+   11 files, 167 tests, all green. Typecheck on the scenario3d
+   surface is clean; pre-existing TypeScript errors in
+   `lib/services/*` (Prisma-typed services) are unrelated to Phase O
+   and predate this branch.
+7. **Next recommendation.** A separate asset-sourcing pass picks a
+   specific Quaternius character pack, downloads one GLB, verifies
+   size + license, commits it under
+   `apps/web/public/athlete/<name>.glb` with an `ATTRIBUTION.md`,
+   and then resumes Phase O at O3 (flag) → O4 (loader) → O5 (visual
+   QA with all three paths live) → O6 (validation) → O7 (findings
+   refresh).
+
+
 
