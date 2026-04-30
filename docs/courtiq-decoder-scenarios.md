@@ -192,3 +192,20 @@ All overlays must clear after 1.2s into Timeline A so the player can see the cle
 **Lesson Connection:** Decoder 2 — *Advantage or Reset*. The cue here is **parallel feet + forward momentum**. Same cue, every closeout, every time.
 
 **One-Sentence Teaching Point:** "If his feet are flat and square, you go — right now."
+
+### 3D Court Setup
+
+Coordinates in feet, origin at rim, +x = right sideline, +z = toward half-court. Ball is on the **right wing**.
+
+| ID | Role | x | z | Notes |
+| --- | --- | --- | --- | --- |
+| O1 | PG | 0 | 19 | Top of the key |
+| O2 | Left wing — just made the swing pass | -18 | 8 | Pass complete, ball-watching |
+| O3 | Left corner | -22 | 1 | Spaced |
+| **O4** | **You — right wing, catching ball** | 18 | 8 | The user marker |
+| O5 | Right corner | 22 | 1 | Spaced behind you |
+| D1 | On O1 | 0 | 17 | Drop coverage |
+| D2 | On O2 | -17 | 9 | Tight on the previous ball-handler |
+| D3 | On O3 | -21 | 3 | Tight on left corner |
+| **D4** | **On you — closing out** | 16 | 9 | **Parallel feet, forward momentum, ~2ft from O4** |
+| D5 | On O5 | 21 | 3 | Tight on right corner |
