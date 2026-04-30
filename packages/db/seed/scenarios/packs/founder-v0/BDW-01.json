@@ -74,9 +74,9 @@
     "decoder_teaching_point": "When your defender sits in the passing lane, the basket is open behind them.",
     "lesson_connection": "backdoor-window",
     "feedback": {
-      "correct": "Good read. You punished the denial instead of fighting for the catch.",
-      "partial": "Re-spacing can keep the play alive, but the cleaner answer was the layup window behind the defender.",
-      "wrong": "You stayed loyal to the spot instead of the cue. If they deny the pass, cut behind them."
+      "correct": "Good read. Your defender blocked the pass, so the space behind him was open. You took the layup.",
+      "partial": "Stepping back kept the play alive. Next time, watch his body. If he is blocking the pass, cut behind him for the layup.",
+      "wrong": "Watch his body. If your defender is blocking the pass, the space behind him is open. Cut behind him."
     },
     "self_review_checklist": [
       "Did I see the hand-and-foot denial?",
