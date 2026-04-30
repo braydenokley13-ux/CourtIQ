@@ -3104,3 +3104,194 @@ that polish cannot lift.
 - **Disposal hygiene preserved.** Every new mesh / material / texture
   reachable by `disposeGroup` and `disposeMaterialTextures`.
 
+
+### E2 — Player Geometry Strategy Comparison
+
+> Four candidate paths, each evaluated against the constraints established
+> in E1 §9 plus visual-system plan Sections 6, 14 (perf rules), 17.5
+> (safest files), 18.4 (stance reopen item).
+
+#### Option A — Improve current procedural primitives again
+
+- **What it means.** Stay inside `buildPlayerFigure` and tune dimensions,
+  add a third capsule for biceps/forearms, sharpen the shoulder yoke,
+  lengthen legs, narrow shorts. No architectural change; another polish
+  pass on the existing primitive stack.
+- **Expected visual quality.** Marginal lift over today. Three rounds
+  have already gone through this loop (peg → capsule torso → V-taper +
+  yoke + foot stagger). Each round produced a smaller delta than the
+  one before. Diminishing returns are the headline finding from E1 §8.
+- **Engineering complexity.** Low. Numeric tuning + one or two extra
+  primitives.
+- **Performance risk on Mac.** Low. Per-player tri count rises by maybe
+  ~10%; well inside Section 14 budget.
+- **Compatibility with current indicators.** Perfect — nothing changes.
+- **Compatibility with stance system.** Same as today: stance still
+  reduces to "translate upper body + rotate arms." Cannot add
+  closeout / sag / cut convincingly.
+- **Compatibility with `disposeGroup` / material cleanup.** Perfect —
+  no new patterns.
+- **Risk to replay/movement.** None. Phase B/C work is decoupled.
+- **Does it solve the "gross player geometry" problem?** No. It does
+  not change the architecture that produces the "stack" read.
+- **Verdict.** **Reject.** Three rounds of this approach produced a
+  better-but-still-placeholder body. A fourth will hit the same ceiling.
+
+#### Option B — Build a better reusable low-poly player mesh in code
+
+- **What it means.** Replace the primitive stack with a hand-authored,
+  code-built low-poly athlete: a single `BufferGeometry` for the torso
+  (or a small set of merged primitives that share a topology) with V-
+  tapered shoulders, articulated arms (upper / fore / hand block),
+  articulated legs (thigh / calf / foot), distinct shoes with toe + heel,
+  and a hip ring that defines hip angle as real geometry. Stance is
+  applied to the same mesh by rotating named sub-groups
+  (`leftThigh`, `leftCalf`, `leftFoot`, `rightThigh`, `rightCalf`,
+  `rightFoot`, `torso`, `leftUpperArm`, `leftForeArm`, `rightUpperArm`,
+  `rightForeArm`) rather than translating the upper body wholesale.
+  No skeletal skinning — each segment is a rigid sub-group, and the
+  joints between them either match (shared end-cap radius) or hide
+  inside the shorts / sleeves so the seam is invisible from broadcast
+  distance.
+- **Expected visual quality.** Substantial lift. Real leg bend in
+  defensive stance, real elbow bend in denial, real toe orientation in
+  closeout. Silhouette resolves to "athlete," not "primitives." Phase
+  6 of the visual-system plan describes exactly this in §6 — "stylized
+  athletic proportions" with "stance set by pose, not by skeletal
+  animation."
+- **Engineering complexity.** Medium. A code-built low-poly mesh is
+  bigger code than the current builder, but every primitive is still
+  THREE.BufferGeometry, no loaders, no async. The hard work is sub-
+  group taxonomy + per-stance pose math; both are straightforward.
+- **Performance risk on Mac.** Low–Medium. Tri count rises (estimate
+  ~600–1100 tris per player vs. today's ~450, depending on shoe / hand
+  detail). Five players × 1100 = ~5500 player tris, comfortably below
+  the gym shell + court budget. Material count stays the same (jersey,
+  shorts, skin, shoe, accent, trim). No new draw calls.
+- **Compatibility with current indicators.** High. The base / user /
+  possession layers attach to the figure root, not the body. The
+  builder signature (`teamColor, trimColor, isUser, hasBall,
+  jerseyNumber, stance`) is preserved; indicators ride on top exactly
+  as they do today.
+- **Compatibility with stance system.** High. Adding `closeout`,
+  `sag` / `shrink`, and `cut` is a per-stance pose lookup table on
+  the new sub-groups. ESC-01 / AOR-01 / SKR-01 reopen items
+  (visual-system plan §18.4) become easy.
+- **Compatibility with `disposeGroup` / material cleanup.** High.
+  Sub-groups are still THREE.Group descendants; the existing
+  traversal walks them and frees geometry / material as before.
+  Shared materials (one jerseyMat per figure, etc.) keep dispose
+  cheap.
+- **Risk to replay/movement.** Low. The MotionController writes
+  `position` and `rotation.y` on the figure root; sub-group poses are
+  internal to the builder. Phase C's per-frame yaw remains a single
+  rotation write on the root.
+- **Does it solve the "gross player geometry" problem?** Yes. It
+  changes the architecture that produces the placeholder read.
+- **Verdict.** **Recommended.**
+
+#### Option C — Use a lightweight imported GLB / glTF model
+
+- **What it means.** Author or commission a low-poly player model in
+  Blender, export to GLB, ship via `GLTFLoader` from `three/examples`.
+  Bind a tiny rig (or pose-frames) for stances.
+- **Expected visual quality.** Potentially highest of the four if a
+  good artist authors it; potentially worst if not, because an
+  uncanny-valley model is more jarring than a clean primitive stack.
+  Quality is bounded by who builds the asset, not by the engineering.
+- **Engineering complexity.** Medium–High. New asset pipeline (Blender
+  source, GLB export step, version control of binary blobs); new
+  loader code path inside `Scenario3DCanvas` or `imperativeScene`;
+  async loading + suspense handling; per-player instance cloning of
+  the SkinnedMesh / Mesh; pose application via skeleton or morph
+  targets. Disposal becomes harder (skinned meshes have separate
+  skeleton lifetimes, animation mixers, etc.).
+- **Performance risk on Mac.** Medium. Skinned meshes cost more per
+  frame than rigid sub-groups; five animated skinned meshes is the
+  exact pattern Section 14 calls out as "no per-skinned animation
+  rigs in this phase." Even without skinning, a higher-poly imported
+  model can blow the per-player tri budget.
+- **Compatibility with current indicators.** Medium. Indicators still
+  attach to the figure root, but if the imported model has its own
+  origin / scale, indicator positions need recomputing. The user halo
+  and chevron currently assume specific Y heights (`HEAD_Y + HEAD_RADIUS + 1.1`,
+  `imperativeScene.ts` ~L3831).
+- **Compatibility with stance system.** Medium. If the model is
+  imported with bone animations, stance becomes "play animation X" —
+  loses the per-frame yaw / closeout-tilt that Phase C added on the
+  root. If imported without bones, every stance is a separate
+  pre-authored mesh, which multiplies the asset cost.
+- **Compatibility with `disposeGroup` / material cleanup.** Medium.
+  GLTFLoader-produced meshes need extra dispose handling for the
+  skeleton, animation clips, and texture cache. The existing
+  `disposeGroup` traversal would miss these.
+- **Risk to replay/movement.** Medium. Replay reliability (Phase B)
+  was hard-won; switching the body to a SkinnedMesh + animation mixer
+  reintroduces frame-rate-dependent timing, which is the exact problem
+  Phase B fixed. Even avoiding mixers, imported models have
+  surprises (bone normalisation, root motion offsets) that have a
+  history of breaking replay deterministic playback.
+- **Does it solve the "gross player geometry" problem?** Could —
+  but at the cost of a new asset pipeline and async-loading path the
+  rest of the renderer does not currently use.
+- **Verdict.** **Reject (now). Reconsider post-recovery.** The asset
+  pipeline alone is a separate workstream. The visual-system plan
+  Section 6 explicitly says "no per-skinned animation rigs in this
+  phase," and Section 14 says "no realtime cloth, no realtime fluid,
+  no per-frame shader allocations." A good GLB future is fine; this
+  phase is the wrong moment.
+
+#### Option D — Hybrid (code-built body + imported head, or code mesh + imported textures)
+
+- **What it means.** Mix-and-match: keep the body in code (Option B)
+  but import a small stylized head model from GLB, or apply imported
+  PBR material textures to the code mesh.
+- **Expected visual quality.** Same as B for body; head can be either
+  better (imported) or a wash (heads barely register at broadcast
+  distance per visual-system plan §6 "no facial detail, no hair systems
+  — faces are an attention sink and a perf cost for zero teaching
+  value at this camera distance").
+- **Engineering complexity.** Adds the GLB asset pipeline cost from
+  Option C without the rest of the model's benefit. Two loader paths
+  is worse than one.
+- **Performance risk on Mac.** Low–Medium. The body is rigid; the head
+  is small. The added cost is mostly the loader, not the geometry.
+- **Compatibility with current indicators.** Medium. Same head-Y
+  recompute risk as Option C, but limited in scope.
+- **Compatibility with stance system.** Same as B.
+- **Compatibility with `disposeGroup`.** Medium. New texture-import
+  path needs its own dispose call.
+- **Risk to replay/movement.** Low. Same as B; the head is static.
+- **Does it solve the "gross player geometry" problem?** Yes — but only
+  via the body half. The head half is decorative cost.
+- **Verdict.** **Reject.** All the plan benefit lives in the body
+  (Option B). The head is small and unimportant at broadcast distance
+  (visual-system plan §6: "no facial detail" is a *positive* design
+  choice, not a fallback). Adding a GLB asset pipeline solely for the
+  head is overengineering.
+
+#### Comparison table
+
+| Dimension | A. Repolish primitives | B. Code-built low-poly mesh | C. Imported GLB | D. Hybrid (B + GLB head) |
+|---|---|---|---|---|
+| Visual ceiling | Low | High | Highest in theory | High |
+| Implementation risk | Very low | Low–Medium | High | Medium–High |
+| Performance risk | Very low | Low–Medium | Medium | Low–Medium |
+| Time cost | S (1 commit) | M (4–5 commits) | L (asset + loader + integration) | L–M (B + asset path) |
+| Maintainability | Familiar territory | One builder file, all in code | Two pipelines (asset + code) | Worst — code + asset |
+| Compatible with indicators | Perfect | High | Medium | Medium |
+| Stance extensibility | Capped | High | Animation-dependent | High |
+| Compatible with `disposeGroup` | Perfect | High | Medium (extra cases) | Medium |
+| Replay-safe | Perfect | Perfect | At risk | Mostly perfect |
+| Solves the placeholder read | No | **Yes** | Yes (if asset is good) | Yes |
+| Best fit for CourtIQ today | No | **Yes** | No | No |
+
+#### Conclusion
+
+Option B (a reusable code-built low-poly athlete mesh, no skeletal rig,
+sub-group rigid posing) is the only candidate that resolves the
+architectural ceiling identified in E1 §6/§8 while staying inside the
+performance, dispose, and replay-safety guardrails the recovery has
+spent Phases A–D establishing. E3 designs the proof-of-concept; E4
+locks the path.
+
