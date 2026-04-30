@@ -479,5 +479,132 @@ regression risk; max thinking is worth the cost.
   BDW-01.
 - Suggested commit message: `test(replay): cover Phase B regressions`
 
+---
+
+### Phase C — Movement Quality Pass
+
+#### Goal
+Make players, defenders, and the ball move in ways that show the
+basketball reason. Bodies face the action. Cuts accelerate. Defenders
+react. Passes arc and arrive on time.
+
+> **Movement should show the basketball reason, not just move pieces around.**
+
+#### Why this phase matters
+After Phase B, replay is reliable. But replaying a stiff scene is
+still unconvincing. Movement carries the *meaning* of every
+scenario; without it, the scene is a diagram with sliders.
+
+#### Files likely involved
+- `apps/web/components/scenario3d/imperativeScene.ts` —
+  `MotionController.applyBall` (~L1229+), `samplePlayer`,
+  `computePlayerYaw` (~L3171), the per-stance pose in
+  `buildPlayerFigure` (~L3193), `MOTION_PRE_DELAY_MS`, parabola
+  height, `resolveCatcher` (~L1206).
+- `apps/web/components/scenario3d/imperativeTeachingOverlay.ts` —
+  defender pressure halos, vision cones (movement cues react to
+  motion controller's holder).
+- `apps/web/lib/scenario3d/timeline.ts` — chained-movement
+  timeline build; pacing.
+- `apps/web/components/scenario3d/Scenario3DCanvas.tsx` —
+  pass-arrival camera shake (already present, ensure it stays
+  proportional).
+
+#### Risks / boundaries
+- Do not redesign player geometry. That is Phase F.
+- Do not change scenario JSON timings (this is renderer feel,
+  not authored content).
+- Do not break Phase B replay reliability — feel changes must be
+  rate-aware and pause-respecting.
+- Stay within the performance rules from
+  `courtiq-premium-scene-visual-system-plan.md` Section 14.
+
+#### Acceptance criteria
+- Players face the ball / target during cuts and drives instead of
+  holding their start yaw.
+- Defenders shift body facing when the ball moves.
+- Cuts visibly accelerate (not constant velocity).
+- The ball arc reads as a basketball pass at all speeds.
+- Freeze lands at the authored beat with no overshoot.
+- No regression in BDW-01 timing.
+
+#### Suggested model
+**Opus 4.7 High.** Real engineering, but bounded — the architecture
+is already in place; this is tuning + a few targeted upgrades.
+
+#### Suggested commit style
+- 1 audit commit (movement audit notes).
+- 3–4 implementation commits.
+- 1 QA/tuning commit.
+
+#### Micro-milestones
+
+**C1 — Movement audit**
+- Objective: capture the current motion behavior and list the
+  specific feel gaps (stiff cuts, fixed yaws, flat passes,
+  static defenders).
+- Likely files: docs only.
+- What changes: append a "Movement Audit" subsection to this doc
+  with named gaps and target file/line ranges.
+- Exit criteria: each Section 2.2 symptom mapped to ≥1 file/range.
+- Suggested commit message: `docs: audit movement quality gaps`
+
+**C2 — Improve body-facing logic**
+- Objective: drive `computePlayerYaw` per frame for in-motion
+  players so bodies turn into cuts and toward the ball.
+- Likely files: `imperativeScene.ts` (`MotionController.samplePlayer`,
+  `computePlayerYaw`).
+- What changes: lift `computePlayerYaw` from one-shot at build
+  to a per-frame call inside the player update path; ease yaw
+  toward target with a short time constant.
+- Exit criteria: cutters face their cut path; defenders rotate
+  with the ball; no jitter from frame-rate variance.
+- Suggested commit message: `feat(scene): drive player facing per frame`
+
+**C3 — Improve cut / drive timing**
+- Objective: cuts and drives accelerate from rest and decelerate
+  at the target instead of moving at constant speed.
+- Likely files: `imperativeScene.ts` (`samplePlayer`),
+  `lib/scenario3d/timeline.ts`.
+- What changes: apply an ease-in/out interpolation to position
+  along authored segments; expose a per-segment optional easing
+  hint without breaking existing JSON.
+- Exit criteria: a cut visibly accelerates; the receiver settles
+  before the pass arrives; replay-rate-aware.
+- Suggested commit message: `feat(scene): ease cut and drive motion`
+
+**C4 — Improve defender reaction timing**
+- Objective: defenders react to ball position changes — at minimum
+  rotate body and shift small step toward the ball — within ~150 ms
+  of the holder change.
+- Likely files: `imperativeScene.ts` (defender update path),
+  `imperativeTeachingOverlay.ts` (pressure halo timing).
+- What changes: tie defender yaw and a small lateral offset to
+  the holder; debounce so it doesn't jitter on quick swings.
+- Exit criteria: when the ball swings, defenders visibly turn;
+  no overlay flicker.
+- Suggested commit message: `feat(scene): defenders react to ball swings`
+
+**C5 — Improve ball arc + freeze**
+- Objective: passes arc with a credible parabola; freeze lands
+  exactly at the authored beat with no overshoot or rebound.
+- Likely files: `imperativeScene.ts` (`applyBall`,
+  `MOTION_PRE_DELAY_MS`, freeze handling).
+- What changes: tune parabola height vs. distance; clamp
+  freeze frame so authored `freezeAtMs` is honored across all
+  playback rates.
+- Exit criteria: passes feel like passes at 0.5x / 1x / 2x;
+  freeze frame matches the authored marker.
+- Suggested commit message: `feat(scene): tune ball arc and freeze accuracy`
+
+**C6 — Movement QA pass**
+- Objective: confirm the feel changes hold up on BDW-01 across
+  all replay legs and rates; verify no Phase B regression.
+- Likely files: tests + docs only.
+- What changes: add unit tests where feasible (`samplePlayer`
+  yaw target, ease curve), append QA notes.
+- Exit criteria: tests pass, manual QA matrix clean.
+- Suggested commit message: `test(scene): cover movement quality changes`
+
 
 
