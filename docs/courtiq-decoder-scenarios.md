@@ -287,3 +287,5 @@ Floor markers under D4's feet are the signature visual: they make the parallel-f
 **Difficulty:** 4 / 5 (advanced — requires reading two defenders at once and trusting the skip)
 
 **Player Role:** Driver (you have the ball, attacking the paint off a wing)
+
+**Game Context:** 4th quarter, score is tied. You drove past your defender on the right wing and you're at the elbow with momentum. The defense is collapsing on you.
