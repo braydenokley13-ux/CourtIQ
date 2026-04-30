@@ -1130,5 +1130,99 @@ needed.
   next-step (typically: "begin authoring ESC-01").
 - Suggested commit message: `docs: declare recovery readiness review`
 
+---
+
+## 7. Micro-Milestone Rules
+
+The micro-milestones are how this plan stays executable.
+
+- **One milestone per Claude session.** Each milestone is sized
+  to land safely in a single conversation, including read,
+  edit, test, and commit.
+- **One coherent commit per milestone.** Each milestone produces
+  one commit (occasionally two if a docs note belongs separately).
+- **No mixed scopes in a milestone.** A replay fix is not bundled
+  with a copy edit. If a side issue surfaces, log it and keep
+  going.
+- **Finish before starting.** Do not begin the next milestone
+  until the current one's exit criteria pass.
+- **Validate after each milestone.** Run lint, typecheck, and
+  tests at minimum. Manual QA where the milestone touches user-
+  visible behavior.
+- **Stop at clean boundaries.** If a session is running long, end
+  on a coherent commit rather than push half a milestone.
+- **Reviewable progress beats fast progress.** Smaller diffs that
+  someone else could approve in five minutes are better than
+  multi-area sweeps.
+- **Audit milestones must be docs-only.** No code changes inside
+  any milestone whose name starts with "audit," "map," or
+  "compare."
+- **If a milestone grows mid-session, split it.** Land the
+  reviewable portion as its own commit and queue the rest as a
+  follow-up milestone.
+
+---
+
+## 8. Do-Not-Do List
+
+- Do not author new scenarios (ESC-01, AOR-01, SKR-01, or
+  beyond) during this recovery.
+- Do not keep polishing visuals while replay is broken — Phase B
+  is the gate.
+- Do not casually touch `MotionController` or `ReplayStateMachine`.
+  These are explicitly flagged as risky in
+  `courtiq-premium-scene-visual-system-plan.md` Section 17.6.
+- Do not touch `Scenario3DCanvas` parent rAF loop, FPS guard, or
+  simple/full-path pin unless a phase truly requires it; if so,
+  escalate first.
+- Do not redesign the whole product. This is a recovery plan,
+  not a rewrite.
+- Do not start copy work before Phase G2 defines the rules and
+  Phase G1 documents the source files.
+- Do not overbuild a player model before Phase E chooses the path.
+- Do not change scenario JSON pacing as a workaround for movement
+  feel — fix the renderer in Phase C.
+- Do not bundle phases. Each phase ships its own commits and
+  earns its own QA pass.
+- Do not skip Phase A. Replay fixes without an audit will
+  regress.
+
+---
+
+## 9. Recommended Execution Order
+
+Run the phases in this exact order. Do not skip ahead.
+
+1. **Phase A — Replay Audit.** Read-only. Output is the audit
+   subsection that drives Phase B.
+   - *Do not skip ahead* to fixing replay before the audit; one
+     unguided edit to `MotionController` can eat a day.
+2. **Phase B — Replay Reliability Fix.** Implement the audit's
+   recommendations.
+   - *Do not skip ahead* to motion or fullscreen until B's QA is
+     clean.
+3. **Phase C — Movement Quality Pass.** With reliable replay in
+   place, motion changes are observable and revert-safe.
+   - *Do not skip ahead* to geometry — motion changes feed the
+     E spike.
+4. **Phase D — Fullscreen Film Room Mode.** Independent of motion
+   and geometry; depends on B for usable controls.
+   - *Do not skip ahead* if D surfaces a B regression — fix B
+     first.
+5. **Phase E — Player Geometry Strategy Spike.** A decision phase,
+   not an implementation phase.
+   - *Do not skip ahead* into Phase F until E4 lands.
+6. **Phase F — Player Geometry Redesign.** Implement the chosen
+   path from E.
+   - *Do not skip ahead* to copy — copy reads better against the
+     new look.
+7. **Phase G — Young-Player Copy Pass.** Wording at last.
+   - *Do not skip ahead* to scenario authoring — that is post-
+     recovery.
+8. **Phase H — Final QA / Integration.** Cohesion pass and
+   readiness review.
+   - *Do not skip ahead* to ESC-01 / AOR-01 / SKR-01 authoring
+     until H4 declares ready.
+
 
 
