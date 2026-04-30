@@ -3431,20 +3431,43 @@ export function computePlayerYaw(team: SceneTeam, x: number, z: number): number 
 const USE_PREMIUM_ATHLETE = true
 
 /**
- * Phase F / J — public builder entry point. Returns the premium
- * code-built athlete (Phase J, Option B) when `USE_PREMIUM_ATHLETE`
- * is true; otherwise returns the Phase F low-poly stylized athlete
- * (E4 §3 contract). Signature is locked across both paths:
+ * Phase M — when true, `buildPlayerFigure` will attempt the
+ * experimental SkinnedMesh + AnimationMixer player path before
+ * falling through to the procedural premium / Phase F builders.
+ * Defaults to `false`. The flag is intentionally not URL-driven
+ * yet: production traffic must never hit the experimental path
+ * unless code is changed first.
+ *
+ * Fallback chain:
+ *   skinned (if flag on) → procedural premium (Phase J) →
+ *   procedural Phase F (E4 §3 contract).
+ *
+ * Anything thrown by the skinned path is caught silently and the
+ * caller receives the procedural figure on the next line. BDW-01
+ * is unaffected when the flag is `false` — the procedural figure
+ * the trainer renders today is byte-for-byte identical to the
+ * pre-Phase-M output.
+ */
+export const USE_SKINNED_ATHLETE_PREVIEW = false
+
+/**
+ * Phase F / J / M — public builder entry point. Returns, in
+ * priority order:
+ *   1. Skinned/animated preview figure when `USE_SKINNED_ATHLETE
+ *      _PREVIEW` is true and the skinned builder succeeds.
+ *   2. Premium code-built athlete (Phase J) when
+ *      `USE_PREMIUM_ATHLETE` is true.
+ *   3. Phase F low-poly stylized athlete (E4 §3 contract).
+ *
+ * Signature is locked across all three paths:
  * `(teamColor, trimColor, isUser, hasBall, jerseyNumber, stance) →
  * THREE.Group`. Exported so the disposal-leak / budget tests can
  * build figures in isolation; production rendering routes through
  * `buildBasketballGroup`.
  *
- * Fallback policy: if the premium path throws for any reason (e.g.
- * a regression on a new geometry helper), `buildPlayerFigure`
- * silently falls back to the Phase F figure so the trainer keeps
- * rendering. The fallback is the same code path that shipped at the
- * tip of Phase H, so callers see no contract change.
+ * Fallback policy: every non-default path is wrapped in try/catch
+ * so any unexpected error reverts to the next available path. The
+ * Phase F figure is the guaranteed last resort.
  */
 export function buildPlayerFigure(
   teamColor: string,
@@ -3454,6 +3477,23 @@ export function buildPlayerFigure(
   jerseyNumber: string,
   stance: PlayerStance,
 ): THREE.Group {
+  if (USE_SKINNED_ATHLETE_PREVIEW) {
+    try {
+      const skinned = buildSkinnedAthleteFigure(
+        teamColor,
+        trimColor,
+        isUser,
+        hasBall,
+        jerseyNumber,
+        stance,
+      )
+      if (skinned) return skinned
+    } catch {
+      // Phase M fallback — skinned/animated preview path failed;
+      // continue to the procedural paths so the scene keeps
+      // rendering.
+    }
+  }
   if (USE_PREMIUM_ATHLETE) {
     try {
       return buildPremiumAthleteFigure(
@@ -3470,6 +3510,26 @@ export function buildPlayerFigure(
     }
   }
   return buildAthleteFigure(teamColor, trimColor, isUser, hasBall, jerseyNumber, stance)
+}
+
+// =====================================================================
+// Phase M — Skinned athlete preview (experimental, flag-gated)
+// =====================================================================
+//
+// Stub-only at M2. Returns `null` so the selector in
+// `buildPlayerFigure` falls through to the procedural path even if
+// `USE_SKINNED_ATHLETE_PREVIEW` is somehow enabled. Subsequent
+// commits in this phase replace the stub with a real generated
+// SkinnedMesh prototype + AnimationMixer support.
+function buildSkinnedAthleteFigure(
+  _teamColor: string,
+  _trimColor: string,
+  _isUser: boolean,
+  _hasBall: boolean,
+  _jerseyNumber: string,
+  _stance: PlayerStance,
+): THREE.Group | null {
+  return null
 }
 
 // =====================================================================
