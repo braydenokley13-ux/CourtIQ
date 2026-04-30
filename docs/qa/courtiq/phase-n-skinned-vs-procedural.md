@@ -40,3 +40,8 @@ Capture context: live screenshots require an authenticated `/train` session (`pn
 Mode: `USE_SKINNED_ATHLETE_PREVIEW = true` (LOCAL ONLY — flag is reverted before commit; production default stays `false`).
 
 These notes are implementation-level QA derived from the Phase M builder + tests; live screenshot capture on Mac/Chrome is still required to land a visual sign-off and is gated on the local `pnpm qa:auth` flow.
+
+### Generated prototype player quality
+- 11-bone skinned humanoid (~600 tris) built from merged cylinders + sphere head, hard one-bone-per-vertex skinning.
+- Silhouette is recognisable as a humanoid but reads as a low-poly cylinder rig at close range. At broadcast camera distance the team-coloured material does most of the work.
+- No clavicles, no neck bone, no foot meshes — the prototype is a proof-of-architecture, not a premium visual.
