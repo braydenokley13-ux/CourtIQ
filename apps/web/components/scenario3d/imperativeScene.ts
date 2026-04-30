@@ -969,25 +969,34 @@ const MOTION_PRE_DELAY_MS = 250
  * Phase C / C2 — yaw smoothing time constants in seconds. The smaller
  * the constant, the snappier the body turn.
  *
- *  - Offense (`YAW_TIME_CONSTANT_OFFENSE_S`, ~0.18s) is fast enough to
- *    make a cut feel decisive without flicking when a cutter rotates
- *    through several waypoints.
- *  - Defense (`YAW_TIME_CONSTANT_DEFENSE_S`, ~0.10s) is intentionally
- *    snappier: defenders react with their bodies the moment the ball
- *    swings or the holder changes, which is the C4 "shift attention"
- *    cue. Still slow enough that micro-jitter from frame-to-frame ball
- *    positions does not show up as a flick.
+ *  - Offense (`YAW_TIME_CONSTANT_OFFENSE_S`, ~0.20s, Phase K bumped
+ *    from 0.18s) is fast enough to make a cut feel decisive without
+ *    flicking when a cutter rotates through several waypoints. The
+ *    extra 20ms knocks down a faint visible "settle" wobble at
+ *    cut endpoints when the body yaw catches up to the held pose.
+ *  - Defense (`YAW_TIME_CONSTANT_DEFENSE_S`, ~0.14s, Phase K bumped
+ *    from 0.10s) still keeps defenders reacting faster than offense
+ *    on holder swings (the C4 "shift attention" cue) but is no
+ *    longer snappy enough to read as twitchy / robotic when the ball
+ *    crosses the perimeter quickly. The screenshot QA called out
+ *    this micro-jitter as one of the trainer's stiffest tells.
  */
-const YAW_TIME_CONSTANT_OFFENSE_S = 0.18
-const YAW_TIME_CONSTANT_DEFENSE_S = 0.1
+const YAW_TIME_CONSTANT_OFFENSE_S = 0.2
+const YAW_TIME_CONSTANT_DEFENSE_S = 0.14
 
 /**
  * Phase C / C2 — squared minimum direction magnitude before we use
  * the per-frame movement-direction or defender→ball heuristic for
  * yaw. Below this, we fall back to the static team yaw so a paused
  * scene or an idle player does not chase a sub-pixel direction signal.
+ *
+ * Phase K bumped from 0.01 ft² (0.1 ft floor) to 0.04 ft² (0.2 ft
+ * floor) so a defender standing within 0.2 ft of the ball does not
+ * flicker yaw on every frame as a stationary holder breathes within
+ * sub-foot precision; the previous floor was tight enough that
+ * sub-pixel ball position drift was visible as a yaw twitch.
  */
-const MOVEMENT_DIRECTION_EPS_SQ = 0.01
+const MOVEMENT_DIRECTION_EPS_SQ = 0.04
 
 /**
  * Phase C / C5 — ball arc tuning.
