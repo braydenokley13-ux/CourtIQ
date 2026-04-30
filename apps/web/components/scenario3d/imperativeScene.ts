@@ -4131,7 +4131,63 @@ function buildPremiumAthleteFigure(
   )
   upgradePremiumTorso(figure)
   upgradePremiumHeadAndShoulders(figure)
+  upgradePremiumArms(figure)
   return figure
+}
+
+/**
+ * Phase J3C — replace the straight arm cylinders with lathe profiles
+ * that have a subtle bicep/forearm taper. The pivots, lengths, and
+ * material assignments are preserved so `applyAthleteStance` keeps
+ * rotating the same sub-groups around the same joints (no stance
+ * regression). Hand sphere stays in place — the original is already a
+ * fist-shaped sphere and reads fine; the upper/forearm change is
+ * what removes the stick-figure feeling.
+ */
+function upgradePremiumArms(figure: THREE.Object3D): void {
+  for (const armName of ['leftArm', 'rightArm'] as const) {
+    const arm = figure.getObjectByName(armName) as THREE.Group | null
+    if (!arm) continue
+    const upperArm = arm.getObjectByName('upperArm') as THREE.Group | null
+    const foreArm = arm.getObjectByName('foreArm') as THREE.Group | null
+    if (!upperArm || !foreArm) continue
+    // Profile y spans -L/2 .. +L/2 to match the original cylinder's
+    // local frame; the existing mesh is positioned at y = -L/2 so the
+    // segment still anchors at the joint above and ends at the joint
+    // below without a position shift.
+    upgradeArmSegment(upperArm, [
+      new THREE.Vector2(ATH_UPPER_ARM_R * 1.05, ATH_UPPER_ARM_LENGTH * 0.5),
+      new THREE.Vector2(ATH_UPPER_ARM_R * 1.18, ATH_UPPER_ARM_LENGTH * 0.20),
+      new THREE.Vector2(ATH_UPPER_ARM_R * 1.10, -ATH_UPPER_ARM_LENGTH * 0.12),
+      new THREE.Vector2(ATH_UPPER_ARM_R * 0.95, -ATH_UPPER_ARM_LENGTH * 0.5),
+    ])
+    upgradeArmSegment(foreArm, [
+      new THREE.Vector2(ATH_FORE_ARM_R * 1.05, ATH_FORE_ARM_LENGTH * 0.5),
+      new THREE.Vector2(ATH_FORE_ARM_R * 1.12, ATH_FORE_ARM_LENGTH * 0.25),
+      new THREE.Vector2(ATH_FORE_ARM_R * 0.98, -ATH_FORE_ARM_LENGTH * 0.15),
+      new THREE.Vector2(ATH_FORE_ARM_R * 0.85, -ATH_FORE_ARM_LENGTH * 0.5),
+    ])
+  }
+}
+
+/**
+ * Helper for J3C — finds the first cylinder mesh in an arm sub-group
+ * and replaces its geometry with a lathe profile. The mesh's existing
+ * material, position, and scale are preserved so disposal/stance
+ * behavior is unchanged.
+ */
+function upgradeArmSegment(
+  segment: THREE.Group,
+  profile: THREE.Vector2[],
+): void {
+  for (const child of segment.children) {
+    if (child instanceof THREE.Mesh && child.geometry instanceof THREE.CylinderGeometry) {
+      const oldGeom = child.geometry
+      child.geometry = new THREE.LatheGeometry(profile, 10)
+      oldGeom.dispose()
+      return
+    }
+  }
 }
 
 /**
