@@ -3,8 +3,19 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 const PUBLIC_PATHS = ['/login', '/signup', '/forgot-password', '/auth']
 
+// Phase F0 — `/dev` hosts the screenshot QA preview route. The page
+// itself returns 404 in production unless `ENABLE_DEV_ROUTES=1` is
+// set, so leaving the prefix outside the auth flow only affects local
+// QA. We short-circuit before touching Supabase so the screenshot
+// harness can run without configuring env vars.
+const DEV_PUBLIC_PREFIX = '/dev'
+
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))
+}
+
+function isDevPublicPath(pathname: string) {
+  return pathname === DEV_PUBLIC_PREFIX || pathname.startsWith(DEV_PUBLIC_PREFIX + '/')
 }
 
 const PROTECTED_PREFIXES = [
@@ -25,6 +36,14 @@ function isProtectedPath(pathname: string) {
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
   const { pathname } = request.nextUrl
+
+  // Phase F0 — let dev-only QA routes through without touching
+  // Supabase. The page guards `NODE_ENV` so a leaked deploy still
+  // 404s; keeping middleware out of the path lets local QA run with
+  // an empty `.env` file.
+  if (isDevPublicPath(pathname)) {
+    return supabaseResponse
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
