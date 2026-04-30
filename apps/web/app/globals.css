@@ -102,12 +102,30 @@ body {
      Phase L flips the layout to flex-column on the `:fullscreen`
      pseudo-class itself so the column layout is correct from the
      moment the browser enters fullscreen, regardless of React. */
-  [data-fullscreen='true'],
-  :fullscreen,
-  :-webkit-full-screen {
+  [data-fullscreen='true'] {
     width: 100vw !important;
     height: 100vh !important;
     /* dynamic-vh fallback for mobile Safari URL bar */
+    height: 100dvh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    background: #0a0b0e;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  :fullscreen {
+    width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    background: #0a0b0e;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  :-webkit-full-screen {
+    width: 100vw !important;
+    height: 100vh !important;
     height: 100dvh !important;
     max-width: 100vw !important;
     max-height: 100vh !important;
@@ -122,8 +140,20 @@ body {
      collapse if the parent's height value race-conditioned with the
      React attribute swap; flex:1 1 auto cannot collapse because the
      parent is a flex column. */
-  [data-fullscreen='true'] [data-fullscreen-fill='true'],
-  :fullscreen [data-fullscreen-fill='true'],
+  [data-fullscreen='true'] [data-fullscreen-fill='true'] {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+  :fullscreen [data-fullscreen-fill='true'] {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
   :-webkit-full-screen [data-fullscreen-fill='true'] {
     flex: 1 1 auto !important;
     width: 100% !important;
