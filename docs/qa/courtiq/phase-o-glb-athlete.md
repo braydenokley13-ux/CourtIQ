@@ -510,6 +510,112 @@ None of that is done here. The static preview is the deliberate
   surface area to test is just the mixer.
 - It keeps procedural as the safety net for everything else.
 
+## Phase O-ASSET — BDW-01 Visual QA (OA6)
+
+Three figure builders are now in scope for BDW-01:
+
+1. **Procedural premium athlete** (Phase J/K/L) — production default.
+2. **Generated skinned prototype** (Phase M) — flag-gated experiment
+   (`USE_SKINNED_ATHLETE_PREVIEW`).
+3. **License-clean GLB skinned athlete** (Phase O-ASSET) — flag-gated
+   experiment (`USE_GLB_ATHLETE_PREVIEW`), STATIC ONLY (no animation).
+
+Live screenshot capture for all three remains gated on the
+`pnpm qa:auth` → `pnpm qa:screenshot` flow on Mac/Chrome; the entries
+below are implementation-level QA derived from code inspection plus
+the documented Quaternius asset behavior. A live capture pass on
+Mac/Chrome is still required to land a visual sign-off on the GLB
+path.
+
+### Capture context
+
+- Procedural and skinned QA: see Phase N notes
+  (`phase-n-skinned-vs-procedural.md`). No regressions in this pass.
+- GLB QA: live capture flips `USE_GLB_ATHLETE_PREVIEW = true` locally
+  only, then reverts before any commit. Production traffic still
+  ships with the flag false. The GLB asset is fetched from the
+  bundled `/athlete/mannequin.glb` path; first BDW-01 mount sees the
+  procedural figure (cache cold), and the second build (e.g., scene
+  re-mount, fullscreen toggle, replay restart) sees the GLB.
+
+### Player look — comparison
+
+| dimension              | procedural (default) | generated skinned     | GLB skinned (static)    |
+| ---------------------- | -------------------- | --------------------- | ----------------------- |
+| static silhouette      | premium              | low-poly cylinders    | premium-stylized        |
+| close-up read          | clean rigid joints   | visible cylinder seams | real shoulders / hands |
+| broadcast read         | strong               | acceptable            | strong                  |
+| limb deformation       | none (rigid groups)  | bone-driven           | none (static, deferred) |
+| jersey color           | painted programmatically | painted programmatically | painted programmatically |
+| jersey number          | text sprite          | text sprite (TBD)     | not rendered (deferred) |
+
+### Animation feel — comparison
+
+| clip                  | procedural        | generated skinned    | GLB skinned (static) |
+| --------------------- | ----------------- | -------------------- | -------------------- |
+| `idle_ready` freeze   | static stance     | calm sway (mixer)    | static T-pose-ish    |
+| `cut_sprint` replay   | path-only         | hip / arm phase      | path-only            |
+| `defense_slide` replay | path-only        | wide stance, hands up | path-only          |
+
+GLB ties procedural on motion clarity (both are path-only). Skinned
+keeps the Phase N motion-clarity win; GLB does not.
+
+### Indicator stability
+
+All three paths attach the standard four indicator layers
+(`base`, `user`, `userHead`, `possession`) at figure-root coordinates.
+The GLB path counter-scales the indicator layers by `0.3048 / 1` so the
+floor rings keep court-unit sizing despite the figure's metre-to-feet
+upscale. Implementation-level: indicator visibility tracks `isUser`
+and `hasBall` exactly the same way the procedural and skinned paths
+do.
+
+Live capture should verify:
+- chevron stays vertical when the body is rotated by the path yaw
+- base / halo / possession rings sit at floor level (`y ≈ 0.05 ft`)
+- chevron does NOT clip into the figure's head when the GLB scale
+  factor is applied
+
+### Performance feel
+
+- **Asset weight:** GLB cold-load adds 1.4 MB on the first scene
+  build *with the flag on*. Flag-off production traffic pays nothing.
+- **Per-figure cost:** one `SkeletonUtils.clone` per figure — clones
+  the 65-bone skeleton + 6,415-tri SkinnedMesh. Triangle count per
+  figure (~6,415) is higher than the procedural figure (~2,400 tri
+  for the Phase J athlete) and higher than the generated skinned
+  prototype (~600 tri). Across 10 figures, that's ~64,000 player tris,
+  vs procedural ~24,000. Still under the practical mobile-broadcast
+  budget but worth a real perf capture.
+- **Draw calls:** one SkinnedMesh draw call per figure, same as the
+  generated skinned path.
+- **Static = cheap CPU:** no `AnimationMixer.update` cost per tick;
+  the mixer cost lands when animation retargeting ships in a
+  follow-up phase.
+
+### Teaching clarity
+
+- The GLB silhouette restores the "this is a real athlete" read at
+  broadcast distance; the generated cylinder rig made the eye land on
+  the player mass instead of the decoder UI in some test renders.
+- Without animation, the GLB does not improve "who is moving" replay
+  legibility over the procedural figure. Skinned still wins on that
+  axis.
+
+### Decision against changing default
+
+Production default stays procedural premium. Both experimental flags
+remain `false` in source. Reasoning:
+
+- The GLB path is static-only today; flipping the default would ship
+  a less-animated experience than the procedural figure already
+  delivers. Worse user-visible motion is not an acceptable tradeoff.
+- The 1.4 MB cold-load is acceptable for QA but would meaningfully
+  hurt first-paint on a fresh BDW-01 mount in production.
+- A live screenshot pass on Mac/Chrome has not yet validated the
+  visual claim. Until that lands, even the static GLB path stays
+  flag-gated.
+
 
 
 
