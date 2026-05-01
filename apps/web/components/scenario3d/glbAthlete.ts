@@ -99,6 +99,64 @@ export const GLB_BONE_MAP: Readonly<Record<string, string>> = {
   rightShin: 'calf_r',
 }
 
+/**
+ * Phase O-ANIM (OB2) — `idle_ready` retargeted to the GLB rig.
+ *
+ * The Unreal/Quaternius rig's rest pose has arms at a T-pose-ish
+ * orientation (~45 deg down-and-out) and shoulders/legs aligned to
+ * the upper-arm / thigh local axes. Eulers below are authored
+ * relative to that rest pose, NOT the procedural rig — so amplitudes
+ * are smaller than `skinnedAthlete.buildIdleReadyClip`.
+ */
+function buildGlbIdleReadyClip(): THREE.AnimationClip {
+  const duration = 2.4
+  const t = [0, duration * 0.5, duration]
+  const tracks: THREE.KeyframeTrack[] = []
+
+  // Slow chest sway (~2 deg amplitude on spine_02).
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.spine}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0.035, 0, 0),
+        glbEulerQuat(-0.035, 0, 0),
+        glbEulerQuat(0.035, 0, 0),
+      ]),
+    ),
+  )
+  // Knees softened (slight thigh forward).
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftThigh}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(-0.06, 0, 0), glbEulerQuat(-0.06, 0, 0)]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightThigh}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(-0.06, 0, 0), glbEulerQuat(-0.06, 0, 0)]),
+    ),
+  )
+
+  return new THREE.AnimationClip('idle_ready', duration, tracks)
+}
+
+const _glbScratchEuler = new THREE.Euler()
+
+function glbEulerQuat(x: number, y: number, z: number): THREE.Quaternion {
+  _glbScratchEuler.set(x, y, z, 'XYZ')
+  return new THREE.Quaternion().setFromEuler(_glbScratchEuler)
+}
+
+function flattenGlbQuats(quats: THREE.Quaternion[]): number[] {
+  const out: number[] = []
+  for (const q of quats) out.push(q.x, q.y, q.z, q.w)
+  return out
+}
+
 interface GlbAthleteCacheEntry {
   /** The fully parsed GLTF asset returned by GLTFLoader. */
   gltf: GLTF
