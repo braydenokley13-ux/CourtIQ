@@ -776,4 +776,92 @@ The next pass should (in this order):
 Procedural premium remains the production default for at least
 one more cycle.
 
+## Phase P — P0-LOCK packet (determinism baseline)
 
+The first concrete implementation packet after the Phase P
+architecture doc landed. Locked the determinism baseline before any
+imported-clip or decoder-mapping work begins. Production default
+stays `USE_GLB_ATHLETE_PREVIEW = false`; nothing in this packet
+flips the flag.
+
+**Bone-map audit.** Parsed the bundled `mannequin.glb` binary and
+listed every bone in `skins[*].joints`. All 11 entries in
+`GLB_BONE_MAP` resolve exactly, including the lone PascalCase
+`Head`. The doc's pre-packet suspicion that `Head` should be
+lowercase was wrong for this Quaternius UAL2 export. Added a
+one-shot dev-only console log inside `buildGlbAthletePreview` so
+future skeleton drift is caught at flag-on time rather than as a
+silent visual bug.
+
+**Mixer-tick assertion.** Added a one-shot dev-only assertion in
+`updateGlbAthletePose`. After the third tick, asserts the mixer
+advanced, at least one `AnimationAction` is running, the mapped
+probe bone (`spine_02`) exists, and its quaternion has drifted from
+its bind-pose snapshot. Failures log once per figure; production is
+silenced via the `NODE_ENV` guard.
+
+**Idle clip amplitude.** Lifted `idle_ready` spine sway from ~2°
+to ~3.4° amplitude and added a counter-rotated head sway. The
+chest+head motion is now readable at broadcast-camera distance
+without breaking the film-room "athletic but still" silhouette.
+`cut_sprint` and `defense_slide` keyframes are unchanged.
+
+**Foot-to-floor offset.** The Quaternius rig's natural rest pose
+is not a T-pose, so the rendered rest-pose bbox does not match the
+bind-pose POSITION accessor. After `cloneSkinned`, runs
+`Box3.setFromObject(cloned, precise=true)` to measure the actual
+skinned rest-pose bounds and writes `cloned.position.y` so the
+lowest vertex sits at figure-local `y = 0`. Indicator rings stay
+parented to the figure root; only the inner mannequin clone is
+translated. The figure root's `(x, z)` route remains owned by the
+scenario timeline.
+
+**Fullscreen resize.** Replaced the single `fullscreenchange`
+handler with a `ResizeObserver` on the canvas wrapper plus
+belt-and-suspenders `fullscreenchange` and `webkitfullscreenchange`
+listeners. Root cause of the bottom-half-black canvas was the
+React `setIsFullscreen(true)` flush running async while the
+document `fullscreenchange` handler called `gl.setSize` on the
+still-embedded wrapper height. The `ResizeObserver` fires on the
+actual layout change and no longer races the React render cycle.
+
+**Replay-determinism test.** Added
+`components/scenario3d/replayDeterminism.test.ts` with nine cases
+covering: `samplePositionsAt` purity, `MotionController` parity
+across two runs, freeze-cap idempotence, the rule that animation
+never writes player `y`, GLB clip factory stability, GLB bone-map
+adherence per clip, mixer-bone determinism on a mock skeleton, and
+spine-bone motion under `idle_ready`.
+
+Documented coverage gap: a full end-to-end determinism test that
+actually loads `mannequin.glb`, builds the GLB athlete, drives the
+mixer through `MotionController`, and snapshots bones at the
+scene-authored freeze tick is blocked on a Vitest harness that can
+warm the cache (the bundled GLB is fetched via `GLTFLoader` which
+needs network/file fetch). The next packet should land that
+end-to-end test once a Playwright/scene-screenshot harness can
+prime the cache.
+
+### P0-LOCK manual QA matrix
+
+| Item | Status | Notes |
+| --- | --- | --- |
+| `/dev/scene-preview?scenario=BDW-01` renders with GLB on | Manual / dev-only | Flip `USE_GLB_ATHLETE_PREVIEW = true` locally to verify; default stays off in repo. |
+| Fullscreen fills the viewport, no black bottom half | Code-fixed | `ResizeObserver` + multi-frame apply replaces the old single-frame race. |
+| FOLLOW / REPLAY / BROADCAST / AUTO cycle | Unchanged | `CameraController` mode-switch path is untouched. |
+| GLB athletes visibly animate | Mixer-tick assertion + amplitude bump | Production silenced; dev console reports if any figure's spine fails to drift. |
+| Dev log confirms mixer advances and mapped bones exist | Code-added | One-shot per figure; dedupe latch in `_mixerAssertion`. |
+| Feet sit on the floor / rings naturally | Code-fixed | Bind-pose-aware bbox measurement; cloned-position-only translation. |
+| Replay-determinism test passes (with the GLB-on gap) | Code-added | 9 cases, all green; gap documented above and in the test header. |
+| Turning GLB flag off preserves the procedural fallback | Unchanged | `buildPlayerFigure` selector untouched; flag-off path is byte-identical to pre-O-ASSET behavior. |
+
+### P0-LOCK follow-on packet recommendation
+
+Unblock P1 (imported `closeout` clip on AOR-01 dev preview) by
+landing the end-to-end GLB determinism test the gap above calls
+out. That test is the gate every later phase depends on, and it
+needs a Playwright harness or a Vitest-friendly GLTF mock before
+it can run. Once it lands, P1's imported-clip spike can flip
+`USE_IMPORTED_CLOSEOUT_CLIP` on against AOR-01 with a live
+determinism check verifying root-motion-stripped clips do not
+divert the figure's authored x/z route.
