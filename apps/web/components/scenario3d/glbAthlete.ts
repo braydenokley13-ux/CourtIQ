@@ -144,6 +144,142 @@ function buildGlbIdleReadyClip(): THREE.AnimationClip {
   return new THREE.AnimationClip('idle_ready', duration, tracks)
 }
 
+/**
+ * Phase O-ANIM (OB3) — `cut_sprint` retargeted to the GLB rig.
+ *
+ * Forward lean at the spine, hip counter-rotation, and L/R legs +
+ * arms in opposition. Knee bend uses calf bones (lowerleg), shin
+ * pulls under as the thigh drives forward. Amplitudes are damped
+ * relative to the procedural clip — the GLB rig is taller and the
+ * rest pose already has the legs straight, so smaller eulers read
+ * the same on screen.
+ */
+function buildGlbCutSprintClip(): THREE.AnimationClip {
+  const duration = 0.8
+  const t = [0, duration * 0.5, duration]
+  const tracks: THREE.KeyframeTrack[] = []
+
+  // Hips counter-rotate (yaw) per stride.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.hips}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0, -0.1, 0),
+        glbEulerQuat(0, 0.1, 0),
+        glbEulerQuat(0, -0.1, 0),
+      ]),
+    ),
+  )
+  // Forward chest lean + counter yaw.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.spine}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0.16, 0.05, 0),
+        glbEulerQuat(0.16, -0.05, 0),
+        glbEulerQuat(0.16, 0.05, 0),
+      ]),
+    ),
+  )
+  // Arms swing in opposition. Unreal upperarm local +X is roughly
+  // along the bone, so pitch on Z drives shoulder swing.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftUpperArm}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0, 0, 0.7),
+        glbEulerQuat(0, 0, -0.5),
+        glbEulerQuat(0, 0, 0.7),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightUpperArm}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0, 0, -0.5),
+        glbEulerQuat(0, 0, 0.7),
+        glbEulerQuat(0, 0, -0.5),
+      ]),
+    ),
+  )
+  // Forearm bend at the elbow.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftForeArm}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0, -0.9, 0),
+        glbEulerQuat(0, -0.4, 0),
+        glbEulerQuat(0, -0.9, 0),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightForeArm}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0, -0.4, 0),
+        glbEulerQuat(0, -0.9, 0),
+        glbEulerQuat(0, -0.4, 0),
+      ]),
+    ),
+  )
+  // Legs in opposition — thigh pitch around X.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftThigh}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0.55, 0, 0),
+        glbEulerQuat(-0.4, 0, 0),
+        glbEulerQuat(0.55, 0, 0),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightThigh}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(-0.4, 0, 0),
+        glbEulerQuat(0.55, 0, 0),
+        glbEulerQuat(-0.4, 0, 0),
+      ]),
+    ),
+  )
+  // Calves bend back during stride.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftShin}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(-0.5, 0, 0),
+        glbEulerQuat(-1.0, 0, 0),
+        glbEulerQuat(-0.5, 0, 0),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightShin}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(-1.0, 0, 0),
+        glbEulerQuat(-0.5, 0, 0),
+        glbEulerQuat(-1.0, 0, 0),
+      ]),
+    ),
+  )
+
+  return new THREE.AnimationClip('cut_sprint', duration, tracks)
+}
+
 const _glbScratchEuler = new THREE.Euler()
 
 function glbEulerQuat(x: number, y: number, z: number): THREE.Quaternion {
