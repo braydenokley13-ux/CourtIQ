@@ -280,6 +280,110 @@ function buildGlbCutSprintClip(): THREE.AnimationClip {
   return new THREE.AnimationClip('cut_sprint', duration, tracks)
 }
 
+/**
+ * Phase O-ANIM (OB4) — `defense_slide` retargeted to the GLB rig.
+ *
+ * Wide low stance with hands up. Hips rock laterally, thighs splay
+ * outward (Z roll), knees stay bent. Spine holds a forward lean
+ * across the full duration so the torso reads "active" rather than
+ * stiff.
+ */
+function buildGlbDefenseSlideClip(): THREE.AnimationClip {
+  const duration = 1.0
+  const t = [0, duration * 0.5, duration]
+  const tracks: THREE.KeyframeTrack[] = []
+
+  // Hips rock side-to-side (Z roll).
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.hips}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0, 0, 0.05),
+        glbEulerQuat(0, 0, -0.05),
+        glbEulerQuat(0, 0, 0.05),
+      ]),
+    ),
+  )
+  // Forward lean held across duration.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.spine}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0.18, 0, 0), glbEulerQuat(0.18, 0, 0)]),
+    ),
+  )
+  // Arms held up and out (active hands).
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftUpperArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0, 0, 1.0), glbEulerQuat(0, 0, 1.0)]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightUpperArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0, 0, -1.0), glbEulerQuat(0, 0, -1.0)]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftForeArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0, -0.9, 0), glbEulerQuat(0, -0.9, 0)]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightForeArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0, -0.9, 0), glbEulerQuat(0, -0.9, 0)]),
+    ),
+  )
+  // Wide thigh splay + slight rock.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftThigh}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(-0.5, 0, 0.2),
+        glbEulerQuat(-0.6, 0, 0.2),
+        glbEulerQuat(-0.5, 0, 0.2),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightThigh}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(-0.6, 0, -0.2),
+        glbEulerQuat(-0.5, 0, -0.2),
+        glbEulerQuat(-0.6, 0, -0.2),
+      ]),
+    ),
+  )
+  // Knees bent.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftShin}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0.32, 0, 0), glbEulerQuat(0.32, 0, 0)]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightShin}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0.32, 0, 0), glbEulerQuat(0.32, 0, 0)]),
+    ),
+  )
+
+  return new THREE.AnimationClip('defense_slide', duration, tracks)
+}
+
 const _glbScratchEuler = new THREE.Euler()
 
 function glbEulerQuat(x: number, y: number, z: number): THREE.Quaternion {
