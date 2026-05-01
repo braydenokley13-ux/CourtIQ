@@ -706,9 +706,9 @@ interface GlbAthleteHandle {
 export function getGlbAthleteHandle(
   figure: THREE.Object3D,
 ): GlbAthleteHandle | null {
-  const handle = (figure.userData as Record<string, unknown>)[
-    GLB_ATHLETE_USER_DATA_KEY
-  ]
+  const userData = figure.userData as Record<string, unknown> | undefined
+  if (!userData) return null
+  const handle = userData[GLB_ATHLETE_USER_DATA_KEY]
   if (!handle || typeof handle !== 'object') return null
   const h = handle as Partial<GlbAthleteHandle>
   if (!h.mixer || !h.actions) return null
