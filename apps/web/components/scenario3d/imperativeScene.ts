@@ -12,7 +12,12 @@
 import * as THREE from 'three'
 import type { CourtPoint } from '@/lib/scenario3d/coords'
 import { COURT } from '@/lib/scenario3d/coords'
-import type { Scene3D, SceneMovement, SceneTeam } from '@/lib/scenario3d/scene'
+import type {
+  Scene3D,
+  SceneMovement,
+  SceneMovementKind,
+  SceneTeam,
+} from '@/lib/scenario3d/scene'
 import {
   buildTimeline,
   resolveBallStart,
@@ -1135,6 +1140,11 @@ export class MotionController {
   // Euler whose `.y` getter does numeric work on every read.
   private currentYaw: Map<string, number> = new Map()
   private lastYawTickWallMs: number = 0
+  // Phase O-ANIM (OB6) — wall-clock anchor for the GLB AnimationMixer
+  // tick. Independent from the yaw anchor because the mixer should
+  // keep advancing even while paused (so the in-place idle pose stays
+  // alive at a stopped freeze frame).
+  private lastAnimTickWallMs: number = 0
 
   constructor(
     scene: Scene3D,
@@ -1361,6 +1371,11 @@ export class MotionController {
     // both playback rate and frame rate. Allocates nothing beyond the
     // four scalars below per player.
     this.applyPlayerYaw(nowMs, t)
+
+    // Phase O-ANIM (OB6) — drive GLB athlete mixers from the same
+    // tick. No-op for procedural / skinned figures (the helpers
+    // short-circuit on missing handles) so non-GLB scenes pay nothing.
+    this.applyGlbAnimation(nowMs, t)
   }
 
   // --- internals ---
@@ -1535,6 +1550,29 @@ export class MotionController {
       }
     }
     return bestId
+  }
+
+  /** Phase O-ANIM (OB6) — advance every GLB figure's AnimationMixer
+   *  by a wall-clock dt and pick the right clip from the active
+   *  movement / team. Procedural figures pay nothing because the
+   *  GLB helpers short-circuit on a missing handle. Replay still
+   *  owns root motion; this only animates pose.
+   */
+  private applyGlbAnimation(nowMs: number, t: number): void {
+    const rawDt = this.lastAnimTickWallMs === 0
+      ? 1 / 60
+      : (nowMs - this.lastAnimTickWallMs) / 1000
+    const dt = Math.max(0, Math.min(rawDt, 0.1))
+    this.lastAnimTickWallMs = nowMs
+
+    for (const player of this.scene.players) {
+      const g = this.playerGroups.get(player.id)
+      if (!g) continue
+      const active = this.findActivePlayerMovement(player.id, t)
+      const clip = pickGlbClipForState(player.team, active?.kind, !!active)
+      setGlbAthleteAnimation(g, clip)
+      updateGlbAthletePose(g, dt)
+    }
   }
 
   /** Computes and applies the ball's position for time t, picking
@@ -3599,7 +3637,12 @@ function buildSkinnedAthleteFigure(
 // and the shim delegates to the real builder. Returns `null` when
 // the GLB asset cache is empty (cold load), the runtime is not a
 // browser, or anything throws — caller falls through.
-import { buildGlbAthletePreview } from './glbAthlete'
+import {
+  buildGlbAthletePreview,
+  setGlbAthleteAnimation,
+  updateGlbAthletePose,
+  type GlbAthleteAnimationName,
+} from './glbAthlete'
 
 function buildGlbAthleteFigure(
   teamColor: string,
@@ -3617,6 +3660,36 @@ function buildGlbAthleteFigure(
     jerseyNumber,
     stance,
   )
+}
+
+/**
+ * Phase O-ANIM (OB6) — replay-state → animation-clip mapper for the
+ * GLB path. Defenders always slide; offensive cuts/drives sprint;
+ * everything else (passes, small footwork, stationary) idles.
+ */
+function pickGlbClipForState(
+  team: 'offense' | 'defense',
+  kind: SceneMovementKind | undefined,
+  isMoving: boolean,
+): GlbAthleteAnimationName {
+  if (team === 'defense') {
+    if (isMoving) return 'defense_slide'
+    if (kind === 'closeout' || kind === 'rotation') return 'defense_slide'
+    return 'idle_ready'
+  }
+  if (!isMoving) return 'idle_ready'
+  switch (kind) {
+    case 'cut':
+    case 'drive':
+    case 'back_cut':
+    case 'baseline_sneak':
+      return 'cut_sprint'
+    case 'closeout':
+    case 'rotation':
+      return 'cut_sprint'
+    default:
+      return 'idle_ready'
+  }
 }
 
 // =====================================================================
