@@ -490,15 +490,57 @@ export function buildGlbAthletePreview(
 
     const indicatorLayers = buildGlbIndicatorLayers(figure, teamColor, isUser, hasBall)
     ;(figure.userData as Record<string, unknown>).indicatorLayers = indicatorLayers
+
+    const mixer = new THREE.AnimationMixer(cloned)
+    const clips = getCachedGlbClips()
+    const actions: Record<string, THREE.AnimationAction> = {}
+    for (const clip of clips) {
+      actions[clip.name] = mixer.clipAction(clip)
+    }
+    actions['idle_ready']?.play()
+
+    const rootBone = findGlbRootBone(cloned)
+
     ;(figure.userData as Record<string, unknown>)[GLB_ATHLETE_USER_DATA_KEY] = {
       figure,
       cloned,
+      mixer,
+      actions,
+      rootBone,
     }
 
     return figure
   } catch {
     return null
   }
+}
+
+let _cachedGlbClips: THREE.AnimationClip[] | null = null
+
+function getCachedGlbClips(): THREE.AnimationClip[] {
+  if (_cachedGlbClips) return _cachedGlbClips
+  _cachedGlbClips = [
+    buildGlbIdleReadyClip(),
+    buildGlbCutSprintClip(),
+    buildGlbDefenseSlideClip(),
+  ]
+  return _cachedGlbClips
+}
+
+/** Test-only — reset the GLB clip cache between cases. */
+export function _resetGlbAthleteClipCache(): void {
+  _cachedGlbClips = null
+}
+
+function findGlbRootBone(root: THREE.Object3D): THREE.Bone | null {
+  let found: THREE.Bone | null = null
+  root.traverse((child) => {
+    if (found) return
+    if ((child as THREE.Bone).isBone && child.name === GLB_BONE_MAP.hips) {
+      found = child as THREE.Bone
+    }
+  })
+  return found
 }
 
 function findFirstSkinnedMesh(root: THREE.Object3D): THREE.SkinnedMesh | null {
