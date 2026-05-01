@@ -563,6 +563,7 @@ export function buildGlbAthletePreview(
     figure.add(cloned)
 
     _runBoneMapAuditOnce(cloned)
+    _alignGlbFeetToFigureFloor(figure, cloned)
 
     applyTeamColorToCloned(cloned, teamColor)
 
@@ -628,6 +629,64 @@ function getCachedGlbClips(): THREE.AnimationClip[] {
 /** Test-only — reset the GLB clip cache between cases. */
 export function _resetGlbAthleteClipCache(): void {
   _cachedGlbClips = null
+}
+
+/**
+ * P0-LOCK — foot-to-floor offset.
+ *
+ * Measures the rest-pose bounding box of the cloned mannequin in
+ * figure-local space and translates the inner clone so its lowest
+ * vertex sits at figure-local y = 0. The MotionController later
+ * applies `PLAYER_LIFT` to the figure root, so the final world
+ * y of the mesh feet matches the procedural athlete (≈ 0.05 ft).
+ *
+ * Constraints honored:
+ *   - The figure root's translation is left to the scenario timeline.
+ *     Only `cloned.position.y` is mutated.
+ *   - Indicator layers (rings, halo, possession ring) stay parented
+ *     to the figure root so they remain on the floor regardless of
+ *     this offset — the rings are NOT moved up to hide the bug.
+ *   - The procedural figure path is unaffected (this function is
+ *     only invoked from `buildGlbAthletePreview`).
+ *
+ * The offset is computed once at build time, in bind pose. Clip
+ * playback can deform the mesh per frame, but anything beyond a
+ * static offset belongs to a later P1+ packet (clip authoring vs.
+ * bind pose composition is out of scope for P0-LOCK).
+ */
+function _alignGlbFeetToFigureFloor(
+  figure: THREE.Group,
+  cloned: THREE.Object3D,
+): void {
+  // figure has GLB_M_TO_FT_SCALE applied; we need bbox values in
+  // figure-local (i.e. WORLD when figure is at origin) so the offset
+  // we write into `cloned.position.y` is in cloned-local units. The
+  // figure root has not yet been added to the scene graph at this
+  // point so its world matrix == its local matrix; updateMatrixWorld
+  // refreshes the children's world matrices off that.
+  figure.updateMatrixWorld(true)
+  const bbox = new THREE.Box3()
+  // `precise = true` walks the SkinnedMesh's vertices applying the
+  // current skin transform — this returns the actual rest-pose
+  // bounds rather than the bind-pose bounds, which differ on rigs
+  // where the bone rest pose is not a T-pose (the Quaternius UAL2
+  // mannequin is exactly that case).
+  bbox.setFromObject(cloned, true)
+  if (!Number.isFinite(bbox.min.y)) return
+  // No-op if the clone is already grounded (within a hair); avoids
+  // floating-point drift each rebuild.
+  if (Math.abs(bbox.min.y) < 1e-3) return
+  // `bbox.min.y` is measured in WORLD coordinates (figure has not
+  // yet been added to the scene graph and its position is at the
+  // origin, so figure-world == figure-local-after-scale here). The
+  // clone's `position` is in figure-LOCAL coordinates (before the
+  // figure's scale propagates to children), so we divide by
+  // `figure.scale.y` to convert. Without the divide we overshoot by
+  // the figure's metres→feet factor and the feet plant 5–6 ft below
+  // the floor.
+  const figureScaleY = figure.scale.y || 1
+  cloned.position.y -= bbox.min.y / figureScaleY
+  figure.updateMatrixWorld(true)
 }
 
 function findGlbRootBone(root: THREE.Object3D): THREE.Bone | null {
