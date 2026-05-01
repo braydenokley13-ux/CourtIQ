@@ -3451,13 +3451,41 @@ const USE_PREMIUM_ATHLETE = true
 export const USE_SKINNED_ATHLETE_PREVIEW = false
 
 /**
- * Phase F / J / M — public builder entry point. Returns, in
- * priority order:
- *   1. Skinned/animated preview figure when `USE_SKINNED_ATHLETE
+ * Phase O-ASSET — when true, `buildPlayerFigure` will attempt the
+ * license-clean GLB athlete preview path BEFORE the experimental
+ * generated-skinned preview, the procedural premium athlete, and the
+ * Phase F figure. Defaults to `false` so production traffic never
+ * loads the bundled `mannequin.glb` asset; only flag-on visual QA
+ * sessions pay the cold-load cost.
+ *
+ * The GLB path is a separate module (`glbAthlete.ts`) so the
+ * experimental code never bloats the procedural builder file. The
+ * loader is wrapped in try/catch by `buildPlayerFigure`; on any
+ * failure (asset missing, fetch failed, parse failed, anything) the
+ * caller falls through to the rest of the chain.
+ *
+ * Fallback chain (full):
+ *   GLB (if flag on)         →   `glbAthlete.buildGlbAthletePreview`
+ *   skinned (if flag on)     →   `skinnedAthlete.buildSkinnedAthletePreview`
+ *   procedural premium       →   `buildPremiumAthleteFigure` (Phase J)
+ *   procedural Phase F       →   `buildAthleteFigure` (E4 §3 contract)
+ *
+ * BDW-01 is unaffected when the flag is `false` — the procedural
+ * figure the trainer renders today is byte-for-byte identical to
+ * the pre-Phase-O-ASSET output.
+ */
+export const USE_GLB_ATHLETE_PREVIEW = false
+
+/**
+ * Phase F / J / M / O-ASSET — public builder entry point. Returns,
+ * in priority order:
+ *   1. License-clean GLB athlete preview when
+ *      `USE_GLB_ATHLETE_PREVIEW` is true and the GLB builder succeeds.
+ *   2. Skinned/animated preview figure when `USE_SKINNED_ATHLETE
  *      _PREVIEW` is true and the skinned builder succeeds.
- *   2. Premium code-built athlete (Phase J) when
+ *   3. Premium code-built athlete (Phase J) when
  *      `USE_PREMIUM_ATHLETE` is true.
- *   3. Phase F low-poly stylized athlete (E4 §3 contract).
+ *   4. Phase F low-poly stylized athlete (E4 §3 contract).
  *
  * Signature is locked across all three paths:
  * `(teamColor, trimColor, isUser, hasBall, jerseyNumber, stance) →
@@ -3477,6 +3505,24 @@ export function buildPlayerFigure(
   jerseyNumber: string,
   stance: PlayerStance,
 ): THREE.Group {
+  if (USE_GLB_ATHLETE_PREVIEW) {
+    try {
+      const glb = buildGlbAthleteFigure(
+        teamColor,
+        trimColor,
+        isUser,
+        hasBall,
+        jerseyNumber,
+        stance,
+      )
+      if (glb) return glb
+    } catch {
+      // Phase O-ASSET fallback — GLB preview path failed (asset
+      // missing, fetch blocked, parse failure, or anything thrown);
+      // continue to the rest of the chain so the scene keeps
+      // rendering.
+    }
+  }
   if (USE_SKINNED_ATHLETE_PREVIEW) {
     try {
       const skinned = buildSkinnedAthleteFigure(
@@ -3534,6 +3580,36 @@ function buildSkinnedAthleteFigure(
   stance: PlayerStance,
 ): THREE.Group | null {
   return buildSkinnedAthletePreview(
+    teamColor,
+    trimColor,
+    isUser,
+    hasBall,
+    jerseyNumber,
+    stance,
+  )
+}
+
+// =====================================================================
+// Phase O-ASSET — License-clean GLB athlete preview (experimental)
+// =====================================================================
+//
+// Same isolation pattern as the skinned shim above. The GLB path
+// lives in `glbAthlete.ts`; the selector in `buildPlayerFigure`
+// invokes this shim only when `USE_GLB_ATHLETE_PREVIEW` is true,
+// and the shim delegates to the real builder. Returns `null` when
+// the GLB asset cache is empty (cold load), the runtime is not a
+// browser, or anything throws — caller falls through.
+import { buildGlbAthletePreview } from './glbAthlete'
+
+function buildGlbAthleteFigure(
+  teamColor: string,
+  trimColor: string,
+  isUser: boolean,
+  hasBall: boolean,
+  jerseyNumber: string,
+  stance: PlayerStance,
+): THREE.Group | null {
+  return buildGlbAthletePreview(
     teamColor,
     trimColor,
     isUser,
