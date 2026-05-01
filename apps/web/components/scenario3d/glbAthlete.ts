@@ -632,6 +632,23 @@ export function _resetGlbAthleteClipCache(): void {
 }
 
 /**
+ * P0-LOCK — test-only accessor for the bespoke clips. Returns fresh
+ * factory output (bypassing the cache) so determinism tests can run
+ * two clip instances side-by-side and verify identical track data.
+ */
+export function _buildGlbAthleteClipsForTest(): {
+  idle_ready: THREE.AnimationClip
+  cut_sprint: THREE.AnimationClip
+  defense_slide: THREE.AnimationClip
+} {
+  return {
+    idle_ready: buildGlbIdleReadyClip(),
+    cut_sprint: buildGlbCutSprintClip(),
+    defense_slide: buildGlbDefenseSlideClip(),
+  }
+}
+
+/**
  * P0-LOCK — foot-to-floor offset.
  *
  * Measures the rest-pose bounding box of the cloned mannequin in
