@@ -434,6 +434,82 @@ We accept the 1.4 MB cold-load weight because:
 
 The asset itself is committed in OA2.
 
+## Phase O-ASSET — Animation strategy (OA5) — Deferred
+
+The Phase O-ASSET prompt offers two outcomes for OA5:
+
+> If GLB rig can use existing Phase M clips, map: idle_ready,
+> cut_sprint, defense_slide.
+>
+> If retargeting is not safe yet: document limitation, show static
+> GLB preview only, do not fake success.
+
+The honest answer is **defer** — animation retargeting is not safe in
+this micro-chunk. Reasons:
+
+1. **No animation tracks ship in the bundled GLB.** The Quaternius
+   `Mannequin_F.glb` deliberately omits animations (the README inside
+   the pack confirms this — animations live on the companion library
+   file).
+2. **The companion file's clips are not basketball-style.** UAL2
+   ships 43 themed clips (lantern, rail, shield, ninja, sword,
+   zombie, farm, slide-loop-but-not-basketball, etc.) — none of them
+   are `idle_ready`, `cut_sprint`, or `defense_slide`. Bundling them
+   solely to "have animations" would inflate cold-load by ~6 MB
+   without delivering basketball motion.
+3. **Phase M clips were authored against a 12-bone generated rig.**
+   The GLB has 65 bones with Unreal-style names (`upperarm_l`,
+   `lowerarm_l`, `clavicle_l`, ...). A correct retarget needs a
+   bone-name map and per-clip rest-pose alignment, neither of which
+   is the "smallest safe loader path" the prompt asked for.
+4. **Phase M clip retargeting belongs in its own pass.** The risk of
+   visible joint pop / flipped axis / wrong-pelvis-orientation goes
+   up sharply if we hand-author a remap inline.
+
+### What ships now
+
+- `buildGlbAthletePreview` returns a **static** cloned figure with no
+  `AnimationMixer` and no clip actions.
+- Root motion (path lerp + yaw rotation) stays owned by the existing
+  scene timeline — same contract the procedural figure already
+  honors. The figure travels along the BDW-01 path correctly; only
+  in-place limb deformation is missing.
+- The `userData.glbAthlete` marker is a `{ figure, cloned }` object
+  today. When animation retargeting lands later, it will grow
+  `mixer` and `actions` fields parallel to the skinned preview's
+  `SkinnedAthleteHandle`.
+
+### What's needed to upgrade to animated GLB later
+
+A follow-up phase (call it Phase O-ANIM) needs to:
+
+1. Pick a stable bone-name map from Phase M's 12-bone rig
+   (`Hips`, `Spine`, `Head`, `LeftShoulder`, `LeftElbow`, ...) onto
+   the GLB's 65-bone Unreal naming
+   (`pelvis`, `spine_01`, `Head`, `clavicle_l`, `upperarm_l`,
+   `lowerarm_l`, ...).
+2. Re-author the three Phase M clips against the GLB rest pose so
+   the existing clip data does not depend on the procedural rig's
+   bone offsets.
+3. Build per-figure `AnimationMixer` + actions inside
+   `buildGlbAthletePreview`, mirroring `buildSkinnedAthletePreview`.
+4. Extend the scene's motion controller to advance the GLB mixer's
+   `dt` from the same rAF tick.
+
+None of that is done here. The static preview is the deliberate
+"smallest safe path."
+
+### Why "static-only" is still useful
+
+- It lets us evaluate the Phase N static-look hypothesis directly:
+  *does a CC0 Quaternius mannequin recover the premium silhouette
+  the generated low-poly cylinder rig regressed?* That answer does
+  not require animated limbs.
+- It exercises the entire fallback / dispose / indicator-attachment
+  contract under a real GLB load, so when animations land, the
+  surface area to test is just the mixer.
+- It keeps procedural as the safety net for everything else.
+
 
 
 
