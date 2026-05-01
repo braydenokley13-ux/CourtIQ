@@ -616,6 +616,59 @@ remain `false` in source. Reasoning:
   visual claim. Until that lands, even the static GLB path stays
   flag-gated.
 
+## Phase O-ASSET Findings (OA8)
+
+1. **Asset chosen.** Quaternius Universal Animation Library 2 — Female
+   Mannequin (`Mannequin_F.glb`), CC0 1.0. Bundled at
+   `apps/web/public/athlete/mannequin.glb` (1.4 MB) with companion
+   `LICENSE.txt` and `ATTRIBUTION.md` recording source URL,
+   downloaded date, license, and the deviation from the 500 KB soft
+   target.
+2. **Does the GLB preview render?** Yes, when the flag is on and
+   the runtime is a browser. The synchronous builder kicks off an
+   async `GLTFLoader` fetch on first call; that call returns `null`
+   so the figure falls through to the procedural builder. Once the
+   cache populates, subsequent figure builds clone the cached scene
+   via `SkeletonUtils.clone`, apply team color, and attach the
+   standard four indicator layers. JSDOM tests cover the
+   null-on-empty-cache path; live render verification on Mac/Chrome
+   is the next required step.
+3. **Does animation work?** No — deferred per the prompt's
+   "If retargeting is not safe yet" branch. The bundled GLB has zero
+   animation tracks, the companion library's clips are not
+   basketball-style, and Phase M's three clips were authored against
+   a 12-bone generated rig that does not bone-name-match the GLB's
+   65-bone Unreal-style skeleton. The static figure travels along
+   the BDW-01 path correctly because root motion stays owned by the
+   scene timeline.
+4. **Does procedural remain the default?** Yes. Both
+   `USE_GLB_ATHLETE_PREVIEW` and `USE_SKINNED_ATHLETE_PREVIEW` are
+   `false` in source. `USE_PREMIUM_ATHLETE` stays `true`. BDW-01
+   continues to render the procedural premium athlete (Phase J/K/L)
+   with Phase F as the guaranteed last resort. Production traffic
+   never loads `mannequin.glb`.
+5. **Should GLB become the next investment?** Conditionally yes —
+   *if* a follow-up Phase O-ANIM pass lands the bone-name
+   retargeting from Phase M's three clips onto the Unreal skeleton.
+   Without animation, the static GLB recovers static silhouette but
+   surrenders the Phase N motion-clarity win the generated skinned
+   path delivered. The recommended sequence:
+   - Phase O-ANIM: bone-name map (Phase M rig → UE5 rig), retargeted
+     `idle_ready`, `cut_sprint`, `defense_slide` clips, per-figure
+     mixer wiring, motion-controller integration.
+   - Phase O-PERF: profile cold-load + per-figure clone cost on real
+     hardware; add an optional preload point in
+     `Scenario3DCanvas.tsx` mount if cold-load latency is a problem.
+   - Phase O-LIVE-QA: actual Mac/Chrome screenshot pass with the
+     flag flipped on, comparing all three paths side by side.
+6. **Validation summary.** `pnpm exec vitest run components/scenario3d/
+   lib/scenario3d/` — **12 files, 171 tests, all green** (4 new tests
+   added for the GLB path). Typecheck on the scenario3d surface is
+   clean; pre-existing TS errors in `lib/services/*` (Prisma services)
+   are unrelated and unchanged. BDW-01 wiring, scenario JSON schema,
+   and the procedural / skinned paths are byte-identical to the
+   pre-Phase-O-ASSET state when both experimental flags are off.
+
 
 
 
