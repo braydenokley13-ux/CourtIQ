@@ -81,9 +81,12 @@ interface GlbIndicatorLayers {
  * upper/lower legs).
  *
  * GLB skeleton names follow Unreal-Godot convention (lowercase with
- * `_l` / `_r` side suffixes). The Phase M `spine` bone maps to
- * `spine_02` (mid-torso) so chest sway concentrates near the centre
- * of mass rather than at the lumbar root.
+ * `_l` / `_r` side suffixes), with the lone exception of `Head`
+ * which is PascalCase in the Quaternius UAL2 export. The bone-map
+ * audit logged once on first build (P0-LOCK) confirms this matches
+ * the actual skeleton the loader hands us. The Phase M `spine` bone
+ * maps to `spine_02` (mid-torso) so chest sway concentrates near
+ * the centre of mass rather than at the lumbar root.
  */
 export const GLB_BONE_MAP: Readonly<Record<string, string>> = {
   hips: 'pelvis',
@@ -100,6 +103,62 @@ export const GLB_BONE_MAP: Readonly<Record<string, string>> = {
 }
 
 /**
+ * P0-LOCK — one-shot dev-only bone-map audit. Walks the cloned
+ * skeleton on first build, logs the actual bone names, and warns
+ * about any `GLB_BONE_MAP` entry whose target bone is not present.
+ *
+ * Behaviour:
+ *   - Production builds (NODE_ENV === 'production'): the audit does
+ *     not run, no logs are emitted.
+ *   - Dev builds: runs once per page session and short-circuits on
+ *     subsequent figures so we don't spam the console with one log
+ *     per athlete.
+ *
+ * The mixer relies on Three.js's PropertyBinding name lookup to
+ * resolve track names like `pelvis.quaternion` against the cloned
+ * scene; if the map drifts away from the asset, the bones the clip
+ * targets simply will not move and the figure looks static. Logging
+ * the mismatch surfaces that class of regression at flag-on time
+ * rather than as a silent visual bug.
+ */
+let _glbBoneMapAuditDone = false
+function _runBoneMapAuditOnce(cloned: THREE.Object3D): void {
+  if (_glbBoneMapAuditDone) return
+  _glbBoneMapAuditDone = true
+  if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production') {
+    return
+  }
+  if (typeof console === 'undefined') return
+  const present = new Set<string>()
+  cloned.traverse((child) => {
+    if ((child as THREE.Bone).isBone) present.add(child.name)
+  })
+  const missing: string[] = []
+  for (const [intentName, sourceName] of Object.entries(GLB_BONE_MAP)) {
+    if (!present.has(sourceName)) missing.push(`${intentName} → ${sourceName}`)
+  }
+  // eslint-disable-next-line no-console
+  console.info('[glbAthlete] bone-map audit', {
+    boneCount: present.size,
+    bones: Array.from(present).sort(),
+    mapped: GLB_BONE_MAP,
+    missing,
+  })
+  if (missing.length > 0) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[glbAthlete] GLB_BONE_MAP references bones not present in the loaded skeleton',
+      missing,
+    )
+  }
+}
+
+/** Test-only — reset the one-shot audit guard between cases. */
+export function _resetGlbAthleteBoneMapAuditGuard(): void {
+  _glbBoneMapAuditDone = false
+}
+
+/**
  * Phase O-ANIM (OB2) — `idle_ready` retargeted to the GLB rig.
  *
  * The Unreal/Quaternius rig's rest pose has arms at a T-pose-ish
@@ -113,15 +172,32 @@ function buildGlbIdleReadyClip(): THREE.AnimationClip {
   const t = [0, duration * 0.5, duration]
   const tracks: THREE.KeyframeTrack[] = []
 
-  // Slow chest sway (~2 deg amplitude on spine_02).
+  // Slow chest sway. P0-LOCK bumped this from ~2° to ~3.4° amplitude
+  // so the motion is readable at broadcast-camera distance without
+  // breaking the film-room "athletic but still" silhouette.
   tracks.push(
     new THREE.QuaternionKeyframeTrack(
       `${GLB_BONE_MAP.spine}.quaternion`,
       t,
       flattenGlbQuats([
-        glbEulerQuat(0.035, 0, 0),
-        glbEulerQuat(-0.035, 0, 0),
-        glbEulerQuat(0.035, 0, 0),
+        glbEulerQuat(0.06, 0, 0),
+        glbEulerQuat(-0.06, 0, 0),
+        glbEulerQuat(0.06, 0, 0),
+      ]),
+    ),
+  )
+  // Subtle opposing head sway. Counter-rotated against the spine so
+  // the eyes track forward as the chest leans — the most natural
+  // "active stance" cue at broadcast distance and the easiest motion
+  // for a player to read.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.head}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(-0.04, 0, 0),
+        glbEulerQuat(0.04, 0, 0),
+        glbEulerQuat(-0.04, 0, 0),
       ]),
     ),
   )
@@ -486,6 +562,8 @@ export function buildGlbAthletePreview(
     cloned.name = 'glb-mannequin-clone'
     figure.add(cloned)
 
+    _runBoneMapAuditOnce(cloned)
+
     applyTeamColorToCloned(cloned, teamColor)
 
     const indicatorLayers = buildGlbIndicatorLayers(figure, teamColor, isUser, hasBall)
@@ -501,13 +579,33 @@ export function buildGlbAthletePreview(
 
     const rootBone = findGlbRootBone(cloned)
 
+    // P0-LOCK — pick a mapped probe bone so the mixer-tick assertion
+    // can compare its quaternion against an initial snapshot a few
+    // ticks later. Spine sits in the middle of the kinematic chain
+    // and is animated by every bespoke clip the GLB path ships, so
+    // it is the most reliable single bone to watch.
+    const probeBoneName = GLB_BONE_MAP.spine
+    let probeInitial: THREE.Quaternion | null = null
+    cloned.traverse((child) => {
+      if (probeInitial) return
+      if ((child as THREE.Bone).isBone && child.name === probeBoneName) {
+        probeInitial = (child as THREE.Bone).quaternion.clone()
+      }
+    })
+
     ;(figure.userData as Record<string, unknown>)[GLB_ATHLETE_USER_DATA_KEY] = {
       figure,
       cloned,
       mixer,
       actions,
       rootBone,
-    }
+      _mixerAssertion: {
+        ticks: 0,
+        asserted: false,
+        probeBoneName: probeInitial ? probeBoneName : null,
+        initialQuat: probeInitial,
+      },
+    } satisfies GlbAthleteHandle
 
     return figure
   } catch {
@@ -701,6 +799,18 @@ interface GlbAthleteHandle {
   mixer: THREE.AnimationMixer
   actions: Record<string, THREE.AnimationAction>
   rootBone: THREE.Bone | null
+  /**
+   * P0-LOCK — one-shot dev-only mixer-tick assertion state. Tracks
+   * how many ticks have run, the first observed bone quaternion of
+   * a mapped probe bone, and whether the assertion has fired so we
+   * never log more than once per figure.
+   */
+  _mixerAssertion?: {
+    ticks: number
+    asserted: boolean
+    probeBoneName: string | null
+    initialQuat: THREE.Quaternion | null
+  }
 }
 
 export function getGlbAthleteHandle(
@@ -723,6 +833,96 @@ export function updateGlbAthletePose(
   const handle = getGlbAthleteHandle(figure)
   if (!handle) return
   handle.mixer.update(dt)
+  _assertMixerAdvanceOnce(handle)
+}
+
+/**
+ * P0-LOCK — one-shot dev-only mixer-tick assertion.
+ *
+ * After the third call into `updateGlbAthletePose` (so the mixer
+ * has had a chance to integrate dt and write keyframes onto a
+ * mapped bone), check:
+ *
+ *   1. mixer exists and `mixer.time > 0`
+ *   2. at least one clipAction is registered and running
+ *   3. the mapped probe bone exists in the cloned skeleton
+ *   4. the probe bone's quaternion has drifted from its initial
+ *      bind-pose snapshot by more than a tiny epsilon
+ *
+ * If any check fails the assertion logs a single dev warning so
+ * the failure is visible during /dev/scene-preview QA without
+ * spamming production logs (production short-circuits via the
+ * NODE_ENV guard). The asserted flag latches forever after the
+ * first run.
+ */
+function _assertMixerAdvanceOnce(handle: GlbAthleteHandle): void {
+  const probe = handle._mixerAssertion
+  if (!probe || probe.asserted) return
+  probe.ticks += 1
+  if (probe.ticks < 3) return
+  probe.asserted = true
+  if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production') {
+    return
+  }
+  if (typeof console === 'undefined') return
+
+  const failures: string[] = []
+
+  if (!handle.mixer) {
+    failures.push('mixer is missing')
+  } else if (!(handle.mixer.time > 0)) {
+    failures.push(`mixer.time did not advance (time=${handle.mixer.time})`)
+  }
+
+  const runningActions = Object.entries(handle.actions).filter(
+    ([, a]) => a.isRunning(),
+  )
+  if (runningActions.length === 0) {
+    failures.push('no AnimationAction is running on the mixer')
+  }
+
+  let probeBone: THREE.Bone | null = null
+  if (probe.probeBoneName) {
+    handle.cloned.traverse((child) => {
+      if (probeBone) return
+      if ((child as THREE.Bone).isBone && child.name === probe.probeBoneName) {
+        probeBone = child as THREE.Bone
+      }
+    })
+  }
+  if (!probeBone) {
+    failures.push(`probe bone '${probe.probeBoneName}' not found`)
+  } else if (probe.initialQuat) {
+    const current = (probeBone as THREE.Bone).quaternion
+    const init = probe.initialQuat
+    const dx = current.x - init.x
+    const dy = current.y - init.y
+    const dz = current.z - init.z
+    const dw = current.w - init.w
+    const delta = Math.sqrt(dx * dx + dy * dy + dz * dz + dw * dw)
+    if (!(delta > 1e-4)) {
+      failures.push(
+        `probe bone '${probe.probeBoneName}' did not move (quat delta=${delta.toExponential(2)})`,
+      )
+    }
+  }
+
+  if (failures.length > 0) {
+    // eslint-disable-next-line no-console
+    console.warn('[glbAthlete] mixer-tick assertion failed', {
+      failures,
+      mixerTime: handle.mixer?.time,
+      runningActions: runningActions.map(([n]) => n),
+      probeBoneName: probe.probeBoneName,
+    })
+  } else {
+    // eslint-disable-next-line no-console
+    console.info('[glbAthlete] mixer-tick assertion ok', {
+      mixerTime: handle.mixer.time,
+      runningActions: runningActions.map(([n]) => n),
+      probeBoneName: probe.probeBoneName,
+    })
+  }
 }
 
 /** Switch the active clip with a small cross-fade. No-op for non-GLB
