@@ -72,6 +72,33 @@ interface GlbIndicatorLayers {
   possession: THREE.Group
 }
 
+/**
+ * Phase O-ANIM (OB1) — bone-name map from Phase M's 12-bone
+ * procedural rig onto the Quaternius/Unreal-style 65-bone GLB
+ * skeleton. Only key bones are mapped; fingers, toes, twist, and IK
+ * helpers are intentionally left out — Phase M clips drive only the
+ * core hierarchy (hips, spine, head, shoulders, upper/lower arms,
+ * upper/lower legs).
+ *
+ * GLB skeleton names follow Unreal-Godot convention (lowercase with
+ * `_l` / `_r` side suffixes). The Phase M `spine` bone maps to
+ * `spine_02` (mid-torso) so chest sway concentrates near the centre
+ * of mass rather than at the lumbar root.
+ */
+export const GLB_BONE_MAP: Readonly<Record<string, string>> = {
+  hips: 'pelvis',
+  spine: 'spine_02',
+  head: 'Head',
+  leftUpperArm: 'upperarm_l',
+  leftForeArm: 'lowerarm_l',
+  rightUpperArm: 'upperarm_r',
+  rightForeArm: 'lowerarm_r',
+  leftThigh: 'thigh_l',
+  leftShin: 'calf_l',
+  rightThigh: 'thigh_r',
+  rightShin: 'calf_r',
+}
+
 interface GlbAthleteCacheEntry {
   /** The fully parsed GLTF asset returned by GLTFLoader. */
   gltf: GLTF
