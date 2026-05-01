@@ -669,6 +669,111 @@ remain `false` in source. Reasoning:
    and the procedural / skinned paths are byte-identical to the
    pre-Phase-O-ASSET state when both experimental flags are off.
 
+## Phase O-ANIM — BDW-01 Visual QA (OB8)
 
+**Setup.** `USE_GLB_ATHLETE_PREVIEW = false` is still the production
+default — Phase O-ANIM did not flip it. Visual QA below describes
+what the wired path *will* render when the flag is flipped on
+locally; an in-browser screenshot pass is deferred to a follow-up
+"O-LIVE-QA" because this micro-chunk runs in a sandboxed CI
+environment with no display.
+
+**What's wired now (verified by code review + the 171-test vitest
+suite):**
+
+- `GLB_BONE_MAP` (OB1) — Phase M's 11 rig bones → Unreal-style
+  pelvis / spine_02 / Head / clavicle-skipped → upperarm_l,r /
+  lowerarm_l,r / thigh_l,r / calf_l,r.
+- Three retargeted clips (OB2/3/4) authored against the GLB rest
+  pose, smaller eulers than the procedural clips because the GLB
+  rig stands taller and the rest pose is closer to the target.
+- Per-figure `AnimationMixer` + named actions stored on
+  `userData.glbAthlete` (OB5). idle_ready plays by default at
+  build time.
+- `MotionController.tick` advances every figure's mixer with a
+  wall-clock dt and switches clips through `setGlbAthleteAnimation`
+  based on `pickGlbClipForState(team, kind, isMoving)` (OB6).
+  Defenders → `defense_slide`; offensive cut/drive →
+  `cut_sprint`; everything else → `idle_ready`. Cross-fade is
+  150 ms.
+
+**Comparative judgement (predicted, not screenshotted):**
+
+| dimension              | procedural premium | generated skinned     | GLB animated (this phase) |
+| ---------------------- | ------------------ | --------------------- | ------------------------- |
+| player realism         | code-built sub-groups, separate limbs | low-poly cylinder humanoid | real Quaternius mesh, real shoulders / hands / feet |
+| motion smoothness      | rigid stance lookup; no limb deformation | bone-deformed, 11-bone rig | bone-deformed on a 65-bone rig with real cloth weights |
+| readability            | high — silhouette is exaggerated for clarity | medium — cylinders read flat at distance | high — the GLB silhouette already won OA6 over both procedural variants for static look |
+| performance            | best (no mixer, shared materials) | mid (single mixer, 11 bones) | mid-low — 65 bones × 10 figures × ~9 quaternion tracks worst-case = ~6k mixer evaluations / frame |
+| teaching clarity       | high — discrete poses snap with no interpolation | medium — animations help legibility | high pending live QA — concern is that arm yaw axis on Unreal `upperarm_l/r` may not match the assumed Z-roll, in which case `defense_slide` arms can read tilted instead of raised |
+
+**Known risk that requires live QA before flag flip.** Phase M clips
+were Eulers in the *procedural* rig's local frame. The GLB
+Unreal-style rest pose has the upper arms ~45 deg out from the spine
+on a different local axis than the procedural rig (which had arms
+at the shoulder pointing straight down `-y`). The retarget here
+keeps amplitude small but the *axis* assumption could still be
+wrong on `defense_slide` (arms raised). If the live QA shows arms
+rotated wrong, the fix is to swap the Z roll for an X pitch on the
+upperarm tracks; the bone map and the mixer wiring stay the same.
+
+**No regression to BDW-01 / procedural / skinned paths.**
+`USE_GLB_ATHLETE_PREVIEW = false` is unchanged, so production
+traffic still renders the procedural premium athlete byte-for-byte
+identically to the pre-Phase-O-ANIM output. The 171-test vitest
+suite confirms this: every non-GLB test stays green, including the
+six `imperativeScene.athlete.test.ts` cases that check the
+procedural fallback.
+
+## Phase O-ANIM Findings (OB9)
+
+1. **Does the GLB now look better than procedural?** Pending live
+   QA. Code-side: yes — the retarget gives the GLB the same three
+   movement vocabularies as the procedural premium and skinned
+   paths *plus* a real-mesh silhouette that already won the OA6
+   static comparison. The unknowns are arm-axis correctness on
+   `defense_slide` and absolute readability at the broadcast
+   camera distance.
+2. **Is motion significantly improved over the static GLB?** Yes
+   on paper. The static GLB rendered as a stiff mannequin with no
+   in-place limb motion (Phase OA6 called this out as a teaching
+   regression). Wiring three named clips through a per-figure
+   AnimationMixer plus state-driven clip switching restores
+   in-place motion vocabulary while keeping replay deterministic
+   — the mixer only writes pose, the timeline still owns root
+   motion.
+3. **Any performance issues?** Possible — not measured on real
+   hardware. Worst case is 10 figures × ~9 quaternion tracks per
+   figure × 65-bone evaluation ≈ a few thousand quaternion lerps
+   per frame. The skinned path (11 bones) was already well below
+   budget; the GLB path scales linearly in bone count, so a
+   10–15% mixer-cost bump per figure is the working assumption.
+   FPS-guard already downgrades the tier on sustained slow
+   frames, so a perf regression cannot ship as a black-screen.
+4. **Is it stable enough for production consideration?** Not yet.
+   The flag stays `false`. The retarget is plausible but
+   un-screenshotted; flipping the default without a live arm-axis
+   verification is the exact "fake success" failure the original
+   Phase O-ASSET prompt warned against.
+
+**Decision: B — Improve GLB further before flipping the default.**
+
+The next pass should (in this order):
+
+- Live QA on real hardware: flip the flag, screenshot all three
+  figures, and confirm `defense_slide` arms read raised (not
+  tilted) and `cut_sprint` legs alternate cleanly.
+- If arms read wrong, swap the Z roll for an X pitch on the
+  `upperarm_l/r` tracks in `buildGlbDefenseSlideClip` /
+  `buildGlbCutSprintClip` only — bone map and mixer wiring stay.
+- Profile per-figure mixer cost on a mid-tier laptop; if
+  significant, gate the mixer behind a quality tier (don't run
+  on `low`).
+- Only then consider promoting `USE_GLB_ATHLETE_PREVIEW` to
+  `true` by default, and only behind a soft launch (e.g.
+  per-environment override).
+
+Procedural premium remains the production default for at least
+one more cycle.
 
 

@@ -72,6 +72,331 @@ interface GlbIndicatorLayers {
   possession: THREE.Group
 }
 
+/**
+ * Phase O-ANIM (OB1) — bone-name map from Phase M's 12-bone
+ * procedural rig onto the Quaternius/Unreal-style 65-bone GLB
+ * skeleton. Only key bones are mapped; fingers, toes, twist, and IK
+ * helpers are intentionally left out — Phase M clips drive only the
+ * core hierarchy (hips, spine, head, shoulders, upper/lower arms,
+ * upper/lower legs).
+ *
+ * GLB skeleton names follow Unreal-Godot convention (lowercase with
+ * `_l` / `_r` side suffixes). The Phase M `spine` bone maps to
+ * `spine_02` (mid-torso) so chest sway concentrates near the centre
+ * of mass rather than at the lumbar root.
+ */
+export const GLB_BONE_MAP: Readonly<Record<string, string>> = {
+  hips: 'pelvis',
+  spine: 'spine_02',
+  head: 'Head',
+  leftUpperArm: 'upperarm_l',
+  leftForeArm: 'lowerarm_l',
+  rightUpperArm: 'upperarm_r',
+  rightForeArm: 'lowerarm_r',
+  leftThigh: 'thigh_l',
+  leftShin: 'calf_l',
+  rightThigh: 'thigh_r',
+  rightShin: 'calf_r',
+}
+
+/**
+ * Phase O-ANIM (OB2) — `idle_ready` retargeted to the GLB rig.
+ *
+ * The Unreal/Quaternius rig's rest pose has arms at a T-pose-ish
+ * orientation (~45 deg down-and-out) and shoulders/legs aligned to
+ * the upper-arm / thigh local axes. Eulers below are authored
+ * relative to that rest pose, NOT the procedural rig — so amplitudes
+ * are smaller than `skinnedAthlete.buildIdleReadyClip`.
+ */
+function buildGlbIdleReadyClip(): THREE.AnimationClip {
+  const duration = 2.4
+  const t = [0, duration * 0.5, duration]
+  const tracks: THREE.KeyframeTrack[] = []
+
+  // Slow chest sway (~2 deg amplitude on spine_02).
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.spine}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0.035, 0, 0),
+        glbEulerQuat(-0.035, 0, 0),
+        glbEulerQuat(0.035, 0, 0),
+      ]),
+    ),
+  )
+  // Knees softened (slight thigh forward).
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftThigh}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(-0.06, 0, 0), glbEulerQuat(-0.06, 0, 0)]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightThigh}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(-0.06, 0, 0), glbEulerQuat(-0.06, 0, 0)]),
+    ),
+  )
+
+  return new THREE.AnimationClip('idle_ready', duration, tracks)
+}
+
+/**
+ * Phase O-ANIM (OB3) — `cut_sprint` retargeted to the GLB rig.
+ *
+ * Forward lean at the spine, hip counter-rotation, and L/R legs +
+ * arms in opposition. Knee bend uses calf bones (lowerleg), shin
+ * pulls under as the thigh drives forward. Amplitudes are damped
+ * relative to the procedural clip — the GLB rig is taller and the
+ * rest pose already has the legs straight, so smaller eulers read
+ * the same on screen.
+ */
+function buildGlbCutSprintClip(): THREE.AnimationClip {
+  const duration = 0.8
+  const t = [0, duration * 0.5, duration]
+  const tracks: THREE.KeyframeTrack[] = []
+
+  // Hips counter-rotate (yaw) per stride.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.hips}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0, -0.1, 0),
+        glbEulerQuat(0, 0.1, 0),
+        glbEulerQuat(0, -0.1, 0),
+      ]),
+    ),
+  )
+  // Forward chest lean + counter yaw.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.spine}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0.16, 0.05, 0),
+        glbEulerQuat(0.16, -0.05, 0),
+        glbEulerQuat(0.16, 0.05, 0),
+      ]),
+    ),
+  )
+  // Arms swing in opposition. Unreal upperarm local +X is roughly
+  // along the bone, so pitch on Z drives shoulder swing.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftUpperArm}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0, 0, 0.7),
+        glbEulerQuat(0, 0, -0.5),
+        glbEulerQuat(0, 0, 0.7),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightUpperArm}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0, 0, -0.5),
+        glbEulerQuat(0, 0, 0.7),
+        glbEulerQuat(0, 0, -0.5),
+      ]),
+    ),
+  )
+  // Forearm bend at the elbow.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftForeArm}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0, -0.9, 0),
+        glbEulerQuat(0, -0.4, 0),
+        glbEulerQuat(0, -0.9, 0),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightForeArm}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0, -0.4, 0),
+        glbEulerQuat(0, -0.9, 0),
+        glbEulerQuat(0, -0.4, 0),
+      ]),
+    ),
+  )
+  // Legs in opposition — thigh pitch around X.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftThigh}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0.55, 0, 0),
+        glbEulerQuat(-0.4, 0, 0),
+        glbEulerQuat(0.55, 0, 0),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightThigh}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(-0.4, 0, 0),
+        glbEulerQuat(0.55, 0, 0),
+        glbEulerQuat(-0.4, 0, 0),
+      ]),
+    ),
+  )
+  // Calves bend back during stride.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftShin}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(-0.5, 0, 0),
+        glbEulerQuat(-1.0, 0, 0),
+        glbEulerQuat(-0.5, 0, 0),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightShin}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(-1.0, 0, 0),
+        glbEulerQuat(-0.5, 0, 0),
+        glbEulerQuat(-1.0, 0, 0),
+      ]),
+    ),
+  )
+
+  return new THREE.AnimationClip('cut_sprint', duration, tracks)
+}
+
+/**
+ * Phase O-ANIM (OB4) — `defense_slide` retargeted to the GLB rig.
+ *
+ * Wide low stance with hands up. Hips rock laterally, thighs splay
+ * outward (Z roll), knees stay bent. Spine holds a forward lean
+ * across the full duration so the torso reads "active" rather than
+ * stiff.
+ */
+function buildGlbDefenseSlideClip(): THREE.AnimationClip {
+  const duration = 1.0
+  const t = [0, duration * 0.5, duration]
+  const tracks: THREE.KeyframeTrack[] = []
+
+  // Hips rock side-to-side (Z roll).
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.hips}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0, 0, 0.05),
+        glbEulerQuat(0, 0, -0.05),
+        glbEulerQuat(0, 0, 0.05),
+      ]),
+    ),
+  )
+  // Forward lean held across duration.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.spine}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0.18, 0, 0), glbEulerQuat(0.18, 0, 0)]),
+    ),
+  )
+  // Arms held up and out (active hands).
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftUpperArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0, 0, 1.0), glbEulerQuat(0, 0, 1.0)]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightUpperArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0, 0, -1.0), glbEulerQuat(0, 0, -1.0)]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftForeArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0, -0.9, 0), glbEulerQuat(0, -0.9, 0)]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightForeArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0, -0.9, 0), glbEulerQuat(0, -0.9, 0)]),
+    ),
+  )
+  // Wide thigh splay + slight rock.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftThigh}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(-0.5, 0, 0.2),
+        glbEulerQuat(-0.6, 0, 0.2),
+        glbEulerQuat(-0.5, 0, 0.2),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightThigh}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(-0.6, 0, -0.2),
+        glbEulerQuat(-0.5, 0, -0.2),
+        glbEulerQuat(-0.6, 0, -0.2),
+      ]),
+    ),
+  )
+  // Knees bent.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftShin}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0.32, 0, 0), glbEulerQuat(0.32, 0, 0)]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightShin}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0.32, 0, 0), glbEulerQuat(0.32, 0, 0)]),
+    ),
+  )
+
+  return new THREE.AnimationClip('defense_slide', duration, tracks)
+}
+
+const _glbScratchEuler = new THREE.Euler()
+
+function glbEulerQuat(x: number, y: number, z: number): THREE.Quaternion {
+  _glbScratchEuler.set(x, y, z, 'XYZ')
+  return new THREE.Quaternion().setFromEuler(_glbScratchEuler)
+}
+
+function flattenGlbQuats(quats: THREE.Quaternion[]): number[] {
+  const out: number[] = []
+  for (const q of quats) out.push(q.x, q.y, q.z, q.w)
+  return out
+}
+
 interface GlbAthleteCacheEntry {
   /** The fully parsed GLTF asset returned by GLTFLoader. */
   gltf: GLTF
@@ -165,15 +490,57 @@ export function buildGlbAthletePreview(
 
     const indicatorLayers = buildGlbIndicatorLayers(figure, teamColor, isUser, hasBall)
     ;(figure.userData as Record<string, unknown>).indicatorLayers = indicatorLayers
+
+    const mixer = new THREE.AnimationMixer(cloned)
+    const clips = getCachedGlbClips()
+    const actions: Record<string, THREE.AnimationAction> = {}
+    for (const clip of clips) {
+      actions[clip.name] = mixer.clipAction(clip)
+    }
+    actions['idle_ready']?.play()
+
+    const rootBone = findGlbRootBone(cloned)
+
     ;(figure.userData as Record<string, unknown>)[GLB_ATHLETE_USER_DATA_KEY] = {
       figure,
       cloned,
+      mixer,
+      actions,
+      rootBone,
     }
 
     return figure
   } catch {
     return null
   }
+}
+
+let _cachedGlbClips: THREE.AnimationClip[] | null = null
+
+function getCachedGlbClips(): THREE.AnimationClip[] {
+  if (_cachedGlbClips) return _cachedGlbClips
+  _cachedGlbClips = [
+    buildGlbIdleReadyClip(),
+    buildGlbCutSprintClip(),
+    buildGlbDefenseSlideClip(),
+  ]
+  return _cachedGlbClips
+}
+
+/** Test-only — reset the GLB clip cache between cases. */
+export function _resetGlbAthleteClipCache(): void {
+  _cachedGlbClips = null
+}
+
+function findGlbRootBone(root: THREE.Object3D): THREE.Bone | null {
+  let found: THREE.Bone | null = null
+  root.traverse((child) => {
+    if (found) return
+    if ((child as THREE.Bone).isBone && child.name === GLB_BONE_MAP.hips) {
+      found = child as THREE.Bone
+    }
+  })
+  return found
 }
 
 function findFirstSkinnedMesh(root: THREE.Object3D): THREE.SkinnedMesh | null {
@@ -316,4 +683,66 @@ function buildGlbIndicatorLayers(
     userHead: userHeadLayer,
     possession: possessionLayer,
   }
+}
+
+/**
+ * Phase O-ANIM (OB6) — animation control helpers. Mirror the
+ * skinned-athlete API so the motion controller can drive both paths
+ * with the same logic.
+ */
+export type GlbAthleteAnimationName =
+  | 'idle_ready'
+  | 'cut_sprint'
+  | 'defense_slide'
+
+interface GlbAthleteHandle {
+  figure: THREE.Group
+  cloned: THREE.Object3D
+  mixer: THREE.AnimationMixer
+  actions: Record<string, THREE.AnimationAction>
+  rootBone: THREE.Bone | null
+}
+
+export function getGlbAthleteHandle(
+  figure: THREE.Object3D,
+): GlbAthleteHandle | null {
+  const userData = figure.userData as Record<string, unknown> | undefined
+  if (!userData) return null
+  const handle = userData[GLB_ATHLETE_USER_DATA_KEY]
+  if (!handle || typeof handle !== 'object') return null
+  const h = handle as Partial<GlbAthleteHandle>
+  if (!h.mixer || !h.actions) return null
+  return handle as GlbAthleteHandle
+}
+
+/** Tick the GLB figure's mixer with a deterministic dt (seconds). */
+export function updateGlbAthletePose(
+  figure: THREE.Object3D,
+  dt: number,
+): void {
+  const handle = getGlbAthleteHandle(figure)
+  if (!handle) return
+  handle.mixer.update(dt)
+}
+
+/** Switch the active clip with a small cross-fade. No-op for non-GLB
+ *  figures and when the requested clip is already at full weight. */
+export function setGlbAthleteAnimation(
+  figure: THREE.Object3D,
+  name: GlbAthleteAnimationName,
+  options?: { fadeSeconds?: number },
+): void {
+  const handle = getGlbAthleteHandle(figure)
+  if (!handle) return
+  const next = handle.actions[name]
+  if (!next) return
+  if (next.isRunning() && next.getEffectiveWeight() > 0.95) return
+  const fade = options?.fadeSeconds ?? 0.15
+  for (const [otherName, action] of Object.entries(handle.actions)) {
+    if (otherName === name) continue
+    if (action.isRunning()) action.fadeOut(fade)
+  }
+  next.reset()
+  next.fadeIn(fade)
+  next.play()
 }
