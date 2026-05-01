@@ -684,3 +684,65 @@ function buildGlbIndicatorLayers(
     possession: possessionLayer,
   }
 }
+
+/**
+ * Phase O-ANIM (OB6) — animation control helpers. Mirror the
+ * skinned-athlete API so the motion controller can drive both paths
+ * with the same logic.
+ */
+export type GlbAthleteAnimationName =
+  | 'idle_ready'
+  | 'cut_sprint'
+  | 'defense_slide'
+
+interface GlbAthleteHandle {
+  figure: THREE.Group
+  cloned: THREE.Object3D
+  mixer: THREE.AnimationMixer
+  actions: Record<string, THREE.AnimationAction>
+  rootBone: THREE.Bone | null
+}
+
+export function getGlbAthleteHandle(
+  figure: THREE.Object3D,
+): GlbAthleteHandle | null {
+  const handle = (figure.userData as Record<string, unknown>)[
+    GLB_ATHLETE_USER_DATA_KEY
+  ]
+  if (!handle || typeof handle !== 'object') return null
+  const h = handle as Partial<GlbAthleteHandle>
+  if (!h.mixer || !h.actions) return null
+  return handle as GlbAthleteHandle
+}
+
+/** Tick the GLB figure's mixer with a deterministic dt (seconds). */
+export function updateGlbAthletePose(
+  figure: THREE.Object3D,
+  dt: number,
+): void {
+  const handle = getGlbAthleteHandle(figure)
+  if (!handle) return
+  handle.mixer.update(dt)
+}
+
+/** Switch the active clip with a small cross-fade. No-op for non-GLB
+ *  figures and when the requested clip is already at full weight. */
+export function setGlbAthleteAnimation(
+  figure: THREE.Object3D,
+  name: GlbAthleteAnimationName,
+  options?: { fadeSeconds?: number },
+): void {
+  const handle = getGlbAthleteHandle(figure)
+  if (!handle) return
+  const next = handle.actions[name]
+  if (!next) return
+  if (next.isRunning() && next.getEffectiveWeight() > 0.95) return
+  const fade = options?.fadeSeconds ?? 0.15
+  for (const [otherName, action] of Object.entries(handle.actions)) {
+    if (otherName === name) continue
+    if (action.isRunning()) action.fadeOut(fade)
+  }
+  next.reset()
+  next.fadeIn(fade)
+  next.play()
+}
