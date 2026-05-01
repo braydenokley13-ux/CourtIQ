@@ -396,4 +396,77 @@ Phased rollout. Each phase has explicit acceptance criteria; do not enter the ne
 
 ## Section 11 — First Implementation Packet After This Doc
 
-*To be filled in the final checkpoint.*
+The doc itself is non-implementing. The first concrete implementation packet that should follow is intentionally narrow — it locks the determinism baseline (P0) before any imported-clip work begins.
+
+### Packet name: **P0-LOCK** — Determinism baseline + GLB readability fixes
+
+This packet is a prerequisite for P1 (imported-clip spike). It does not introduce new animation content. It fixes the issues observed in the current GLB dev-preview screenshots and establishes the test scaffolding the rest of the rollout depends on.
+
+### Scope (must)
+
+1. **Fullscreen regression fix.** Resolve the bottom-half-black canvas observed when `USE_GLB_ATHLETE_PREVIEW=true` is rendered in fullscreen on `/dev/scene-preview`. Suspect interaction between the GLB figure's `GLB_M_TO_FT_SCALE` group and the auto-fit camera bounds; verify the `Scenario3DCanvas.tsx:384–429` resize hook fires after GLB cache load.
+2. **Bone-map audit.** `GLB_BONE_MAP.head: 'Head'` is the only PascalCase entry in an otherwise lowercase Unreal/Quaternius skeleton. Log actual skeleton bone names from `cache.skinnedMesh.skeleton.bones` once on load and reconcile the map. Confirm that `idle_ready`, `cut_sprint`, and `defense_slide` clips actually move bones at runtime.
+3. **Mixer-tick assertion.** Add a one-shot assertion in `updateGlbAthletePose` that `mixer.time > 0` after the second tick. Failing the assertion is a P0 bug.
+4. **Replay-determinism test.** Add a test that runs a scenario twice and snapshots bone quaternions at the freeze tick; assert equality within float epsilon. This is the gate every later phase must pass.
+5. **Foot-to-floor offset.** One-time y-offset measured from the rest-pose foot bone bounding box, applied to the figure root group. Eliminates the floating-feet artifact visible in current screenshots.
+
+### Scope (must not)
+
+- No imported clips.
+- No new intents beyond the existing `idle_ready` / `cut_sprint` / `defense_slide`.
+- No scenario-data changes.
+- No camera-mode changes.
+- No material/jersey work — that belongs to a separate O-POLISH-2 packet.
+
+### Acceptance criteria
+
+- [ ] `/dev/scene-preview?scenario=BDW-01` renders correctly in fullscreen with GLB on.
+- [ ] All three bespoke clips visibly move bones at runtime (verified by ad-hoc visual check + automated mixer-tick assertion).
+- [ ] Replay-determinism test passes with GLB on and GLB off.
+- [ ] Feet sit on the floor ring, not above it.
+- [ ] Toggling `USE_GLB_ATHLETE_PREVIEW=false` restores byte-identical pre-Phase-O behavior (carry-over from existing Phase O-ASSET contract).
+
+### Why this packet first
+
+Two reasons. First, every later phase (P1 imported clips, P2 decoder mapping, P3 overlay/camera sync) assumes the determinism baseline holds; without the replay-determinism test as a gate, every later change risks silently breaking the film-room loop. Second, the bone-map and fullscreen issues are the most visible regressions in the current dev preview — fixing them validates that the existing path actually works before we add imported assets on top of it.
+
+### Estimated size
+
+Small. One sitting if the bone-map fix is the right diagnosis; two sittings if the fullscreen issue requires a deeper layout audit.
+
+### Follow-on packets (not part of P0-LOCK)
+
+- **O-POLISH-2** — material/jersey/numbers (separate from animation; deferred).
+- **P1 spike** — imported `closeout` clip on AOR-01 dev preview (depends on P0-LOCK passing).
+- **P2** — decoder mapping and per-tick intent selector.
+
+---
+
+## Appendix A — Do / Do Not summary
+
+### Do
+
+- Treat animation as a body-language and emphasis layer.
+- Let scenario data own x / z / t.
+- Strip root motion from imported clips at the loader.
+- Flag-gate every imported clip.
+- Author freeze poses as natural pauses in the active intent's clip.
+- Map decoders to intents via a single lookup table.
+- Keep the v1 vocabulary at 12 intents.
+- Use 1–3 overlays max at freeze.
+- Make wrong-read consequences visible in under 4 seconds.
+- Keep replays deterministic.
+
+### Do Not
+
+- Do not give animation write access to figure root position.
+- Do not import clips with un-stripped root motion.
+- Do not introduce intents that are generic locomotion.
+- Do not stack overlays.
+- Do not slow-mo by default.
+- Do not auto-loop replay more than twice.
+- Do not let animation invent scenario meaning.
+- Do not optimize for realism at the cost of readability.
+- Do not ship imported clips on a protected route before they pass `/dev/scene-preview` QA.
+- Do not couple animation duration to scenario timing — the reverse only.
+
