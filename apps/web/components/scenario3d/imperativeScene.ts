@@ -3505,6 +3505,24 @@ export function buildPlayerFigure(
   jerseyNumber: string,
   stance: PlayerStance,
 ): THREE.Group {
+  if (USE_GLB_ATHLETE_PREVIEW) {
+    try {
+      const glb = buildGlbAthleteFigure(
+        teamColor,
+        trimColor,
+        isUser,
+        hasBall,
+        jerseyNumber,
+        stance,
+      )
+      if (glb) return glb
+    } catch {
+      // Phase O-ASSET fallback — GLB preview path failed (asset
+      // missing, fetch blocked, parse failure, or anything thrown);
+      // continue to the rest of the chain so the scene keeps
+      // rendering.
+    }
+  }
   if (USE_SKINNED_ATHLETE_PREVIEW) {
     try {
       const skinned = buildSkinnedAthleteFigure(
@@ -3562,6 +3580,36 @@ function buildSkinnedAthleteFigure(
   stance: PlayerStance,
 ): THREE.Group | null {
   return buildSkinnedAthletePreview(
+    teamColor,
+    trimColor,
+    isUser,
+    hasBall,
+    jerseyNumber,
+    stance,
+  )
+}
+
+// =====================================================================
+// Phase O-ASSET — License-clean GLB athlete preview (experimental)
+// =====================================================================
+//
+// Same isolation pattern as the skinned shim above. The GLB path
+// lives in `glbAthlete.ts`; the selector in `buildPlayerFigure`
+// invokes this shim only when `USE_GLB_ATHLETE_PREVIEW` is true,
+// and the shim delegates to the real builder. Returns `null` when
+// the GLB asset cache is empty (cold load), the runtime is not a
+// browser, or anything throws — caller falls through.
+import { buildGlbAthletePreview } from './glbAthlete'
+
+function buildGlbAthleteFigure(
+  teamColor: string,
+  trimColor: string,
+  isUser: boolean,
+  hasBall: boolean,
+  jerseyNumber: string,
+  stance: PlayerStance,
+): THREE.Group | null {
+  return buildGlbAthletePreview(
     teamColor,
     trimColor,
     isUser,
