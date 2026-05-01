@@ -221,19 +221,178 @@ This is the table the renderer reads when a scenario's decision moment fires. Ea
 
 ## Section 7 — Freeze-frame teaching cues
 
-*To be filled in a later checkpoint.*
+The freeze frame is the single most important rendering moment in CourtIQ. Animation's job at freeze is to make the cue obvious without making the scene look cartoonish.
+
+### Do
+
+- **Slightly clearer body angles.** At freeze, the cue figure (e.g. the denying defender) may pose with a 5–10° exaggeration over baseline — enough to read at a glance, not enough to read as caricature.
+- **Simple player spotlight.** A soft circular halo on the cue figure's floor ring (already supported via the user-halo indicator). No volumetric beams, no lens flares.
+- **Clear defender orientation.** Head and hips of the cue defender are the most-read cue. Their rotation must be visually distinct from a generic stance.
+- **Court-space highlight when needed.** ESC and SKR benefit from a translucent floor patch on the vacated zone. BDW and AOR generally do not.
+- **1–3 overlays max.** Above 3 overlays, the read becomes a label-reading exercise, not a film-reading exercise.
+- **Middle-school-friendly labels.** "Eyes off his man." "Help left him alone." "Closeout is short." Plain English. No "weak-side rotation timing window."
+
+### Do Not
+
+- Do not blur the rest of the scene. The other 9 players are part of the read.
+- Do not zoom in on the cue figure. Camera framing belongs to the camera-mode system; freeze does not change camera intent.
+- Do not animate the freeze pose. Freeze is a held pose, not a slow-motion loop. Subtle breathing is acceptable; head bob is not.
+- Do not stack overlays. If the read needs four overlays, the scenario is too complex for v1.
+
+### Freeze pose authoring
+
+- The freeze pose is **not a separate clip.** It is the pose the active intent's clip is at when `t = freeze_tick`. This preserves determinism (same scenario clock → same pose).
+- For exaggeration, the renderer may apply a per-bone additive rotation at freeze only, scaled by a `freezeEmphasis: 0..1` config. Emphasis returns to 0 when the freeze releases.
+
+### Acceptance criteria for Section 7
+
+- [ ] No freeze frame uses more than 3 overlays.
+- [ ] The cue figure's pose is visually distinct from the same figure's `idle_ready` pose at the same tick.
+- [ ] Freeze does not modify camera framing beyond what the active camera mode already produces.
+- [ ] Releasing freeze returns all freeze-emphasis adjustments to 0 within one tick.
+
+---
 
 ## Section 8 — Wrong-read consequence animation
 
-*To be filled in a later checkpoint.*
+When the user picks a wrong read, the consequence playback must visually answer the question *"why was that wrong?"* without a long text explanation. The animation should show the failure mode.
+
+### Failure modes per decoder
+
+| Decoder | Wrong-read intent on the offensive player | What it shows |
+|---|---|---|
+| BDW (wrong) | `idle_ready` held, then `receive_ready` toward the top | Player comes higher into pressure instead of cutting behind. Defender's deny posture wins; the pass never arrives. |
+| ESC (wrong) | `idle_ready` (player stands still) OR `empty_space_cut` *into* a defender's space | Cutter goes into traffic, or freezes while the gap closes. |
+| SKR (wrong) | `pass_followthrough` toward the loaded side, or `jab_or_rip` into help | Pass into traffic, or drive into the wall of help defenders. |
+| AOR (wrong) | `shot_ready` against a recovered closeout, OR `jab_or_rip` into a balanced defender, OR `reset_hold` when advantage existed | Each branch shows the specific kind of wrong: contested shot, drive into a set defender, or advantage thrown away. |
+
+### Authoring rules
+
+- The wrong-read consequence is **scenario-authored**, not animation-authored. Scenario data tells the timeline "if user chose X, play branch B"; the animation layer reflects that branch.
+- Wrong-read clips should resolve in **2–4 seconds** of consequence playback. Longer feels like punishment.
+- The defender's response (deflection, recovery, contest) should be authored with the same intent vocabulary — `closeout`, `slide_recover`, `defensive_deny` — so the renderer does not need a separate "punishment" clip set.
+- After consequence playback, the loop transitions into best-read replay (Section 9). The wrong-read animation should *land* on a final pose that motivates the cut to replay (e.g. defender holding the deflected ball; offensive player stuck above the FT line).
+
+### Acceptance criteria for Section 8
+
+- [ ] Each decoder has at least one authored wrong-read consequence on its v1 scenario.
+- [ ] A user who answers wrong can see *why* in under 4 seconds without reading a label.
+- [ ] No wrong-read consequence requires a clip outside the v1 vocabulary.
+
+---
 
 ## Section 9 — Best-read replay highlighting
 
-*To be filled in a later checkpoint.*
+The replay is the moment CourtIQ teaches. It should feel like a coach pausing film and pointing — *"Look at his hips. Look at the defender's head. Look at the empty space."* — not like a sports highlight reel.
+
+### Replay structure (three beats)
+
+1. **Show the cue.** Camera holds on the cue figure. The cue intent (e.g. `defensive_deny`) plays in place. Optional overlay: defender vision cone or head/hips arrow.
+2. **Show the correct action.** The offensive player's correct intent plays (`back_cut`, `empty_space_cut`, etc.). Optional overlay: pass lane, cut path.
+3. **Show the advantage created.** The receiver poses in `receive_ready` / `shot_ready`. Optional overlay: open space ring, closeout cushion.
+
+### Overlay vocabulary
+
+| Overlay | Used for |
+|---|---|
+| Defender head/hips marker | BDW cue, ESC cue |
+| Open space floor patch | ESC, SKR |
+| Pass lane line | BDW best-read, SKR best-read |
+| Closeout cushion ring | AOR best-read |
+| "Look here" pulse | Any decoder, single-use, attached to the cue role |
+
+### Replay rules
+
+- Replay is **deterministic.** It uses the same scenario clock; only camera and overlays differ from the original possession.
+- Replay is **not slowed-down by default.** Mid-school users handle 1× fine. A 0.5× toggle exists in the playback controls; the system does not force slow-mo.
+- Replay overlays appear **on cue, not on a fixed schedule.** Cue overlay enters at the cue tick; action overlay enters at the action tick; advantage overlay enters at the advantage tick. (These ticks already exist in scenario data.)
+- No replay loops more than twice without user action. The film-room metaphor breaks if the replay auto-loops infinitely.
+
+### Acceptance criteria for Section 9
+
+- [ ] Best-read replay always shows cue → action → advantage, in that order, on every v1 decoder scenario.
+- [ ] Overlays are tied to scenario ticks, not to wall-clock offsets.
+- [ ] The replay never feels like a highlight reel — no replay-specific clip flair beyond the v1 vocabulary.
+
+---
 
 ## Section 10 — Rollout plan (P0 → P4)
 
-*To be filled in a later checkpoint.*
+Phased rollout. Each phase has explicit acceptance criteria; do not enter the next phase until the current one passes them.
+
+### P0 — Deterministic base (current)
+
+**Goal:** lock the determinism baseline before introducing any imported animation.
+
+- Existing bespoke clips (`buildGlbIdleReadyClip` etc.) remain as the default.
+- Scenario movement owns x/z routes. Animation does not write to figure root TRS.
+- Camera and replay timing remain deterministic across FOLLOW / REPLAY / BROADCAST / AUTO.
+
+**Acceptance criteria:**
+- [ ] Replay-determinism test exists and passes with `USE_GLB_ATHLETE_PREVIEW=true` and `=false`.
+- [ ] Fullscreen rendering bug observed in current dev preview is fixed (carry-over from O-POLISH-1).
+- [ ] Bespoke clip mixer is verified to advance per frame (audit per O-POLISH-1, OP1.2).
+
+### P1 — One imported animation spike
+
+**Goal:** prove imported clips can be integrated safely on a single intent.
+
+- Target intent: `closeout` (drives AOR cue clarity).
+- Apply to one dev-preview defender on `AOR-01` only.
+- Behind `USE_IMPORTED_CLOSEOUT_CLIP` flag (default off).
+- Loader strips root motion; bone-map adapter handles bone naming.
+
+**Acceptance criteria:**
+- [ ] Closeout clip plays without root drift in `/dev/scene-preview?scenario=AOR-01`.
+- [ ] No twisted limbs, no flicker, no NaN bone transforms.
+- [ ] Replay determinism test passes with flag on.
+- [ ] Toggle off restores byte-identical previous behavior.
+- [ ] All four camera modes verified, plus fullscreen.
+
+### P2 — Decoder-specific animation states
+
+**Goal:** wire each decoder's role table (Section 6) into the renderer's per-tick intent selector.
+
+- Implement `getDecoderAnimationMap(decoderTag, role)`.
+- Map BDW, ESC, SKR, AOR moments to the v1 intent vocabulary.
+- Use fallbacks (`idle_ready` / static defensive stance) when a specific clip is missing.
+- Wrong-read consequence intents authored per Section 8.
+
+**Acceptance criteria:**
+- [ ] BDW-01, ESC-01, SKR-01, AOR-01 each play their decoder-specific intents at the right ticks.
+- [ ] Missing intent never crashes the scene; falls back gracefully.
+- [ ] Wrong-read branch animations land cleanly into best-read replay.
+
+### P3 — Overlay/camera synchronization
+
+**Goal:** make the freeze and replay feel like a coach's film session.
+
+- Freeze camera favors the cue (per camera-mode rules; not a freeze-only camera).
+- Replay camera favors the correct read path.
+- Overlays appear at the right teaching moment per Section 9.
+
+**Acceptance criteria:**
+- [ ] Cue, action, and advantage overlays appear at scenario-authored ticks, not wall-clock offsets.
+- [ ] No replay frame has more than 3 overlays.
+- [ ] Camera does not jump between freeze and replay; transitions are smooth.
+
+### P4 — Performance and QA
+
+**Goal:** prove the full path is shippable.
+
+- Test GLB on/off.
+- Test normal/fullscreen.
+- Test desktop/mobile.
+- Test FOLLOW / REPLAY / BROADCAST / AUTO.
+- Confirm dispose/memory behavior with all imported clips loaded.
+
+**Acceptance criteria:**
+- [ ] No regression in dispose-leak test with all P1–P3 changes enabled.
+- [ ] Mobile frame rate within Phase F budget.
+- [ ] No memory growth across 50 scenario plays.
+- [ ] All four decoder v1 scenarios pass end-to-end QA on desktop and mobile.
+
+---
 
 ## Section 11 — First Implementation Packet After This Doc
 
