@@ -725,4 +725,55 @@ suite confirms this: every non-GLB test stays green, including the
 six `imperativeScene.athlete.test.ts` cases that check the
 procedural fallback.
 
+## Phase O-ANIM Findings (OB9)
+
+1. **Does the GLB now look better than procedural?** Pending live
+   QA. Code-side: yes — the retarget gives the GLB the same three
+   movement vocabularies as the procedural premium and skinned
+   paths *plus* a real-mesh silhouette that already won the OA6
+   static comparison. The unknowns are arm-axis correctness on
+   `defense_slide` and absolute readability at the broadcast
+   camera distance.
+2. **Is motion significantly improved over the static GLB?** Yes
+   on paper. The static GLB rendered as a stiff mannequin with no
+   in-place limb motion (Phase OA6 called this out as a teaching
+   regression). Wiring three named clips through a per-figure
+   AnimationMixer plus state-driven clip switching restores
+   in-place motion vocabulary while keeping replay deterministic
+   — the mixer only writes pose, the timeline still owns root
+   motion.
+3. **Any performance issues?** Possible — not measured on real
+   hardware. Worst case is 10 figures × ~9 quaternion tracks per
+   figure × 65-bone evaluation ≈ a few thousand quaternion lerps
+   per frame. The skinned path (11 bones) was already well below
+   budget; the GLB path scales linearly in bone count, so a
+   10–15% mixer-cost bump per figure is the working assumption.
+   FPS-guard already downgrades the tier on sustained slow
+   frames, so a perf regression cannot ship as a black-screen.
+4. **Is it stable enough for production consideration?** Not yet.
+   The flag stays `false`. The retarget is plausible but
+   un-screenshotted; flipping the default without a live arm-axis
+   verification is the exact "fake success" failure the original
+   Phase O-ASSET prompt warned against.
+
+**Decision: B — Improve GLB further before flipping the default.**
+
+The next pass should (in this order):
+
+- Live QA on real hardware: flip the flag, screenshot all three
+  figures, and confirm `defense_slide` arms read raised (not
+  tilted) and `cut_sprint` legs alternate cleanly.
+- If arms read wrong, swap the Z roll for an X pitch on the
+  `upperarm_l/r` tracks in `buildGlbDefenseSlideClip` /
+  `buildGlbCutSprintClip` only — bone map and mixer wiring stay.
+- Profile per-figure mixer cost on a mid-tier laptop; if
+  significant, gate the mixer behind a quality tier (don't run
+  on `low`).
+- Only then consider promoting `USE_GLB_ATHLETE_PREVIEW` to
+  `true` by default, and only behind a soft launch (e.g.
+  per-environment override).
+
+Procedural premium remains the production default for at least
+one more cycle.
+
 
