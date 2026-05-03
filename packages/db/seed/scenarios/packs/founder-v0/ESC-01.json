@@ -2,7 +2,7 @@
   {
     "id": "ESC-01",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "title": "Empty-Space Cut on Help",
     "category": "OFFENSE",
     "decoder_tag": "EMPTY_SPACE_CUT",
@@ -86,8 +86,10 @@
     ],
     "coach_validation": {
       "level": "low",
-      "status": "needed",
-      "notes": "P3.1 first-pass authoring. Coach review pending — confirm the help-tag timing and cut window for a middle-school player."
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-03T00:00:00.000Z",
+      "notes": "P3.3 — approved for controlled production test. P3.2 fixed the c4 wrongDemo collision (user now ends at (14, 5), x2 walls off at (12, 5) — 2 ft separation). Freeze at 1500 ms accepted; revisit if prod QA shows the cue reads better mid-step (~1200 ms)."
     },
     "source_research_basis": "Cutting into vacated help-space is universally taught at every level; the cue (defender turns help) is system-independent.",
     "progression_metadata": {

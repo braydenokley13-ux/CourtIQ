@@ -2,7 +2,7 @@
   {
     "id": "SKR-01",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "title": "Skip the Overhelp",
     "category": "OFFENSE",
     "decoder_tag": "SKIP_THE_ROTATION",
@@ -86,8 +86,10 @@
     ],
     "coach_validation": {
       "level": "low",
-      "status": "needed",
-      "notes": "P3.1 first-pass authoring. Coach review pending — confirm the pivot mechanics and skip-pass type (overhead vs one-hand push) for a middle-school player."
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-03T00:00:00.000Z",
+      "notes": "P3.3 — approved for controlled production test. Difficulty 2 retained (user is the passer, on-ball read with execution — the only on-ball founder rep). Skip-pass arc accepted as deterministic; pass-type (overhead vs one-hand) is a renderer concern, not a seed concern."
     },
     "source_research_basis": "Skip-the-rotation against weak-side help is universally taught at every level; the cue (overhelp loaded to ball) is system-independent.",
     "progression_metadata": {
