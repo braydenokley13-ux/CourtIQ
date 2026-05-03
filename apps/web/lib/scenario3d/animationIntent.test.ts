@@ -192,6 +192,72 @@ describe('resolveGlbClipForIntent — CLOSEOUT intent', () => {
   })
 })
 
+describe('resolveGlbClipForIntent — BACK_CUT intent', () => {
+  it('returns "back_cut" clip when importedBackCutActive=true', () => {
+    expect(
+      resolveGlbClipForIntent('BACK_CUT', {
+        importedCloseoutActive: false,
+        importedBackCutActive: true,
+      }),
+    ).toBe('back_cut')
+  })
+
+  it('falls back to "cut_sprint" when importedBackCutActive=false', () => {
+    expect(
+      resolveGlbClipForIntent('BACK_CUT', {
+        importedCloseoutActive: false,
+        importedBackCutActive: false,
+      }),
+    ).toBe('cut_sprint')
+  })
+
+  it('back-cut flag does not leak into other offensive intents', () => {
+    // EMPTY_SPACE_CUT, JAB_OR_RIP, RECEIVE_READY, etc. must still
+    // resolve to cut_sprint when only importedBackCutActive is on.
+    const flags = { importedCloseoutActive: false, importedBackCutActive: true }
+    expect(resolveGlbClipForIntent('EMPTY_SPACE_CUT', flags)).toBe('cut_sprint')
+    expect(resolveGlbClipForIntent('JAB_OR_RIP', flags)).toBe('cut_sprint')
+    expect(resolveGlbClipForIntent('RECEIVE_READY', flags)).toBe('cut_sprint')
+    expect(resolveGlbClipForIntent('SHOT_READY', flags)).toBe('cut_sprint')
+  })
+
+  it('back-cut flag does not leak into closeout', () => {
+    // CLOSEOUT must continue to gate on importedCloseoutActive only.
+    expect(
+      resolveGlbClipForIntent('CLOSEOUT', {
+        importedCloseoutActive: false,
+        importedBackCutActive: true,
+      }),
+    ).toBe('defense_slide')
+  })
+})
+
+describe('resolveGlbClipForIntent — BDW cutter end-to-end chain', () => {
+  it('BDW cutter resolves to BACK_CUT intent', () => {
+    expect(getDecoderAnimationIntent('BACKDOOR_WINDOW', 'cutter')).toBe('BACK_CUT')
+  })
+
+  it('BDW cutter chain produces back_cut clip when flag on', () => {
+    const intent = getDecoderAnimationIntent('BACKDOOR_WINDOW', 'cutter')
+    const clip = resolveGlbClipForIntent(intent, {
+      importedCloseoutActive: false,
+      importedBackCutActive: true,
+    })
+    expect(intent).toBe('BACK_CUT')
+    expect(clip).toBe('back_cut')
+  })
+
+  it('BDW cutter chain falls back to cut_sprint when flag off', () => {
+    const intent = getDecoderAnimationIntent('BACKDOOR_WINDOW', 'cutter')
+    const clip = resolveGlbClipForIntent(intent, {
+      importedCloseoutActive: false,
+      importedBackCutActive: false,
+    })
+    expect(intent).toBe('BACK_CUT')
+    expect(clip).toBe('cut_sprint')
+  })
+})
+
 describe('resolveGlbClipForIntent — flag-off path unchanged for all intents', () => {
   const FLAG_OFF = {
     importedCloseoutActive: false,
