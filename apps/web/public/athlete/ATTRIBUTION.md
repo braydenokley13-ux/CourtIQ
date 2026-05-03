@@ -87,3 +87,53 @@ with open('apps/web/public/athlete/mannequin.glb', 'rb') as f:
 
 Expected output (matches the file shipped here): `verts: 10070`,
 `bones: 65`, `anims: 0`.
+
+---
+
+## Imported animation clips (`clips/`)
+
+The `clips/` subdirectory bundles per-intent imported animation files
+that drive the GLB athlete's bone-only body language. Each file in
+that folder must carry its own attribution entry below before the
+asset can be considered shippable.
+
+### Clips currently bundled
+
+**None.** As of the P1.5 packet, no real `.glb` clip is on disk
+under `clips/`. The GLB athlete system is wired to load a real
+`closeout.glb` if one appears (see `clips/README.md`), and falls
+back to a synthetic placeholder closeout clip authored
+programmatically inside `apps/web/components/scenario3d/glbAthlete.ts`
+when the cache is cold.
+
+The placeholder clip is **NOT a redistributable asset** — it lives
+in code, has no separate authoring source, and has no license
+question because it is an internally-authored derivative of the
+existing bespoke clip vocabulary.
+
+### Closeout (`clips/closeout.glb`) — TODO
+
+When a real closeout clip is added, append the following block here
+with the actual values filled in. The seed validator and the
+imported-clip loader do not check this file, but a missing entry is
+the project's contract violation, not a runtime error.
+
+```
+- File: clips/closeout.glb
+- Original name: <as shipped by the source>
+- Author: <name + URL>
+- Source URL: <permalink>
+- Distribution archive: <archive name + URL>
+- Downloaded: YYYY-MM-DD
+- License: <CC0 1.0 / CC BY 4.0 / explicit-commercial / ...>
+- License file: clips/<asset-license-filename>.txt (verbatim copy)
+- Bone naming source rig: <Quaternius UAL2 / Mixamo / custom>
+- Root-motion stripping: enforced at the loader layer
+  (apps/web/components/scenario3d/importedClipLoader.ts).
+- Visual QA: <date + screenshot path>
+```
+
+CC BY-NC, CC BY-SA, and "personal use only" licenses are NOT
+acceptable for CourtIQ. Mixamo characters distributed in this
+public repository require explicit legal review before adding a
+bundled file (per `phase-o-glb-athlete.md` § Source survey).

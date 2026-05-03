@@ -29,13 +29,36 @@ inside the loader, not in per-callsite code. Phase P §2 (the hard line
 - **Intent:** `closeout` — defender approaching a catch on AOR. Short
   choppy steps, high hand, decelerating posture. See Phase P §5
   (Vocabulary) and §6 (AOR mapping).
-- **Status:** **placeholder, not bundled.** The P1.0 spike adds the
+- **Status:** **placeholder, not bundled** (verified P1.5).
+  No `closeout.glb` is on disk. The P1.0 spike added the
   loader + flag + determinism test scaffolding so a real clip can be
   dropped in here without touching code. Until then, the GLB athlete
   system uses a **synthetic placeholder closeout clip** authored
   programmatically inside `glbAthlete.ts` so the wiring is exercisable
   end-to-end and the determinism gate can prove the route stays
   authored even with the flag on.
+
+### Asset status checklist (P1.5)
+
+When you pick up this work, the truthful state today is:
+
+- [ ] Real `closeout.glb` on disk in this folder.
+- [ ] Attribution entry in `apps/web/public/athlete/ATTRIBUTION.md`
+      with source URL, downloaded date, license name, and the
+      verbatim license text shipped alongside the asset.
+- [ ] Bone names verified against the Quaternius UAL2 rig
+      (see `GLB_BONE_MAP` in `apps/web/components/scenario3d/glbAthlete.ts`).
+- [ ] Live `/dev/scene-preview?scenario=AOR-01` capture with
+      `USE_GLB_ATHLETE_PREVIEW = true` and
+      `USE_IMPORTED_CLOSEOUT_CLIP = true` flipped locally.
+- [ ] Defender visibly closes out without drifting off the
+      authored route (loader strip is doing its job).
+- [ ] All four camera modes (FOLLOW / REPLAY / BROADCAST / AUTO)
+      and fullscreen verified.
+
+Until **every** box is ticked, the closeout intent is "wired but not
+visually validated" — fine for the P1.0 / P1.5 determinism gates,
+not fine for shipping the AOR-01 scenario to a protected route.
 - **Drop a real clip here:**
   1. Save it as `closeout.glb` in this folder.
   2. Confirm it targets the Quaternius UAL2 bone naming
