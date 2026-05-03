@@ -7,9 +7,11 @@
  *  3. AOR-01 defender closeout role → CLOSEOUT.
  *  4. AOR receiver branch variants resolve correctly.
  *  5. Unknown/unlisted roles fall back safely (never throws, returns an intent).
- *  6. resolveGlbClipForIntent: CLOSEOUT → 'closeout' when flag on, else 'defense_slide'.
- *  7. resolveGlbClipForIntent: flag-off path unchanged except the
- *     dedicated readable DEFENSIVE_DENY posture.
+ *  6. resolveGlbClipForIntent: CLOSEOUT → 'closeout' when flag on,
+ *     else 'closeout_read' (P2.6 forward-closeout fallback).
+ *  7. resolveGlbClipForIntent: stationary read intents resolve to
+ *     'receive_ready' (P2.6) and the dedicated DEFENSIVE_DENY
+ *     posture stays segregated from other defensive intents.
  *  8. getMovementKindIntent: movement kinds map to expected intents.
  *  9. Determinism: same inputs always yield same output.
  */
@@ -183,13 +185,18 @@ describe('resolveGlbClipForIntent — CLOSEOUT intent', () => {
     ).toBe('closeout')
   })
 
-  it('falls back to "defense_slide" when importedCloseoutActive=false', () => {
+  it('P2.6 — falls back to "closeout_read" when importedCloseoutActive=false', () => {
+    // Pre-P2.6 the fallback was "defense_slide", which is laterally
+    // shifting body language — wrong for what should read as a forward
+    // sprint at the shooter. P2.6 introduced a dedicated "closeout_read"
+    // procedural clip so the deterministic fallback matches the
+    // teaching intent.
     expect(
       resolveGlbClipForIntent('CLOSEOUT', {
         importedCloseoutActive: false,
         importedBackCutActive: false,
       }),
-    ).toBe('defense_slide')
+    ).toBe('closeout_read')
   })
 })
 
@@ -212,27 +219,26 @@ describe('resolveGlbClipForIntent — BACK_CUT intent', () => {
     ).toBe('cut_sprint')
   })
 
-  it('back-cut flag does not leak into other offensive intents', () => {
-    // EMPTY_SPACE_CUT, JAB_OR_RIP, RECEIVE_READY, SHOT_READY,
-    // PASS_FOLLOWTHROUGH, and RESET_HOLD must still resolve to
-    // cut_sprint when only importedBackCutActive is on.
+  it('P2.6 — back-cut flag does not leak into other offensive intents', () => {
+    // EMPTY_SPACE_CUT, JAB_OR_RIP, and PASS_FOLLOWTHROUGH still resolve
+    // to `cut_sprint` (offensive moving fallback). The stationary read
+    // intents (RECEIVE_READY / SHOT_READY / RESET_HOLD) now resolve to
+    // the dedicated `receive_ready` clip — see the dedicated block below.
     const flags = { importedCloseoutActive: false, importedBackCutActive: true }
     expect(resolveGlbClipForIntent('EMPTY_SPACE_CUT', flags)).toBe('cut_sprint')
     expect(resolveGlbClipForIntent('JAB_OR_RIP', flags)).toBe('cut_sprint')
-    expect(resolveGlbClipForIntent('RECEIVE_READY', flags)).toBe('cut_sprint')
-    expect(resolveGlbClipForIntent('SHOT_READY', flags)).toBe('cut_sprint')
     expect(resolveGlbClipForIntent('PASS_FOLLOWTHROUGH', flags)).toBe('cut_sprint')
-    expect(resolveGlbClipForIntent('RESET_HOLD', flags)).toBe('cut_sprint')
   })
 
   it('back-cut flag does not leak into closeout', () => {
     // CLOSEOUT must continue to gate on importedCloseoutActive only.
+    // P2.6 — the flag-off fallback is now `closeout_read`.
     expect(
       resolveGlbClipForIntent('CLOSEOUT', {
         importedCloseoutActive: false,
         importedBackCutActive: true,
       }),
-    ).toBe('defense_slide')
+    ).toBe('closeout_read')
   })
 
   it('defensive deny posture does not leak into other defensive intents', () => {
@@ -240,7 +246,35 @@ describe('resolveGlbClipForIntent — BACK_CUT intent', () => {
     expect(resolveGlbClipForIntent('DEFENSIVE_DENY', flags)).toBe('defensive_deny')
     expect(resolveGlbClipForIntent('DEFENSIVE_HELP_TURN', flags)).toBe('defense_slide')
     expect(resolveGlbClipForIntent('SLIDE_RECOVER', flags)).toBe('defense_slide')
-    expect(resolveGlbClipForIntent('CLOSEOUT', flags)).toBe('defense_slide')
+    expect(resolveGlbClipForIntent('CLOSEOUT', flags)).toBe('closeout_read')
+  })
+})
+
+describe('resolveGlbClipForIntent — P2.6 stationary read intents', () => {
+  // P2.6 — RECEIVE_READY / SHOT_READY / RESET_HOLD now resolve to a
+  // dedicated `receive_ready` posture instead of `cut_sprint`. The
+  // pre-P2.6 routing made a stationary catcher run in place at the
+  // freeze frame, which read as a body-language regression rather
+  // than a teaching cue.
+  const flags = { importedCloseoutActive: false, importedBackCutActive: false }
+
+  it('RECEIVE_READY resolves to receive_ready', () => {
+    expect(resolveGlbClipForIntent('RECEIVE_READY', flags)).toBe('receive_ready')
+  })
+
+  it('SHOT_READY resolves to receive_ready', () => {
+    expect(resolveGlbClipForIntent('SHOT_READY', flags)).toBe('receive_ready')
+  })
+
+  it('RESET_HOLD resolves to receive_ready', () => {
+    expect(resolveGlbClipForIntent('RESET_HOLD', flags)).toBe('receive_ready')
+  })
+
+  it('receive_ready routing is independent of either imported clip flag', () => {
+    const allOn = { importedCloseoutActive: true, importedBackCutActive: true }
+    expect(resolveGlbClipForIntent('RECEIVE_READY', allOn)).toBe('receive_ready')
+    expect(resolveGlbClipForIntent('SHOT_READY', allOn)).toBe('receive_ready')
+    expect(resolveGlbClipForIntent('RESET_HOLD', allOn)).toBe('receive_ready')
   })
 })
 
@@ -280,8 +314,8 @@ describe('resolveGlbClipForIntent — flag-off path unchanged for all intents', 
     expect(resolveGlbClipForIntent('IDLE_READY', FLAG_OFF)).toBe('idle_ready')
   })
 
-  it('RECEIVE_READY → cut_sprint', () => {
-    expect(resolveGlbClipForIntent('RECEIVE_READY', FLAG_OFF)).toBe('cut_sprint')
+  it('P2.6 — RECEIVE_READY → receive_ready', () => {
+    expect(resolveGlbClipForIntent('RECEIVE_READY', FLAG_OFF)).toBe('receive_ready')
   })
 
   it('JAB_OR_RIP → cut_sprint', () => {
@@ -300,12 +334,12 @@ describe('resolveGlbClipForIntent — flag-off path unchanged for all intents', 
     expect(resolveGlbClipForIntent('PASS_FOLLOWTHROUGH', FLAG_OFF)).toBe('cut_sprint')
   })
 
-  it('SHOT_READY → cut_sprint', () => {
-    expect(resolveGlbClipForIntent('SHOT_READY', FLAG_OFF)).toBe('cut_sprint')
+  it('P2.6 — SHOT_READY → receive_ready', () => {
+    expect(resolveGlbClipForIntent('SHOT_READY', FLAG_OFF)).toBe('receive_ready')
   })
 
-  it('RESET_HOLD → cut_sprint', () => {
-    expect(resolveGlbClipForIntent('RESET_HOLD', FLAG_OFF)).toBe('cut_sprint')
+  it('P2.6 — RESET_HOLD → receive_ready', () => {
+    expect(resolveGlbClipForIntent('RESET_HOLD', FLAG_OFF)).toBe('receive_ready')
   })
 
   it('DEFENSIVE_DENY → defensive_deny', () => {
@@ -320,8 +354,8 @@ describe('resolveGlbClipForIntent — flag-off path unchanged for all intents', 
     expect(resolveGlbClipForIntent('SLIDE_RECOVER', FLAG_OFF)).toBe('defense_slide')
   })
 
-  it('CLOSEOUT (flag off) → defense_slide', () => {
-    expect(resolveGlbClipForIntent('CLOSEOUT', FLAG_OFF)).toBe('defense_slide')
+  it('P2.6 — CLOSEOUT (flag off) → closeout_read', () => {
+    expect(resolveGlbClipForIntent('CLOSEOUT', FLAG_OFF)).toBe('closeout_read')
   })
 })
 
@@ -556,6 +590,9 @@ describe('determinism', () => {
     })
     expect(intent).toBe('CLOSEOUT')
     expect(clipOn).toBe('closeout')
-    expect(clipOff).toBe('defense_slide')
+    // P2.6 — flag-off CLOSEOUT now lands on the dedicated forward
+    // closeout fallback `closeout_read` rather than the lateral
+    // `defense_slide` clip.
+    expect(clipOff).toBe('closeout_read')
   })
 })

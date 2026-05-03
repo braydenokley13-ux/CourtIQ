@@ -2,19 +2,19 @@
  * P2.1 — Integration tests for `pickGlbClipForState` with decoder +
  * role context.
  *
- * Locks the new wiring contract:
+ * Locks the new wiring contract (P2.1 + P2.6):
  *  1. AOR closeout_defender + 'closeout' movement → 'closeout' clip
- *     (when imported flag on) or 'defense_slide' (when off).
+ *     (when imported flag on) or 'closeout_read' (P2.6, when off).
  *  2. BDW cutter → 'cut_sprint' (intent BACK_CUT).
  *  3. BDW deny_defender → 'defensive_deny' (intent DEFENSIVE_DENY).
  *  4. ESC cutter → 'cut_sprint' (intent EMPTY_SPACE_CUT).
  *  5. ESC helper_defender → 'defense_slide' (intent DEFENSIVE_HELP_TURN).
- *  6. SKR open_player → 'cut_sprint' (intent SHOT_READY).
- *  7. AOR receiver moving → 'cut_sprint' (intent RECEIVE_READY).
+ *  6. SKR open_player → 'receive_ready' (P2.6, intent SHOT_READY).
+ *  7. AOR receiver moving → 'receive_ready' (P2.6, intent RECEIVE_READY).
  *  8. Missing role → falls through to movement-kind path.
  *  9. Stationary offense → 'idle_ready' regardless of decoder + role.
- * 10. Defense + closeout + isMoving=false → defense_slide via resolver
- *     (preserves Phase O-ANIM stance hold).
+ * 10. Defense + closeout + isMoving=false → closeout_read via resolver
+ *     (P2.6 — preserves stance hold but uses the forward-closeout pose).
  * 11. Stationary BDW deny_defender → 'defensive_deny' for freeze readability.
  */
 
@@ -57,7 +57,12 @@ describe('pickGlbClipForState — AOR (ADVANTAGE_OR_RESET)', () => {
     ).toBe('closeout')
   })
 
-  it('closeout_defender on closeout movement → defense_slide when flag off', () => {
+  it('P2.6 — closeout_defender on closeout movement → closeout_read when flag off', () => {
+    // Pre-P2.6 the flag-off fallback was `defense_slide` (lateral
+    // shifting). P2.6 introduces `closeout_read` — a forward-closeout
+    // procedural pose with high inside hand — so the deterministic
+    // fallback matches the teaching cue (closeout = forward sprint),
+    // not the lateral slide of a help defender.
     setImportedCloseoutFlag(false)
     expect(
       pickGlbClipForState({
@@ -67,7 +72,7 @@ describe('pickGlbClipForState — AOR (ADVANTAGE_OR_RESET)', () => {
         decoderTag: 'ADVANTAGE_OR_RESET',
         role: 'closeout_defender',
       }),
-    ).toBe('defense_slide')
+    ).toBe('closeout_read')
   })
 
   it('helper_defender moving → defense_slide (intent SLIDE_RECOVER)', () => {
@@ -82,7 +87,11 @@ describe('pickGlbClipForState — AOR (ADVANTAGE_OR_RESET)', () => {
     ).toBe('defense_slide')
   })
 
-  it('receiver moving → cut_sprint (intent RECEIVE_READY)', () => {
+  it('P2.6 — receiver moving → receive_ready (intent RECEIVE_READY)', () => {
+    // Pre-P2.6 routing sent RECEIVE_READY through the offensive
+    // moving fallback `cut_sprint`, which made a lifting catcher
+    // run in place. P2.6 routes it to the dedicated `receive_ready`
+    // pose so the catch / read body language stays calm.
     expect(
       pickGlbClipForState({
         team: 'offense',
@@ -91,7 +100,7 @@ describe('pickGlbClipForState — AOR (ADVANTAGE_OR_RESET)', () => {
         decoderTag: 'ADVANTAGE_OR_RESET',
         role: 'receiver',
       }),
-    ).toBe('cut_sprint')
+    ).toBe('receive_ready')
   })
 })
 
@@ -178,7 +187,10 @@ describe('pickGlbClipForState — ESC (EMPTY_SPACE_CUT)', () => {
 })
 
 describe('pickGlbClipForState — SKR (SKIP_THE_ROTATION)', () => {
-  it('open_player moving → cut_sprint (intent SHOT_READY)', () => {
+  it('P2.6 — open_player moving → receive_ready (intent SHOT_READY)', () => {
+    // Pre-P2.6 SHOT_READY routed through `cut_sprint`. P2.6 routes
+    // catch-and-shoot stationary intents to `receive_ready` so the
+    // SKR weakside shooter does not run in place at the freeze.
     expect(
       pickGlbClipForState({
         team: 'offense',
@@ -187,7 +199,7 @@ describe('pickGlbClipForState — SKR (SKIP_THE_ROTATION)', () => {
         decoderTag: 'SKIP_THE_ROTATION',
         role: 'open_player',
       }),
-    ).toBe('cut_sprint')
+    ).toBe('receive_ready')
   })
 
   it('helper_defender → defense_slide', () => {
@@ -204,8 +216,10 @@ describe('pickGlbClipForState — SKR (SKIP_THE_ROTATION)', () => {
 })
 
 describe('pickGlbClipForState — fallback when role is missing', () => {
-  it('decoderTag without role → movement-kind path', () => {
-    // Defense closeout — same result as pre-P2.1.
+  it('P2.6 — decoderTag without role → movement-kind path resolves CLOSEOUT to closeout_read (flag off)', () => {
+    // Defense closeout still routes through `resolveGlbClipForIntent`
+    // even without a derived role; P2.6 changes the fallback from
+    // `defense_slide` to `closeout_read`.
     expect(
       pickGlbClipForState({
         team: 'defense',
@@ -214,7 +228,7 @@ describe('pickGlbClipForState — fallback when role is missing', () => {
         decoderTag: 'ADVANTAGE_OR_RESET',
         // role intentionally omitted
       }),
-    ).toBe('defense_slide')
+    ).toBe('closeout_read')
   })
 
   it('no decoder context at all → movement-kind path (offense cut)', () => {
@@ -334,8 +348,9 @@ describe('pickGlbClipForState — determinism', () => {
       decoderTag: 'ADVANTAGE_OR_RESET',
       role: 'closeout_defender',
     })
-    expect(off1).toBe('defense_slide')
-    expect(off2).toBe('defense_slide')
+    // P2.6 — flag-off CLOSEOUT now lands on `closeout_read`.
+    expect(off1).toBe('closeout_read')
+    expect(off2).toBe('closeout_read')
 
     setImportedCloseoutFlag(true)
     const on1 = pickGlbClipForState({

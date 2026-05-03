@@ -719,6 +719,300 @@ function buildGlbDefensiveDenyClip(): THREE.AnimationClip {
   return new THREE.AnimationClip('defensive_deny', duration, tracks)
 }
 
+/**
+ * P2.6 — `receive_ready` retargeted to the GLB rig.
+ *
+ * Stationary catch-and-read pose. Used when the offensive player is
+ * about to receive, has just received, is settled in a shooting
+ * stance, or is holding the ball after a reset. The pre-P2.6 routing
+ * sent `RECEIVE_READY`, `SHOT_READY`, and `RESET_HOLD` to
+ * `cut_sprint`, which made a stationary catcher visibly run in place;
+ * that has been replaced with this clip.
+ *
+ * Pose intent (Phase P §5):
+ *   - Slight forward lean at chest, head up tracking the ball.
+ *   - Hands up at chest height, palms toward the ball (target hand).
+ *   - Knees softly bent in a balanced ready stance.
+ *   - Subtle weight shift over the duration so the silhouette does
+ *     not freeze into a still photo at broadcast distance.
+ *   - No translation or scale tracks: scenario data still owns x/z/t.
+ *
+ * The shoulders / arms intentionally stay below T-pose height so the
+ * mannequin does not snap into a broad rest silhouette when this clip
+ * cross-fades over `idle_ready` or `cut_sprint`.
+ */
+function buildGlbReceiveReadyClip(): THREE.AnimationClip {
+  const duration = 2.0
+  const t = [0, duration * 0.5, duration]
+  const tracks: THREE.KeyframeTrack[] = []
+
+  // Slight forward chest lean with a gentle weight shift so the
+  // figure looks alive but stationary. Amplitudes are smaller than
+  // `idle_ready` because the receiver is in a more committed
+  // basketball pose.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.spine}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0.1, 0.03, 0),
+        glbEulerQuat(0.12, -0.03, 0),
+        glbEulerQuat(0.1, 0.03, 0),
+      ]),
+    ),
+  )
+  // Head up, eyes tracking the ball.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.head}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(-0.06, -0.02, 0),
+        glbEulerQuat(-0.06, 0.02, 0),
+        glbEulerQuat(-0.06, -0.02, 0),
+      ]),
+    ),
+  )
+  // Both arms come up to chest height with elbows bent — target hands.
+  // Elbows kept bent on the forearm tracks so the silhouette reads as
+  // "hands ready to catch" rather than reaching out toward the ball.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftUpperArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 1.55, 0, 0.18),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 1.55, 0, 0.18),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightUpperArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 1.55, 0, -0.18),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 1.55, 0, -0.18),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftForeArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.95, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.95, 0),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightForeArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.95, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.95, 0),
+      ]),
+    ),
+  )
+  // Athletic base — mild knee bend, slightly more committed than idle.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftThigh}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.22, 0, 0.04),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.22, 0, 0.04),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightThigh}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.22, 0, -0.04),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.22, 0, -0.04),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftShin}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, 0.14, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, 0.14, 0, 0),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightShin}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, 0.14, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, 0.14, 0, 0),
+      ]),
+    ),
+  )
+
+  return new THREE.AnimationClip('receive_ready', duration, tracks)
+}
+
+/**
+ * P2.6 — `closeout_read` retargeted to the GLB rig.
+ *
+ * Forward closeout body language for the FALLBACK path (when
+ * `USE_IMPORTED_CLOSEOUT_CLIP` is off). The pre-P2.6 routing sent
+ * `CLOSEOUT` flag-off to `defense_slide`, which is laterally
+ * shifting body language — wrong for what should read as a forward
+ * sprint at the shooter. The imported `closeout.glb` still wins when
+ * the flag is on; this clip only owns the deterministic fallback.
+ *
+ * Pose intent (Phase P §5):
+ *   - Forward chest lean (~12°) so the shoulders read as committing.
+ *   - High inside hand to contest the shot, off hand bent near body.
+ *   - Athletic base with knees bent and feet narrow enough to avoid
+ *     leg folding at the rig's bind pose.
+ *   - Subtle hip rock (deceleration cue) over the duration.
+ *   - No translation or scale tracks: scenario data still owns x/z/t.
+ *
+ * The pose is intentionally distinct from `defense_slide` (lateral
+ * stance, mirror arms) and from `defensive_deny` (asymmetric arm in
+ * the passing lane) so the three defensive postures can be
+ * distinguished at broadcast-camera distance.
+ */
+function buildGlbCloseoutReadClip(): THREE.AnimationClip {
+  const duration = 1.2
+  const t = [0, duration * 0.5, duration]
+  const tracks: THREE.KeyframeTrack[] = []
+
+  // Hip rock — small forward yaw modulation across the closeout so
+  // the figure does not freeze into a single forward stance.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.hips}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, 0.04, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, -0.04, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, 0.04, 0),
+      ]),
+    ),
+  )
+  // Forward chest lean. More committed than `defense_slide` — this is
+  // the cue the receiver reads as "the defender is closing on me."
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.spine}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbEulerQuat(0.21, 0, 0),
+        glbEulerQuat(0.21, 0, 0),
+      ]),
+    ),
+  )
+  // Head up, tracking the shooter.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.head}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbEulerQuat(-0.1, 0, 0),
+        glbEulerQuat(-0.1, 0, 0),
+      ]),
+    ),
+  )
+  // Inside hand goes high to contest. Bent forearm so the silhouette
+  // does not push toward T-pose.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftUpperArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 2.55, 0, 0.18),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 2.55, 0, 0.18),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftForeArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.4, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.4, 0),
+      ]),
+    ),
+  )
+  // Off hand bent near body, ready to slide-recover.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightUpperArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 1.4, 0, -0.18),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 1.4, 0, -0.18),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightForeArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.7, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.7, 0),
+      ]),
+    ),
+  )
+  // Athletic base — knees bent, narrow stance.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftThigh}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.34, 0, 0.06),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.34, 0, 0.06),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightThigh}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.3, 0, -0.06),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.3, 0, -0.06),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftShin}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, 0.22, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, 0.22, 0, 0),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightShin}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, 0.22, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, 0.22, 0, 0),
+      ]),
+    ),
+  )
+
+  return new THREE.AnimationClip('closeout_read', duration, tracks)
+}
+
 const _glbScratchEuler = new THREE.Euler()
 
 function glbEulerQuat(x: number, y: number, z: number): THREE.Quaternion {
@@ -997,6 +1291,11 @@ function getCachedGlbClips(): THREE.AnimationClip[] {
     buildGlbCutSprintClip(),
     buildGlbDefenseSlideClip(),
     buildGlbDefensiveDenyClip(),
+    // P2.6 — stationary catch / shot / reset readability.
+    buildGlbReceiveReadyClip(),
+    // P2.6 — forward closeout fallback (replaces defense_slide for
+    // CLOSEOUT when `USE_IMPORTED_CLOSEOUT_CLIP` is off).
+    buildGlbCloseoutReadClip(),
   ]
   return _cachedGlbClips
 }
@@ -1789,12 +2088,17 @@ export function _buildGlbAthleteClipsForTest(): {
   cut_sprint: THREE.AnimationClip
   defense_slide: THREE.AnimationClip
   defensive_deny: THREE.AnimationClip
+  receive_ready: THREE.AnimationClip
+  closeout_read: THREE.AnimationClip
 } {
   return {
     idle_ready: buildGlbIdleReadyClip(),
     cut_sprint: buildGlbCutSprintClip(),
     defense_slide: buildGlbDefenseSlideClip(),
     defensive_deny: buildGlbDefensiveDenyClip(),
+    // P2.6 — exposed for determinism and pose-shape tests.
+    receive_ready: buildGlbReceiveReadyClip(),
+    closeout_read: buildGlbCloseoutReadClip(),
   }
 }
 
@@ -2259,6 +2563,9 @@ export type GlbAthleteAnimationName =
   | 'defensive_deny'
   | 'closeout'
   | 'back_cut'
+  // P2.6 — shared readability primitives.
+  | 'receive_ready'
+  | 'closeout_read'
 
 /**
  * Phase P (P1.0) — public-folder URL of the imported `closeout`

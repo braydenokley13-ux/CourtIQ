@@ -789,6 +789,10 @@ describe('P1.0 — imported closeout clip determinism', () => {
     expect(handle.actions['defense_slide']).toBeDefined()
     expect(handle.actions['defensive_deny']).toBeDefined()
     expect(handle.actions['cut_sprint']).toBeDefined()
+    // P2.6 — shared readability primitives are part of the base
+    // figure, independent of any imported-clip flag.
+    expect(handle.actions['receive_ready']).toBeDefined()
+    expect(handle.actions['closeout_read']).toBeDefined()
     // And the imported-clip cache is empty when the option was off.
     expect(getCachedImportedClip(GLB_IMPORTED_CLOSEOUT_CLIP_URL)).toBeNull()
   })

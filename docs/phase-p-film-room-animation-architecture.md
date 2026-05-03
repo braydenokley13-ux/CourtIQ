@@ -921,6 +921,130 @@ Optional comparison routes (no behaviour change expected, but kept on the QA loo
 
 ---
 
+## P2.6 — Generalized scenario readability primitives (LANDED)
+
+**Status:** Implemented as a reusable readability layer shared by every founder scenario. No movement ownership changed.
+
+### Goal
+
+P2.3 → P2.5 fixed BDW-01 one cue at a time. That works for the first scenario but does not scale: AOR-01, ESC-01, and SKR-01 cannot each get their own one-off polish phase. P2.6 promotes the lessons from P2.3 → P2.5 into reusable primitives — a typed decoder visual primitive map, two new procedural GLB clips, and a founder-scenario invariant test — so adding a new scenario in the future is a JSON edit + map row, not a renderer change.
+
+### Visual behaviour
+
+Two procedural pose-only GLB clips were added. Both are pure deterministic quaternion-track clips with no translation, scale, or root tracks; they cannot drive figure root position.
+
+- `receive_ready` — stationary catch / shot / reset pose. Slight forward chest lean, head tracking the ball, both hands up at chest height with bent elbows (target hands), athletic base with mild knee bend. Used for the `RECEIVE_READY`, `SHOT_READY`, and `RESET_HOLD` intents. Pre-P2.6 these intents fell through to `cut_sprint`, which made a stationary catcher visibly run in place.
+- `closeout_read` — forward closeout fallback when `USE_IMPORTED_CLOSEOUT_CLIP` is off. Forward chest lean (~12°), high inside hand to contest, off hand bent near body, athletic base with knees bent. Pre-P2.6 the flag-off `CLOSEOUT` fell back to `defense_slide` (laterally shifting), which read as "help defender" rather than "closing on the shooter". The imported `closeout.glb` still wins when the flag is on; this clip only owns the deterministic fallback.
+
+For every founder decoder, the renderer now reaches a posture distinct from the legacy fallbacks for the read actor and the cue actor. AOR-01's wing shooter no longer runs in place at freeze. AOR-01's flag-off closeout reads as forward pressure. SKR-01's weakside shooter (open_player → SHOT_READY) gets the calm catch-and-shoot pose. BDW-01's RECEIVE_READY safe default keeps its calm pose instead of cycling.
+
+### Reusable infrastructure added
+
+`apps/web/lib/scenario3d/decoderPrimitives.ts`:
+
+| Export | Purpose | Future use |
+|---|---|---|
+| `DECODER_VISUAL_PRIMITIVES` | Frozen typed map keyed by `DecoderTag`. Per-decoder teaching beat, required intents (role → intent), and authoring requirements (movement kinds, role substrings, freeze marker, etc.). | Source of truth for scenario authoring + invariant tests. Future overlay / camera hints. |
+| `getDecoderVisualPrimitives(decoder)` | Convenience accessor. | Renderer / authoring tooling. |
+| `STATIONARY_READ_INTENTS` | Frozen list — `RECEIVE_READY`, `SHOT_READY`, `RESET_HOLD`. | Documents which intents share the new `receive_ready` clip. |
+| `FORWARD_CLOSEOUT_INTENTS` | Frozen list — `CLOSEOUT`. | Documents which intents land on `closeout_read` when the imported flag is off. |
+
+`apps/web/components/scenario3d/glbAthlete.ts`:
+
+| Export | Purpose |
+|---|---|
+| `buildGlbReceiveReadyClip` (private factory) | Stationary catch / read pose. |
+| `buildGlbCloseoutReadClip` (private factory) | Forward closeout fallback pose. |
+| `GlbAthleteAnimationName` | Extended with `'receive_ready'` and `'closeout_read'`. |
+| `_buildGlbAthleteClipsForTest` | Now returns the two new clips for determinism tests. |
+
+`apps/web/lib/scenario3d/animationIntent.ts`:
+
+| Export | Change |
+|---|---|
+| `GlbClipName` | Extended with `'receive_ready'` and `'closeout_read'`. |
+| `resolveGlbClipForIntent` | Routes RECEIVE_READY / SHOT_READY / RESET_HOLD to `receive_ready`. Routes CLOSEOUT (flag off) to `closeout_read`. JAB_OR_RIP, EMPTY_SPACE_CUT, PASS_FOLLOWTHROUGH still resolve to `cut_sprint`. |
+
+### Per-decoder primitive requirements
+
+| Decoder | Read actor | Cue actor | Required intents | Required movement kinds in answerDemo |
+|---|---|---|---|---|
+| BACKDOOR_WINDOW | cutter | deny_defender | BACK_CUT, DEFENSIVE_DENY, PASS_FOLLOWTHROUGH, RECEIVE_READY | `back_cut`, `pass` |
+| ADVANTAGE_OR_RESET | receiver | closeout_defender | RECEIVE_READY, CLOSEOUT, SLIDE_RECOVER, PASS_FOLLOWTHROUGH | `lift` |
+| EMPTY_SPACE_CUT | cutter | helper_defender | EMPTY_SPACE_CUT, DEFENSIVE_HELP_TURN, RECEIVE_READY, PASS_FOLLOWTHROUGH | `cut`, `pass` |
+| SKIP_THE_ROTATION | passer | helper_defender | PASS_FOLLOWTHROUGH, SHOT_READY, DEFENSIVE_HELP_TURN, CLOSEOUT | `skip_pass` |
+
+### Architecture lock
+
+- The map is data, not policy. `getDecoderAnimationIntent` remains the source of truth for "given decoder + role, what intent renders?". The primitive map mirrors that table for invariant testing; a drift fires the test in CI.
+- `DECODER_VISUAL_PRIMITIVES` is `Object.freeze`d at module load. Consumers cannot mutate the shared reference.
+- Both new GLB clips are quaternion-track only. No translation, scale, or root tracks. The bone-name targeting test (`replayDeterminism.test.ts > every clip targets only mapped GLB bones`) covers the new clips.
+- The clip stability test repeats both new clips and checks identical track data across two factory calls. Determinism is preserved.
+- No new physics, no randomness, no animation-driven movement, no scenario-data mutation, no scenario-engine rewrite.
+
+### What was tuned for the founder scenarios
+
+P2.6 makes the **renderer** treat each founder scenario better; it does **not** modify any founder scenario JSON. The only authored-data changes were already shipped in P2.5 (BDW-01 pass timing). AOR-01, BDW-01, ESC-01, and SKR-01 now all benefit automatically:
+
+- AOR-01: receiver freeze pose changes from sprint cycle → calm catch-and-read; flag-off closeout changes from lateral slide → forward closeout.
+- BDW-01: RECEIVE_READY safe default for off-ball receiver changes from sprint cycle → catch pose. The active back-cut / deny / pass body language is unchanged (P2.3 / P2.4 still own those).
+- ESC-01 (when authored): receiver pose ready, helper_defender → DEFENSIVE_HELP_TURN unchanged.
+- SKR-01 (when authored): open_player SHOT_READY changes from sprint cycle → catch-and-shoot pose; closeout fallback uses `closeout_read`.
+
+### Founder scenario authoring checklist
+
+Documented in [`docs/scenario-readability-checklist.md`](./scenario-readability-checklist.md). Use it before opening any scenario authoring PR.
+
+### Tests added / updated
+
+| File | Change |
+|---|---|
+| `apps/web/lib/scenario3d/decoderPrimitives.test.ts` | NEW. Locks structural integrity of the primitive map, every requiredIntent matches `getDecoderAnimationIntent`, every authored founder JSON satisfies its decoder's authoring requirements (gracefully tracks unauthored ESC / SKR), STATIONARY_READ_INTENTS / FORWARD_CLOSEOUT_INTENTS routing, and pure / no-mutation contract. |
+| `apps/web/lib/scenario3d/animationIntent.test.ts` | Updated CLOSEOUT flag-off → `closeout_read`, RECEIVE_READY / SHOT_READY / RESET_HOLD → `receive_ready`. Added a dedicated stationary-read-intents block. AOR-01 closeout determinism end-to-end test updated to expect `closeout_read`. |
+| `apps/web/components/scenario3d/pickGlbClip.test.ts` | Updated AOR closeout flag-off, AOR receiver moving, SKR open_player moving, decoderTag-without-role closeout, and AOR closeout chain determinism to the new contract. Header doc block updated. |
+| `apps/web/components/scenario3d/replayDeterminism.test.ts` | Clip stability + bone-mapping tests now iterate `receive_ready` and `closeout_read` alongside the original four clips. |
+| `apps/web/components/scenario3d/glbAthleteEndToEndDeterminism.test.ts` | Asserts the two new actions are bound on the figure regardless of imported-clip flags. |
+
+### Validation
+
+- `pnpm --filter @courtiq/web typecheck` → passes.
+- `pnpm --filter @courtiq/web lint` → passes (max-warnings 0).
+- `pnpm --filter @courtiq/web test` → 448 passed (23 files), including the new `decoderPrimitives.test.ts` (≈30 cases), every existing P0 → P2.5 test still green.
+
+### Manual QA routes
+
+Walk each authored founder scenario through every camera mode (FOLLOW / REPLAY / BROADCAST / AUTO) and answer the six teaching questions from the checklist:
+
+- BDW: `/dev/scene-preview?scenario=BDW-01&glb=1&backcut=1`
+- AOR: `/dev/scene-preview?scenario=AOR-01&glb=1&closeout=1`
+- ESC: `/dev/scene-preview?scenario=ESC-01&glb=1` *(scenario not yet authored)*
+- SKR: `/dev/scene-preview?scenario=SKR-01&glb=1` *(scenario not yet authored)*
+
+Confirm:
+
+- Stationary catchers no longer cycle their feet at freeze.
+- AOR closeout fallback (flag-off) reads as forward pressure, not lateral slide.
+- BDW back-cut + deny + pass timing still reads correctly (P2.3 / P2.4 / P2.5 untouched).
+- Determinism + scenario-data ownership preserved across both new clips.
+
+### Remaining risks
+
+- ESC-01 and SKR-01 JSONs are not yet authored. The primitive map declares their requirements and the invariant test will pick them up automatically once the JSON ships, but until then the body language for those decoders is only locked at the unit level.
+- The two new clips are procedural placeholders. Real CC0 GLB clips for `receive_ready` / `closeout_read` would land behind separate flags (`USE_IMPORTED_RECEIVE_READY_CLIP`, `USE_IMPORTED_CLOSEOUT_READ_CLIP`) and would need a P3 packet — same pattern as the imported `closeout.glb` and `back_cut.glb`.
+- The new postures have not been coach-validated. Coach review of `receive_ready` and `closeout_read` poses is a separate workstream; the procedural shapes match the Phase P §5 vocabulary but a coach may want amplitude tweaks once the clips render on the demo route.
+
+### Acceptance lock (P2.6)
+
+- Every founder decoder has an entry in `DECODER_VISUAL_PRIMITIVES`.
+- Every `requiredIntents` entry matches `getDecoderAnimationIntent`.
+- `RECEIVE_READY`, `SHOT_READY`, `RESET_HOLD` resolve to `receive_ready` on both flag paths.
+- `CLOSEOUT` resolves to `closeout` when the imported flag is on, `closeout_read` when off.
+- Both new clips target only mapped GLB bones and produce byte-identical track data on repeated factory calls.
+- Authored founder scenarios (BDW-01, AOR-01) satisfy the primitive map's authoring invariants.
+- No physics, no randomness, no animation-driven player movement, no scenario-data mutation.
+
+---
+
 ## Appendix A — Do / Do Not summary
 
 ### Do
