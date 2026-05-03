@@ -3685,6 +3685,13 @@ function buildGlbAthleteFigure(
     hasBall,
     jerseyNumber,
     stance,
+    {
+      // P1.0 — only when both the parent GLB flag AND the closeout
+      // flag are on does the imported clip get attached. The
+      // selector in `pickGlbClipForState` must mirror the same gate
+      // so a non-flagged build never picks `closeout`.
+      attachImportedCloseoutClip: USE_IMPORTED_CLOSEOUT_CLIP,
+    },
   )
 }
 
@@ -3692,6 +3699,11 @@ function buildGlbAthleteFigure(
  * Phase O-ANIM (OB6) — replay-state → animation-clip mapper for the
  * GLB path. Defenders always slide; offensive cuts/drives sprint;
  * everything else (passes, small footwork, stationary) idles.
+ *
+ * Phase P (P1.0) — when `USE_IMPORTED_CLOSEOUT_CLIP` is on, defenders
+ * with movement kind `closeout` map to the imported `closeout`
+ * clip instead of the bespoke `defense_slide`. The flag-off path
+ * is byte-identical to pre-P1.0 behaviour.
  */
 function pickGlbClipForState(
   team: 'offense' | 'defense',
@@ -3699,6 +3711,7 @@ function pickGlbClipForState(
   isMoving: boolean,
 ): GlbAthleteAnimationName {
   if (team === 'defense') {
+    if (USE_IMPORTED_CLOSEOUT_CLIP && kind === 'closeout') return 'closeout'
     if (isMoving) return 'defense_slide'
     if (kind === 'closeout' || kind === 'rotation') return 'defense_slide'
     return 'idle_ready'
