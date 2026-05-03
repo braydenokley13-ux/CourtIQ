@@ -627,7 +627,14 @@ export function buildGlbAthletePreview(
       // synthetic placeholder (also stripped). A real
       // `closeout.glb` on disk is fetched in the background; when
       // that fetch lands, the next figure build will pick it up.
-      const closeoutClip = _ensurePlaceholderImportedCloseoutClip()
+      //
+      // P1.8 — pose readability. The raw imported clip (Quaternius
+      // UAL2 closeout) reads as fantasy lunge at the extremes; we
+      // dampen rotation tracks toward bind-pose before handing them
+      // to the mixer so the silhouette reads as basketball closeout
+      // pressure. The dampened clip is cached per source clip so
+      // the cost is paid once per asset swap, not per figure.
+      const closeoutClip = _getReadableCloseoutClip()
       actions['closeout'] = mixer.clipAction(closeoutClip)
       _kickOffImportedCloseoutClipLoad()
     }
@@ -837,6 +844,135 @@ function _ensurePlaceholderImportedCloseoutClip(): THREE.AnimationClip {
     strippedTrackNames: [`${GLB_BONE_MAP.hips}.position`],
   })
   return stripped
+}
+
+/**
+ * P1.8 — closeout pose readability filter.
+ *
+ * The Quaternius UAL2 closeout asset reads as fantasy/combat at the
+ * extremes (deep forward lean, wide arm spread, hands flared like a
+ * shield-dash). Per Phase P brief, CourtIQ wants the defender to read
+ * as a basketball closeout: upright-ish stance, controlled hand up,
+ * feet plant. We bias the imported clip toward bind-pose by slerping
+ * each rotation keyframe from identity to the authored value by a
+ * factor of `GLB_CLOSEOUT_DAMPEN_FACTOR < 1`. Translation tracks (if
+ * any survive the loader strip) are left untouched.
+ *
+ * This is a **per-clip post-process**, not a per-frame action weight
+ * trick: dampening the clip itself means we never have to keep the
+ * bespoke `defense_slide` action running in parallel, the mixer-tick
+ * assertion still sees a single running action, and the result reads
+ * the same on every figure.
+ *
+ * Cached so the post-process happens at most once per source clip
+ * (the cache key is the source clip identity; when the loader swaps
+ * the synthetic placeholder for a real-asset clip the cache invalidates
+ * automatically because the `source` reference changes).
+ */
+const GLB_CLOSEOUT_DAMPEN_FACTOR = 0.65
+
+function dampenClipRotationTracks(
+  clip: THREE.AnimationClip,
+  factor: number,
+): THREE.AnimationClip {
+  if (factor >= 1) return clip
+  const tracks = clip.tracks.map((t) => {
+    if (!(t instanceof THREE.QuaternionKeyframeTrack)) return t
+    const values = t.values
+    const out = new Float32Array(values.length)
+    for (let i = 0; i < values.length; i += 4) {
+      // Slerp from identity (0,0,0,1) to the authored quaternion by
+      // `factor`. The closed-form expression keeps the per-key cost
+      // tight (no Quaternion allocations in the inner loop).
+      let qx = values[i]
+      let qy = values[i + 1]
+      let qz = values[i + 2]
+      let qw = values[i + 3]
+      // Normalize defensively — imported keyframes occasionally
+      // arrive un-normalized after exporter round-trips.
+      const len = Math.hypot(qx, qy, qz, qw)
+      if (len > 1e-8) {
+        qx /= len
+        qy /= len
+        qz /= len
+        qw /= len
+      }
+      // Identity is (0, 0, 0, 1). Standard slerp(identity, q, t):
+      //   cosθ = q.w; sinθ = sqrt(1 - cosθ²); θ = acos(cosθ)
+      //   result = (sin((1-t)θ)/sinθ) * identity + (sin(tθ)/sinθ) * q
+      // For tiny angles fall back to nlerp.
+      const cosTheta = qw
+      let outX: number
+      let outY: number
+      let outZ: number
+      let outW: number
+      if (cosTheta > 0.9995) {
+        // Near identity already — linear interp + normalize.
+        outX = qx * factor
+        outY = qy * factor
+        outZ = qz * factor
+        outW = 1 - factor + qw * factor
+        const ln = Math.hypot(outX, outY, outZ, outW)
+        if (ln > 1e-8) {
+          outX /= ln
+          outY /= ln
+          outZ /= ln
+          outW /= ln
+        }
+      } else {
+        const theta = Math.acos(Math.max(-1, Math.min(1, cosTheta)))
+        const sinTheta = Math.sin(theta)
+        const a = Math.sin((1 - factor) * theta) / sinTheta
+        const b = Math.sin(factor * theta) / sinTheta
+        // identity contributes only to W.
+        outX = b * qx
+        outY = b * qy
+        outZ = b * qz
+        outW = a + b * qw
+      }
+      out[i] = outX
+      out[i + 1] = outY
+      out[i + 2] = outZ
+      out[i + 3] = outW
+    }
+    return new THREE.QuaternionKeyframeTrack(t.name, t.times.slice(), out)
+  })
+  return new THREE.AnimationClip(clip.name, clip.duration, tracks)
+}
+
+let _cleanedCloseoutCache:
+  | { source: THREE.AnimationClip; cleaned: THREE.AnimationClip }
+  | null = null
+
+/**
+ * Returns the imported closeout clip with its pose dampened toward
+ * bind-pose so it reads as basketball closeout pressure rather than
+ * fantasy lunge. The cache flips automatically when the source clip
+ * identity changes (e.g. real asset replaces the synthetic
+ * placeholder).
+ */
+function _getReadableCloseoutClip(): THREE.AnimationClip {
+  const source = _ensurePlaceholderImportedCloseoutClip()
+  if (_cleanedCloseoutCache?.source === source) {
+    return _cleanedCloseoutCache.cleaned
+  }
+  const cleaned = dampenClipRotationTracks(source, GLB_CLOSEOUT_DAMPEN_FACTOR)
+  _cleanedCloseoutCache = { source, cleaned }
+  return cleaned
+}
+
+/** Test-only — reset the dampened-closeout cache between cases. */
+export function _resetReadableCloseoutClipCache(): void {
+  _cleanedCloseoutCache = null
+}
+
+/** Test-only — exposes the rotation dampener so unit tests can lock the
+ *  factor and verify quaternion magnitude is reduced. */
+export function _dampenClipRotationTracksForTest(
+  clip: THREE.AnimationClip,
+  factor: number,
+): THREE.AnimationClip {
+  return dampenClipRotationTracks(clip, factor)
 }
 
 /**
