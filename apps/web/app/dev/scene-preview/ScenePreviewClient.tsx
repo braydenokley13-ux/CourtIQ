@@ -152,6 +152,7 @@ export function ScenePreviewClient({
     user_role: scenario.user_role,
     concept_tags: scenario.concept_tags,
   })
+  const replayMode = enableImportedBackCutClip ? 'answer' : 'intro'
 
   const wrapperRef = useRef<HTMLDivElement>(null)
   const concept = scenario.concept_tags?.join(' · ') || scenario.id
@@ -212,7 +213,7 @@ export function ScenePreviewClient({
               fallback={<div style={{ padding: 24 }}>WebGL not available.</div>}
               scene={scene}
               concept={concept}
-              replayMode="intro"
+              replayMode={replayMode}
               height={720}
             />
           ) : (

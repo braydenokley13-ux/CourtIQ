@@ -696,16 +696,16 @@ export function buildGlbAthletePreview(
       _kickOffImportedCloseoutClipLoad()
     }
     if (options?.attachImportedBackCutClip) {
-      // P2.2 — attach the imported back-cut clip action when the
-      // flag is on. The cache holds the stripped form (loader
-      // chokepoint enforces root-motion strip identically to the
-      // closeout path). If the cache is cold the builder falls
-      // back to the bespoke `cut_sprint` action so the
-      // resolver-chosen action is always present on the handle —
+      // P2.3 — attach the readable back-cut action when the flag is
+      // on. The cache still holds the loader-stripped imported clip,
+      // but the mixer sees a CourtIQ-safe teaching shim instead of
+      // the raw NinjaJump pose. If the cache is cold the builder
+      // falls back to the bespoke `cut_sprint` action so the
+      // resolver-chosen action is always present on the handle,
       // matching the flag-off resolver fallback exactly.
       const backCutClip = _getCachedImportedBackCutClipOrNull()
       if (backCutClip) {
-        actions['back_cut'] = mixer.clipAction(backCutClip)
+        actions['back_cut'] = mixer.clipAction(_getReadableBackCutClip(backCutClip))
       } else if (actions['cut_sprint']) {
         actions['back_cut'] = actions['cut_sprint']
       }
@@ -1147,6 +1147,244 @@ export function listStrippedCloseoutLowerBodyTrackNames(
   return out
 }
 
+/**
+ * P2.3 — back-cut readability safety strip.
+ *
+ * The bundled `back_cut.glb` is useful as a flag-gated imported-clip
+ * proof, but the raw pose reads like generic asset motion in BDW-01:
+ * wide arms, jump-like lower body, and root/pelvis authoring that
+ * fights the teaching route. For CourtIQ the route belongs to
+ * scenario data, so the readable clip intentionally replaces the raw
+ * pose with a deterministic basketball body-language layer:
+ *
+ *   - recognition: head/shoulders check the denial;
+ *   - plant: torso turns and hips load;
+ *   - burst: compact arms pump as the cutter goes behind.
+ *
+ * Every position/scale track is dropped, along with all raw tracks on
+ * the authored core bones. The replacement tracks are rotations only.
+ */
+export const BACK_CUT_REPLACED_BONE_NAMES: ReadonlyArray<string> = [
+  'root',
+  'pelvis',
+  'spine_01',
+  'spine_02',
+  'spine_03',
+  'neck_01',
+  'Head',
+  'clavicle_l',
+  'clavicle_r',
+  'upperarm_l',
+  'upperarm_r',
+  'lowerarm_l',
+  'lowerarm_r',
+  'hand_l',
+  'hand_r',
+  'thigh_l',
+  'thigh_r',
+  'calf_l',
+  'calf_r',
+  'foot_l',
+  'foot_r',
+  'ball_l',
+  'ball_r',
+]
+
+function isReadableBackCutUnsafeTrack(track: THREE.KeyframeTrack): boolean {
+  const dot = track.name.indexOf('.')
+  if (dot < 0) return false
+  const objectName = track.name.slice(0, dot)
+  const property = track.name.slice(dot + 1)
+  if (property.startsWith('position') || property.startsWith('scale')) return true
+  return BACK_CUT_REPLACED_BONE_NAMES.includes(objectName)
+}
+
+/**
+ * Returns a NEW clip with raw back-cut tracks that are unsafe or
+ * replaced by the readable shim removed. Pure function — input clip
+ * is not mutated.
+ */
+export function stripReadableBackCutSourceTracks(
+  clip: THREE.AnimationClip,
+): THREE.AnimationClip {
+  const kept: THREE.KeyframeTrack[] = []
+  for (const track of clip.tracks) {
+    if (isReadableBackCutUnsafeTrack(track)) continue
+    kept.push(track)
+  }
+  return new THREE.AnimationClip(clip.name, clip.duration, kept)
+}
+
+function buildTeachingBackCutTracks(duration: number): THREE.KeyframeTrack[] {
+  const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 1
+  const t0 = 0
+  const t1 = safeDuration * 0.2
+  const t2 = safeDuration * 0.45
+  const t3 = safeDuration * 0.72
+  const t4 = safeDuration
+  const t = [t0, t1, t2, t3, t4]
+
+  return [
+    // Hips load away from the denial, then rotate into the backdoor
+    // lane. This is pose only: no pelvis/root translation is authored.
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.hips}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, -0.1, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, -0.2, 0.03),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, 0.24, -0.03),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, 0.14, 0.01),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, -0.08, 0),
+      ]),
+    ),
+    // Chest sells the read: small denial check, hard shoulder turn,
+    // then forward burst.
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.spine}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0.1, -0.12, 0),
+        glbEulerQuat(0.16, -0.28, 0.03),
+        glbEulerQuat(0.3, 0.36, -0.04),
+        glbEulerQuat(0.26, 0.18, 0),
+        glbEulerQuat(0.18, -0.08, 0),
+      ]),
+    ),
+    new THREE.QuaternionKeyframeTrack(
+      'spine_03.quaternion',
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0.04, -0.08, 0),
+        glbEulerQuat(0.08, -0.22, 0.02),
+        glbEulerQuat(0.16, 0.3, -0.03),
+        glbEulerQuat(0.12, 0.14, 0),
+        glbEulerQuat(0.06, -0.04, 0),
+      ]),
+    ),
+    // Head checks the denial before snapping back down the cut path.
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.head}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(-0.02, -0.22, 0),
+        glbEulerQuat(-0.04, -0.34, 0),
+        glbEulerQuat(0.08, 0.3, 0),
+        glbEulerQuat(0.06, 0.12, 0),
+        glbEulerQuat(0.02, -0.06, 0),
+      ]),
+    ),
+    // Compact arm pump. Values stay well inside the imported clip's
+    // wide-arm silhouette so the cutter never reads T-pose-like.
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftUpperArm}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0, 0, 0.25),
+        glbEulerQuat(0, 0, 0.45),
+        glbEulerQuat(0, 0, -0.42),
+        glbEulerQuat(0, 0, -0.2),
+        glbEulerQuat(0, 0, 0.3),
+      ]),
+    ),
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightUpperArm}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0, 0, -0.3),
+        glbEulerQuat(0, 0, -0.48),
+        glbEulerQuat(0, 0, 0.5),
+        glbEulerQuat(0, 0, 0.22),
+        glbEulerQuat(0, 0, -0.28),
+      ]),
+    ),
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftForeArm}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0, -0.72, 0),
+        glbEulerQuat(0, -0.88, 0),
+        glbEulerQuat(0, -0.54, 0),
+        glbEulerQuat(0, -0.64, 0),
+        glbEulerQuat(0, -0.78, 0),
+      ]),
+    ),
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightForeArm}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0, -0.78, 0),
+        glbEulerQuat(0, -0.58, 0),
+        glbEulerQuat(0, -0.92, 0),
+        glbEulerQuat(0, -0.7, 0),
+        glbEulerQuat(0, -0.76, 0),
+      ]),
+    ),
+    // Plant-and-go legs, conservative and bind-relative to avoid the
+    // lower-body fold/inversion class seen during closeout import.
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftThigh}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.18, 0, 0.04),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.5, 0, 0.08),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, 0.42, 0, -0.04),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, 0.26, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.2, 0, 0.04),
+      ]),
+    ),
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightThigh}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, 0.32, 0, -0.04),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, 0.12, 0, -0.08),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.58, 0, 0.05),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.18, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, 0.28, 0, -0.04),
+      ]),
+    ),
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftShin}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, 0.08, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, 0.36, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, -0.34, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, -0.18, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, 0.06, 0, 0),
+      ]),
+    ),
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightShin}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, -0.28, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, -0.08, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, 0.42, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, 0.16, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, -0.22, 0, 0),
+      ]),
+    ),
+  ]
+}
+
+/**
+ * Builds the action clip used when the dev back-cut override is on.
+ * The clip is intentionally teaching-authored instead of asset-
+ * faithful: it communicates "denied, so cut behind" while scenario
+ * data still owns every inch of x/z route motion.
+ */
+export function buildReadableBackCutClip(
+  source: THREE.AnimationClip,
+): THREE.AnimationClip {
+  const safeSource = stripReadableBackCutSourceTracks(source)
+  return new THREE.AnimationClip(source.name, source.duration, [
+    ...safeSource.tracks,
+    ...buildTeachingBackCutTracks(source.duration),
+  ])
+}
+
 let _cleanedCloseoutCache:
   | { source: THREE.AnimationClip; cleaned: THREE.AnimationClip }
   | null = null
@@ -1171,6 +1409,24 @@ function _getReadableCloseoutClip(): THREE.AnimationClip {
 /** Test-only — reset the cleaned-closeout cache between cases. */
 export function _resetReadableCloseoutClipCache(): void {
   _cleanedCloseoutCache = null
+}
+
+let _cleanedBackCutCache:
+  | { source: THREE.AnimationClip; cleaned: THREE.AnimationClip }
+  | null = null
+
+function _getReadableBackCutClip(source: THREE.AnimationClip): THREE.AnimationClip {
+  if (_cleanedBackCutCache?.source === source) {
+    return _cleanedBackCutCache.cleaned
+  }
+  const cleaned = buildReadableBackCutClip(source)
+  _cleanedBackCutCache = { source, cleaned }
+  return cleaned
+}
+
+/** Test-only — reset the cleaned-back-cut cache between cases. */
+export function _resetReadableBackCutClipCache(): void {
+  _cleanedBackCutCache = null
 }
 
 /**
