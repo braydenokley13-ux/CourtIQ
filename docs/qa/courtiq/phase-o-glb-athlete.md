@@ -1140,3 +1140,198 @@ Until the asset and scenario land, P2 has nothing visual to
 verify and the right move is to source those first. A small
 asset-sourcing packet between P1.0 and P2 is the recommended
 sequencing.
+
+## Phase P — P1.5 packet (closeout asset status + AOR-01 scenario intake)
+
+The asset-sourcing packet P1.0 called for. Lands the AOR-01
+founder scenario, the seed-validation gate, and the truthful
+closeout asset status — without bundling a real `.glb` and
+without flipping any feature flag.
+
+Production default stays `USE_GLB_ATHLETE_PREVIEW = false` AND
+`USE_IMPORTED_CLOSEOUT_CLIP = false`. Nothing in this packet
+changes either flag.
+
+### Closeout asset status
+
+**Real closeout asset on disk:** No. As of P1.5 the
+`apps/web/public/athlete/clips/` folder contains only its README
+and no `.glb` file.
+
+**Attribution / license verified:** N/A — no asset to attribute.
+The parent `apps/web/public/athlete/ATTRIBUTION.md` now carries an
+"Imported animation clips" section that explicitly says no real
+clip is bundled and provides a TODO template for the future
+closeout entry. The clips/README adds a "P1.5 asset status
+checklist" so a future contributor can see at a glance what is
+wired (loader, flag, determinism gate, synthetic placeholder) and
+what is still missing (real `.glb`, attribution entry, bone-name
+verification, live screenshot pass).
+
+**Local candidate:** None reported. The synthetic placeholder
+closeout clip authored programmatically in `glbAthlete.ts` is
+NOT a redistributable asset — it has no separate authoring source
+and lives in code. Calling it a "candidate" would be inaccurate.
+
+### AOR-01 scenario summary
+
+`packages/db/seed/scenarios/packs/founder-v0/AOR-01.json`,
+registered in `pack.json`. Status: `DRAFT` (coach review pending).
+
+**Setup.** 4-on-4 half-court shell. PG at the slot with the
+ball; user is the right wing; user's defender (x2) starts
+helping in the paint. PG passes to the wing; x2 closes out from
+the help position as the pass arrives. Freeze at 1500 ms — ball
+arriving, x2 one or two steps short.
+
+**Choices.**
+
+| id | label | quality | branch |
+| --- | --- | --- | --- |
+| c1 | Shoot it. | best | catch-and-shoot, defender's closeout is short |
+| c2 | Rip and drive past him. | acceptable | works on a flying closeout, gives up the open jumper here |
+| c3 | Pass it back to the point. | wrong | gives up the open look, defense resets |
+| c4 | Hold and pump fake. | wrong | defender catches up, contests |
+
+**Decoder authoring fields shipped.** `best_read`,
+`decoder_teaching_point`, `lesson_connection`, `feedback.correct`,
+`feedback.wrong`, `self_review_checklist` (4 entries), and three
+`wrongDemos` covering c2 / c3 / c4. All required by the seed
+validator's decoder superRefine.
+
+**Scene block.** 8 players, 3 pre-decision movements (lift, pass,
+closeout), `freezeMarker { kind: 'atMs', atMs: 1500 }`, 2
+answer-demo movements (shot lift + ball release toward rim), 3
+wrongDemos, 6 pre-answer overlays (vision cone + hip + foot
+arrows on x2, low-man help_pulse, two short labels), 6
+post-answer overlays (open_space_region, vision cone, hip + foot
+arrows, timing_pulse, drive-cut preview for the rip-and-drive
+alternate).
+
+### How AOR-01 teaches Advantage or Reset
+
+The cue is the closeout itself. Phase P §6 names the AOR mapping
+as receiver `receive_ready` → branches and defender `closeout`;
+AOR-01 ships the smallest scenario that exercises both halves:
+
+- **Cue.** Defender x2 is in help when the ball is one pass away.
+  When the ball reverses to the wing, x2 has to close out from
+  the help position — running while the ball is in the air.
+- **Read.** The cushion, angle, and speed of the closeout
+  determine whether the receiver should shoot, attack, or reset.
+  This v1 scenario authors a short, under-control closeout —
+  the correct read is the catch-and-shoot.
+- **Wrong reads.** Each non-best choice plays a consequence: the
+  drive recovers into a contest (c2), the pass-back resets the
+  defense (c3), the hesitation lets the defender catch up (c4).
+- **Plain-English labels.** "Read the closeout." "How much
+  space?" No weak-side rotation jargon, no advanced lingo.
+
+Schema-wise, the existing `closeout` SceneMovementKind is used
+directly — no schema changes were needed for AOR-01.
+
+### Schema compromises
+
+**None.** The existing `sceneSchema` already supports every
+overlay, movement kind, and freeze-marker form AOR-01 needs. The
+scenario fits the BDW-01 shape and the seed validator's decoder
+authoring discipline without modification.
+
+### How to manually QA AOR-01
+
+The dev preview route already supports any pack scenario by id;
+no route changes were needed in this packet. Manual QA flow:
+
+1. From the repo root, ensure the dev server is running:
+   `pnpm --filter @courtiq/web dev`.
+2. Open `http://localhost:3000/dev/scene-preview?scenario=AOR-01`.
+3. Verify the scene loads:
+   - PG holds the ball at the slot.
+   - User stands on the right wing.
+   - x2 starts in the help position (short of the wing).
+   - Pre-answer overlays show the defender vision cone, hip and
+     foot arrows on x2, and the low-man help_pulse on x4.
+   - Two short labels appear ("Read the closeout", "How much
+     space?").
+4. Verify timing:
+   - At ~350 ms the pass leaves the PG.
+   - At ~1100 ms x2 reaches the closeout endpoint at (14, 8).
+   - At 1500 ms the freeze fires — the ball is at user's hands
+     and x2 is one or two steps short.
+5. Cycle FOLLOW / REPLAY / BROADCAST / AUTO. Confirm the camera
+   does not jump and the freeze pose holds across modes.
+6. Toggle fullscreen. Confirm the canvas fills the viewport (no
+   black bottom half — P0-LOCK fixed that for the GLB path; the
+   procedural path was already fine).
+7. **GLB flag off + closeout flag off** (default). The defender
+   plays the procedural premium closeout pose. This is the
+   shipping path.
+8. **GLB flag on + closeout flag off.** Locally edit
+   `apps/web/components/scenario3d/imperativeScene.ts` to flip
+   `USE_GLB_ATHLETE_PREVIEW = true` only. Reload `/dev/scene-preview?scenario=AOR-01`.
+   Defender should now render with the GLB mannequin and the
+   bespoke `defense_slide` clip during the closeout. Route is
+   unchanged.
+9. **GLB flag on + closeout flag on.** Also flip
+   `USE_IMPORTED_CLOSEOUT_CLIP = true`. Reload. With the
+   placeholder closeout clip, the defender plays a "high hands +
+   wide stance + forward lean" pose during the closeout
+   movement. Verify the route is unchanged from step 8 — the
+   loader-level root-motion strip prevents the placeholder's
+   `pelvis.position` track from moving the figure. The
+   determinism gate proves this in CI.
+10. Revert the local flag edits before committing anything.
+
+**Limit:** the placeholder closeout pose is recognisable as a
+defender posture but is not visually polished. **The real visual
+QA acceptance check is blocked on a real CC0 closeout `.glb`**
+landing in `apps/web/public/athlete/clips/closeout.glb`.
+
+### What remains before P2 decoder mapping
+
+In rough order of priority:
+
+1. **Real CC0 closeout `.glb` asset.** Drop into
+   `apps/web/public/athlete/clips/closeout.glb` with attribution
+   in `apps/web/public/athlete/ATTRIBUTION.md` (template in the
+   "Imported animation clips" section).
+2. **Coach review of AOR-01 cue + cushion timing.** The
+   `coach_validation` block ships as `level=low / status=needed`;
+   a coach should confirm that a middle-school player will
+   recognise the closeout cushion in the freeze frame.
+3. **Live Mac/Chrome screenshot pass** of `/dev/scene-preview?scenario=AOR-01`
+   in all four camera modes plus fullscreen, with both flags on
+   and a real closeout asset. Captures the visual QA evidence the
+   placeholder cannot provide.
+4. **Promote AOR-01 from DRAFT to LIVE** after coach review.
+5. **P2 — decoder-specific intent mapping.** Implement
+   `getDecoderAnimationMap(decoderTag, role)` per Phase P §6.
+   AOR is the highest-leverage decoder for this work because the
+   closeout asset and AOR-01 scenario are now in place.
+
+### P1.5 manual QA matrix
+
+| Item | Status | Notes |
+| --- | --- | --- |
+| AOR-01.json on disk and registered in pack.json | Verified | `pack.json` lists both BDW-01 and AOR-01. |
+| Scenario validates against runtime sceneSchema | Verified | `aor01Seed.test.ts` + ad-hoc `tsx --eval` parse. |
+| Decoder authoring discipline (best_read, …, wrongDemos) | Verified | Seed validator superRefine mirrored in test. |
+| Defender closeout movement present | Verified | `kind='closeout'` on `x2_closeout_to_wing`. |
+| Freeze marker lands in the catch window | Verified | atMs:1500. |
+| /dev/scene-preview?scenario=AOR-01 loads | Code-verified | Route reads `<id>.json` directly; regex accepts AOR-01. |
+| All 4 camera modes + fullscreen still work | Carry-over from P0-LOCK | `ResizeObserver` + multi-frame apply in `Scenario3DCanvas.tsx`. |
+| Imported closeout flag on does not move defender route | Verified by determinism gate | `glbAthleteEndToEndDeterminism.test.ts` route-invariance case. |
+| Real `closeout.glb` visual QA | **Blocked on real asset** | Placeholder pose is wired but not visually polished. |
+| Coach validation of cushion + cue timing | **Blocked on coach review** | `level=low / status=needed`. |
+| GLB flag off still works | Verified | flag-off path is byte-identical to pre-O-ASSET behaviour. |
+| GLB flag on still works | Code-verified, Mac/Chrome capture pending | Same gating as P0-LOCK + P0-LOCK-2. |
+
+### P1.5 follow-on packet recommendation
+
+Same as P1.0's recommendation, narrowed:
+
+1. **Asset-sourcing micro-pass.** Pick + verify a single CC0
+   closeout GLB. Bundle. Attribute.
+2. **Coach review of AOR-01.** Promote to LIVE if approved.
+3. **P2 — decoder-specific animation states.** Now unblocked on
+   both axes (asset + scenario).
