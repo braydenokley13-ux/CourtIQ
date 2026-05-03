@@ -231,7 +231,7 @@
               "id": "user_cut_into_help",
               "playerId": "user",
               "kind": "cut",
-              "to": { "x": 12, "z": 6 },
+              "to": { "x": 14, "z": 5 },
               "delayMs": 0,
               "durationMs": 700
             },
