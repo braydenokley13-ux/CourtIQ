@@ -52,9 +52,10 @@ inside the loader, not in per-callsite code. Phase P §2 (the hard line
       (see `GLB_BONE_MAP` in `apps/web/components/scenario3d/glbAthlete.ts`).
       `closeout.glb` and `mannequin.glb` share the same authoring
       rig, so no per-bone rename adapter is required.
-- [ ] Live `/dev/scene-preview?scenario=AOR-01` capture with
-      `USE_GLB_ATHLETE_PREVIEW = true` and
-      `USE_IMPORTED_CLOSEOUT_CLIP = true` flipped locally.
+- [ ] Live `/dev/scene-preview?scenario=AOR-01&glb=1&closeout=1`
+      capture with both runtime overrides on (P1.7 — no source
+      edit required; the dev-only URL params flip the same
+      helpers the consts gate).
 - [ ] Defender visibly closes out without drifting off the
       authored route (loader strip is doing its job).
 - [ ] All four camera modes (FOLLOW / REPLAY / BROADCAST / AUTO)
