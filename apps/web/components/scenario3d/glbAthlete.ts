@@ -109,6 +109,22 @@ export const GLB_BONE_MAP: Readonly<Record<string, string>> = {
 }
 
 /**
+ * Audited local rest rotations for the Quaternius UAL2 lower body.
+ * Three.js animation tracks write absolute local quaternions, so a
+ * "small knee bend" cannot be authored as a near-identity quaternion
+ * on these bones. It must start from bind and then add a small delta.
+ */
+const GLB_LOWER_BODY_BIND_QUATERNIONS: Readonly<
+  Record<string, [number, number, number, number]>
+> = {
+  pelvis: [0.7904685, 0, 0, 0.6125028],
+  thigh_l: [0.9924845, 0, 0, 0.1223706],
+  thigh_r: [0.9924845, 0, 0, 0.1223706],
+  calf_l: [0.0365859, -0.0001312, -0.0000048, 0.9993305],
+  calf_r: [0.0365859, -0.0001312, -0.0000048, 0.9993305],
+}
+
+/**
  * P0-LOCK — one-shot dev-only bone-map audit. Walks the cloned
  * skeleton on first build, logs the actual bone names, and warns
  * about any `GLB_BONE_MAP` entry whose target bone is not present.
@@ -212,14 +228,20 @@ function buildGlbIdleReadyClip(): THREE.AnimationClip {
     new THREE.QuaternionKeyframeTrack(
       `${GLB_BONE_MAP.leftThigh}.quaternion`,
       [0, duration],
-      flattenGlbQuats([glbEulerQuat(-0.06, 0, 0), glbEulerQuat(-0.06, 0, 0)]),
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.06, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.06, 0, 0),
+      ]),
     ),
   )
   tracks.push(
     new THREE.QuaternionKeyframeTrack(
       `${GLB_BONE_MAP.rightThigh}.quaternion`,
       [0, duration],
-      flattenGlbQuats([glbEulerQuat(-0.06, 0, 0), glbEulerQuat(-0.06, 0, 0)]),
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.06, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.06, 0, 0),
+      ]),
     ),
   )
 
@@ -247,9 +269,9 @@ function buildGlbCutSprintClip(): THREE.AnimationClip {
       `${GLB_BONE_MAP.hips}.quaternion`,
       t,
       flattenGlbQuats([
-        glbEulerQuat(0, -0.1, 0),
-        glbEulerQuat(0, 0.1, 0),
-        glbEulerQuat(0, -0.1, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, -0.1, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, 0.1, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, -0.1, 0),
       ]),
     ),
   )
@@ -318,9 +340,9 @@ function buildGlbCutSprintClip(): THREE.AnimationClip {
       `${GLB_BONE_MAP.leftThigh}.quaternion`,
       t,
       flattenGlbQuats([
-        glbEulerQuat(0.55, 0, 0),
-        glbEulerQuat(-0.4, 0, 0),
-        glbEulerQuat(0.55, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, 0.55, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.4, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, 0.55, 0, 0),
       ]),
     ),
   )
@@ -329,9 +351,9 @@ function buildGlbCutSprintClip(): THREE.AnimationClip {
       `${GLB_BONE_MAP.rightThigh}.quaternion`,
       t,
       flattenGlbQuats([
-        glbEulerQuat(-0.4, 0, 0),
-        glbEulerQuat(0.55, 0, 0),
-        glbEulerQuat(-0.4, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.4, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, 0.55, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.4, 0, 0),
       ]),
     ),
   )
@@ -341,9 +363,9 @@ function buildGlbCutSprintClip(): THREE.AnimationClip {
       `${GLB_BONE_MAP.leftShin}.quaternion`,
       t,
       flattenGlbQuats([
-        glbEulerQuat(-0.5, 0, 0),
-        glbEulerQuat(-1.0, 0, 0),
-        glbEulerQuat(-0.5, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, -0.5, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, -1.0, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, -0.5, 0, 0),
       ]),
     ),
   )
@@ -352,9 +374,9 @@ function buildGlbCutSprintClip(): THREE.AnimationClip {
       `${GLB_BONE_MAP.rightShin}.quaternion`,
       t,
       flattenGlbQuats([
-        glbEulerQuat(-1.0, 0, 0),
-        glbEulerQuat(-0.5, 0, 0),
-        glbEulerQuat(-1.0, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, -1.0, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, -0.5, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, -1.0, 0, 0),
       ]),
     ),
   )
@@ -381,9 +403,9 @@ function buildGlbDefenseSlideClip(): THREE.AnimationClip {
       `${GLB_BONE_MAP.hips}.quaternion`,
       t,
       flattenGlbQuats([
-        glbEulerQuat(0, 0, 0.05),
-        glbEulerQuat(0, 0, -0.05),
-        glbEulerQuat(0, 0, 0.05),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, 0, 0.05),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, 0, -0.05),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, 0, 0.05),
       ]),
     ),
   )
@@ -430,9 +452,9 @@ function buildGlbDefenseSlideClip(): THREE.AnimationClip {
       `${GLB_BONE_MAP.leftThigh}.quaternion`,
       t,
       flattenGlbQuats([
-        glbEulerQuat(-0.5, 0, 0.2),
-        glbEulerQuat(-0.6, 0, 0.2),
-        glbEulerQuat(-0.5, 0, 0.2),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.5, 0, 0.2),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.6, 0, 0.2),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.5, 0, 0.2),
       ]),
     ),
   )
@@ -441,9 +463,9 @@ function buildGlbDefenseSlideClip(): THREE.AnimationClip {
       `${GLB_BONE_MAP.rightThigh}.quaternion`,
       t,
       flattenGlbQuats([
-        glbEulerQuat(-0.6, 0, -0.2),
-        glbEulerQuat(-0.5, 0, -0.2),
-        glbEulerQuat(-0.6, 0, -0.2),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.6, 0, -0.2),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.5, 0, -0.2),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.6, 0, -0.2),
       ]),
     ),
   )
@@ -452,14 +474,20 @@ function buildGlbDefenseSlideClip(): THREE.AnimationClip {
     new THREE.QuaternionKeyframeTrack(
       `${GLB_BONE_MAP.leftShin}.quaternion`,
       [0, duration],
-      flattenGlbQuats([glbEulerQuat(0.32, 0, 0), glbEulerQuat(0.32, 0, 0)]),
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, 0.32, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, 0.32, 0, 0),
+      ]),
     ),
   )
   tracks.push(
     new THREE.QuaternionKeyframeTrack(
       `${GLB_BONE_MAP.rightShin}.quaternion`,
       [0, duration],
-      flattenGlbQuats([glbEulerQuat(0.32, 0, 0), glbEulerQuat(0.32, 0, 0)]),
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, 0.32, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, 0.32, 0, 0),
+      ]),
     ),
   )
 
@@ -471,6 +499,20 @@ const _glbScratchEuler = new THREE.Euler()
 function glbEulerQuat(x: number, y: number, z: number): THREE.Quaternion {
   _glbScratchEuler.set(x, y, z, 'XYZ')
   return new THREE.Quaternion().setFromEuler(_glbScratchEuler)
+}
+
+function glbLowerBodyBindRelativeQuat(
+  boneName: string,
+  x: number,
+  y: number,
+  z: number,
+): THREE.Quaternion {
+  const bind = GLB_LOWER_BODY_BIND_QUATERNIONS[boneName]
+  if (!bind) return glbEulerQuat(x, y, z)
+  const [bx, by, bz, bw] = bind
+  return new THREE.Quaternion(bx, by, bz, bw)
+    .multiply(glbEulerQuat(x, y, z))
+    .normalize()
 }
 
 function flattenGlbQuats(quats: THREE.Quaternion[]): number[] {
@@ -628,12 +670,12 @@ export function buildGlbAthletePreview(
       // `closeout.glb` on disk is fetched in the background; when
       // that fetch lands, the next figure build will pick it up.
       //
-      // P1.8 — pose readability. The raw imported clip (Quaternius
-      // UAL2 closeout) reads as fantasy lunge at the extremes; we
-      // dampen rotation tracks toward bind-pose before handing them
-      // to the mixer so the silhouette reads as basketball closeout
-      // pressure. The dampened clip is cached per source clip so
-      // the cost is paid once per asset swap, not per figure.
+      // P1.9 closeout follow-up — pose readability. The raw imported
+      // clip stays upper-body only; the lower body is replaced with
+      // a CourtIQ-authored athletic base so we do not fall back to
+      // the Quaternius rest pose after stripping the broken leg
+      // tracks. The readable clip is cached per source clip so the
+      // cost is paid once per asset swap, not per figure.
       const closeoutClip = _getReadableCloseoutClip()
       actions['closeout'] = mixer.clipAction(closeoutClip)
       _kickOffImportedCloseoutClipLoad()
@@ -734,9 +776,9 @@ function buildPlaceholderImportedCloseoutClip(): THREE.AnimationClip {
       `${GLB_BONE_MAP.hips}.quaternion`,
       t,
       flattenGlbQuats([
-        glbEulerQuat(0, 0, 0.04),
-        glbEulerQuat(0, 0, -0.04),
-        glbEulerQuat(0, 0, 0.02),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, 0, 0.04),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, 0, -0.04),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, 0, 0.02),
       ]),
     ),
   )
@@ -791,28 +833,40 @@ function buildPlaceholderImportedCloseoutClip(): THREE.AnimationClip {
     new THREE.QuaternionKeyframeTrack(
       `${GLB_BONE_MAP.leftThigh}.quaternion`,
       [0, duration],
-      flattenGlbQuats([glbEulerQuat(-0.45, 0, 0.18), glbEulerQuat(-0.45, 0, 0.18)]),
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.45, 0, 0.18),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.45, 0, 0.18),
+      ]),
     ),
   )
   tracks.push(
     new THREE.QuaternionKeyframeTrack(
       `${GLB_BONE_MAP.rightThigh}.quaternion`,
       [0, duration],
-      flattenGlbQuats([glbEulerQuat(-0.45, 0, -0.18), glbEulerQuat(-0.45, 0, -0.18)]),
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.45, 0, -0.18),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.45, 0, -0.18),
+      ]),
     ),
   )
   tracks.push(
     new THREE.QuaternionKeyframeTrack(
       `${GLB_BONE_MAP.leftShin}.quaternion`,
       [0, duration],
-      flattenGlbQuats([glbEulerQuat(0.42, 0, 0), glbEulerQuat(0.42, 0, 0)]),
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, 0.42, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, 0.42, 0, 0),
+      ]),
     ),
   )
   tracks.push(
     new THREE.QuaternionKeyframeTrack(
       `${GLB_BONE_MAP.rightShin}.quaternion`,
       [0, duration],
-      flattenGlbQuats([glbEulerQuat(0.42, 0, 0), glbEulerQuat(0.42, 0, 0)]),
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, 0.42, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, 0.42, 0, 0),
+      ]),
     ),
   )
 
@@ -876,14 +930,19 @@ function _ensurePlaceholderImportedCloseoutClip(): THREE.AnimationClip {
  * rather than toward bind, which compounded the leg break with
  * arm/shoulder distortion.
  *
- * Fix (chosen from the four options in the P1.9 brief): **Option D
- * — disable imported lower-body tracks** for the closeout clip, and
- * drop the bind-naive dampener. Lower-body bones hold their bind
- * orientation (a stable standing rest); the upper body still gets
- * the imported pose so the closeout read still shows raised hand,
- * forward lean, head turn. This trades pose richness for visual
- * stability — the right call until a bespoke clip is authored or a
- * proper bind-relative retargeter ships.
+ * Fix (P1.9 first pass): **Option D — disable imported lower-body
+ * tracks** for the closeout clip, and drop the bind-naive dampener.
+ *
+ * P1.9 visual follow-up: holding the Quaternius rest pose was not
+ * enough. The mannequin's runtime rest pose is technically valid
+ * skinning data, but it is not a CourtIQ basketball stance once the
+ * imported closeout action owns the upper body. The legs read as a
+ * frozen mannequin base: knees/feet can look tucked, floating, or
+ * bug-like at the AOR camera distance. The closeout action now keeps
+ * the strip, then adds a tiny authored lower-body base: upright hips,
+ * slight knee bend, feet under the body, and zero translation. This
+ * is Option A/C from the closeout brief, not a decoder-wide mapping
+ * pass.
  *
  * Stripped bone rotations (defaults; overridable for tests):
  *   - root, pelvis      — torso / hips orientation already lives
@@ -917,6 +976,27 @@ export const CLOSEOUT_LOWER_BODY_BONE_NAMES: ReadonlyArray<string> = [
 ]
 
 /**
+ * Authored lower-body tracks added back after the imported closeout
+ * lower body is stripped. Deliberately excludes:
+ *
+ *   - `root` — route/world ownership stays scenario-authored.
+ *   - `foot_*` / `ball_*` — their Quaternius bind rotations already
+ *     keep the shoes coherent when the hip/thigh/calf base is sane;
+ *     overwriting them risks another foot-flip variant.
+ *
+ * The values are conservative cousins of the existing GLB
+ * `defense_slide` lower body: less wide, less low, and almost static
+ * so the imported upper body can provide the closeout pressure.
+ */
+export const CLOSEOUT_SAFE_LOWER_BODY_BONE_NAMES: ReadonlyArray<string> = [
+  'pelvis',
+  'thigh_l',
+  'thigh_r',
+  'calf_l',
+  'calf_r',
+]
+
+/**
  * Returns true when the track targets ANY property channel of one
  * of the listed bones. The helper is name-prefixed: it matches both
  * `thigh_l.quaternion` and the rarer `thigh_l.position.x`.
@@ -947,6 +1027,79 @@ export function stripCloseoutLowerBodyTracks(
   return new THREE.AnimationClip(clip.name, clip.duration, kept)
 }
 
+function buildStableCloseoutLowerBodyTracks(duration: number): THREE.KeyframeTrack[] {
+  const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 1
+  const t = [0, safeDuration * 0.5, safeDuration]
+  return [
+    // Hips stay upright with only a tiny deceleration rock. This is
+    // pose, not route: no position track is authored.
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.hips}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, 0, 0.02),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, 0, -0.02),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, 0, 0.01),
+      ]),
+    ),
+    // Slight athletic knee bend. Narrower and taller than
+    // defense_slide so the closeout does not look like a lateral
+    // shuffle or a crouch.
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftThigh}.quaternion`,
+      [0, safeDuration],
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.28, 0, 0.08),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.28, 0, 0.08),
+      ]),
+    ),
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightThigh}.quaternion`,
+      [0, safeDuration],
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.28, 0, -0.08),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.28, 0, -0.08),
+      ]),
+    ),
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftShin}.quaternion`,
+      [0, safeDuration],
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, 0.18, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, 0.18, 0, 0),
+      ]),
+    ),
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightShin}.quaternion`,
+      [0, safeDuration],
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, 0.18, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, 0.18, 0, 0),
+      ]),
+    ),
+  ]
+}
+
+/**
+ * Builds the closeout action clip used by the GLB mixer:
+ *
+ *   1. Remove every imported lower-body/root track that caused the
+ *      P1.8/P1.9 leg failures.
+ *   2. Add the static CourtIQ lower-body base above.
+ *
+ * Pure helper: callers may pass the synthetic placeholder or the
+ * real bundled `closeout.glb` clip; neither input is mutated.
+ */
+export function buildReadableCloseoutClip(
+  source: THREE.AnimationClip,
+): THREE.AnimationClip {
+  const upperBodyOnly = stripCloseoutLowerBodyTracks(source)
+  return new THREE.AnimationClip(source.name, source.duration, [
+    ...upperBodyOnly.tracks,
+    ...buildStableCloseoutLowerBodyTracks(source.duration),
+  ])
+}
+
 /**
  * Lists every track name that `stripCloseoutLowerBodyTracks` would
  * remove for the given clip. Test-only; production code never
@@ -968,10 +1121,10 @@ let _cleanedCloseoutCache:
   | null = null
 
 /**
- * Returns the imported closeout clip with lower-body tracks
- * stripped so the legs hold bind pose and the figure does not
- * invert. Cached per source clip identity — when the loader swaps
- * the synthetic placeholder for a real-asset clip, the cache
+ * Returns the imported closeout clip with unsafe imported
+ * lower-body tracks stripped and a stable CourtIQ lower-body base
+ * added back. Cached per source clip identity — when the loader
+ * swaps the synthetic placeholder for a real-asset clip, the cache
  * invalidates automatically because the `source` reference changes.
  */
 function _getReadableCloseoutClip(): THREE.AnimationClip {
@@ -979,7 +1132,7 @@ function _getReadableCloseoutClip(): THREE.AnimationClip {
   if (_cleanedCloseoutCache?.source === source) {
     return _cleanedCloseoutCache.cleaned
   }
-  const cleaned = stripCloseoutLowerBodyTracks(source)
+  const cleaned = buildReadableCloseoutClip(source)
   _cleanedCloseoutCache = { source, cleaned }
   return cleaned
 }

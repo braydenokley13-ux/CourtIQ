@@ -37,6 +37,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { buildReadableCloseoutClip } from './glbAthlete'
 import {
   isRootMotionTrack,
   listStrippedRootMotionTrackNames,
@@ -140,6 +141,39 @@ describe('P1.6 — real closeout.glb integration', () => {
     expect(stripped.duration).toBe(parsed.duration)
     // Exactly two tracks fewer than the source.
     expect(stripped.tracks.length).toBe(parsed.tracks.length - 2)
+  })
+
+  it('readable closeout keeps imported upper body but replaces lower body with CourtIQ base', () => {
+    const rootStripped = stripRootMotionTracks(parsed)
+    const readable = buildReadableCloseoutClip(rootStripped)
+    const names = readable.tracks.map((t) => t.name).sort()
+
+    // Upper-body pressure from Shield_Dash_RM remains useful.
+    expect(names).toContain('spine_02.quaternion')
+    expect(names).toContain('Head.quaternion')
+    expect(names).toContain('upperarm_l.quaternion')
+    expect(names).toContain('upperarm_r.quaternion')
+
+    // The dangerous imported lower-body/root channels are gone.
+    expect(names).not.toContain('root.quaternion')
+    expect(names).not.toContain('root.position')
+    expect(names).not.toContain('pelvis.position')
+    expect(names).not.toContain('foot_l.quaternion')
+    expect(names).not.toContain('ball_l.quaternion')
+
+    // The closeout action owns a stable lower-body pose instead of
+    // falling back to the mannequin rest pose.
+    for (const safeTrack of [
+      'pelvis.quaternion',
+      'thigh_l.quaternion',
+      'thigh_r.quaternion',
+      'calf_l.quaternion',
+      'calf_r.quaternion',
+    ]) {
+      expect(names).toContain(safeTrack)
+    }
+    expect(readable.name).toBe('closeout')
+    expect(readable.duration).toBe(parsed.duration)
   })
 
   it('stripped clip cannot move a bound pelvis bone off its bind pose', () => {

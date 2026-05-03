@@ -1915,3 +1915,101 @@ Capture matrix from the P1.8 packet still applies:
    identity. Would let the dampener return safely AND let the
    imported clip drive the legs without inversion. Out of
    scope for P1.9.
+
+## Phase P — P1.9 closeout visual follow-up (CourtIQ lower-body base)
+
+### Why P1.9 was not visually sufficient
+
+P1.9 correctly identified the unsafe source of the leg inversion:
+`Shield_Dash_RM` lower-body/root tracks cannot be trusted on the
+runtime mannequin. Stripping those tracks fixed the worst failure
+(fully inverted legs), but it left the closeout action with no
+lower-body owner. The result was a Quaternius rest/bind lower body
+under an imported upper-body contest pose.
+
+The browser pass also exposed a second related issue: the existing
+GLB bespoke lower-body clips (`idle_ready`, `cut_sprint`, and
+`defense_slide`) were authored with small near-identity lower-body
+quaternions as if Three.js would apply them relative to bind. Three.js
+animation tracks write absolute local quaternions. On Quaternius
+lower-body bones whose rest rotations are large (`pelvis` ~104°,
+`thigh_l/r` ~166°), those small values overwrite the bind rotations
+and create the same kneeling/bug-leg read outside the imported
+closeout path.
+
+The rest pose is valid for skinning, but it is not by itself a
+basketball teaching stance. In AOR-01 at
+`/dev/scene-preview?scenario=AOR-01&glb=1&closeout=1`, many athletes
+still read as kneeling, floating, or frozen in a bug-like base:
+feet/legs were technically no longer upside down, but the cue did
+not communicate a defender closing out to a receiver.
+
+### Follow-up fix strategy
+
+Chosen strategy: **Option A/C — keep the imported closeout upper
+body, but replace the stripped lower body with a small CourtIQ-
+authored basketball base.**
+
+Implementation:
+
+1. Continue stripping imported tracks for `root`, `pelvis`,
+   `thigh_l/r`, `calf_l/r`, `foot_l/r`, and `ball_l/r`.
+2. After the strip, add pose-only quaternion tracks for:
+   `pelvis`, `thigh_l/r`, and `calf_l/r`.
+3. Author those lower-body tracks bind-relative: start from the
+   audited Quaternius lower-body bind quaternions, then multiply in
+   small CourtIQ stance deltas. Do not blend toward identity.
+4. Apply the same bind-relative lower-body correction to the existing
+   GLB `idle_ready`, `cut_sprint`, and `defense_slide` lower-body
+   tracks so non-closeout athletes do not appear broken.
+5. Do not add any root, world, or position tracks. Scenario route
+   authoring still owns player world `(x,z)`.
+6. Keep feet/toes at the mannequin's bind rotations once the
+   pelvis/thigh/calf base is sane; overwriting those channels was
+   intentionally avoided because foot/ball rotations were part of
+   the original failure surface.
+
+Pose intent:
+
+- upright hips with only a tiny deceleration rock
+- slight knee bend, not a folded crouch
+- feet under the body via conservative thigh splay
+- imported spine/head/arms still show closeout pressure and high
+  guard
+
+This is intentionally not P2 decoder-wide animation mapping and not
+a renderer rewrite. It is a closeout-specific safety/readability
+override for the GLB imported clip path.
+
+### Follow-up validation notes
+
+Added/updated tests lock:
+
+- lower-body strip still removes the dangerous imported root/leg/foot
+  channels
+- readable closeout clip adds the CourtIQ lower-body base back as
+  quaternion-only pose tracks
+- attached closeout action uses that readable clip, not just the
+  loader-cached root-motion-stripped source
+- GLB bespoke lower-body motion now preserves Quaternius bind before
+  applying small stance deltas
+- route invariance remains true
+- closeout determinism remains true
+- GLB/imported-closeout flags remain default false
+
+AOR-01 player-count note: the seed is currently authored as 4v4
+(8 players: `pg`, `user`, `o3`, `o4`, `x1`, `x2`, `x3`, `x4`).
+The GLB screenshot rendering 8 athletes is therefore not dropping a
+player; changing the seed to 5v5 would be separate scenario-authoring
+work.
+
+### Follow-up visual verdict
+
+**Status: NEEDS-COACH-REVIEW.** The technical visual failure has a
+more appropriate base stance now, but final acceptance still needs
+a human/coach pass against AOR-01 cue readability. The imported
+upper body is still sourced from Quaternius `Shield_Dash_RM`, so the
+question is now coaching-language readability, not broken-leg safety.
+
+Manual retest URL:
+`/dev/scene-preview?scenario=AOR-01&glb=1&closeout=1`

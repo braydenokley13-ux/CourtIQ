@@ -526,7 +526,8 @@ interface CloseoutRunResult {
   defenderBones: Record<string, [number, number, number, number]>
   defenderPositionPath: Array<{ x: number; y: number; z: number }>
   closeoutActionAttached: boolean
-  closeoutClipTrackNames: string[]
+  closeoutActionTrackNames: string[]
+  cachedImportedTrackNames: string[]
 }
 
 /**
@@ -608,7 +609,9 @@ function runCloseoutScenarioOnce(seedMs: number): CloseoutRunResult {
     defenderBones,
     defenderPositionPath: positionPath,
     closeoutActionAttached: !!defenderHandle.actions['closeout'],
-    closeoutClipTrackNames: cachedCloseout?.clip.tracks.map((t) => t.name) ?? [],
+    closeoutActionTrackNames:
+      defenderHandle.actions['closeout']?.getClip().tracks.map((t) => t.name) ?? [],
+    cachedImportedTrackNames: cachedCloseout?.clip.tracks.map((t) => t.name) ?? [],
   }
 }
 
@@ -695,8 +698,8 @@ describe('P1.0 — imported closeout clip determinism', () => {
     // out.
     const seed = 12_000_000
     const result = runCloseoutScenarioOnce(seed)
-    expect(result.closeoutClipTrackNames.length).toBeGreaterThan(0)
-    for (const name of result.closeoutClipTrackNames) {
+    expect(result.cachedImportedTrackNames.length).toBeGreaterThan(0)
+    for (const name of result.cachedImportedTrackNames) {
       // Build a tiny dummy track with the same name so we can re-use
       // the production classifier. (KeyframeTrack constructor is
       // type-strict but `isRootMotionTrack` only reads .name.)
@@ -706,6 +709,33 @@ describe('P1.0 — imported closeout clip determinism', () => {
         `closeout track ${name} should have been stripped`,
       ).toBe(false)
     }
+  })
+
+  it('the attached closeout action uses the CourtIQ lower-body override', () => {
+    const seed = 12_500_000
+    const result = runCloseoutScenarioOnce(seed)
+    expect(result.closeoutActionTrackNames.length).toBeGreaterThan(0)
+
+    // The action clip, not just the loader cache, is what the mixer
+    // evaluates. It must keep imported upper-body pressure.
+    expect(result.closeoutActionTrackNames).toContain('spine_02.quaternion')
+    expect(result.closeoutActionTrackNames).toContain('upperarm_l.quaternion')
+
+    // And it must own a safe basketball lower body instead of letting
+    // the legs fall back to Quaternius rest pose.
+    for (const name of [
+      'pelvis.quaternion',
+      'thigh_l.quaternion',
+      'thigh_r.quaternion',
+      'calf_l.quaternion',
+      'calf_r.quaternion',
+    ]) {
+      expect(result.closeoutActionTrackNames).toContain(name)
+    }
+    expect(result.closeoutActionTrackNames).not.toContain('root.quaternion')
+    expect(result.closeoutActionTrackNames).not.toContain('root.position')
+    expect(result.closeoutActionTrackNames).not.toContain('foot_l.quaternion')
+    expect(result.closeoutActionTrackNames).not.toContain('ball_l.quaternion')
   })
 
   it('playing the imported closeout cannot move the defender route', () => {
