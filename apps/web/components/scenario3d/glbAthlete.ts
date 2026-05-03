@@ -529,6 +529,27 @@ export function _resetGlbAthleteCache(): void {
 }
 
 /**
+ * P0-LOCK-2 — test-only cache injector. Bypasses the GLTFLoader so
+ * Vitest can exercise the actual GLB athlete construction path
+ * (clone, bone-map audit, foot-to-floor offset, mixer wiring) on a
+ * faithful mock skeleton. The mock asset must:
+ *
+ *   1. expose a `scene` whose tree contains the SkinnedMesh and
+ *      every bone the bespoke clips target (see `GLB_BONE_MAP`).
+ *   2. expose a `skinnedMesh` reachable inside that scene.
+ *
+ * The end-to-end GLB determinism gate sits on top of this helper.
+ * See `glbAthleteEndToEndDeterminism.test.ts`.
+ */
+export function _setGlbAthleteCacheForTest(
+  scene: THREE.Object3D,
+  skinnedMesh: THREE.SkinnedMesh,
+): void {
+  cache = { gltf: { scene } as unknown as GLTF, skinnedMesh }
+  loadInFlight = null
+}
+
+/**
  * Phase O-ASSET — synchronous builder entry point. Returns the
  * cloned figure if the GLB asset cache is populated, otherwise
  * returns `null` and (in a browser) kicks off the async load so
