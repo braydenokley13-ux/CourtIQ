@@ -26,6 +26,13 @@ import {
   type ResolvedMovement,
   type Timeline,
 } from '@/lib/scenario3d/timeline'
+import { samplePassArc } from '@/lib/scenario3d/passArc'
+export {
+  BALL_PEAK_MULT_PASS,
+  BALL_PEAK_MULT_SKIP,
+  BALL_PEAK_MIN_FT,
+  BALL_PEAK_MAX_FT,
+} from '@/lib/scenario3d/passArc'
 import {
   deriveDecoderRole,
   getDecoderAnimationIntent,
@@ -1123,22 +1130,12 @@ const YAW_TIME_CONSTANT_DEFENSE_S = 0.14
  */
 const MOVEMENT_DIRECTION_EPS_SQ = 0.04
 
-/**
- * Phase C / C5 — ball arc tuning.
- *
- *  - `BALL_PEAK_MULT_PASS` (0.25) — the existing multiplier for a
- *    standard pass. Distance × mult gives the apex height in ft.
- *  - `BALL_PEAK_MULT_SKIP` (0.10) — line-drive multiplier for skip
- *    passes. A 30-ft skip peaks at 3 ft instead of clipping the cap.
- *  - `BALL_PEAK_MIN_FT` (0.7) — floor for very short hand-offs so the
- *    ball does not pop above the passer's shoulder on a 3-ft feed.
- *  - `BALL_PEAK_MAX_FT` (7.0) — ceiling so cross-court bombs stay
- *    under the gym shell on the broadcast camera.
- */
-const BALL_PEAK_MULT_PASS = 0.25
-const BALL_PEAK_MULT_SKIP = 0.1
-const BALL_PEAK_MIN_FT = 0.7
-const BALL_PEAK_MAX_FT = 7.0
+// P2.5 — `BALL_PEAK_MULT_PASS`, `BALL_PEAK_MULT_SKIP`, `BALL_PEAK_MIN_FT`,
+// and `BALL_PEAK_MAX_FT` now live in `lib/scenario3d/passArc.ts` so the
+// shared `samplePassArc` primitive owns the apex math. They are re-
+// exported from the top of this file alongside the import so any
+// downstream module that previously read them from imperativeScene
+// keeps its existing import surface.
 
 /**
  * Resolves the movement list for a given mode. Centralised here so the
@@ -1698,32 +1695,22 @@ export class MotionController {
     }
 
     if (phase.pass) {
+      // P2.5 — delegates to the shared `samplePassArc` primitive so
+      // every scenario (BDW backdoor, ESC empty-space, SKR skip,
+      // AOR closeout / swing, future drive-and-kick) renders the
+      // same readable arc curve. The constants and apex math are
+      // unchanged from the previous inline version, just centralised
+      // for reuse and tested in isolation.
       const span = Math.max(1, phase.endMs - phase.startMs)
-      const u = clamp01((t - phase.startMs) / span)
-      const eased = easeInOutCubic(u)
-      const fromX = phase.pass.from.x
-      const fromZ = phase.pass.from.z
-      const toX = phase.pass.to.x
-      const toZ = phase.pass.to.z
-      const x = fromX + (toX - fromX) * eased
-      const z = fromZ + (toZ - fromZ) * eased
-      // Phase C / C5 — kind-aware parabolic arc.
-      //  - `skip_pass` uses a low multiplier so cross-court skips read
-      //    as line drives, not lazy lobs.
-      //  - Default `pass` uses the same multiplier as before.
-      //  - The minimum peak floor is dropped from 2.0 ft to 0.7 ft so
-      //    short hand-offs don't pop above the passer's shoulder. The
-      //    7 ft cap stays in place to keep cross-court bombs under the
-      //    gym ceiling.
-      //  - Y now follows the same eased curve as X/Z, so the apex
-      //    aligns with the visual midpoint of the pass instead of
-      //    landing too early on short throws.
-      const dist = Math.hypot(toX - fromX, toZ - fromZ)
-      const peakMultiplier =
-        phase.pass.kind === 'skip_pass' ? BALL_PEAK_MULT_SKIP : BALL_PEAK_MULT_PASS
-      const peak = Math.min(BALL_PEAK_MAX_FT, Math.max(BALL_PEAK_MIN_FT, dist * peakMultiplier))
-      const y = this.baseBallY + peak * 4 * eased * (1 - eased)
-      this.ballGroup.position.set(x, y, z)
+      const u = (t - phase.startMs) / span
+      const passKind = phase.pass.kind === 'skip_pass' ? 'skip_pass' : 'pass'
+      const sample = samplePassArc({
+        from: phase.pass.from,
+        to: phase.pass.to,
+        u,
+        kind: passKind,
+      })
+      this.ballGroup.position.set(sample.x, this.baseBallY + sample.height, sample.z)
       return
     }
 
@@ -2046,23 +2033,6 @@ function resolveInitialHolder(scene: Scene3D): string | null {
     return candidate
   }
   return null
-}
-
-function clamp01(v: number): number {
-  if (v <= 0) return 0
-  if (v >= 1) return 1
-  return v
-}
-
-/** Same eased curve the existing timeline.ts uses for player motion.
- *  Duplicated here (rather than re-exported) so the imperative motion
- *  controller and the legacy JSX controller can evolve independently
- *  without breaking each other.
- */
-function easeInOutCubic(u: number): number {
-  if (u <= 0) return 0
-  if (u >= 1) return 1
-  return u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2
 }
 
 /**
