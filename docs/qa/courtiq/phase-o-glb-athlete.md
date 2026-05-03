@@ -1786,3 +1786,132 @@ fixes.
    bespoke Blender-authored clip on the same UAL2 rig — the
    smallest visual escalation, since the pipeline (loader strip,
    determinism gate, material splits) is unchanged.
+
+## Phase P — P1.9 packet (closeout leg deformation root cause + fix)
+
+### P1.9 root cause
+
+P1.8 manual screenshots at `/dev/scene-preview?scenario=AOR-01&glb=1&closeout=1`
+showed the GLB athletes inverting — legs folded over the torso,
+bodies oriented head-down. Two compounding bugs were responsible:
+
+**Bug #1 — bind-pose-naive dampener (introduced in P1.8).**
+The P1.8 closeout dampener slerped every keyframe quaternion
+from identity (0,0,0,1) toward the authored value by a factor
+of 0.65. The intent was to soften extreme poses, but the
+implementation was bind-pose **NAIVE**: it pulled bones toward
+identity, not toward bind. Quaternius UAL2 bones carry
+non-trivial bind rotations:
+
+| bone        | bind rotation magnitude |
+|-------------|-------------------------|
+| thigh_l/r   | ~166° around X          |
+| pelvis      | ~75° around X           |
+| clavicle    | ~99°                    |
+| upperarm    | ~96°                    |
+| foot_l/r    | ~64°                    |
+| Head, spine | ≤ 13°                   |
+
+A bone whose bind sits at 166° dampened to "65% of authored, 35%
+of identity" lands ~50–100° away from where it should rest,
+flipping the limb.
+
+**Bug #2 — closeout clip lower-body authoring vs. runtime rig.**
+Independent of the dampener, the bundled `closeout.glb` writes
+absolute lower-body rotations that, composed with the bind pose
+the runtime mannequin holds, produce inverted thighs and feet:
+
+- `thigh_l` keyframe at t=0 ≈ 179° around X.
+- `thigh_r` keyframe at t=1.10 ≈ 178° (negative w).
+- `pelvis` keyframe ≈ 100–131° multi-axis.
+- `root` rotation track is a steady -90° around X — directly
+  contradicts the bind orientation, so the mixer flips the
+  whole armature on every frame.
+
+The clip was authored against an internal Quaternius rig
+state that does not match the bundled `mannequin.glb` rest
+pose for these specific bones (despite the bone names matching
+exactly).
+
+### P1.9 fix strategy
+
+**Option D from the P1.9 brief — disable imported lower-body
+tracks; treat the closeout asset as upper-body only.**
+
+1. Drop the P1.8 bind-naive dampener entirely. The helper is
+   removed; nothing in production calls it.
+2. New pure helper `stripCloseoutLowerBodyTracks(clip)` filters
+   every track targeting `root`, `pelvis`, `thigh_l/r`,
+   `calf_l/r`, `foot_l/r`, `ball_l/r` (rotation, translation,
+   and scale).
+3. `_getReadableCloseoutClip()` runs the strip before the
+   action is attached to the mixer; the cache flips to the
+   stripped clip the moment the loader swaps the synthetic
+   placeholder for the real asset on disk.
+4. The list of stripped bones is exported as
+   `CLOSEOUT_LOWER_BODY_BONE_NAMES` and locked by a unit test
+   so a future edit can't silently re-include legs.
+
+After the strip:
+
+- Lower-body bones hold their bind pose — a stable standing
+  rest. Feet plant, knees do not fold, no inversion.
+- Upper body still receives the imported clip pose: spine
+  lean, head turn, raised hand, contest posture.
+- Determinism is preserved (the strip is a pure function and
+  the existing P1.0 determinism gate still passes).
+- Root motion strip from P1.0 is unaffected.
+
+### P1.9 trade-offs
+
+- The closeout no longer animates the legs at all. A real
+  defensive closeout slides + plants; ours holds bind in the
+  legs while the upper body pressures. Acceptable trade for
+  the P1.x series; the next escalation either authors a
+  bespoke Blender clip on the same UAL2 rig or ships a
+  bind-relative retargeter.
+- The dampener is gone, so bones with small bind rotations
+  (spine, head, upperarm, lowerarm) play their imported pose
+  at full strength. If that reads "too fantasy" again, the
+  next-iteration fix is a dampener that slerps from per-bone
+  bind, not from identity.
+
+### P1.9 visual-acceptance verdict
+
+**Status: NEEDS-COACH-REVIEW.** The leg-inversion regression is
+fixed; the figure no longer pretzels. But:
+
+- The upper body still plays the raw imported pose (no
+  dampener), and the Quaternius UAL2 source is the same
+  shield-dash-coded clip P1.7 flagged as borderline. A coach
+  has to decide whether the upper-body-only closeout reads as
+  basketball pressure.
+- Treating the imported asset as upper-body-only is a defensible
+  short-term call, but it's not the final shape of CourtIQ's
+  closeout animation system.
+
+Manual retest URL (unchanged):
+`/dev/scene-preview?scenario=AOR-01&glb=1&closeout=1`
+
+Capture matrix from the P1.8 packet still applies:
+- `BROADCAST` — default URL
+- `FOLLOW`    — `&camera=follow`
+- `REPLAY`    — `&camera=replay`
+- `TACTICAL`  — `&camera=tactical`
+- `AUTO`      — `&camera=auto`
+- Fullscreen broadcast — `&fullscreen=1`
+
+### P1.9 follow-on packet recommendation
+
+1. **Coach review pass on the upper-body-only closeout.** If
+   ACCEPT, the visual gate clears and P2 can begin. If the
+   torso/arm pose still reads "fantasy", proceed to the
+   bespoke clip path.
+2. **If REJECT** — P2 candidate is a Blender-authored CC0
+   closeout on the same UAL2 rig (no full-body retarget needed
+   because the rig is shared). Smallest visual escalation.
+3. **Optional optimisation:** a bind-relative retargeter that
+   slerps imported keyframes from per-bone bind rather than
+   identity. Would let the dampener return safely AND let the
+   imported clip drive the legs without inversion. Out of
+   scope for P1.9.
