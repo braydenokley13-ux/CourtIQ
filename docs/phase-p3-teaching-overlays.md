@@ -317,9 +317,38 @@ Both new scenarios target the beginner clutter caps (`MAX_FREEZE_OVERLAYS_BEGINN
 ### Remaining coach-review items (P3.1)
 
 - ESC-01: confirm the help-tag timing window for an 11–13 yo player. The current `freezeMarker` lands at 1500 ms; the help arrives at ~1000 ms. A coach may want the freeze closer to 1200 ms to catch the help mid-step instead of after it lands.
-- ESC-01: confirm the `c4` wrongDemo ("cut into help") doesn't visually collide with `x2`. The user moves to `(12, 6)`, x2 to `(12, 5)` — close enough that a contact-free pose is the right outcome but worth a manual-QA pass.
+- ESC-01: confirm the `c4` wrongDemo ("cut into help") doesn't visually collide with `x2`. *(P3.2 — adjusted; user now ends at `(14, 5)` so x2 at `(12, 5)` reads as walling off the cut with 2 ft of separation.)*
 - SKR-01: confirm the skip-pass type for a middle-school player (overhead vs one-hand push). The current `kind: 'skip_pass'` is movement-kind-agnostic; the renderer's pass-arc helper applies a deterministic arc regardless of pass type.
 - SKR-01: confirm the `label` overlay copy ("Skip past the help") reads at the schema's 24-char cap. It does (20 chars), but the cap is tight if a future translation lengthens.
+
+---
+
+## Section 14 — P3.2 founder QA + LIVE promotion gate
+
+P3.2 closes the loop from "all four decoders authored" to "all four decoders are shippable or intentionally held back." No new product features; no new overlay primitives; no renderer changes.
+
+### What this packet adds
+
+- **Unified four-founder authoring lock.** `apps/web/lib/scenario3d/founderScenarios.test.ts` now parametrises over BDW / AOR / ESC / SKR (was ESC / SKR only in P3.1). 61 assertions catch decoder tag drift, freeze window violations, choice quality breakage, missing wrongDemos, pre-answer reveals, missing required movement kinds, NaN geometry, replay over-budget, and pack registration regressions on every founder simultaneously.
+- **Runtime smoke coverage.** `apps/web/lib/scenario3d/founderScenariosRuntime.test.ts` walks every founder through the production pipeline (`buildScene → TeachingOverlayController.setAuthoredOverlays → setPhase → tick → dispose`) under jsdom. 9 assertions catch: silent renderer no-ops, NaN material opacity, orphaned root children after dispose, child-count drift across phase flips, dispose leaks across decoders.
+- **ESC-01 c4 collision fix.** The user's wrong-cut endpoint moved from `(12, 6)` to `(14, 5)`; x2's wall-off endpoint stays at `(12, 5)`. The two figures are now 2 ft apart on the long axis instead of overlapping at the same x. The teaching ("you ran into help") still reads.
+- **`docs/qa/founder-scenario-promotion-checklist.md`** — the LIVE promotion gate. Per-scenario coach pre-flight items, the promotion procedure, and what must be true before public launch.
+
+### What this packet did NOT change
+
+- **No scenario was promoted to LIVE.** ESC-01 and SKR-01 stay `DRAFT`. The user/coach has not provided written review notes; promotion waits on a human pass. The promotion checklist is the path.
+- **AOR-01 cluster size remains advisory.** Six pre-answer entries vs the advisory cap of three. The promotion checklist tracks this; the test exempts AOR-01 from the cap (it tests "non-empty" instead) so the legacy cluster doesn't retroactively fail CI.
+- **SKR-01 difficulty stays at 2.** The user is the passer (on-ball read with execution); BDW/ESC/AOR keep difficulty 1 (off-ball or catch-and-shoot). Documented in the promotion checklist.
+- **No headless WebGL test.** Sprite labels emit `getContext` warnings in jsdom (cosmetic). Adding Playwright coverage with screenshot diffs is a follow-up packet.
+
+### Acceptance lock (P3.2)
+
+- [ ] All four founder scenarios are registered in `pack.json`.
+- [ ] All four founder scenarios pass `founderScenarios.test.ts` (15 assertions per founder + 1 pack-level test = 61 total).
+- [ ] All four founder scenarios pass `founderScenariosRuntime.test.ts` (2 per founder + 1 cross-decoder leak test = 9 total).
+- [ ] ESC-01 c4 wrongDemo no longer overlaps player figures (≥ 2 ft separation between user and x2 at any time after the freeze).
+- [ ] `docs/qa/founder-scenario-promotion-checklist.md` ships the per-scenario coach pre-flight + LIVE promotion procedure.
+- [ ] No physics, no randomness, no animation-driven movement, no scenario-data mutation.
 
 ---
 
@@ -335,3 +364,6 @@ Both new scenarios target the beginner clutter caps (`MAX_FREEZE_OVERLAYS_BEGINN
 | Founder scenarios | `packages/db/seed/scenarios/packs/founder-v0/*.json` |
 | Phase P doc (architecture) | `docs/phase-p-film-room-animation-architecture.md` |
 | Scenario overlay author spec | `docs/curriculum/SCENARIO_OVERLAY_SPEC.md` |
+| Founder scenario LIVE promotion checklist (P3.2) | `docs/qa/founder-scenario-promotion-checklist.md` |
+| Founder scenario authoring tests | `apps/web/lib/scenario3d/founderScenarios.test.ts` |
+| Founder scenario runtime smoke tests | `apps/web/lib/scenario3d/founderScenariosRuntime.test.ts` |
