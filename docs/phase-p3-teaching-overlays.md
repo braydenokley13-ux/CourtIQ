@@ -352,6 +352,39 @@ P3.2 closes the loop from "all four decoders authored" to "all four decoders are
 
 ---
 
+## Section 15 — P3.3 founder scenarios LIVE for controlled production test
+
+P3.3 promotes AOR-01, ESC-01, and SKR-01 from `DRAFT` to `LIVE` with `coach_validation.status: "approved"`. BDW-01 was already LIVE. All four founder scenarios are now eligible to be loaded by the prod scenario flow (`/api/session/start`, `/train`, `/academy` modules).
+
+### Scope: controlled production testing, not public launch
+
+- The four LIVE scenarios let the founder exercise the real prod lesson surface end-to-end.
+- The marketing / public announcement is a separate gate (see `docs/qa/founder-scenario-promotion-checklist.md` "What must be true before public launch").
+- Rollback is one JSON edit + one test edit + a re-seed away. The procedure is documented in the same checklist.
+
+### What this packet adds
+
+- **Scenario JSON edits.** Three founder seeds flipped `status: "DRAFT"` → `LIVE` and `coach_validation.status: "needed"` → `"approved"` with reviewer ID + ISO timestamp + P3.3-specific notes.
+- **Test gate.** `apps/web/lib/scenario3d/founderScenarios.test.ts` now asserts every founder is `status: 'LIVE'` and `coach_validation.status === 'approved'`. Reverting one to DRAFT fails CI, which is the correct loud signal — rolling back requires an explicit, reviewable test exemption.
+- **Production QA checklist.** `docs/qa/founder-scenario-promotion-checklist.md` now documents the prod surfaces (`/api/session/start`, `/train`, `/academy`), the prod-QA steps the founder should run before sharing the URL, the rollback procedure (`LIVE → DRAFT`), and what must be true before public launch.
+
+### What this packet did NOT change
+
+- **No renderer changes.** The runtime path is identical between prod and dev — what changes is which scenarios pass the `status: 'LIVE'` filter.
+- **No new product flow.** `/dev/scene-preview` remains gated by `NODE_ENV` + `ENABLE_DEV_ROUTES`. Prod testing flows through the existing `/train` and `/academy` pages.
+- **No schema changes.** `coach_validation.reviewerId` and `coach_validation.reviewedAt` were already in the schema (P1.5). P3.3 simply populates them on the three newly-promoted scenarios.
+
+### Acceptance lock (P3.3)
+
+- [x] BDW-01 / AOR-01 / ESC-01 / SKR-01 all carry `status: "LIVE"`.
+- [x] BDW-01 / AOR-01 / ESC-01 / SKR-01 all carry `coach_validation.status: "approved"`.
+- [x] `founderScenarios.test.ts` asserts the LIVE-gate for every founder.
+- [x] Full vitest suite (540 tests) green, including the 4 new LIVE-gate assertions.
+- [x] Rollback procedure documented and reviewable.
+- [x] Production QA checklist documented with explicit prod surfaces and per-scenario validation steps.
+
+---
+
 ## Appendix — Where things live
 
 | Concern | File |
