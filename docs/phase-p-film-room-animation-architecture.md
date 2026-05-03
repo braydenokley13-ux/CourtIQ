@@ -707,6 +707,55 @@ Checklist (matches `apps/web/public/athlete/clips/README.md` §"Back cut" status
 
 ---
 
+## P2.3 — Back-cut visual readability shim (LANDED)
+
+**Status:** Implemented behind the existing default-off `?glb=1&backcut=1` dev path. Production and flag-off behaviour remain unchanged.
+
+### Goal
+
+P2.2 proved the imported `back_cut.glb` could be loaded safely, but the raw clip did not clearly teach the BDW read. It looked like generic asset motion: arms could read wide/T-pose-like, the lower body felt jump-like, and the cutter did not plainly communicate "my defender denied me, so I cut behind."
+
+P2.3 keeps the same flag and asset path, but inserts a readable CourtIQ-authored shim before the clip reaches the GLB mixer.
+
+### Visual behaviour
+
+When `?backcut=1` is active:
+
+- The cutter checks the denial with head/shoulder direction.
+- The hips and torso load, turn, then burst into the authored route.
+- Arms stay compact and pump naturally instead of spreading wide.
+- Lower-body tracks are bind-relative and conservative to avoid inversion/folding.
+- No root, pelvis, position, or scale track controls the route.
+
+The visual priority is teaching clarity, not asset fidelity.
+
+### Architecture lock
+
+- Scenario data still owns x/z/t movement.
+- `BACK_CUT` still resolves to `cut_sprint` when the back-cut flag is off.
+- The imported back-cut flag remains default `false`.
+- `EMPTY_SPACE_CUT`, `JAB_OR_RIP`, `RECEIVE_READY`, `SHOT_READY`, `PASS_FOLLOWTHROUGH`, `RESET_HOLD`, and `CLOSEOUT` are unaffected by the back-cut shim.
+- No new external assets, physics, randomness, or root-motion route control were added.
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `apps/web/components/scenario3d/glbAthlete.ts` | Added `buildReadableBackCutClip`, `stripReadableBackCutSourceTracks`, and a cached readable back-cut action path. The raw imported clip remains loader-stripped, then the shim replaces unsafe/core posture tracks with deterministic pose-only teaching tracks. |
+| `apps/web/app/dev/scene-preview/ScenePreviewClient.tsx` | Uses `replayMode="answer"` when `?backcut=1` is active so the required QA URL exercises BDW's authored back-cut answer demo rather than stopping at the denial-only intro freeze. |
+| `apps/web/components/scenario3d/backCutAssetIntegration.test.ts` | Added readable-shim tests for pose-only tracks, no root/pelvis translation leakage, deterministic stripping, and route invariance. |
+| `apps/web/components/scenario3d/glbAthlete.test.ts` | Added GLB builder coverage proving the `back_cut` action attaches the readable clip rather than raw imported posture. |
+| `apps/web/components/scenario3d/pickGlbClip.test.ts` | Added flag-on/flag-off BDW cutter resolver coverage and determinism across toggles. |
+| `apps/web/lib/scenario3d/animationIntent.test.ts` | Expanded no-leak coverage for all non-BACK_CUT offensive intents. |
+
+### Manual QA target
+
+`/dev/scene-preview?scenario=BDW-01&glb=1&backcut=1`
+
+Check FOLLOW, REPLAY, BROADCAST, and AUTO. The beginner-level read should be: "he is denying, so I cut backdoor." Arms should stay compact, legs should not fold, and the cutter should stay on the authored scenario route.
+
+---
+
 ## Appendix A — Do / Do Not summary
 
 ### Do
@@ -734,4 +783,3 @@ Checklist (matches `apps/web/public/athlete/clips/README.md` §"Back cut" status
 - Do not optimize for realism at the cost of readability.
 - Do not ship imported clips on a protected route before they pass `/dev/scene-preview` QA.
 - Do not couple animation duration to scenario timing — the reverse only.
-
