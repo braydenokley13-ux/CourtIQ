@@ -756,6 +756,57 @@ Check FOLLOW, REPLAY, BROADCAST, and AUTO. The beginner-level read should be: "h
 
 ---
 
+## P2.4 — Defender denial + idle-ready posture readability (LANDED)
+
+**Status:** Implemented in the GLB preview pose layer. No movement ownership changed.
+
+### Goal
+
+P2.3 made the back-cut action read more clearly, but BDW-01 still needed the cue before the cut to look like basketball teaching rather than mannequin movement. The defender should plainly show "I am denying the passing lane," and non-active players should hold a compact ready stance instead of broad asset-rest arms.
+
+### Visual behaviour
+
+For `DEFENSIVE_DENY`:
+
+- A dedicated `defensive_deny` clip angles hips and torso into the passing lane.
+- One arm is authored into the lane while the off arm stays bent near the body.
+- Head/chest orientation suggests the defender is checking both ball and cutter.
+- Knees stay slightly bent in a conservative athletic base.
+- Arm and leg tracks are bind-relative to the Quaternius rig so the pose does not snap toward a mannequin/T-pose rest shape.
+- The clip contains pose-only quaternion tracks; no position or scale tracks can move the route.
+
+For `idle_ready`:
+
+- Upper arms and forearms are pulled closer to the body.
+- Knees/shins are softened into a mild ready stance.
+- The pose stays subtle and deterministic, with no randomness or route motion.
+
+### Architecture lock
+
+- Scenario data still owns player position and timing.
+- `BACK_CUT` flag-off behaviour still resolves to `cut_sprint`.
+- `BACK_CUT` flag-on behaviour still uses the P2.3 readable back-cut shim.
+- `CLOSEOUT`, `EMPTY_SPACE_CUT`, `JAB_OR_RIP`, `RECEIVE_READY`, `SHOT_READY`, `PASS_FOLLOWTHROUGH`, and `RESET_HOLD` keep their existing resolver paths.
+- Stationary BDW deny defenders keep `defensive_deny` so the freeze/read moment teaches the denial cue.
+- No new external assets, physics, randomness, root motion, or animation-driven route control were added.
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `apps/web/components/scenario3d/glbAthlete.ts` | Added `buildGlbDefensiveDenyClip`; tightened `buildGlbIdleReadyClip`; attached `defensive_deny` to GLB mixer handles and test clip factories. |
+| `apps/web/lib/scenario3d/animationIntent.ts` | Added `defensive_deny` to `GlbClipName`; routes `DEFENSIVE_DENY` to the dedicated readable posture. |
+| `apps/web/components/scenario3d/imperativeScene.ts` | Keeps stationary `DEFENSIVE_DENY` on the readable posture so the BDW freeze cue stays visible. |
+| Tests | Updated resolver, pick-clip, replay determinism, GLB posture, and end-to-end action attachment coverage. |
+
+### Manual QA target
+
+`/dev/scene-preview?scenario=BDW-01&glb=1&backcut=1`
+
+Check freeze, answer replay, AUTO, FOLLOW, REPLAY, and BROADCAST. The beginner-level read should now be: "the defender is denying, so the cutter goes backdoor."
+
+---
+
 ## Appendix A — Do / Do Not summary
 
 ### Do
