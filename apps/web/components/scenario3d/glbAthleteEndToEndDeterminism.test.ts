@@ -772,8 +772,9 @@ describe('P1.0 — imported closeout clip determinism', () => {
 
   it('without the closeout option, no closeout action is attached (flag-off equivalence)', () => {
     // Flag-off behavior. When the option is omitted, the GLB figure
-    // ships with idle_ready / cut_sprint / defense_slide actions and
-    // NO closeout action. setGlbAthleteAnimation('closeout') is
+    // ships with idle_ready / cut_sprint / defense_slide /
+    // defensive_deny actions and NO closeout action.
+    // setGlbAthleteAnimation('closeout') is
     // therefore a no-op (the action lookup returns undefined).
     _resetImportedClipCache()
     const asset = buildMockGlbAsset()
@@ -786,6 +787,7 @@ describe('P1.0 — imported closeout clip determinism', () => {
     expect(handle.actions['closeout']).toBeUndefined()
     expect(handle.actions['idle_ready']).toBeDefined()
     expect(handle.actions['defense_slide']).toBeDefined()
+    expect(handle.actions['defensive_deny']).toBeDefined()
     expect(handle.actions['cut_sprint']).toBeDefined()
     // And the imported-clip cache is empty when the option was off.
     expect(getCachedImportedClip(GLB_IMPORTED_CLOSEOUT_CLIP_URL)).toBeNull()

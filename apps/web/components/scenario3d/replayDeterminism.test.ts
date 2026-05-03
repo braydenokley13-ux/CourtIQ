@@ -275,7 +275,12 @@ describe('P0-LOCK — GLB clip stability', () => {
   it('repeated calls to the clip factories produce identical track data', () => {
     const a = _buildGlbAthleteClipsForTest()
     const b = _buildGlbAthleteClipsForTest()
-    for (const name of ['idle_ready', 'cut_sprint', 'defense_slide'] as const) {
+    for (const name of [
+      'idle_ready',
+      'cut_sprint',
+      'defense_slide',
+      'defensive_deny',
+    ] as const) {
       const ca = a[name]
       const cb = b[name]
       expect(ca.name).toBe(cb.name)
@@ -297,7 +302,12 @@ describe('P0-LOCK — GLB clip stability', () => {
     // resolve via PropertyBinding and the clip would not animate.
     const mappedNames = new Set(Object.values(GLB_BONE_MAP))
     const clips = _buildGlbAthleteClipsForTest()
-    for (const clip of [clips.idle_ready, clips.cut_sprint, clips.defense_slide]) {
+    for (const clip of [
+      clips.idle_ready,
+      clips.cut_sprint,
+      clips.defense_slide,
+      clips.defensive_deny,
+    ]) {
       for (const track of clip.tracks) {
         const dot = track.name.indexOf('.')
         const boneName = dot >= 0 ? track.name.slice(0, dot) : track.name

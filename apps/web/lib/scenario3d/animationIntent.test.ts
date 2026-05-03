@@ -8,7 +8,8 @@
  *  4. AOR receiver branch variants resolve correctly.
  *  5. Unknown/unlisted roles fall back safely (never throws, returns an intent).
  *  6. resolveGlbClipForIntent: CLOSEOUT → 'closeout' when flag on, else 'defense_slide'.
- *  7. resolveGlbClipForIntent: flag-off path unchanged for all intents.
+ *  7. resolveGlbClipForIntent: flag-off path unchanged except the
+ *     dedicated readable DEFENSIVE_DENY posture.
  *  8. getMovementKindIntent: movement kinds map to expected intents.
  *  9. Determinism: same inputs always yield same output.
  */
@@ -233,6 +234,14 @@ describe('resolveGlbClipForIntent — BACK_CUT intent', () => {
       }),
     ).toBe('defense_slide')
   })
+
+  it('defensive deny posture does not leak into other defensive intents', () => {
+    const flags = { importedCloseoutActive: false, importedBackCutActive: true }
+    expect(resolveGlbClipForIntent('DEFENSIVE_DENY', flags)).toBe('defensive_deny')
+    expect(resolveGlbClipForIntent('DEFENSIVE_HELP_TURN', flags)).toBe('defense_slide')
+    expect(resolveGlbClipForIntent('SLIDE_RECOVER', flags)).toBe('defense_slide')
+    expect(resolveGlbClipForIntent('CLOSEOUT', flags)).toBe('defense_slide')
+  })
 })
 
 describe('resolveGlbClipForIntent — BDW cutter end-to-end chain', () => {
@@ -299,8 +308,8 @@ describe('resolveGlbClipForIntent — flag-off path unchanged for all intents', 
     expect(resolveGlbClipForIntent('RESET_HOLD', FLAG_OFF)).toBe('cut_sprint')
   })
 
-  it('DEFENSIVE_DENY → defense_slide', () => {
-    expect(resolveGlbClipForIntent('DEFENSIVE_DENY', FLAG_OFF)).toBe('defense_slide')
+  it('DEFENSIVE_DENY → defensive_deny', () => {
+    expect(resolveGlbClipForIntent('DEFENSIVE_DENY', FLAG_OFF)).toBe('defensive_deny')
   })
 
   it('DEFENSIVE_HELP_TURN → defense_slide', () => {
