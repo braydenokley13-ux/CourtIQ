@@ -106,7 +106,7 @@ describe('P1.8 — closeout pose readability dampener', () => {
     )
     const clip = new THREE.AnimationClip('t', 1, [track])
     const dampened = mod._dampenClipRotationTracksForTest(clip, 0.5)
-    const v = (dampened.tracks[0] as THREE.QuaternionKeyframeTrack).values
+    const v = (dampened.tracks[0].values as Float32Array)
     const dq = new THREE.Quaternion(v[0], v[1], v[2], v[3])
     // Half-strength of a 90° rotation is 45°. The cosine of half-angle
     // is cos(22.5°) ≈ 0.924, so the dampened quaternion's w is much

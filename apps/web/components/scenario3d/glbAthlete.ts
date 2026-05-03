@@ -1287,8 +1287,7 @@ function applyMultiRegionMaterialsToCloned(
         metalness: 0.0,
       })
       disposeOld(baseMat)
-      if (Array.isArray(baseMat)) sm.material = sm.material = swap
-      else sm.material = swap
+      ;(sm.isSkinnedMesh ? sm : mesh).material = swap
       return
     }
 
