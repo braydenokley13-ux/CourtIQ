@@ -847,97 +847,120 @@ function _ensurePlaceholderImportedCloseoutClip(): THREE.AnimationClip {
 }
 
 /**
- * P1.8 — closeout pose readability filter.
+ * P1.9 — closeout lower-body safety strip.
  *
- * The Quaternius UAL2 closeout asset reads as fantasy/combat at the
- * extremes (deep forward lean, wide arm spread, hands flared like a
- * shield-dash). Per Phase P brief, CourtIQ wants the defender to read
- * as a basketball closeout: upright-ish stance, controlled hand up,
- * feet plant. We bias the imported clip toward bind-pose by slerping
- * each rotation keyframe from identity to the authored value by a
- * factor of `GLB_CLOSEOUT_DAMPEN_FACTOR < 1`. Translation tracks (if
- * any survive the loader strip) are left untouched.
+ * Diagnosis (recorded in `docs/qa/courtiq/phase-o-glb-athlete.md`
+ * §P1.9): the bundled Quaternius UAL2 `closeout.glb` is authored
+ * against the same rig as the runtime mannequin, but its lower-body
+ * rotation tracks dump near-180° absolute quaternions onto bones
+ * whose bind pose already carries a non-trivial rotation:
  *
- * This is a **per-clip post-process**, not a per-frame action weight
- * trick: dampening the clip itself means we never have to keep the
- * bespoke `defense_slide` action running in parallel, the mixer-tick
- * assertion still sees a single running action, and the result reads
- * the same on every figure.
+ *   thigh_l/r bind ≈ 166° around X.  Closeout track at t=0 ≈ 179°
+ *   along a similar axis. The DELTA from bind is small in
+ *   isolation, but compose-with-pelvis + foot tracks pushes the
+ *   visible thigh into a near-vertical "knees folded under" pose —
+ *   the "legs flipped up" silhouette in P1.8 screenshots.
  *
- * Cached so the post-process happens at most once per source clip
- * (the cache key is the source clip identity; when the loader swaps
- * the synthetic placeholder for a real-asset clip the cache invalidates
- * automatically because the `source` reference changes).
+ *   pelvis bind ≈ 75° around X. Closeout pelvis track ≈ 100–131°
+ *   along a multi-axis quaternion — the figure rolls forward past
+ *   the cushion read.
+ *
+ *   root bone has a -90° X rotation track that contradicts the
+ *   bind orientation entirely; with the mixer overwriting bind on
+ *   every frame, the entire figure flips.
+ *
+ * P1.8 also shipped a rotation dampener that slerped each keyframe
+ * from identity toward the authored value. That helper is bind-pose
+ * NAIVE: bones whose bind rotation is large (clavicle/upperarm at
+ * 96°, thigh at 166°, foot at 64°) get dragged toward identity
+ * rather than toward bind, which compounded the leg break with
+ * arm/shoulder distortion.
+ *
+ * Fix (chosen from the four options in the P1.9 brief): **Option D
+ * — disable imported lower-body tracks** for the closeout clip, and
+ * drop the bind-naive dampener. Lower-body bones hold their bind
+ * orientation (a stable standing rest); the upper body still gets
+ * the imported pose so the closeout read still shows raised hand,
+ * forward lean, head turn. This trades pose richness for visual
+ * stability — the right call until a bespoke clip is authored or a
+ * proper bind-relative retargeter ships.
+ *
+ * Stripped bone rotations (defaults; overridable for tests):
+ *   - root, pelvis      — torso / hips orientation already lives
+ *                         on spine_01..03 plus the figure root.
+ *   - thigh_l/r         — biggest source of inversions.
+ *   - calf_l/r          — kept stable so knees don't fold.
+ *   - foot_l/r, ball_l/r — keep feet flat and on the floor.
+ *
+ * Translation tracks for the same bones are also stripped; the
+ * loader-level root-motion strip already handles `pelvis.position`
+ * but the imported clip carries thigh / calf translation tracks
+ * too (UAL2 exports include translation tracks even when the
+ * authored animation is rotation-only).
+ *
+ * Scale tracks are stripped for the same reason — the imported
+ * clip ships scale=1 keyframes which are visually no-ops, but
+ * stripping them keeps the mixer track count tight and the
+ * determinism gate green.
  */
-const GLB_CLOSEOUT_DAMPEN_FACTOR = 0.65
+export const CLOSEOUT_LOWER_BODY_BONE_NAMES: ReadonlyArray<string> = [
+  'root',
+  'pelvis',
+  'thigh_l',
+  'thigh_r',
+  'calf_l',
+  'calf_r',
+  'foot_l',
+  'foot_r',
+  'ball_l',
+  'ball_r',
+]
 
-function dampenClipRotationTracks(
+/**
+ * Returns true when the track targets ANY property channel of one
+ * of the listed bones. The helper is name-prefixed: it matches both
+ * `thigh_l.quaternion` and the rarer `thigh_l.position.x`.
+ */
+function isLowerBodyTrack(
+  track: THREE.KeyframeTrack,
+  boneNames: ReadonlyArray<string>,
+): boolean {
+  const dot = track.name.indexOf('.')
+  if (dot < 0) return false
+  const objectName = track.name.slice(0, dot)
+  return boneNames.includes(objectName)
+}
+
+/**
+ * Returns a NEW `THREE.AnimationClip` with every track targeting a
+ * lower-body bone removed. Pure function — input clip is not mutated.
+ */
+export function stripCloseoutLowerBodyTracks(
   clip: THREE.AnimationClip,
-  factor: number,
+  boneNames: ReadonlyArray<string> = CLOSEOUT_LOWER_BODY_BONE_NAMES,
 ): THREE.AnimationClip {
-  if (factor >= 1) return clip
-  const tracks = clip.tracks.map((t) => {
-    if (!(t instanceof THREE.QuaternionKeyframeTrack)) return t
-    const values = t.values
-    const out = new Float32Array(values.length)
-    for (let i = 0; i < values.length; i += 4) {
-      // Slerp from identity (0,0,0,1) to the authored quaternion by
-      // `factor`. The closed-form expression keeps the per-key cost
-      // tight (no Quaternion allocations in the inner loop).
-      let qx = values[i]
-      let qy = values[i + 1]
-      let qz = values[i + 2]
-      let qw = values[i + 3]
-      // Normalize defensively — imported keyframes occasionally
-      // arrive un-normalized after exporter round-trips.
-      const len = Math.hypot(qx, qy, qz, qw)
-      if (len > 1e-8) {
-        qx /= len
-        qy /= len
-        qz /= len
-        qw /= len
-      }
-      // Identity is (0, 0, 0, 1). Standard slerp(identity, q, t):
-      //   cosθ = q.w; sinθ = sqrt(1 - cosθ²); θ = acos(cosθ)
-      //   result = (sin((1-t)θ)/sinθ) * identity + (sin(tθ)/sinθ) * q
-      // For tiny angles fall back to nlerp.
-      const cosTheta = qw
-      let outX: number
-      let outY: number
-      let outZ: number
-      let outW: number
-      if (cosTheta > 0.9995) {
-        // Near identity already — linear interp + normalize.
-        outX = qx * factor
-        outY = qy * factor
-        outZ = qz * factor
-        outW = 1 - factor + qw * factor
-        const ln = Math.hypot(outX, outY, outZ, outW)
-        if (ln > 1e-8) {
-          outX /= ln
-          outY /= ln
-          outZ /= ln
-          outW /= ln
-        }
-      } else {
-        const theta = Math.acos(Math.max(-1, Math.min(1, cosTheta)))
-        const sinTheta = Math.sin(theta)
-        const a = Math.sin((1 - factor) * theta) / sinTheta
-        const b = Math.sin(factor * theta) / sinTheta
-        // identity contributes only to W.
-        outX = b * qx
-        outY = b * qy
-        outZ = b * qz
-        outW = a + b * qw
-      }
-      out[i] = outX
-      out[i + 1] = outY
-      out[i + 2] = outZ
-      out[i + 3] = outW
-    }
-    return new THREE.QuaternionKeyframeTrack(t.name, t.times.slice(), out)
-  })
-  return new THREE.AnimationClip(clip.name, clip.duration, tracks)
+  const kept: THREE.KeyframeTrack[] = []
+  for (const track of clip.tracks) {
+    if (isLowerBodyTrack(track, boneNames)) continue
+    kept.push(track)
+  }
+  return new THREE.AnimationClip(clip.name, clip.duration, kept)
+}
+
+/**
+ * Lists every track name that `stripCloseoutLowerBodyTracks` would
+ * remove for the given clip. Test-only; production code never
+ * inspects which tracks were dropped (they're gone by mixer time).
+ */
+export function listStrippedCloseoutLowerBodyTrackNames(
+  clip: THREE.AnimationClip,
+  boneNames: ReadonlyArray<string> = CLOSEOUT_LOWER_BODY_BONE_NAMES,
+): string[] {
+  const out: string[] = []
+  for (const track of clip.tracks) {
+    if (isLowerBodyTrack(track, boneNames)) out.push(track.name)
+  }
+  return out
 }
 
 let _cleanedCloseoutCache:
@@ -945,34 +968,25 @@ let _cleanedCloseoutCache:
   | null = null
 
 /**
- * Returns the imported closeout clip with its pose dampened toward
- * bind-pose so it reads as basketball closeout pressure rather than
- * fantasy lunge. The cache flips automatically when the source clip
- * identity changes (e.g. real asset replaces the synthetic
- * placeholder).
+ * Returns the imported closeout clip with lower-body tracks
+ * stripped so the legs hold bind pose and the figure does not
+ * invert. Cached per source clip identity — when the loader swaps
+ * the synthetic placeholder for a real-asset clip, the cache
+ * invalidates automatically because the `source` reference changes.
  */
 function _getReadableCloseoutClip(): THREE.AnimationClip {
   const source = _ensurePlaceholderImportedCloseoutClip()
   if (_cleanedCloseoutCache?.source === source) {
     return _cleanedCloseoutCache.cleaned
   }
-  const cleaned = dampenClipRotationTracks(source, GLB_CLOSEOUT_DAMPEN_FACTOR)
+  const cleaned = stripCloseoutLowerBodyTracks(source)
   _cleanedCloseoutCache = { source, cleaned }
   return cleaned
 }
 
-/** Test-only — reset the dampened-closeout cache between cases. */
+/** Test-only — reset the cleaned-closeout cache between cases. */
 export function _resetReadableCloseoutClipCache(): void {
   _cleanedCloseoutCache = null
-}
-
-/** Test-only — exposes the rotation dampener so unit tests can lock the
- *  factor and verify quaternion magnitude is reduced. */
-export function _dampenClipRotationTracksForTest(
-  clip: THREE.AnimationClip,
-  factor: number,
-): THREE.AnimationClip {
-  return dampenClipRotationTracks(clip, factor)
 }
 
 /**
