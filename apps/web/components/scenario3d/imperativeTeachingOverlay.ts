@@ -698,10 +698,20 @@ export class TeachingOverlayController {
    * the role's natural "spot name" (slot / wing / corner / dunker /
    * top), skipping defenders so the floor never looks crowded with
    * text.
+   *
+   * P1.8 — for closeout-read scenes (AOR-01 and friends) the spacing
+   * labels are suppressed on the player who is making the read and
+   * on the closing-out defender's target. The freeze frame has to
+   * teach "shoot vs attack vs reset", and a "WING" label hovering
+   * over the receiver competes with the cushion read. Other spots
+   * still get labels so the broadcast frame still teaches spacing.
    */
   private buildSpacingLabels(scene: Scene3D): void {
+    const sceneType = scene.type ?? ''
+    const isCloseoutReadScene = sceneType === 'catch_and_read_closeout'
     for (const player of scene.players) {
       if (player.team !== 'offense') continue
+      if (isCloseoutReadScene && player.isUser) continue
       const label = spotLabelFor(player)
       if (!label) continue
       const sprite = this.buildLabelSprite(label)

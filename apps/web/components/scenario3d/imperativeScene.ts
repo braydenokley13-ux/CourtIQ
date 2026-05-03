@@ -621,6 +621,54 @@ const FOLLOW_TRAIL_DIST = 14
 const FOLLOW_LOOK_HEIGHT = 4
 
 /**
+ * P1.8 — per-scenario camera nudges.
+ *
+ * The shared broadcast / replay / follow defaults frame the half-court
+ * around its midline (x=0). AOR-01's read happens on the strong-side
+ * wing at x≈15, z≈9 — the receiver, the closing defender, and the
+ * cushion all live in the right half of the court. Without a nudge,
+ * the broadcast frame puts the closeout cue near the right edge of
+ * canvas with the on-ball action off-screen left, and the replay
+ * angle (which sits on the LEFT wing) puts the closeout silhouette
+ * on the back side of the receiver.
+ *
+ * The nudges are intentionally tiny and additive — they preserve the
+ * shared film-room geometry but bias each preset toward where the
+ * AOR-01 closeout actually plays out. Other scenarios get the
+ * unchanged defaults.
+ *
+ * Hard scope: this is a small scenario-id-keyed adjustment, not a
+ * camera-system rewrite. The data model still exposes only the four
+ * mode presets; only the offsets change for a known scenario.
+ */
+interface SceneCameraNudge {
+  broadcast?: { dx?: number; dy?: number; dz?: number; lookDx?: number; lookDz?: number }
+  replay?: { dx?: number; dy?: number; dz?: number; lookDx?: number; lookDz?: number }
+  follow?: { trailExtra?: number; liftExtra?: number }
+}
+
+const SCENE_CAMERA_NUDGES: Readonly<Record<string, SceneCameraNudge>> = {
+  // AOR-01: closeout read on the right wing. Bias broadcast right-and-
+  // toward the wing so the receiver, the closing defender, and the
+  // cushion all sit near the centre of frame. Move replay to the
+  // OPPOSITE side (right→left of the wing) so the post-decision angle
+  // shows the defender's hips/feet rather than his back. Lengthen the
+  // follow trail a touch so the receiver stays centre-frame as the
+  // ball travels and the closeout fires.
+  'AOR-01': {
+    broadcast: { dx: 6, dy: -1, dz: -6, lookDx: 8, lookDz: -6 },
+    replay: { dx: 32, dy: 0, dz: -2, lookDx: 14, lookDz: -4 },
+    follow: { trailExtra: 2 },
+  },
+}
+
+function nudgeFor(scene: Scene3D): SceneCameraNudge | null {
+  const id = scene.id
+  if (!id) return null
+  return SCENE_CAMERA_NUDGES[id] ?? null
+}
+
+/**
  * Computes a camera target for the given mode. Returns null only if the
  * scene has no usable framing data (auto mode with no finite players or
  * ball). Follow falls back to broadcast when no holder/ball-target can
@@ -634,23 +682,32 @@ export function computeCameraTarget(
 ): CameraTarget | null {
   switch (mode) {
     case 'broadcast':
-      return broadcastTarget()
+      return broadcastTarget(nudgeFor(scene))
     case 'tactical':
       return tacticalTarget()
     case 'replay':
-      return replayTarget()
+      return replayTarget(nudgeFor(scene))
     case 'follow':
-      return followTarget(scene) ?? broadcastTarget()
+      return followTarget(scene) ?? broadcastTarget(nudgeFor(scene))
     case 'auto':
     default:
       return computeAutoTarget(scene, aspect, baseFov)
   }
 }
 
-function broadcastTarget(): CameraTarget {
+function broadcastTarget(nudge?: SceneCameraNudge | null): CameraTarget {
+  const b = nudge?.broadcast
   return {
-    position: BROADCAST_POSITION.clone(),
-    lookAt: BROADCAST_LOOKAT.clone(),
+    position: new THREE.Vector3(
+      BROADCAST_POSITION.x + (b?.dx ?? 0),
+      BROADCAST_POSITION.y + (b?.dy ?? 0),
+      BROADCAST_POSITION.z + (b?.dz ?? 0),
+    ),
+    lookAt: new THREE.Vector3(
+      BROADCAST_LOOKAT.x + (b?.lookDx ?? 0),
+      BROADCAST_LOOKAT.y,
+      BROADCAST_LOOKAT.z + (b?.lookDz ?? 0),
+    ),
     fov: BROADCAST_FOV,
     near: 0.5,
     far: 400,
@@ -667,10 +724,19 @@ function tacticalTarget(): CameraTarget {
   }
 }
 
-function replayTarget(): CameraTarget {
+function replayTarget(nudge?: SceneCameraNudge | null): CameraTarget {
+  const r = nudge?.replay
   return {
-    position: REPLAY_POSITION.clone(),
-    lookAt: REPLAY_LOOKAT.clone(),
+    position: new THREE.Vector3(
+      REPLAY_POSITION.x + (r?.dx ?? 0),
+      REPLAY_POSITION.y + (r?.dy ?? 0),
+      REPLAY_POSITION.z + (r?.dz ?? 0),
+    ),
+    lookAt: new THREE.Vector3(
+      REPLAY_LOOKAT.x + (r?.lookDx ?? 0),
+      REPLAY_LOOKAT.y,
+      REPLAY_LOOKAT.z + (r?.lookDz ?? 0),
+    ),
     fov: REPLAY_FOV,
     near: 0.5,
     far: 400,
@@ -684,7 +750,15 @@ function replayTarget(): CameraTarget {
  * back to a non-follow preset.
  */
 function followTarget(scene: Scene3D): CameraTarget | null {
+  // P1.8 — closeout-read scenes (AOR-01) teach the receiver's
+  // first-touch decision; the on-ball handler is just the passer
+  // that sets up the cue. Prefer the user player so FOLLOW frames
+  // the receiver and the closing defender, not the passer at the
+  // far end of the floor.
+  const isCloseoutReadScene = scene.type === 'catch_and_read_closeout'
+  const userFirst = isCloseoutReadScene ? scene.players.find((p) => p.isUser) : null
   const candidate =
+    userFirst ??
     (scene.ball.holderId
       ? scene.players.find((p) => p.id === scene.ball.holderId)
       : undefined) ??
@@ -714,11 +788,15 @@ function followTarget(scene: Scene3D): CameraTarget | null {
   const ux = len > 0.001 ? dx / len : 0
   const uz = len > 0.001 ? dz / len : 1
 
+  const followNudge = nudgeFor(scene)?.follow
+  const trailExtra = followNudge?.trailExtra ?? 0
+  const liftExtra = followNudge?.liftExtra ?? 0
+
   return {
     position: new THREE.Vector3(
-      tx + ux * FOLLOW_TRAIL_DIST,
-      FOLLOW_LIFT_Y,
-      tz + uz * FOLLOW_TRAIL_DIST,
+      tx + ux * (FOLLOW_TRAIL_DIST + trailExtra),
+      FOLLOW_LIFT_Y + liftExtra,
+      tz + uz * (FOLLOW_TRAIL_DIST + trailExtra),
     ),
     lookAt: new THREE.Vector3(tx, FOLLOW_LOOK_HEIGHT, tz),
     // Phase 5: FOV 50 → 46 so the follow shot doesn't distort
