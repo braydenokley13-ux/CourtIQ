@@ -807,6 +807,120 @@ Check freeze, answer replay, AUTO, FOLLOW, REPLAY, and BROADCAST. The beginner-l
 
 ---
 
+## P2.5 — Ball + pass timing readability (LANDED)
+
+**Status:** Implemented in the imperative scene's ball-arc path and BDW-01 answer-demo authoring. No movement ownership changed.
+
+### Goal
+
+P2.3 fixed the back-cut body language and P2.4 fixed the defender denial / idle-ready posture, but the BDW-01 ball still felt slightly disconnected from the action. The pass left the same instant the cutter started the back-cut (so the passer looked like he was anticipating, not reading), and the ball arrived at the rim ~250 ms before the cutter did. The teaching beat we want — "defender denies, cutter goes backdoor, passer hits the open space" — needs the pass to clearly **react** to the cut and **arrive** when the cutter does.
+
+### Visual behaviour
+
+For the BDW-01 answer demo:
+
+- The cutter plants and starts the back-cut at t=350 ms (unchanged).
+- The passer releases at t=500 ms — a readable 150 ms after the cut becomes visible, so the read looks like a reaction to the open space, not a pre-loaded throw.
+- The ball arrives at the rim at t=1100 ms, the same instant the cutter does. Catch / arrival alignment is tight without a lead-pass kludge.
+- The cutter's `user_finish` step picks up 50 ms after the catch instead of 100 ms, so the layup motion feels continuous with the pass arrival.
+- The ball still travels on a deterministic eased parabolic arc — no physics, no randomness, no collision.
+
+For every scenario:
+
+- `samplePassArc` is now the single source of truth for `(x, height, z)` along an in-flight pass. BDW-01, AOR-01, ESC-01, SKR-01, and any future drive-and-kick / relocation pass all render through the same primitive.
+- The arc is finite-safe: degenerate inputs (zero-length pass, NaN coord, negative `u`) collapse to a sensible default rather than leaking NaN into the renderer.
+- `resolvePassReleaseAnchor` and `resolvePassCatchAnchor` expose the holder / catcher position lookups as pure helpers so future scenarios can author lead-pass anchors without re-implementing the closest-player math.
+
+### Determinism preserved
+
+- `samplePassArc` is a pure function of `(from, to, u, kind)`. Same inputs → same `(x, height, z)`. No randomness, no clocks, no scene reads.
+- The apex constants (`BALL_PEAK_MULT_PASS=0.25`, `BALL_PEAK_MULT_SKIP=0.10`, floor 0.7 ft, ceiling 7 ft) are unchanged from Phase C / C5; the math was extracted, not retuned.
+- The freeze-inside-flight clamp test (`replayStateMachine.test.ts > Phase C / C5`) still passes byte-identical, confirming the controller's behaviour is unchanged for any pass that previously rendered.
+- Scenario data is never mutated by the arc helpers (asserted in `passArc.test.ts > P2.5 — BDW-01`).
+
+### What was tuned for BDW-01
+
+`packages/db/seed/scenarios/packs/founder-v0/BDW-01.json` — `answerDemo`:
+
+| Movement | Field | Before | After | Reason |
+|---|---|---|---|---|
+| `pg_lead_pass` | `delayMs` | 350 | 500 | Passer releases 150 ms after the cutter commits. Reads as reaction. |
+| `pg_lead_pass` | `durationMs` | 500 | 600 | Pass arrival at t=1100 lines up with cutter arrival at the rim. |
+| `user_finish` | `delayMs` | 100 | 50 | Layup picks up fluidly off the catch. |
+
+Total answer-demo length is 1.5 s — comfortably under the 3.0 s budget.
+
+### Architecture lock
+
+- Scenario data still owns x / z / t for every player **and** for every pass.
+- `samplePassArc` is a teaching primitive, not a physics simulation. No collision, no gravity, no randomness.
+- The pass arc reads the timeline; it does not write to it. The ball never drives a player's route.
+- Animation never controls ball timing — pass `startMs` / `endMs` come from the authored `delayMs` / `durationMs`, not from clip duration.
+- Existing GLB body-language paths (P2.1 → P2.4) are untouched.
+- AOR closeout, ESC empty-space cut, and SKR skip-pass paths render unchanged because they were already going through the same `applyBall` code, which now goes through `samplePassArc` with byte-identical math.
+
+### Reusable infrastructure added
+
+`apps/web/lib/scenario3d/passArc.ts`:
+
+| Export | Purpose | Future use |
+|---|---|---|
+| `samplePassArc({from, to, u, kind})` | Pure (x, height, z) sampler along a deterministic eased arc. | Every scenario. Future pass-arc preview overlays. |
+| `computeReadablePassArcPeak(distFt, kind)` | Apex height with floor/ceiling clamp. | Pass-trajectory teaching overlays, pass-arc thumbnails. |
+| `resolvePassReleaseAnchor(scene, timeline, holderId, releaseMs, overrides?)` | Holder's live court position at release time. | Authoring guard for scenarios where the holder steps before passing. |
+| `resolvePassCatchAnchor(scene, timeline, target, arrivalMs, overrides?)` | Closest-player + position at arrival. | Lead-pass anchor authoring, future drive-and-kick scenarios. |
+| `BALL_PEAK_*` constants | Apex tuning | Re-exported from `imperativeScene.ts` for back-compat. |
+| `easeInOutCubic(u)` | Symmetric S-curve | Reused in arc tests; available for future pass UI. |
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `apps/web/lib/scenario3d/passArc.ts` | NEW. Pure deterministic pass-arc primitives plus release / catch anchor resolvers. |
+| `apps/web/lib/scenario3d/passArc.test.ts` | NEW. 23 tests covering determinism, apex alignment, finite-safety, anchor lookups, and the BDW-01 timing alignment lock. |
+| `apps/web/components/scenario3d/imperativeScene.ts` | `applyBall` now delegates to `samplePassArc`. Inline arc constants and the local `clamp01` / `easeInOutCubic` helpers (no longer used) are removed; constants are re-exported from `passArc.ts` for back-compat. |
+| `apps/web/components/scenario3d/replayStateMachine.test.ts` | BDW-01 mirror block updated to the tuned `pg_lead_pass` and `user_finish` timings. |
+| `packages/db/seed/scenarios/packs/founder-v0/BDW-01.json` | `pg_lead_pass` `delayMs 350→500`, `durationMs 500→600`. `user_finish` `delayMs 100→50`. |
+
+### Tests run
+
+- `pnpm --filter @courtiq/web typecheck` → passes.
+- `pnpm --filter @courtiq/web lint` → passes (max-warnings 0).
+- `pnpm --filter @courtiq/web test` → 411 passed (22 files), including 23 new `passArc` tests and the existing Phase C / C5 ball-arc + freeze accuracy block, the Phase H consequence + replay budget block, and all P2.1 → P2.4 GLB / animation tests.
+
+### Manual QA target
+
+`/dev/scene-preview?scenario=BDW-01&glb=1&backcut=1`
+
+Cycle FOLLOW, REPLAY, BROADCAST, and AUTO and confirm:
+
+- Ball does not visibly teleport at any phase boundary.
+- Passer is visibly **reading** the cut before releasing.
+- Ball arrives in the open backdoor space at the same instant the cutter does.
+- Defender denial cue (P2.4) and back-cut body language (P2.3) still read clearly.
+- Route remains scenario-controlled — no animation-driven movement.
+
+Optional comparison routes (no behaviour change expected, but kept on the QA loop):
+
+- `/dev/scene-preview?scenario=AOR-01&glb=1&closeout=1`
+- `/dev/scene-preview?scenario=ESC-01&glb=1`
+- `/dev/scene-preview?scenario=SKR-01&glb=1`
+
+### Remaining risks
+
+- The 100 ms gap between `user_jab` end (t=250) and `user_plant_and_go` start (t=350) is unchanged. If QA finds the cutter's transition feels hitchy, that gap can be tightened in a follow-up; it is intentionally left alone here so the back-cut start point matches the existing P2.3 readable-back-cut tuning.
+- `resolvePassReleaseAnchor` / `resolvePassCatchAnchor` are not yet wired into the renderer's `from` / `to` overrides — the renderer still trusts the timeline's authored `from` / `to`. The helpers are in place for the next scenario that needs a lead-pass anchor (BDW slot reversal, AOR swing-after-step, future drive-and-kick); wiring them in before that demand exists would be premature abstraction.
+
+### Acceptance lock (P2.5)
+
+- BDW-01 answer demo: passer release > cutter back-cut start (locked in `passArc.test.ts`).
+- BDW-01 answer demo: pass arrival = cutter back-cut arrival (locked in `passArc.test.ts`).
+- Pass arc is deterministic byte-identically given `(from, to, u, kind)`.
+- Pass arc is finite for every input across the BDW-01 timeline.
+- No mutation of scenario data during arc sampling.
+
+---
+
 ## Appendix A — Do / Do Not summary
 
 ### Do

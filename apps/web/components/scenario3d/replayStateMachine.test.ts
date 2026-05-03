@@ -317,8 +317,15 @@ describe('Phase H — consequence + replay budgets', () => {
   const answerMovements = [
     { id: 'user_jab', playerId: 'user', kind: 'jab' as const, to: { x: 19, z: 9 }, delayMs: 0, durationMs: 250 },
     { id: 'user_plant_and_go', playerId: 'user', kind: 'back_cut' as const, to: { x: 4, z: 2 }, delayMs: 100, durationMs: 750 },
-    { id: 'pg_lead_pass', playerId: 'pg', kind: 'pass' as const, to: { x: 4, z: 2 }, delayMs: 350, durationMs: 500 },
-    { id: 'user_finish', playerId: 'user', kind: 'cut' as const, to: { x: 0, z: 0.5 }, delayMs: 100, durationMs: 350 },
+    // P2.5 — pass releases 150 ms after the cutter plants (so the
+    // passer visibly reacts to the back-cut) and arrives exactly when
+    // the cutter does (back-cut endMs = 1100; pass endMs = 500 + 600
+    // = 1100). Previously the pass left at the same instant as the
+    // back-cut and arrived 250 ms before the cutter, which made the
+    // teaching beat look like the passer was anticipating, not
+    // reading. Mirror block kept in sync with BDW-01.json.
+    { id: 'pg_lead_pass', playerId: 'pg', kind: 'pass' as const, to: { x: 4, z: 2 }, delayMs: 500, durationMs: 600 },
+    { id: 'user_finish', playerId: 'user', kind: 'cut' as const, to: { x: 0, z: 0.5 }, delayMs: 50, durationMs: 350 },
   ]
   const c2Demo = {
     choiceId: 'c2',
