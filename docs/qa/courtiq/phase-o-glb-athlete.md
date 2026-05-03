@@ -950,3 +950,193 @@ import + root-motion-strip loader**, which:
    defender's authored `(x, z)` route is byte-identical to the
    flag-off run. This is the live form of the determinism gate
    the P1 acceptance criteria call out.
+
+## Phase P — P1.0 packet (imported closeout clip + root-motion-strip loader)
+
+The first imported-clip spike. Lands the loader, the flag, the
+synthetic placeholder closeout clip, and the determinism gate's
+imported-closeout coverage — without bundling a real `.glb` asset
+and without changing flag-off behaviour.
+
+Production default stays `USE_GLB_ATHLETE_PREVIEW = false` AND
+`USE_IMPORTED_CLOSEOUT_CLIP = false`. Nothing in this packet flips
+either flag.
+
+### What was added
+
+- **`apps/web/public/athlete/clips/`** — new asset folder with a
+  README spelling out the loader contract, license requirements,
+  and what a contributor needs to do to drop a real
+  `closeout.glb` here later. The folder ships with no `.glb` file
+  in this packet.
+- **`importedClipLoader.ts`** — loader-level root-motion-strip
+  utility. Public API:
+  - `stripRootMotionTracks(clip, rootBoneNames?)` returns a NEW
+    clip with `<root>.position` tracks removed; input is not
+    mutated.
+  - `loadImportedClip(url, options?)` fetches a `.glb`, picks an
+    animation, strips root motion, caches per URL.
+  - `getCachedImportedClip(url)` — synchronous accessor.
+  - `_setImportedClipCacheForTest(url, entry)` — Vitest injector.
+  - Default root-bone list covers Quaternius UAL2 (`root`,
+    `pelvis`) plus common Mixamo / Unreal aliases (`Hips`,
+    `mixamorig:Hips`, `Root`, `Armature`).
+- **`importedClipLoader.test.ts`** — 17 cases lock the strip
+  contract, including a mixer-level end-to-end check that proves
+  a stripped clip cannot move a bone via root motion even after
+  the mixer integrates past the clip duration.
+- **`USE_IMPORTED_CLOSEOUT_CLIP`** flag in `imperativeScene.ts`,
+  default `false`. Wired through `buildGlbAthleteFigure` →
+  `buildGlbAthletePreview` via a new optional
+  `attachImportedCloseoutClip` builder option.
+- **Synthetic placeholder closeout clip** in `glbAthlete.ts`
+  (`buildPlaceholderImportedCloseoutClip`). Authored
+  programmatically to look like a Mixamo-style import — including
+  a `pelvis.position` track — so the loader-level strip is
+  exercised end-to-end without a bundled `.glb`. Pose intent:
+  forward chest lean, hands raised, wide stance with knees bent;
+  visibly distinct from `defense_slide`.
+- **Closeout action wiring**: when both flags are on,
+  `buildGlbAthletePreview` attaches a `closeout`
+  `AnimationAction` to every GLB figure's mixer using the
+  cached, stripped clip. `pickGlbClipForState` picks `closeout`
+  for defenders with movement kind `closeout`. With either flag
+  off, the action is never attached and the selector never picks
+  `closeout`.
+- **Determinism gate extension**:
+  `glbAthleteEndToEndDeterminism.test.ts` grows by four cases
+  covering bone determinism with closeout playing, root-motion
+  strip enforcement on the cached clip, route invariance across
+  closeout-on vs closeout-off runs, and flag-off equivalence.
+
+### Was a real closeout asset used?
+
+**No.** A synthetic placeholder closeout clip is authored in code
+inside `glbAthlete.ts` and primed into the importedClipLoader
+cache (post-strip) at first GLB-figure build with the closeout
+flag on. This is by design — the spike's job is to land the
+loader, the flag, the wiring, and the determinism gate so a real
+permissive asset can be dropped into
+`apps/web/public/athlete/clips/closeout.glb` later without
+touching code. Visual QA of the closeout body language at
+broadcast distance is **gated on a real CC0 closeout clip
+landing**.
+
+### How root motion is stripped
+
+Loader chokepoint. Every imported clip flowing into the GLB
+athlete system goes through `stripRootMotionTracks` before it
+ever reaches an `AnimationMixer`. The strip:
+
+- Iterates the input clip's tracks.
+- Drops every track whose object selector matches a known root
+  bone name (`root`, `pelvis`, `Hips`, `mixamorig:Hips`, etc.)
+  AND whose property selector starts with `position`.
+- Returns a NEW `THREE.AnimationClip` with the same name and
+  duration as the input but only the surviving tracks. The
+  input is not mutated.
+
+Removing (rather than zeroing) the track guarantees the mixer
+never blends a non-zero `.position` write onto the root bone,
+even if a future clip update sneaks in non-zero values at a
+non-keyframe time. The bone keeps its bind-pose translation,
+which is what we want.
+
+The contract is locked by:
+- `importedClipLoader.test.ts` — 17 unit cases.
+- `glbAthleteEndToEndDeterminism.test.ts` — case that asserts
+  the loader-cached closeout clip carries no `<root>.position`
+  track, classified through the production
+  `isRootMotionTrack` helper.
+- `glbAthleteEndToEndDeterminism.test.ts` — case that asserts
+  the defender's per-tick `(x, z)` is byte-identical between a
+  closeout-playing run and a baseline run with no closeout
+  attached.
+
+### How to manually QA the closeout in `/dev/scene-preview`
+
+1. Locally edit `apps/web/components/scenario3d/imperativeScene.ts`
+   to flip both:
+   - `export const USE_GLB_ATHLETE_PREVIEW = true`
+   - `export const USE_IMPORTED_CLOSEOUT_CLIP = true`
+   Do **not** commit these edits.
+2. The `founder-v0` scenario pack ships only `BDW-01.json` today
+   (no AOR scenario JSON exists yet). Until an AOR scenario lands,
+   visual QA targets `/dev/scene-preview?scenario=BDW-01` and the
+   on-ball defender. To see the closeout pose specifically, you
+   need a movement of `kind: 'closeout'` for that defender — not
+   present in BDW-01 by default. The realistic visual QA pass is
+   therefore blocked on either:
+   - dropping a `closeout` movement into a fork of `BDW-01.json`
+     for local-only QA, OR
+   - the next packet authoring a real `AOR-01` scenario.
+3. With the synthetic placeholder closeout clip, the body
+   language is recognisably "high hands + wide stance + forward
+   lean", but pose realism is constrained by the placeholder
+   keyframe values. **The real visual QA acceptance check is
+   blocked on a real CC0 closeout `.glb` landing in
+   `apps/web/public/athlete/clips/closeout.glb`.**
+4. Verify the route is unchanged by toggling the closeout flag
+   off and replaying — the defender's `(x, z)` trajectory must
+   match. The determinism gate proves this in CI.
+5. Verify FOLLOW / REPLAY / BROADCAST / AUTO still cycle and
+   fullscreen still works. The closeout wiring touches only the
+   GLB figure's mixer; camera and replay paths are untouched.
+6. Revert the local flag edits before committing anything.
+
+### What remains before this can be used in a real AOR film-room moment
+
+In rough order of priority:
+
+1. **Real CC0 closeout `.glb` asset.** Drop into
+   `apps/web/public/athlete/clips/closeout.glb` with attribution
+   in `apps/web/public/athlete/ATTRIBUTION.md`. The loader will
+   pick it up automatically; no code changes needed.
+2. **Real `AOR-01` scenario JSON** in
+   `packages/db/seed/scenarios/packs/founder-v0/`. Currently only
+   `BDW-01.json` exists.
+3. **Bone-name adapter for the source rig.** If the imported
+   clip is authored against Mixamo or another rig, add the
+   smallest possible name adapter to `importedClipLoader.ts`. A
+   full retargeting framework is intentionally out of scope.
+4. **Live Mac/Chrome screenshot pass** with both flags flipped on
+   to capture the closeout body language for the QA archive.
+5. **Decoder-specific intent mapping (P2).** Once the closeout
+   is visually validated, the per-tick selector should map roles
+   (defender / receiver / passer / ...) to intents through
+   `getDecoderAnimationMap(decoderTag, role)` per Phase P §6.
+   That work explicitly belongs to the next packet and is
+   forbidden in this one.
+
+### P1.0 manual QA matrix
+
+| Item | Status | Notes |
+| --- | --- | --- |
+| `USE_IMPORTED_CLOSEOUT_CLIP` defaults `false` | Verified by unit test | `glbAthlete.test.ts` covers the default. |
+| Loader-level root-motion strip implemented + tested | Verified by 17 unit cases | `importedClipLoader.test.ts`. |
+| Closeout clip attached when both flags on, absent when either flag off | Verified by determinism gate | `glbAthleteEndToEndDeterminism.test.ts` flag-off case. |
+| Closeout playing produces deterministic bones across runs | Verified by determinism gate | Bone-equivalence case. |
+| Loader-cached closeout clip has no `<root>.position` track | Verified by determinism gate | Production classifier reused. |
+| Closeout cannot move defender route | Verified by determinism gate | Per-tick `(x, z)` byte-identical to baseline run. |
+| All P0-LOCK / P0-LOCK-2 cases stay green | Verified | 141 scenario3d tests pass. |
+| Real closeout GLB visual QA | **Blocked on real asset** | No real CC0 closeout clip on disk yet. |
+| Real `AOR-01` scenario | **Blocked on scenario data** | `founder-v0` pack ships only `BDW-01`. |
+| Camera / fullscreen / replay paths untouched | Verified by code review | Wiring is mixer-only. |
+
+### P1.0 follow-on packet recommendation
+
+The natural next packet is **P2 — decoder-specific animation
+states**. It depends on:
+
+- A real CC0 closeout `.glb` (so the AOR mapping has a live
+  asset to point at).
+- A real `AOR-01` scenario JSON (so the decoder map has
+  somewhere to fire).
+- The P1.0 loader / strip / determinism gate landed in this
+  packet (so the per-tick intent selector is replay-safe by
+  construction).
+
+Until the asset and scenario land, P2 has nothing visual to
+verify and the right move is to source those first. A small
+asset-sourcing packet between P1.0 and P2 is the recommended
+sequencing.
