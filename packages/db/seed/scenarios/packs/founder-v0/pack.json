@@ -8,6 +8,11 @@
       "id": "BDW-01",
       "file": "BDW-01.json",
       "prerequisites": []
+    },
+    {
+      "id": "AOR-01",
+      "file": "AOR-01.json",
+      "prerequisites": []
     }
   ]
 }

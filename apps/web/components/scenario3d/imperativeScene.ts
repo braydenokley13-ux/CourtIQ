@@ -3515,6 +3515,32 @@ export const USE_SKINNED_ATHLETE_PREVIEW = false
 export const USE_GLB_ATHLETE_PREVIEW = false
 
 /**
+ * Phase P (P1.0) — when true, the GLB athlete builder attaches the
+ * imported `closeout` clip to every GLB figure and the
+ * MotionController is allowed to switch a player into the
+ * `closeout` action. Defaults to `false`. The flag is layered on
+ * top of `USE_GLB_ATHLETE_PREVIEW` — flipping it on while
+ * `USE_GLB_ATHLETE_PREVIEW` is `false` is a no-op (the GLB builder
+ * never runs in that case, so there is nothing to attach).
+ *
+ * Scope is intentionally narrow:
+ *   - One imported intent only — `closeout`. Any other imported
+ *     intent gets its own flag in a future packet.
+ *   - Dev/test wiring only. Production traffic stays on the bespoke
+ *     procedural / GLB clips that ship today.
+ *   - Loader-level root-motion stripping is enforced regardless of
+ *     this flag — the strip is a property of the import path, not
+ *     of the closeout clip specifically. See
+ *     `importedClipLoader.stripRootMotionTracks`.
+ *
+ * Toggling off must restore byte-identical pre-P1.0 behaviour: no
+ * closeout action exists on the GLB handle, the motion controller
+ * never picks `closeout`, and the synthetic placeholder closeout
+ * clip is never built.
+ */
+export const USE_IMPORTED_CLOSEOUT_CLIP = false
+
+/**
  * Phase F / J / M / O-ASSET — public builder entry point. Returns,
  * in priority order:
  *   1. License-clean GLB athlete preview when
@@ -3659,6 +3685,13 @@ function buildGlbAthleteFigure(
     hasBall,
     jerseyNumber,
     stance,
+    {
+      // P1.0 — only when both the parent GLB flag AND the closeout
+      // flag are on does the imported clip get attached. The
+      // selector in `pickGlbClipForState` must mirror the same gate
+      // so a non-flagged build never picks `closeout`.
+      attachImportedCloseoutClip: USE_IMPORTED_CLOSEOUT_CLIP,
+    },
   )
 }
 
@@ -3666,6 +3699,11 @@ function buildGlbAthleteFigure(
  * Phase O-ANIM (OB6) — replay-state → animation-clip mapper for the
  * GLB path. Defenders always slide; offensive cuts/drives sprint;
  * everything else (passes, small footwork, stationary) idles.
+ *
+ * Phase P (P1.0) — when `USE_IMPORTED_CLOSEOUT_CLIP` is on, defenders
+ * with movement kind `closeout` map to the imported `closeout`
+ * clip instead of the bespoke `defense_slide`. The flag-off path
+ * is byte-identical to pre-P1.0 behaviour.
  */
 function pickGlbClipForState(
   team: 'offense' | 'defense',
@@ -3673,6 +3711,7 @@ function pickGlbClipForState(
   isMoving: boolean,
 ): GlbAthleteAnimationName {
   if (team === 'defense') {
+    if (USE_IMPORTED_CLOSEOUT_CLIP && kind === 'closeout') return 'closeout'
     if (isMoving) return 'defense_slide'
     if (kind === 'closeout' || kind === 'rotation') return 'defense_slide'
     return 'idle_ready'

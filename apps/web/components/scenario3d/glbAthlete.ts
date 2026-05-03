@@ -40,6 +40,12 @@ import * as THREE from 'three'
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import type { PlayerStance } from './imperativeScene'
+import {
+  getCachedImportedClip,
+  loadImportedClip,
+  stripRootMotionTracks,
+  _setImportedClipCacheForTest,
+} from './importedClipLoader'
 
 /**
  * Marker stored on the figure root userData so callers and tests
@@ -561,6 +567,22 @@ export function _setGlbAthleteCacheForTest(
  * follow-up phase, the per-figure `mixer` and `actions` will attach
  * onto the same figure root via `userData.glbAthlete`.
  */
+export interface BuildGlbAthletePreviewOptions {
+  /**
+   * Phase P (P1.0) — when true, attach the imported closeout clip
+   * action to this figure's mixer. Caller is expected to gate this
+   * on `USE_IMPORTED_CLOSEOUT_CLIP`; the GLB module does not import
+   * the flag itself to avoid a circular dependency with
+   * `imperativeScene.ts`.
+   *
+   * If true and no `closeout.glb` asset is on disk, the builder
+   * falls back to the synthetic placeholder closeout clip (built
+   * in `_ensurePlaceholderImportedCloseoutClip`) so the action is
+   * always attached when the flag is on.
+   */
+  attachImportedCloseoutClip?: boolean
+}
+
 export function buildGlbAthletePreview(
   teamColor: string,
   _trimColor: string,
@@ -568,6 +590,7 @@ export function buildGlbAthletePreview(
   hasBall: boolean,
   _jerseyNumber: string,
   _stance: PlayerStance,
+  options?: BuildGlbAthletePreviewOptions,
 ): THREE.Group | null {
   try {
     if (!cache) {
@@ -596,6 +619,17 @@ export function buildGlbAthletePreview(
     const actions: Record<string, THREE.AnimationAction> = {}
     for (const clip of clips) {
       actions[clip.name] = mixer.clipAction(clip)
+    }
+    if (options?.attachImportedCloseoutClip) {
+      // Loader contract: every imported clip is root-motion-stripped
+      // before it reaches an AnimationMixer. The cache holds the
+      // stripped form; if the cache is cold we prime it with the
+      // synthetic placeholder (also stripped). A real
+      // `closeout.glb` on disk is fetched in the background; when
+      // that fetch lands, the next figure build will pick it up.
+      const closeoutClip = _ensurePlaceholderImportedCloseoutClip()
+      actions['closeout'] = mixer.clipAction(closeoutClip)
+      _kickOffImportedCloseoutClipLoad()
     }
     actions['idle_ready']?.play()
 
@@ -645,6 +679,191 @@ function getCachedGlbClips(): THREE.AnimationClip[] {
     buildGlbDefenseSlideClip(),
   ]
   return _cachedGlbClips
+}
+
+/**
+ * Phase P (P1.0) — synthetic placeholder for the imported closeout
+ * clip. Authored programmatically because no real CC0 closeout clip
+ * is bundled yet (see `apps/web/public/athlete/clips/README.md`).
+ *
+ * Critically, this clip is built to look like a real Mixamo-style
+ * imported clip — INCLUDING a `pelvis.position` track — so the
+ * loader-level root-motion strip is exercised end-to-end and the
+ * determinism gate can verify the strip actually keeps the
+ * defender on the authored route.
+ *
+ * Pose intent (Phase P §5):
+ *   - Forward chest lean held over duration.
+ *   - Hands raised high (active hand).
+ *   - Wide stance with knees bent.
+ *   - Hip rock (subtle, decelerating).
+ *
+ * The track values are deliberately distinct from
+ * `defense_slide` so a flag-on render visibly differs from the
+ * flag-off render — proves the closeout action is in fact
+ * driving the defender, not the bespoke slide clip.
+ */
+function buildPlaceholderImportedCloseoutClip(): THREE.AnimationClip {
+  const duration = 1.2
+  const t = [0, duration * 0.5, duration]
+  const tracks: THREE.KeyframeTrack[] = []
+
+  // Root motion track. This is what the loader strips. Authored to
+  // a non-trivial forward translation so a missing strip step would
+  // visibly drift the figure. The strip is enforced inside
+  // `_buildAndStripPlaceholderCloseoutClip`; the un-stripped clip
+  // never reaches a mixer in production.
+  tracks.push(
+    new THREE.VectorKeyframeTrack(
+      `${GLB_BONE_MAP.hips}.position`,
+      [0, duration],
+      [0, 0, 0, 0, 0, 1.5],
+    ),
+  )
+
+  // Hip rock (Z roll), decelerating closeout posture.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.hips}.quaternion`,
+      t,
+      flattenGlbQuats([
+        glbEulerQuat(0, 0, 0.04),
+        glbEulerQuat(0, 0, -0.04),
+        glbEulerQuat(0, 0, 0.02),
+      ]),
+    ),
+  )
+  // Forward chest lean held over duration.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.spine}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0.22, 0, 0), glbEulerQuat(0.22, 0, 0)]),
+    ),
+  )
+  // Head slightly down, eyes on the receiver.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.head}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0.08, 0, 0), glbEulerQuat(0.08, 0, 0)]),
+    ),
+  )
+  // Active hands — both arms raised high.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftUpperArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0, 0, 1.4), glbEulerQuat(0, 0, 1.4)]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightUpperArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0, 0, -1.4), glbEulerQuat(0, 0, -1.4)]),
+    ),
+  )
+  // Forearms slightly bent.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftForeArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0, -0.6, 0), glbEulerQuat(0, -0.6, 0)]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightForeArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0, -0.6, 0), glbEulerQuat(0, -0.6, 0)]),
+    ),
+  )
+  // Wide stance — thighs splay outward, knees bent.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftThigh}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(-0.45, 0, 0.18), glbEulerQuat(-0.45, 0, 0.18)]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightThigh}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(-0.45, 0, -0.18), glbEulerQuat(-0.45, 0, -0.18)]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftShin}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0.42, 0, 0), glbEulerQuat(0.42, 0, 0)]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightShin}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([glbEulerQuat(0.42, 0, 0), glbEulerQuat(0.42, 0, 0)]),
+    ),
+  )
+
+  return new THREE.AnimationClip('closeout', duration, tracks)
+}
+
+/**
+ * Phase P (P1.0) — primes the imported-clip cache with the
+ * synthetic placeholder closeout clip after running it through the
+ * loader-level root-motion strip. Idempotent; safe to call from
+ * every figure build.
+ *
+ * In production this is the path used while no real
+ * `/athlete/clips/closeout.glb` is on disk. When a real permissive
+ * asset lands, the in-flight `loadImportedClip` call from
+ * `_kickOffImportedCloseoutClipLoad` will overwrite the cache with
+ * the real clip's tracks (also stripped). The synthetic clip stays
+ * useful as a deterministic test fixture forever.
+ *
+ * Returns the cached, stripped clip.
+ */
+function _ensurePlaceholderImportedCloseoutClip(): THREE.AnimationClip {
+  const cached = getCachedImportedClip(GLB_IMPORTED_CLOSEOUT_CLIP_URL)
+  if (cached) return cached.clip
+  const raw = buildPlaceholderImportedCloseoutClip()
+  const stripped = stripRootMotionTracks(raw)
+  _setImportedClipCacheForTest(GLB_IMPORTED_CLOSEOUT_CLIP_URL, {
+    clip: stripped,
+    strippedTrackNames: [`${GLB_BONE_MAP.hips}.position`],
+  })
+  return stripped
+}
+
+/**
+ * Phase P (P1.0) — kicks off the async fetch of a real
+ * `/athlete/clips/closeout.glb` if one is on disk. Resolves to the
+ * cached, stripped clip on success, or `null` if no real asset is
+ * present (the synthetic placeholder remains in the cache in that
+ * case). Browser-only; a no-op under JSDOM/Node.
+ *
+ * The build path attaches the closeout action using whatever clip
+ * is in the cache at build time, so the synchronous builder never
+ * blocks on this fetch — the next time a figure is built (e.g.
+ * scene re-mount, replay restart) the real clip is used if the
+ * fetch completed.
+ */
+function _kickOffImportedCloseoutClipLoad(): void {
+  if (typeof window === 'undefined') return
+  void loadImportedClip(GLB_IMPORTED_CLOSEOUT_CLIP_URL)
+}
+
+/**
+ * Test-only — exposes the synthetic placeholder closeout clip
+ * (un-stripped) so tests can assert the strip behaviour against
+ * the same authoring source the production builder uses.
+ */
+export function _buildPlaceholderImportedCloseoutClipForTest(): THREE.AnimationClip {
+  return buildPlaceholderImportedCloseoutClip()
 }
 
 /** Test-only — reset the GLB clip cache between cases. */
@@ -889,6 +1108,19 @@ export type GlbAthleteAnimationName =
   | 'idle_ready'
   | 'cut_sprint'
   | 'defense_slide'
+  | 'closeout'
+
+/**
+ * Phase P (P1.0) — public-folder URL of the imported `closeout`
+ * clip GLB. The file is intentionally NOT bundled in this packet —
+ * see `apps/web/public/athlete/clips/README.md` for what to put
+ * here when a real permissive asset lands. Until then, the GLB
+ * athlete system uses the synthetic placeholder closeout clip
+ * authored in `buildPlaceholderImportedCloseoutClip` so the entire
+ * import path (loader cache, root-motion strip, mixer wiring,
+ * determinism gate) is exercisable end-to-end.
+ */
+export const GLB_IMPORTED_CLOSEOUT_CLIP_URL = '/athlete/clips/closeout.glb'
 
 interface GlbAthleteHandle {
   figure: THREE.Group

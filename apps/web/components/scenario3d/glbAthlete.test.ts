@@ -7,6 +7,7 @@ import {
 } from './glbAthlete'
 import {
   USE_GLB_ATHLETE_PREVIEW,
+  USE_IMPORTED_CLOSEOUT_CLIP,
   buildPlayerFigure,
   getPlayerIndicatorLayers,
 } from './imperativeScene'
@@ -34,6 +35,16 @@ describe('Phase O-ASSET — flag default', () => {
 
   it('asset URL points at the bundled public-folder GLB', () => {
     expect(GLB_ATHLETE_ASSET_URL).toBe('/athlete/mannequin.glb')
+  })
+})
+
+describe('Phase P (P1.0) — imported closeout flag default', () => {
+  it('USE_IMPORTED_CLOSEOUT_CLIP defaults to false', () => {
+    // Production traffic must never load the imported closeout clip.
+    // The dev/test wiring is layered on top of USE_GLB_ATHLETE_PREVIEW
+    // and exists only so the determinism gate can prove the closeout
+    // clip cannot move the player off the authored route.
+    expect(USE_IMPORTED_CLOSEOUT_CLIP).toBe(false)
   })
 })
 
