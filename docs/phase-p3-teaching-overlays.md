@@ -276,6 +276,53 @@ The win is not more graphics. The win is that CourtIQ finally has a one-page arc
 
 ---
 
+## Section 13 — P3.1 founder scenario set complete
+
+P3.1 closes the four-decoder founder set by authoring two new scenarios against the P3.0 preset map:
+
+| Scenario | Decoder | Status | Cue cluster | Reveal cluster |
+|---|---|---|---|---|
+| BDW-01 | Backdoor Window | LIVE | 6 (existing) | 8 (existing) |
+| AOR-01 | Advantage or Reset | DRAFT | 6 (existing) | 6 (existing) |
+| **ESC-01** | Empty-Space Cut | DRAFT (P3.1) | **3** (cap) | **3** (cap) |
+| **SKR-01** | Skip the Rotation | DRAFT (P3.1) | **3** (cap) | **3** (cap) |
+
+Both new scenarios target the beginner clutter caps (`MAX_FREEZE_OVERLAYS_BEGINNER = 3`, `MAX_REPLAY_OVERLAYS_BEGINNER = 3`). They demonstrate that the preset map is authorable in practice and that the caps are realistic for a clean teaching frame.
+
+### ESC-01 — Empty-Space Cut on Help
+
+- **Decoder beat:** the user's defender (`x2`, `strong_corner_helper`) steps off to tag the point guard's drive. The strong-side baseline goes empty.
+- **Best read:** baseline cut to the rim. Pass leads the user to the layup before the weak-side low man can rotate across.
+- **Acceptable:** lift to the wing — keeps spacing alive but loses the layup.
+- **Wrong:** stand still, or cut into the help.
+- **Pre-answer cue cluster:** `defender_vision_cone(x2 → pg)`, `defender_hip_arrow(x2)`, `help_pulse(x2, tag)`.
+- **Post-answer reveal:** `open_space_region` at the vacated baseline, `passing_lane_open(pg → user)`, `drive_cut_preview` along the baseline cut path.
+
+### SKR-01 — Skip the Overhelp
+
+- **Decoder beat:** the user (the ball-handler) drives middle. The weak-corner low man (`x4`) over-rotates to tag. The weak corner empties.
+- **Best read:** skip pass to the weak-side corner shooter (`o4`). Longest closeout for the defense.
+- **Acceptable:** kick to the weak-side wing — closer recovery, shorter shot window.
+- **Wrong:** force the layup into help, or pass to the strong side that's still covered.
+- **Pre-answer cue cluster:** `help_pulse(x4, overhelp)`, `defender_hip_arrow(x4)`, `defender_chest_line(x4)`.
+- **Post-answer reveal:** `passing_lane_open(user → o4)`, `open_space_region` at the weak corner, `label` "Skip past the help".
+
+### Authoring notes
+
+- **Both scenarios ship as `status: "DRAFT"`** with `coach_validation: { level: "low", status: "needed" }`. The seeder treats `level=low` as not requiring approval to seed; coach review is for content polish, not a gate.
+- **SKR-01 is `difficulty: 2` (intermediate)** because the user is the *passer* — they hold the ball and have to read the overhelp + execute the skip in one motion. Beginners typically learn off-ball cuts (BDW, ESC) before on-ball reads (SKR).
+- **The `requiredAnswerDemoKinds` from `decoderPrimitives.ts`** are honoured: ESC-01's `answerDemo` includes `cut` and `pass` movements; SKR-01's includes a `skip_pass` movement.
+- **No new schema fields, no new primitives, no renderer changes.** Both scenarios use only kinds that already shipped in P2.
+
+### Remaining coach-review items (P3.1)
+
+- ESC-01: confirm the help-tag timing window for an 11–13 yo player. The current `freezeMarker` lands at 1500 ms; the help arrives at ~1000 ms. A coach may want the freeze closer to 1200 ms to catch the help mid-step instead of after it lands.
+- ESC-01: confirm the `c4` wrongDemo ("cut into help") doesn't visually collide with `x2`. The user moves to `(12, 6)`, x2 to `(12, 5)` — close enough that a contact-free pose is the right outcome but worth a manual-QA pass.
+- SKR-01: confirm the skip-pass type for a middle-school player (overhead vs one-hand push). The current `kind: 'skip_pass'` is movement-kind-agnostic; the renderer's pass-arc helper applies a deterministic arc regardless of pass type.
+- SKR-01: confirm the `label` overlay copy ("Skip past the help") reads at the schema's 24-char cap. It does (20 chars), but the cap is tight if a future translation lengthens.
+
+---
+
 ## Appendix — Where things live
 
 | Concern | File |

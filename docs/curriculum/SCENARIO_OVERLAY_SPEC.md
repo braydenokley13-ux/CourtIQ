@@ -84,7 +84,9 @@ This doc shows, for each founder decoder, the canonical overlay shape and the fo
 - `passing_lane_open` from passer to cutter
 - `drive_cut_preview` showing the cutter cutting into open space
 
-**Founder example:** TBD — ESC-01 seed JSON not yet authored.
+**Founder example:** `packages/db/seed/scenarios/packs/founder-v0/ESC-01.json` (P3.1).
+
+> ESC-01 names the cue defender `strong_corner_helper` (the user's own defender steps off to tag the drive) rather than the canonical `helper_defender` role string — the role substring `"help"` still matches the decoder primitive map's authoring requirement, and the player who actually moves is the user's own defender, which reads more clearly than introducing a separate weak-side helper.
 
 ---
 
@@ -100,9 +102,11 @@ This doc shows, for each founder decoder, the canonical overlay shape and the fo
 **Post-answer reveal:**
 - `passing_lane_open` from passer to the open weak-side shooter
 - `open_space_region` anchored at the weak-side advantage zone
-- `drive_cut_preview` for the one-more-to-corner alternative
+- `label` "Skip past the help" anchored mid-court (or `drive_cut_preview` for the one-more-to-corner alternative)
 
-**Founder example:** TBD — SKR-01 seed JSON not yet authored.
+**Founder example:** `packages/db/seed/scenarios/packs/founder-v0/SKR-01.json` (P3.1).
+
+> SKR-01's user is the **passer**, not an off-ball cutter. The ball-handler drives middle, the weak-corner low man over-rotates to tag, and the user reads the overhelp + skips weak side. The post-answer reveal uses a `label` overlay instead of `drive_cut_preview` because the action is a pass, not a cut path — the `passing_lane_open` already shows the path of the ball.
 
 ---
 
