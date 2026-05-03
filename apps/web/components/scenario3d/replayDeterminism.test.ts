@@ -280,6 +280,9 @@ describe('P0-LOCK — GLB clip stability', () => {
       'cut_sprint',
       'defense_slide',
       'defensive_deny',
+      // P2.6 — shared readability primitives.
+      'receive_ready',
+      'closeout_read',
     ] as const) {
       const ca = a[name]
       const cb = b[name]
@@ -307,6 +310,9 @@ describe('P0-LOCK — GLB clip stability', () => {
       clips.cut_sprint,
       clips.defense_slide,
       clips.defensive_deny,
+      // P2.6 — shared readability primitives.
+      clips.receive_ready,
+      clips.closeout_read,
     ]) {
       for (const track of clip.tracks) {
         const dot = track.name.indexOf('.')
