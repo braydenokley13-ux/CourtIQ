@@ -237,6 +237,108 @@ function _skrIntent(role: DecoderRole): AnimationIntent {
 }
 
 // ---------------------------------------------------------------------------
+// Scenario role → DecoderRole derivation
+// ---------------------------------------------------------------------------
+
+/**
+ * Inputs for `deriveDecoderRole`. Roughly the union of context the
+ * renderer has at clip-selection time per player. All fields are
+ * optional except `team` so the helper degrades gracefully for the
+ * "moving but no kind" and "stationary but no decoder" cases.
+ */
+export interface DecoderRoleContext {
+  team: SceneTeam
+  /** Free-form scenario role string from ScenePlayer.role (e.g. 'wing_defender_helping'). */
+  playerRole?: string
+  /** Active movement kind for the current frame, if any. */
+  movementKind?: SceneMovementKind
+  /** True when the player has the ball at the current frame (or starts holding it). */
+  hasBall?: boolean
+  /** True when this is the player marked `isUser` in the scene. */
+  isUser?: boolean
+  /** Optional decoder family — used to disambiguate ambiguous roles. */
+  decoder?: DecoderTag
+}
+
+/**
+ * P2.1 — best-effort mapping from the renderer's per-player context
+ * to a `DecoderRole`. Returns `undefined` when context is too thin to
+ * pick a role with confidence; the caller is expected to fall through
+ * to the movement-kind path in that case.
+ *
+ * Rules in priority order:
+ *   1. Movement kind first — the active movement is the strongest
+ *      signal. A defender doing a `closeout` is a closeout_defender;
+ *      an offensive `back_cut` is a cutter; etc.
+ *   2. Player role string — substring match on the free-form role
+ *      ('help', 'low_man', 'deny', 'shooter', etc.). Tolerant of the
+ *      varied vocabularies in the seed JSON.
+ *   3. Ball possession + isUser — final tie-breakers.
+ *
+ * Intentionally conservative: when the rules disagree, returns
+ * `undefined` rather than guess. New role strings are easy to add by
+ * extending the substring lists below — no schema change needed.
+ */
+export function deriveDecoderRole(ctx: DecoderRoleContext): DecoderRole | undefined {
+  const { team, playerRole, movementKind, hasBall, isUser, decoder } = ctx
+  const role = (playerRole ?? '').toLowerCase()
+
+  // 1. Movement kind dominates when present.
+  if (team === 'defense') {
+    if (movementKind === 'closeout') return 'closeout_defender'
+    if (movementKind === 'rotation') return 'helper_defender'
+  } else {
+    if (movementKind === 'back_cut') return 'cutter'
+    if (movementKind === 'baseline_sneak') return 'cutter'
+    if (movementKind === 'pass' || movementKind === 'skip_pass') return 'passer'
+    if (movementKind === 'cut') {
+      // Generic 'cut' — disambiguate by decoder family.
+      if (decoder === 'BACKDOOR_WINDOW') return 'cutter'
+      if (decoder === 'EMPTY_SPACE_CUT') return 'cutter'
+      return 'cutter'
+    }
+  }
+
+  // 2. Role-string substring matching.
+  if (team === 'defense') {
+    if (role.includes('help') || role.includes('low_man') || role.includes('tag')) {
+      return 'helper_defender'
+    }
+    if (role.includes('deny') || role.includes('denying')) {
+      return 'deny_defender'
+    }
+    if (role.includes('on_ball') || role.includes('closeout')) {
+      // 'on_ball' defenders are closeout candidates when the ball
+      // moves toward their assignment; absent that signal we treat
+      // them as helper-eligible.
+      return 'closeout_defender'
+    }
+  } else {
+    if (role.includes('shooter') || role.includes('wing_shooter')) {
+      // Open-shot vocabulary: AOR uses "wing_shooter" for the receiver,
+      // SKR/ESC use it for the open_player. Disambiguate by decoder.
+      if (decoder === 'ADVANTAGE_OR_RESET') return 'receiver'
+      if (decoder === 'SKIP_THE_ROTATION') return 'open_player'
+      return 'receiver'
+    }
+    if (role.includes('ball_handler') || hasBall) {
+      return 'passer'
+    }
+    if (role.includes('corner') || role.includes('wing')) {
+      // Off-ball wings/corners default to open_player (catch-and-shoot).
+      return 'open_player'
+    }
+  }
+
+  // 3. Final tie-breakers.
+  if (team === 'offense' && isUser && decoder === 'ADVANTAGE_OR_RESET') {
+    return 'receiver'
+  }
+
+  return undefined
+}
+
+// ---------------------------------------------------------------------------
 // Movement-kind → intent mapping
 // ---------------------------------------------------------------------------
 

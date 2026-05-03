@@ -16,6 +16,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   ALL_ANIMATION_INTENTS,
+  deriveDecoderRole,
   getDecoderAnimationIntent,
   getMovementKindIntent,
   resolveGlbClipForIntent,
@@ -295,6 +296,138 @@ describe('getMovementKindIntent', () => {
   it('decoder+role overrides movement-kind lookup', () => {
     // A 'cut' kind with BDW context and cutter role should be BACK_CUT
     expect(getMovementKindIntent('cut', 'offense', 'BACKDOOR_WINDOW', 'cutter')).toBe('BACK_CUT')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 8b. deriveDecoderRole — mapping seed-JSON roles to DecoderRole
+// ---------------------------------------------------------------------------
+
+describe('deriveDecoderRole — defense', () => {
+  it('movement closeout → closeout_defender', () => {
+    expect(
+      deriveDecoderRole({ team: 'defense', movementKind: 'closeout' }),
+    ).toBe('closeout_defender')
+  })
+
+  it('movement rotation → helper_defender', () => {
+    expect(
+      deriveDecoderRole({ team: 'defense', movementKind: 'rotation' }),
+    ).toBe('helper_defender')
+  })
+
+  it('AOR-01 wing_defender_helping role → helper_defender', () => {
+    expect(
+      deriveDecoderRole({
+        team: 'defense',
+        playerRole: 'wing_defender_helping',
+        decoder: 'ADVANTAGE_OR_RESET',
+      }),
+    ).toBe('helper_defender')
+  })
+
+  it('low_man role → helper_defender', () => {
+    expect(deriveDecoderRole({ team: 'defense', playerRole: 'low_man' })).toBe(
+      'helper_defender',
+    )
+  })
+
+  it('BDW-01 denying_wing_defender role → deny_defender', () => {
+    expect(
+      deriveDecoderRole({
+        team: 'defense',
+        playerRole: 'denying_wing_defender',
+        decoder: 'BACKDOOR_WINDOW',
+      }),
+    ).toBe('deny_defender')
+  })
+
+  it('on_ball defender role → closeout_defender', () => {
+    expect(deriveDecoderRole({ team: 'defense', playerRole: 'on_ball' })).toBe(
+      'closeout_defender',
+    )
+  })
+
+  it('movement kind beats role string (rotation overrides on_ball)', () => {
+    expect(
+      deriveDecoderRole({
+        team: 'defense',
+        playerRole: 'on_ball',
+        movementKind: 'rotation',
+      }),
+    ).toBe('helper_defender')
+  })
+})
+
+describe('deriveDecoderRole — offense', () => {
+  it('movement back_cut → cutter', () => {
+    expect(
+      deriveDecoderRole({ team: 'offense', movementKind: 'back_cut' }),
+    ).toBe('cutter')
+  })
+
+  it('AOR receiver via wing_shooter role → receiver', () => {
+    expect(
+      deriveDecoderRole({
+        team: 'offense',
+        playerRole: 'wing_shooter',
+        decoder: 'ADVANTAGE_OR_RESET',
+      }),
+    ).toBe('receiver')
+  })
+
+  it('SKR open shooter via wing_shooter role → open_player', () => {
+    expect(
+      deriveDecoderRole({
+        team: 'offense',
+        playerRole: 'wing_shooter',
+        decoder: 'SKIP_THE_ROTATION',
+      }),
+    ).toBe('open_player')
+  })
+
+  it('ball_handler role with hasBall → passer', () => {
+    expect(
+      deriveDecoderRole({
+        team: 'offense',
+        playerRole: 'ball_handler',
+        hasBall: true,
+      }),
+    ).toBe('passer')
+  })
+
+  it('movement pass → passer', () => {
+    expect(deriveDecoderRole({ team: 'offense', movementKind: 'pass' })).toBe(
+      'passer',
+    )
+  })
+
+  it('strong_corner offense → open_player', () => {
+    expect(
+      deriveDecoderRole({ team: 'offense', playerRole: 'strong_corner' }),
+    ).toBe('open_player')
+  })
+
+  it('AOR isUser tie-breaker → receiver', () => {
+    expect(
+      deriveDecoderRole({
+        team: 'offense',
+        isUser: true,
+        decoder: 'ADVANTAGE_OR_RESET',
+      }),
+    ).toBe('receiver')
+  })
+})
+
+describe('deriveDecoderRole — fallback safety', () => {
+  it('returns undefined for unknown defensive role with no movement', () => {
+    expect(
+      deriveDecoderRole({ team: 'defense', playerRole: 'mystery_role' }),
+    ).toBeUndefined()
+  })
+
+  it('returns undefined for empty offense context', () => {
+    expect(deriveDecoderRole({ team: 'offense' })).toBeUndefined()
   })
 })
 
