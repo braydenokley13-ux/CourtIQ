@@ -337,3 +337,80 @@ describe('P1.9 — closeout lower-body safety strip', () => {
     expect(readable.duration).toBe(1.1)
   })
 })
+
+describe('P2.4 — readable deny and idle-ready GLB postures', () => {
+  function unsafeRouteTrackNames(clip: THREE.AnimationClip): string[] {
+    return clip.tracks
+      .map((track) => track.name)
+      .filter((name) => /\.position(\.|$)|\.scale(\.|$)/.test(name))
+  }
+
+  it('idle_ready pulls arms closer to the body without route-moving tracks', async () => {
+    const mod = await import('./glbAthlete')
+    const { idle_ready } = mod._buildGlbAthleteClipsForTest()
+    const trackNames = new Set(idle_ready.tracks.map((track) => track.name))
+    const leftUpperArm = idle_ready.tracks.find(
+      (track) => track.name === 'upperarm_l.quaternion',
+    )
+
+    expect(trackNames.has('upperarm_l.quaternion')).toBe(true)
+    expect(trackNames.has('upperarm_r.quaternion')).toBe(true)
+    expect(trackNames.has('lowerarm_l.quaternion')).toBe(true)
+    expect(trackNames.has('lowerarm_r.quaternion')).toBe(true)
+    expect(trackNames.has('calf_l.quaternion')).toBe(true)
+    expect(trackNames.has('calf_r.quaternion')).toBe(true)
+    expect(unsafeRouteTrackNames(idle_ready)).toEqual([])
+
+    // Upper-arm bind rotations are far from identity on this rig.
+    // If the track is authored from identity again, the idle pose can
+    // snap back toward a broad mannequin shoulder shape.
+    expect(Math.abs(leftUpperArm!.values[3]!)).toBeLessThan(0.9)
+  })
+
+  it('defensive_deny authors an asymmetric lane-denial pose only with rotations', async () => {
+    const mod = await import('./glbAthlete')
+    const { defensive_deny } = mod._buildGlbAthleteClipsForTest()
+    const trackNames = new Set(defensive_deny.tracks.map((track) => track.name))
+
+    expect(defensive_deny.name).toBe('defensive_deny')
+    expect(trackNames.has('pelvis.quaternion')).toBe(true)
+    expect(trackNames.has('spine_02.quaternion')).toBe(true)
+    expect(trackNames.has('Head.quaternion')).toBe(true)
+    expect(trackNames.has('upperarm_l.quaternion')).toBe(true)
+    expect(trackNames.has('upperarm_r.quaternion')).toBe(true)
+    expect(trackNames.has('thigh_l.quaternion')).toBe(true)
+    expect(trackNames.has('thigh_r.quaternion')).toBe(true)
+    expect(unsafeRouteTrackNames(defensive_deny)).toEqual([])
+
+    const laneArm = defensive_deny.tracks.find(
+      (track) => track.name === 'upperarm_l.quaternion',
+    )
+    const offArm = defensive_deny.tracks.find(
+      (track) => track.name === 'upperarm_r.quaternion',
+    )
+    expect(Array.from(laneArm!.values)).not.toEqual(Array.from(offArm!.values))
+  })
+
+  it('readable posture clips are deterministic across factory calls', async () => {
+    const mod = await import('./glbAthlete')
+    const a = mod._buildGlbAthleteClipsForTest()
+    const b = mod._buildGlbAthleteClipsForTest()
+
+    for (const name of ['idle_ready', 'defensive_deny'] as const) {
+      const clipA = a[name]
+      const clipB = b[name]
+      expect(clipA.duration).toBe(clipB.duration)
+      expect(clipA.tracks.map((track) => track.name)).toEqual(
+        clipB.tracks.map((track) => track.name),
+      )
+      for (let i = 0; i < clipA.tracks.length; i++) {
+        expect(Array.from(clipA.tracks[i]!.times)).toEqual(
+          Array.from(clipB.tracks[i]!.times),
+        )
+        expect(Array.from(clipA.tracks[i]!.values)).toEqual(
+          Array.from(clipB.tracks[i]!.values),
+        )
+      }
+    }
+  })
+})

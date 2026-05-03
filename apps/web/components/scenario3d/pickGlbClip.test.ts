@@ -6,15 +6,16 @@
  *  1. AOR closeout_defender + 'closeout' movement → 'closeout' clip
  *     (when imported flag on) or 'defense_slide' (when off).
  *  2. BDW cutter → 'cut_sprint' (intent BACK_CUT).
- *  3. BDW deny_defender → 'defense_slide' (intent DEFENSIVE_DENY).
+ *  3. BDW deny_defender → 'defensive_deny' (intent DEFENSIVE_DENY).
  *  4. ESC cutter → 'cut_sprint' (intent EMPTY_SPACE_CUT).
  *  5. ESC helper_defender → 'defense_slide' (intent DEFENSIVE_HELP_TURN).
  *  6. SKR open_player → 'cut_sprint' (intent SHOT_READY).
  *  7. AOR receiver moving → 'cut_sprint' (intent RECEIVE_READY).
  *  8. Missing role → falls through to movement-kind path.
- *  9. Stationary players → 'idle_ready' regardless of decoder + role.
+ *  9. Stationary offense → 'idle_ready' regardless of decoder + role.
  * 10. Defense + closeout + isMoving=false → defense_slide via resolver
  *     (preserves Phase O-ANIM stance hold).
+ * 11. Stationary BDW deny_defender → 'defensive_deny' for freeze readability.
  */
 
 /* @vitest-environment jsdom */
@@ -125,7 +126,7 @@ describe('pickGlbClipForState — BDW (BACKDOOR_WINDOW)', () => {
     ).toBe('back_cut')
   })
 
-  it('deny_defender → defense_slide (intent DEFENSIVE_DENY)', () => {
+  it('deny_defender → defensive_deny (intent DEFENSIVE_DENY)', () => {
     expect(
       pickGlbClipForState({
         team: 'defense',
@@ -134,7 +135,7 @@ describe('pickGlbClipForState — BDW (BACKDOOR_WINDOW)', () => {
         decoderTag: 'BACKDOOR_WINDOW',
         role: 'deny_defender',
       }),
-    ).toBe('defense_slide')
+    ).toBe('defensive_deny')
   })
 
   it('passer moving → cut_sprint (intent PASS_FOLLOWTHROUGH)', () => {
@@ -285,6 +286,18 @@ describe('pickGlbClipForState — stationary semantics preserved', () => {
         isMoving: false,
       }),
     ).toBe('defense_slide')
+  })
+
+  it('stationary BDW deny_defender keeps the denial cue readable', () => {
+    expect(
+      pickGlbClipForState({
+        team: 'defense',
+        kind: undefined,
+        isMoving: false,
+        decoderTag: 'BACKDOOR_WINDOW',
+        role: 'deny_defender',
+      }),
+    ).toBe('defensive_deny')
   })
 })
 
