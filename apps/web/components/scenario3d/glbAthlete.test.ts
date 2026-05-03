@@ -72,7 +72,7 @@ describe('Phase O-ASSET — fallback when cache empty', () => {
   })
 })
 
-describe('P1.8 — closeout pose readability dampener', () => {
+describe('P1.8 — region-based GLB athlete material split', () => {
   it('regionForBoneNames maps body parts to readable regions', async () => {
     const mod = await import('./glbAthlete')
     const r = mod._regionForBoneNamesForTest
@@ -90,49 +90,96 @@ describe('P1.8 — closeout pose readability dampener', () => {
     expect(r('Head', '', 1.85)).toBe('hair')
     expect(r('Head', '', 1.7)).toBe('skin')
   })
+})
 
-  it('dampenClipRotationTracks reduces rotation magnitude toward identity', async () => {
-    const THREE = await import('three')
+describe('P1.9 — closeout lower-body safety strip', () => {
+  it('CLOSEOUT_LOWER_BODY_BONE_NAMES covers root, pelvis, legs and feet', async () => {
     const mod = await import('./glbAthlete')
-    // Build a clip with one large rotation ( 90° around x ).
-    const q = new THREE.Quaternion().setFromAxisAngle(
-      new THREE.Vector3(1, 0, 0),
-      Math.PI / 2,
+    // Lock the strip target list so a future edit can't silently
+    // re-include legs/root and reintroduce the P1.8 inversion bug.
+    expect(new Set(mod.CLOSEOUT_LOWER_BODY_BONE_NAMES)).toEqual(
+      new Set([
+        'root',
+        'pelvis',
+        'thigh_l',
+        'thigh_r',
+        'calf_l',
+        'calf_r',
+        'foot_l',
+        'foot_r',
+        'ball_l',
+        'ball_r',
+      ]),
     )
-    const track = new THREE.QuaternionKeyframeTrack(
-      'pelvis.quaternion',
-      [0, 1],
-      [q.x, q.y, q.z, q.w, q.x, q.y, q.z, q.w],
-    )
-    const clip = new THREE.AnimationClip('t', 1, [track])
-    const dampened = mod._dampenClipRotationTracksForTest(clip, 0.5)
-    const v = (dampened.tracks[0].values as Float32Array)
-    const dq = new THREE.Quaternion(v[0], v[1], v[2], v[3])
-    // Half-strength of a 90° rotation is 45°. The cosine of half-angle
-    // is cos(22.5°) ≈ 0.924, so the dampened quaternion's w is much
-    // closer to 1 than the original (cos(45°) ≈ 0.707).
-    expect(dq.w).toBeGreaterThan(0.9)
-    expect(dq.w).toBeLessThan(1.0)
-    // Magnitude is preserved (still a unit quaternion).
-    expect(dq.length()).toBeCloseTo(1, 5)
   })
 
-  it('dampenClipRotationTracks leaves non-quaternion tracks untouched', async () => {
+  it('stripCloseoutLowerBodyTracks removes every lower-body track', async () => {
     const THREE = await import('three')
     const mod = await import('./glbAthlete')
-    const positionTrack = new THREE.VectorKeyframeTrack(
-      'pelvis.position',
-      [0, 1],
-      [0, 0, 0, 1, 2, 3],
+    const tracks = [
+      // upper-body (kept)
+      new THREE.QuaternionKeyframeTrack(
+        'spine_02.quaternion',
+        [0],
+        [0, 0, 0, 1],
+      ),
+      new THREE.QuaternionKeyframeTrack('Head.quaternion', [0], [0, 0, 0, 1]),
+      new THREE.QuaternionKeyframeTrack(
+        'upperarm_l.quaternion',
+        [0],
+        [0, 0, 0, 1],
+      ),
+      // lower-body (stripped)
+      new THREE.QuaternionKeyframeTrack(
+        'thigh_l.quaternion',
+        [0],
+        [0.948, 0.315, -0.039, 0.009],
+      ),
+      new THREE.QuaternionKeyframeTrack(
+        'calf_r.quaternion',
+        [0],
+        [0, 0, 0, 1],
+      ),
+      new THREE.QuaternionKeyframeTrack(
+        'foot_l.quaternion',
+        [0],
+        [0, 0, 0, 1],
+      ),
+      new THREE.QuaternionKeyframeTrack('root.quaternion', [0], [0, 0, 0, 1]),
+      new THREE.QuaternionKeyframeTrack('pelvis.quaternion', [0], [0, 0, 0, 1]),
+      new THREE.VectorKeyframeTrack('thigh_l.position', [0], [0, 0, 0]),
+    ]
+    const clip = new THREE.AnimationClip('closeout', 1, tracks)
+    const stripped = mod.stripCloseoutLowerBodyTracks(clip)
+    const remainingNames = stripped.tracks.map((t) => t.name).sort()
+    expect(remainingNames).toEqual(
+      ['Head.quaternion', 'spine_02.quaternion', 'upperarm_l.quaternion'].sort(),
     )
-    const rotTrack = new THREE.QuaternionKeyframeTrack(
-      'pelvis.quaternion',
-      [0],
-      [0, 0, 0, 1],
+
+    const dropped = mod.listStrippedCloseoutLowerBodyTrackNames(clip).sort()
+    expect(dropped).toEqual(
+      [
+        'thigh_l.quaternion',
+        'calf_r.quaternion',
+        'foot_l.quaternion',
+        'root.quaternion',
+        'pelvis.quaternion',
+        'thigh_l.position',
+      ].sort(),
     )
-    const clip = new THREE.AnimationClip('t', 1, [positionTrack, rotTrack])
-    const dampened = mod._dampenClipRotationTracksForTest(clip, 0.4)
-    expect(dampened.tracks[0]).toBeInstanceOf(THREE.VectorKeyframeTrack)
-    expect(Array.from(dampened.tracks[0].values)).toEqual([0, 0, 0, 1, 2, 3])
+
+    // Pure function — input clip is unchanged.
+    expect(clip.tracks.length).toBe(tracks.length)
+  })
+
+  it('stripCloseoutLowerBodyTracks preserves clip name and duration', async () => {
+    const THREE = await import('three')
+    const mod = await import('./glbAthlete')
+    const clip = new THREE.AnimationClip('closeout', 1.234, [
+      new THREE.QuaternionKeyframeTrack('thigh_l.quaternion', [0], [0, 0, 0, 1]),
+    ])
+    const stripped = mod.stripCloseoutLowerBodyTracks(clip)
+    expect(stripped.name).toBe('closeout')
+    expect(stripped.duration).toBe(1.234)
   })
 })
