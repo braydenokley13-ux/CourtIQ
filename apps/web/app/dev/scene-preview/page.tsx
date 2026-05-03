@@ -37,6 +37,11 @@ export const dynamic = 'force-dynamic'
  *                      to true. Layered on top of `?glb=1`; ignored
  *                      when `?glb=1` is absent (the imported closeout
  *                      path only runs inside the GLB athlete builder).
+ *   ?backcut=1         P2.2 — flips
+ *                      `imperativeScene.isImportedBackCutClipActive()`
+ *                      to true. Layered on top of `?glb=1`; ignored
+ *                      when `?glb=1` is absent (the imported back-cut
+ *                      path only runs inside the GLB athlete builder).
  */
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
@@ -64,6 +69,8 @@ export default async function ScenePreviewPage({
   const enableGlbAthletePreview = params.glb === '1'
   const enableImportedCloseoutClip =
     enableGlbAthletePreview && params.closeout === '1'
+  const enableImportedBackCutClip =
+    enableGlbAthletePreview && params.backcut === '1'
 
   const packPath = path.resolve(
     process.cwd(),
@@ -114,6 +121,7 @@ export default async function ScenePreviewPage({
         fullscreen={fullscreen}
         enableGlbAthletePreview={enableGlbAthletePreview}
         enableImportedCloseoutClip={enableImportedCloseoutClip}
+        enableImportedBackCutClip={enableImportedBackCutClip}
       />
     </Suspense>
   )

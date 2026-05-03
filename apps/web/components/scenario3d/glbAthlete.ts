@@ -623,6 +623,21 @@ export interface BuildGlbAthletePreviewOptions {
    * always attached when the flag is on.
    */
   attachImportedCloseoutClip?: boolean
+  /**
+   * Phase P (P2.2) — when true, attach the imported back-cut clip
+   * action to this figure's mixer. Caller is expected to gate this
+   * on `USE_IMPORTED_BACK_CUT_CLIP`; the GLB module does not import
+   * the flag itself to avoid a circular dependency with
+   * `imperativeScene.ts`.
+   *
+   * If true and no `back_cut.glb` asset is available in the loader
+   * cache yet, the builder falls back to the bespoke `cut_sprint`
+   * clip (the same fallback the resolver picks when the flag is
+   * off) so the action is always populated. The async loader is
+   * kicked off in the background; subsequent figure builds pick
+   * up the real clip once the cache is warm.
+   */
+  attachImportedBackCutClip?: boolean
 }
 
 export function buildGlbAthletePreview(
@@ -679,6 +694,22 @@ export function buildGlbAthletePreview(
       const closeoutClip = _getReadableCloseoutClip()
       actions['closeout'] = mixer.clipAction(closeoutClip)
       _kickOffImportedCloseoutClipLoad()
+    }
+    if (options?.attachImportedBackCutClip) {
+      // P2.2 — attach the imported back-cut clip action when the
+      // flag is on. The cache holds the stripped form (loader
+      // chokepoint enforces root-motion strip identically to the
+      // closeout path). If the cache is cold the builder falls
+      // back to the bespoke `cut_sprint` action so the
+      // resolver-chosen action is always present on the handle —
+      // matching the flag-off resolver fallback exactly.
+      const backCutClip = _getCachedImportedBackCutClipOrNull()
+      if (backCutClip) {
+        actions['back_cut'] = mixer.clipAction(backCutClip)
+      } else if (actions['cut_sprint']) {
+        actions['back_cut'] = actions['cut_sprint']
+      }
+      _kickOffImportedBackCutClipLoad()
     }
     actions['idle_ready']?.play()
 
@@ -1182,6 +1213,51 @@ export function preloadImportedCloseoutClip(): Promise<unknown> {
 }
 
 /**
+ * P2.2 — synchronous accessor for the imported back-cut clip cache.
+ * Returns the cached + root-motion-stripped clip when warm, or
+ * `null` when the asset has not been fetched yet (cold mount,
+ * JSDOM, fetch failed). Production callers of the figure builder
+ * pair this with `_kickOffImportedBackCutClipLoad` so subsequent
+ * builds pick up the real clip once the network promise resolves.
+ *
+ * Unlike the closeout path (which has a synthetic placeholder
+ * authored in code so the action is *always* attached when the
+ * flag is on), the back-cut path leaves the action slot empty
+ * when the cache is cold — the figure builder then aliases the
+ * `back_cut` action to `cut_sprint` so the resolver's chosen
+ * action name is always present and the flag-off fallback
+ * (`cut_sprint`) remains the visible behaviour until the real
+ * clip arrives.
+ */
+function _getCachedImportedBackCutClipOrNull(): THREE.AnimationClip | null {
+  const cached = getCachedImportedClip(GLB_IMPORTED_BACK_CUT_CLIP_URL)
+  return cached?.clip ?? null
+}
+
+/**
+ * P2.2 — kicks off the async fetch of `/athlete/clips/back_cut.glb`
+ * if it has not been requested yet. Idempotent. Browser-only;
+ * a no-op under JSDOM/Node.
+ */
+function _kickOffImportedBackCutClipLoad(): void {
+  if (typeof window === 'undefined') return
+  void loadImportedClip(GLB_IMPORTED_BACK_CUT_CLIP_URL)
+}
+
+/**
+ * P2.2 — public preload for the imported back-cut clip. Returns
+ * the cached + root-motion-stripped clip on success, or `null`
+ * if the asset is missing / network blocked / running outside a
+ * browser. Used by the dev-preview client to warm the cache
+ * before the canvas mounts so the very first figure build picks
+ * up the real clip rather than falling back to `cut_sprint`.
+ */
+export function preloadImportedBackCutClip(): Promise<unknown> {
+  if (typeof window === 'undefined') return Promise.resolve(null)
+  return loadImportedClip(GLB_IMPORTED_BACK_CUT_CLIP_URL).catch(() => null)
+}
+
+/**
  * Test-only — exposes the synthetic placeholder closeout clip
  * (un-stripped) so tests can assert the strip behaviour against
  * the same authoring source the production builder uses.
@@ -1671,6 +1747,7 @@ export type GlbAthleteAnimationName =
   | 'cut_sprint'
   | 'defense_slide'
   | 'closeout'
+  | 'back_cut'
 
 /**
  * Phase P (P1.0) — public-folder URL of the imported `closeout`
@@ -1683,6 +1760,16 @@ export type GlbAthleteAnimationName =
  * determinism gate) is exercisable end-to-end.
  */
 export const GLB_IMPORTED_CLOSEOUT_CLIP_URL = '/athlete/clips/closeout.glb'
+
+/**
+ * Phase P (P2.2) — public-folder URL of the imported `back_cut`
+ * clip GLB. Bundled in this packet (~57 KB, NinjaJump_Start
+ * extracted from Quaternius UAL2 under CC0 — see
+ * `apps/web/public/athlete/ATTRIBUTION.md`). Fetched via the same
+ * loader as the closeout asset so root motion is stripped at the
+ * loader layer before any track reaches the mixer.
+ */
+export const GLB_IMPORTED_BACK_CUT_CLIP_URL = '/athlete/clips/back_cut.glb'
 
 interface GlbAthleteHandle {
   figure: THREE.Group

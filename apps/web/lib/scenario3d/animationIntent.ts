@@ -410,11 +410,18 @@ export function getMovementKindIntent(
  * `GlbAthleteAnimationName` in `glbAthlete.ts` but kept as a local
  * type here so this module stays free of THREE.js imports.
  */
-export type GlbClipName = 'idle_ready' | 'cut_sprint' | 'defense_slide' | 'closeout'
+export type GlbClipName =
+  | 'idle_ready'
+  | 'cut_sprint'
+  | 'defense_slide'
+  | 'closeout'
+  | 'back_cut'
 
 export interface IntentClipFlags {
   /** True when `USE_IMPORTED_CLOSEOUT_CLIP` is active. */
   importedCloseoutActive: boolean
+  /** True when `USE_IMPORTED_BACK_CUT_CLIP` is active. */
+  importedBackCutActive: boolean
 }
 
 /**
@@ -423,6 +430,8 @@ export interface IntentClipFlags {
  * Rules:
  *   - CLOSEOUT  → 'closeout' only when `importedCloseoutActive`;
  *                 otherwise falls back to 'defense_slide'.
+ *   - BACK_CUT  → 'back_cut' only when `importedBackCutActive`;
+ *                 otherwise falls back to 'cut_sprint'.
  *   - Offensive moving intents → 'cut_sprint'.
  *   - Defensive moving intents → 'defense_slide'.
  *   - Stationary/unknown → 'idle_ready'.
@@ -440,6 +449,8 @@ export function resolveGlbClipForIntent(
       return flags.importedCloseoutActive ? 'closeout' : 'defense_slide'
 
     case 'BACK_CUT':
+      return flags.importedBackCutActive ? 'back_cut' : 'cut_sprint'
+
     case 'EMPTY_SPACE_CUT':
     case 'JAB_OR_RIP':
     case 'RECEIVE_READY':

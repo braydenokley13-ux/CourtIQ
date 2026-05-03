@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Scenario3DView } from '@/components/scenario3d/Scenario3DView'
 import {
   GLB_ATHLETE_PREVIEW_DEV_OVERRIDE_KEY,
+  IMPORTED_BACK_CUT_DEV_OVERRIDE_KEY,
   IMPORTED_CLOSEOUT_DEV_OVERRIDE_KEY,
 } from '@/components/scenario3d/imperativeScene'
 import { useScenarioSceneData } from '@/lib/scenario3d/useScenarioSceneData'
@@ -36,6 +37,14 @@ interface ScenePreviewClientProps {
    * imported closeout path only runs inside the GLB athlete builder).
    */
   enableImportedCloseoutClip: boolean
+  /**
+   * P2.2 — when true, set the runtime override window globals so
+   * `imperativeScene.isImportedBackCutClipActive()` returns `true`.
+   * Server-side gated by `?backcut=1`. Layered on top of the GLB
+   * override — has no effect when the GLB override is off (the
+   * imported back-cut path only runs inside the GLB athlete builder).
+   */
+  enableImportedBackCutClip: boolean
 }
 
 /**
@@ -53,6 +62,7 @@ export function ScenePreviewClient({
   fullscreen,
   enableGlbAthletePreview,
   enableImportedCloseoutClip,
+  enableImportedBackCutClip,
 }: ScenePreviewClientProps) {
   // P1.7 — set the dev-only override window globals BEFORE
   // anything mounts the 3D canvas. Using a `useState` initialiser
@@ -69,6 +79,9 @@ export function ScenePreviewClient({
     if (enableImportedCloseoutClip) {
       w[IMPORTED_CLOSEOUT_DEV_OVERRIDE_KEY] = true
     }
+    if (enableImportedBackCutClip) {
+      w[IMPORTED_BACK_CUT_DEV_OVERRIDE_KEY] = true
+    }
     return null
   })
 
@@ -81,11 +94,19 @@ export function ScenePreviewClient({
   // neither override is on, this state flips to `true` immediately
   // and the canvas mounts with no extra wait.
   const [assetsReady, setAssetsReady] = useState(
-    !enableGlbAthletePreview && !enableImportedCloseoutClip,
+    !enableGlbAthletePreview &&
+      !enableImportedCloseoutClip &&
+      !enableImportedBackCutClip,
   )
 
   useEffect(() => {
-    if (!enableGlbAthletePreview && !enableImportedCloseoutClip) return
+    if (
+      !enableGlbAthletePreview &&
+      !enableImportedCloseoutClip &&
+      !enableImportedBackCutClip
+    ) {
+      return
+    }
     let cancelled = false
     const tasks: Array<Promise<unknown>> = []
     // Local dynamic imports keep the dev-only preload code out of
@@ -104,6 +125,13 @@ export function ScenePreviewClient({
         ),
       )
     }
+    if (enableImportedBackCutClip) {
+      tasks.push(
+        import('@/components/scenario3d/glbAthlete').then((mod) =>
+          mod.preloadImportedBackCutClip().catch(() => null),
+        ),
+      )
+    }
     Promise.all(tasks).finally(() => {
       if (cancelled) return
       setAssetsReady(true)
@@ -111,7 +139,11 @@ export function ScenePreviewClient({
     return () => {
       cancelled = true
     }
-  }, [enableGlbAthletePreview, enableImportedCloseoutClip])
+  }, [
+    enableGlbAthletePreview,
+    enableImportedCloseoutClip,
+    enableImportedBackCutClip,
+  ])
 
   const scene = useScenarioSceneData({
     id: scenario.id,
@@ -171,6 +203,7 @@ export function ScenePreviewClient({
         DEV PREVIEW · {scenario.id} — auth bypassed for QA only
         {enableGlbAthletePreview ? ' · glb=on' : ''}
         {enableImportedCloseoutClip ? ' · closeout=on' : ''}
+        {enableImportedBackCutClip ? ' · backcut=on' : ''}
       </header>
       <div style={{ padding: '0 16px 16px' }}>
         <div style={{ position: 'relative', width: '100%', height: 720 }}>

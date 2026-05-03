@@ -3899,6 +3899,11 @@ function buildGlbAthleteFigure(
       // selector in `pickGlbClipForState` must mirror the same gate
       // so a non-flagged build never picks `closeout`.
       attachImportedCloseoutClip: isImportedCloseoutClipActive(),
+      // P2.2 — same pattern for the imported back-cut clip. The
+      // resolver in `pickGlbClipForState` mirrors this gate so a
+      // non-flagged build never picks `back_cut`; flag-off behaviour
+      // is byte-identical to pre-P2.2 (BACK_CUT intent → `cut_sprint`).
+      attachImportedBackCutClip: isImportedBackCutClipActive(),
     },
   )
 }
@@ -3942,6 +3947,7 @@ export function pickGlbClipForState(
   const { team, kind, isMoving, decoderTag, role } = opts
   const flags: IntentClipFlags = {
     importedCloseoutActive: isImportedCloseoutClipActive(),
+    importedBackCutActive: isImportedBackCutClipActive(),
   }
 
   // ---- Stationary: defender holds defensive stance for closeout/rotation,

@@ -174,18 +174,29 @@ describe('getDecoderAnimationIntent — exhaustive fallback safety', () => {
 
 describe('resolveGlbClipForIntent — CLOSEOUT intent', () => {
   it('returns "closeout" clip when importedCloseoutActive=true', () => {
-    expect(resolveGlbClipForIntent('CLOSEOUT', { importedCloseoutActive: true })).toBe('closeout')
+    expect(
+      resolveGlbClipForIntent('CLOSEOUT', {
+        importedCloseoutActive: true,
+        importedBackCutActive: false,
+      }),
+    ).toBe('closeout')
   })
 
   it('falls back to "defense_slide" when importedCloseoutActive=false', () => {
-    expect(resolveGlbClipForIntent('CLOSEOUT', { importedCloseoutActive: false })).toBe(
-      'defense_slide',
-    )
+    expect(
+      resolveGlbClipForIntent('CLOSEOUT', {
+        importedCloseoutActive: false,
+        importedBackCutActive: false,
+      }),
+    ).toBe('defense_slide')
   })
 })
 
 describe('resolveGlbClipForIntent — flag-off path unchanged for all intents', () => {
-  const FLAG_OFF = { importedCloseoutActive: false }
+  const FLAG_OFF = {
+    importedCloseoutActive: false,
+    importedBackCutActive: false,
+  }
 
   it('IDLE_READY → idle_ready', () => {
     expect(resolveGlbClipForIntent('IDLE_READY', FLAG_OFF)).toBe('idle_ready')
@@ -443,8 +454,9 @@ describe('determinism', () => {
   })
 
   it('resolveGlbClipForIntent is pure — same call twice', () => {
-    const a = resolveGlbClipForIntent('CLOSEOUT', { importedCloseoutActive: true })
-    const b = resolveGlbClipForIntent('CLOSEOUT', { importedCloseoutActive: true })
+    const flags = { importedCloseoutActive: true, importedBackCutActive: false }
+    const a = resolveGlbClipForIntent('CLOSEOUT', flags)
+    const b = resolveGlbClipForIntent('CLOSEOUT', flags)
     expect(a).toBe(b)
   })
 
@@ -456,8 +468,14 @@ describe('determinism', () => {
 
   it('AOR-01 closeout resolver chain is deterministic end-to-end', () => {
     const intent = getDecoderAnimationIntent('ADVANTAGE_OR_RESET', 'closeout_defender')
-    const clipOn = resolveGlbClipForIntent(intent, { importedCloseoutActive: true })
-    const clipOff = resolveGlbClipForIntent(intent, { importedCloseoutActive: false })
+    const clipOn = resolveGlbClipForIntent(intent, {
+      importedCloseoutActive: true,
+      importedBackCutActive: false,
+    })
+    const clipOff = resolveGlbClipForIntent(intent, {
+      importedCloseoutActive: false,
+      importedBackCutActive: false,
+    })
     expect(intent).toBe('CLOSEOUT')
     expect(clipOn).toBe('closeout')
     expect(clipOff).toBe('defense_slide')
