@@ -19,6 +19,7 @@ import {
   fitCameraToScene,
   MotionController,
   ReplayStateMachine,
+  USE_GLB_ATHLETE_PREVIEW,
   type CameraMode,
   type ReplayState,
 } from './imperativeScene'
@@ -43,6 +44,7 @@ import {
   type QualityTier,
 } from '@/lib/scenario3d/quality'
 import { buildDustMotes, type DustMotes } from '@/lib/scenario3d/atmosphere'
+import { loadGlbAthleteAsset } from './glbAthlete'
 
 interface Scenario3DCanvasProps {
   /** Mounted as the WebGL fallback when WebGL is unavailable. */
@@ -381,27 +383,46 @@ export function Scenario3DCanvas({
     }
   }, [qualitySettings])
 
-  // Phase L — fullscreen-change resize. R3F watches its parent's size
-  // via its own ResizeObserver, but the observer can coalesce or miss
-  // the fullscreen transition (especially on Safari). On every
-  // fullscreenchange, force `gl.setSize` and `controller.setAspect`
-  // from the wrapper's current clientWidth/clientHeight so the pixel
-  // buffer + camera aspect track the new viewport without waiting for
-  // R3F's observer. Idempotent if the observer already fired.
+  // Phase L / P0-LOCK — wrapper resize sync. Drives `gl.setSize` and
+  // `controller.setAspect` from the wrapper's current layout box so
+  // the pixel buffer + camera aspect track the visible viewport.
+  //
+  // Three signals can change wrapper size:
+  //   1. Browser fullscreen transition. The `:fullscreen` CSS rule
+  //      flips the outer column to flex-column 100vh and the wrapper
+  //      to `flex: 1 1 auto`, but React's `setIsFullscreen(true)` to
+  //      `data-fullscreen-fill='true'` flush is async. The Phase K
+  //      bug (top-strip / bottom-half-black) was the React render
+  //      flushing AFTER the document `fullscreenchange` handler
+  //      called `gl.setSize` on the still-embedded wrapper height.
+  //   2. GLB asset cold-load completing AFTER first paint. The
+  //      figure swaps in (different bbox, different bind pose), and
+  //      R3F's internal observer can coalesce the visible-size
+  //      change away.
+  //   3. Plain parent resize (window resize, layout change).
+  //
+  // The fix is a `ResizeObserver` on the wrapper itself: it fires
+  // whenever the wrapper's actual layout box changes, regardless of
+  // the cause, so we no longer race React's render cycle. The
+  // `fullscreenchange` and `webkitfullscreenchange` events stay as a
+  // belt-and-suspenders backstop for browsers where the observer
+  // coalesces the transition into a stale single tick.
   useEffect(() => {
     if (typeof document === 'undefined') return
     const wrapper = containerRef.current
     if (!wrapper) return
+    let lastWidth = -1
+    let lastHeight = -1
     const apply = () => {
       const gl = glRef.current
       const cam = threeCameraRef.current
       if (!gl) return
-      // Use the wrapper's current layout box. The fullscreen-fill CSS
-      // rule grows the wrapper to fill the fullscreen flex column;
-      // gl.setSize then resizes the renderer's drawing buffer.
       const width = wrapper.clientWidth
       const height = wrapper.clientHeight
       if (width <= 0 || height <= 0) return
+      if (width === lastWidth && height === lastHeight) return
+      lastWidth = width
+      lastHeight = height
       try {
         gl.setSize(width, height, false)
       } catch {
@@ -414,19 +435,58 @@ export function Scenario3DCanvas({
         persp.aspect = width / height
         persp.updateProjectionMatrix()
       }
-      // Surface the new size to the diagnostics panel.
       setCanvasSize({ width, height })
     }
-    const onChange = () => {
-      // Run twice: once immediately for the case where layout has
-      // already settled, and once on the next frame for the case
-      // where the browser hasn't finished applying the fullscreen
-      // box yet.
+
+    // Three back-to-back applies after a discrete event (fullscreen
+    // toggle / GLB load): the synchronous one catches browsers that
+    // settle layout before firing the event, the next-frame one
+    // covers the React render flush (data-fullscreen-fill prop), and
+    // a third deferred apply at ~120ms catches Safari's slower
+    // post-fullscreen layout pass.
+    const applyAfterTransition = () => {
       apply()
-      requestAnimationFrame(apply)
+      requestAnimationFrame(() => {
+        apply()
+        setTimeout(apply, 120)
+      })
     }
-    document.addEventListener('fullscreenchange', onChange)
-    return () => document.removeEventListener('fullscreenchange', onChange)
+
+    let resizeObserver: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => apply())
+      resizeObserver.observe(wrapper)
+    }
+
+    const onFullscreenChange = applyAfterTransition
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange)
+
+    // Cold-load handoff: when the GLB flag is on, the asset cache
+    // populates asynchronously and the figure-builder swaps from
+    // procedural to skinned on the next scene mount. Re-running
+    // apply once the load promise settles ensures the renderer's
+    // pixel buffer + camera aspect track any wrapper-size change
+    // that may have happened during the load. Gated on the flag so
+    // GLB-off traffic never pays the 1.4MB asset fetch.
+    let cancelled = false
+    if (USE_GLB_ATHLETE_PREVIEW) {
+      void loadGlbAthleteAsset()
+        .then(() => {
+          if (cancelled) return
+          applyAfterTransition()
+        })
+        .catch(() => {
+          /* swallowed — apply still runs from the observer */
+        })
+    }
+
+    return () => {
+      cancelled = true
+      if (resizeObserver) resizeObserver.disconnect()
+      document.removeEventListener('fullscreenchange', onFullscreenChange)
+      document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
+    }
   }, [])
 
   // Parent-level rAF render driver. Polls glRef each frame and, once the
