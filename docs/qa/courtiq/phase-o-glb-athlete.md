@@ -865,3 +865,88 @@ it can run. Once it lands, P1's imported-clip spike can flip
 `USE_IMPORTED_CLOSEOUT_CLIP` on against AOR-01 with a live
 determinism check verifying root-motion-stripped clips do not
 divert the figure's authored x/z route.
+
+## Phase P — P0-LOCK-2 packet (end-to-end GLB determinism gate)
+
+The follow-on packet P0-LOCK called for. Closes the
+end-to-end-GLB-determinism gap before P1 imported animations,
+P2 decoder-specific intent mapping, or P3 overlay/camera
+synchronization can land.
+
+**Path chosen — Vitest GLTFLoader mock (Path A).** The existing
+`qa:scene:screenshots` Playwright harness spawns a real Next.js
+dev server and is wall-clock-driven. Making it deterministic
+would require plumbing a synthetic-tick API through
+`Scenario3DCanvas`/`Scenario3DView`, exposing a test-only window
+method to read bone snapshots, and adding a way to pin
+`USE_GLB_ATHLETE_PREVIEW = true` from a query parameter — at
+least three new public surface points the production app would
+carry forever. Path A drives the same code path
+(`MotionController.applyGlbAnimation` →
+`setGlbAthleteAnimation` + `updateGlbAthletePose` on a real GLB
+figure built via `cloneSkinned`) with only the asset bytes
+mocked, runs in <100ms in plain Vitest, and acts as a true CI
+gate.
+
+**Implementation.**
+
+- `_setGlbAthleteCacheForTest(scene, skinnedMesh)` — test-only
+  cache injector in `glbAthlete.ts`. Bypasses the GLTFLoader so
+  Vitest can warm the cache with a hand-built asset.
+- `__fixtures__/mockGlbAsset.ts` — faithful Quaternius UAL2
+  mock. Bone names, parent-child topology, and non-T-pose rest
+  rotations all captured from the real bundled `mannequin.glb`
+  during the P0-LOCK audit. Three vertices fully weighted to the
+  pelvis are enough to make `cloneSkinned` re-bind the cloned
+  skeleton and `Box3.setFromObject(precise=true)` produce a real
+  skinned bbox.
+- `glbAthleteEndToEndDeterminism.test.ts` — four cases:
+  1. Two GLB-figure runs of the same scenario produce
+     bit-equivalent bone quaternions on every mapped bone at the
+     freeze tick. **This is the gate every later phase depends on.**
+  2. Animation never writes to player world `(x, y, z)` — only
+     the scenario timeline does. Verified end-to-end on every
+     player by snapshotting positions across ticks and proving
+     `y` stays at `PLAYER_LIFT` and `(x, z)` come purely from
+     `samplePlayer`.
+  3. Mapped bones drift from bind pose under the active clip on
+     every player. Catches the silent-no-op regression where the
+     mixer "ran" but `PropertyBinding` wrote nothing.
+  4. Freeze cap is idempotent for the `(x, z)` route — extra
+     ticks past the cap do not move any player by even a float
+     ULP. Bones DO continue under `idle_ready` per Phase P §7's
+     "subtle breathing acceptable" allowance, so this case
+     intentionally checks the route, not the pose.
+
+**Coverage gap (asset drift).** The test runs against the
+hand-built mock that mirrors bone names + topology audited from
+the bundled GLB. If Quaternius publishes a UAL2 update with
+renamed bones or a different parent chain, only a Playwright
+pass loading the real asset would catch it. The dev-only
+bone-map audit log added in P0-LOCK is the last-line defense
+when `USE_GLB_ATHLETE_PREVIEW = true` runs in a real session.
+A complementary Playwright-driven sanity check that asserts
+"all `GLB_BONE_MAP` names resolve in the real `mannequin.glb`"
+is the next packet's natural follow-on, but it is no longer the
+gate — Path A is the gate.
+
+### P0-LOCK-2 follow-on packet recommendation
+
+P0-LOCK-2 is the gate. Imported animation work (P1) can begin.
+The smallest sensible next packet is **P1.0 — closeout clip
+import + root-motion-strip loader**, which:
+
+1. Bundles a single CC0/permissive `closeout` GLB clip as a
+   second asset (`apps/web/public/athlete/clips/closeout.glb`).
+2. Adds a loader-level utility that strips translation channels
+   from the root/hip bone before any clip is exposed to the
+   mixer, with a unit test asserting the channel is zeroed.
+3. Wires `USE_IMPORTED_CLOSEOUT_CLIP` (default off) into the
+   same flag pattern as `USE_GLB_ATHLETE_PREVIEW`.
+4. Extends `glbAthleteEndToEndDeterminism.test.ts` with one
+   case that flips the closeout flag on, drives the AOR-01
+   defender through the closeout intent, and asserts (a) the
+   bone snapshot stays deterministic across runs and (b) the
+   defender's authored `(x, z)` route is byte-identical to the
+   flag-off run. This is the live form of the determinism gate
+   the P1 acceptance criteria call out.
