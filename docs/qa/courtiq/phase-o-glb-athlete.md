@@ -1667,3 +1667,122 @@ whether a Blender-authored bespoke clip is the correct next step.
 4. **If the visual verdict is ACCEPT,** the next packet is
    **P2 — decoder-specific animation states.** All asset and
    scenario blockers are retired.
+
+## Phase P — P1.8 packet (AOR closeout visual readability + GLB athlete polish)
+
+### P1.8 scope
+
+P1.7 confirmed the imported closeout asset is loader-safe, route-safe,
+and determinism-safe but left visual acceptance PENDING. Manual screen
+captures (`/dev/scene-preview?scenario=AOR-01&glb=1&closeout=1`)
+showed five distinct readability failures:
+
+1. GLB athletes rendered as single-tint plastic mannequins. The whole
+   body shared one team colour, so the silhouette read as "doll"
+   rather than "basketball player in jersey".
+2. The Quaternius UAL2 `Shield_Dash_RM` clip read as fantasy lunge —
+   deep forward lean, wide arm spread, hands flared like a shield-
+   dash, no recognisable basketball-closeout body language.
+3. The freeze frame piled the on-floor "WING" sprite over the
+   receiver, competing with the cushion read.
+4. The shared broadcast / replay / follow camera presets framed the
+   half-court midline (x = 0); AOR-01's read happens at x ≈ 15, z ≈ 9,
+   so the closeout cue sat at the right edge of canvas with the
+   passer off-screen left.
+5. Joint stud overlays (M_Joints primitive) tinted the team colour
+   read as fantasy-armour bumps at every joint.
+
+P1.8 fixes 1–5 without expanding scope: flags stay default-off, the
+route stays deterministic, root motion stays stripped, and the
+procedural fallback path is untouched.
+
+### P1.8 changes (commit-by-commit)
+
+1. **Material polish.** `applyTeamColorToCloned` is replaced with
+   `applyMultiRegionMaterialsToCloned`. Each vertex picks its body
+   region from the SkinnedMesh's primary skinning bone (and, for
+   sleeves, secondary): jersey, shorts, skin, shoes, hair. The
+   per-figure cloned geometry carries a `color` attribute with the
+   team colour baked in for jersey vertices; one `MeshStandardMaterial`
+   with `vertexColors: true` renders the whole figure in one draw
+   call. The joints overlay tints to skin so the joint studs blend
+   into the silhouette.
+2. **Closeout pose readability.** `dampenClipRotationTracks` slerps
+   every rotation keyframe in the imported closeout clip from
+   identity toward the authored value by a factor of `0.65` before
+   the clip ever reaches a mixer. The shield-dash extreme lean and
+   arm spread are dampened toward bind pose; the silhouette reads as
+   basketball closeout pressure (controlled hand up, feet plant)
+   rather than fantasy lunge. Translation tracks are untouched (the
+   loader strip already handles root motion).
+3. **AOR-01 visual + camera framing.** Closeout-read scenes
+   (`scene.type === 'catch_and_read_closeout'`) suppress the
+   on-floor spacing label on the receiver. A new
+   `SCENE_CAMERA_NUDGES` table biases AOR-01's broadcast / replay /
+   follow presets toward the right-wing read (broadcast nudge dx=+6,
+   dz=−6, lookDx=+8; replay swings to the opposite side at dx=+32;
+   follow extends trail by 2 ft). The follow target prefers the
+   user (receiver) over the ball-handler so FOLLOW frames the cue
+   not the passer.
+
+### P1.8 manual visual acceptance rubric
+
+For each capture below, answer YES / NO:
+
+- [ ] Does the defender read as closing out (controlled hand up,
+      stance plant)? — not as fantasy lunge.
+- [ ] Does the receiver read as making a first-touch decision —
+      isolated, ball arriving, defender pressuring?
+- [ ] Does the scene look basketball-like — jersey vs shorts vs
+      skin vs shoes visibly distinct, no plastic-doll tint?
+- [ ] Does the imported clip still look too fantasy/combat-like at
+      its peak? (NO is the desired answer.)
+- [ ] Does each camera mode (BROADCAST / FOLLOW / REPLAY / TACTICAL /
+      AUTO) show the closeout cue clearly?
+- [ ] Does fullscreen still work and stay framed?
+- [ ] Are feet planted / rings on the floor / no z-fighting?
+- [ ] Is the correct read visually understandable from the screenshot
+      alone — shoot, attack, or reset?
+
+### P1.8 manual screenshot capture targets
+
+URL builder for AOR-01 with the GLB athlete + imported closeout
+clip enabled:
+
+- `BROADCAST` (default) — `/dev/scene-preview?scenario=AOR-01&glb=1&closeout=1`
+- `FOLLOW`           — `/dev/scene-preview?scenario=AOR-01&glb=1&closeout=1&camera=follow`
+- `REPLAY`           — `/dev/scene-preview?scenario=AOR-01&glb=1&closeout=1&camera=replay`
+- `TACTICAL`         — `/dev/scene-preview?scenario=AOR-01&glb=1&closeout=1&camera=tactical`
+- `AUTO`             — `/dev/scene-preview?scenario=AOR-01&glb=1&closeout=1&camera=auto`
+- `Fullscreen broadcast` —
+  `/dev/scene-preview?scenario=AOR-01&glb=1&closeout=1&fullscreen=1`
+
+Save captures under `docs/qa/courtiq/phase-p/p1-8-aor-01/`.
+
+P1.8 does not bundle screenshot automation — the CI screenshot
+worker would need a flag-on toggle that has not been wired through
+the harness yet (out of P1.8 scope, same posture as P1.7).
+
+### P1.8 visual-acceptance verdict
+
+**Status: NEEDS-COACH-REVIEW.** The five P1.7 readability failures
+are addressed at the code layer and the synthesis tests pass, but
+P1.8 has not yet been hand-walked by a coach against the AOR-01
+cue + cushion timing read. The Quaternius `Shield_Dash_RM` source
+clip is now dampened toward bind pose so the closeout reads as
+basketball pressure rather than shield-dash; final ACCEPT vs.
+REJECT is a coach call that should happen on top of these visual
+fixes.
+
+### P1.8 follow-on packet recommendation
+
+1. **Coach review of dampened closeout + AOR-01 cushion read** —
+   the asset+pose acceptance gate that P1.5 / P1.6 / P1.7 left open
+   is now visually defensible. A 10-minute coach pass against the
+   capture matrix above gives a definitive ACCEPT / REJECT.
+2. **If ACCEPT:** ship P2 — decoder-specific animation states
+   (other AOR cues, BDW closeouts, ESC switches).
+3. **If REJECT:** the next packet replaces the dampener with a
+   bespoke Blender-authored clip on the same UAL2 rig — the
+   smallest visual escalation, since the pipeline (loader strip,
+   determinism gate, material splits) is unchanged.
