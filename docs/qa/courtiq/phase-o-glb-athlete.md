@@ -1335,3 +1335,126 @@ Same as P1.0's recommendation, narrowed:
 2. **Coach review of AOR-01.** Promote to LIVE if approved.
 3. **P2 — decoder-specific animation states.** Now unblocked on
    both axes (asset + scenario).
+
+## Phase P — P1.6 packet (real closeout asset on disk)
+
+The asset-sourcing micro-pass P1.5 called for. Lands a real,
+license-clean closeout animation in
+`apps/web/public/athlete/clips/closeout.glb` and the
+loader-strip-against-real-asset test the synthetic-only suites
+could not provide.
+
+### What this packet does
+
+1. **Adds a real `closeout.glb` (60 KB, CC0).** Extracted from
+   Quaternius Universal Animation Library 2 — the same pack that
+   ships the bundled `mannequin.glb`. The chosen source clip is
+   `Shield_Dash_RM`, a 1.1 s forward defensive approach with a
+   raised guard hand. UAL2 has 43 clips; none are
+   basketball-style; `Shield_Dash_RM` is the only sub-1.5 s
+   forward defensive-approach in the pack and reads as a
+   closeout once the root motion is stripped.
+
+   Extraction is a scripted GLB JSON+bin re-pack that copies
+   only the bone tracks `GLB_BONE_MAP` cares about (root,
+   pelvis, spine_01–03, neck_01, Head, clavicle/upperarm/
+   lowerarm/hand_l|r, thigh/calf/foot_l|r, ball_l|r — 23
+   bones) into a fresh GLB. The full UAL2 mesh + 42 unrelated
+   clips are NOT bundled. The animation is renamed `closeout`
+   so the loader's name-default picks it up.
+
+2. **Loader strip is unchanged.** `closeout.glb` carries
+   `root.position` AND `pelvis.position` tracks in the source
+   (translates 1.0 unit forward over 1.1 s). The existing
+   `DEFAULT_ROOT_MOTION_BONE_NAMES` already lists both, so the
+   loader strips them on the way in. No code changes were
+   required.
+
+3. **Adds `closeoutAssetIntegration.test.ts`.** Reads the
+   bundled GLB, parses through `GLTFLoader.parse`, and asserts
+   the real-asset path stays loader-safe:
+   - one clip named `closeout`, duration `(0, 2)` s.
+   - `root.position` and `pelvis.position` present in source
+     and classified as root motion.
+   - `stripRootMotionTracks` removes exactly those two and
+     leaves rotation tracks for every Phase O bone-mapped joint.
+   - the stripped clip cannot move a bound `pelvis` bone off
+     its bind pose translation; rotation tracks DO drift the
+     `pelvis.quaternion` (proves PropertyBinding still resolves).
+
+4. **Updates `ATTRIBUTION.md` and `clips/README.md`.** Replaces
+   the "asset is a TODO" prose with an actual provenance entry:
+   pack + source URL + downloaded date + license + bone-rig
+   note + extraction note + size + visual-QA-pending status.
+
+### What this packet does NOT do
+
+- Toggle either flag. `USE_GLB_ATHLETE_PREVIEW` and
+  `USE_IMPORTED_CLOSEOUT_CLIP` remain `false` by default.
+  Production traffic still pays no cold-load cost for either
+  asset.
+- Run the live `/dev/scene-preview?scenario=AOR-01` Mac/Chrome
+  capture. That requires a human-driven flag-on session and is
+  the next gate before AOR-01 promotes to LIVE.
+- Ship a per-clip license adapter. The closeout shares the
+  parent `LICENSE.txt` (CC0) the bundled mannequin uses, since
+  both come from the same pack archive. A future per-clip
+  asset from a different licensor would need its own
+  `LICENSE-<asset>.txt` next to the GLB.
+- Decoder-specific animation states (P2). Out of scope.
+
+### P1.6 dev-preview QA note (`/dev/scene-preview?scenario=AOR-01`)
+
+Static analysis only — both flags ship `false`, so the live
+visual capture is still pending.
+
+- Route loads the same way it did in P1.5: the dev-preview page
+  reads the AOR-01 seed JSON via the existing pack registry
+  (`apps/web/lib/scenario3d/pack.json` lists AOR-01).
+  `apps/web/lib/scenario3d/aor01Seed.test.ts` (11 tests) was
+  re-run after this packet — green.
+- `glbAthleteEndToEndDeterminism.test.ts` (8 tests) was re-run
+  with the bundled file on disk. The cases that exercise the
+  closeout action attached + playing still use the synthetic
+  placeholder clip (the test injects via
+  `_setImportedClipCacheForTest`); the bundled file is loader-
+  validated separately by `closeoutAssetIntegration.test.ts`.
+- The flag-off code path is byte-identical to pre-P1.6: the
+  GLB athlete builder skips the closeout attach branch, the
+  imported-clip cache is never populated, and no fetch goes
+  out for `/athlete/clips/closeout.glb`.
+- A flag-on local session WILL now fetch the bundled
+  `closeout.glb` once on cold mount. After that fetch, the
+  next figure-build will pick the real clip out of the loader
+  cache; the very first cold-mount frame still uses the
+  synthetic placeholder so there is no "static defender for
+  300 ms then animation kicks in" race. This carry-over from
+  P1.0 is unchanged.
+
+### P1.6 manual QA matrix
+
+| Item | Status | Notes |
+| --- | --- | --- |
+| Real `closeout.glb` on disk | Verified | 60 KB at `apps/web/public/athlete/clips/closeout.glb`. |
+| Attribution recorded with license + source URL | Verified | `apps/web/public/athlete/ATTRIBUTION.md` "Closeout" entry. |
+| Bone names match Quaternius UAL2 rig (no adapter needed) | Verified | Source bones: `root`, `pelvis`, `spine_01..03`, `Head`, `upperarm_l/r`, `lowerarm_l/r`, `thigh_l/r`, `calf_l/r`, `foot_l/r`, `ball_l/r`. All resolve via `GLB_BONE_MAP`. |
+| Root motion present in source | Verified | `root.position` 0→1.0 fwd; `pelvis.position` ~0.487→~0.877 fwd over 1.1 s. |
+| Loader strips both root tracks | Verified | `closeoutAssetIntegration.test.ts` "stripRootMotionTracks removes both root-motion tracks" case. |
+| Stripped clip cannot move a bound pelvis | Verified | `closeoutAssetIntegration.test.ts` "stripped clip cannot move a bound pelvis bone off its bind pose" case. |
+| Determinism gate green with the bundled asset on disk | Verified | `glbAthleteEndToEndDeterminism.test.ts` 8/8 — runs unaltered against the synthetic placeholder, but the real GLB co-exists on disk without disturbing module-level state. |
+| AOR-01 still loads | Verified | `aor01Seed.test.ts` 11/11; `pack.json` unchanged. |
+| Both flags default false | Verified | `imperativeScene.ts:3515` and `:3541` unchanged. |
+| Live `/dev/scene-preview?scenario=AOR-01` Mac/Chrome capture (flags on) | **Pending** | Requires human-driven flag-on session. The P1.5 step-by-step walkthrough above (steps 1–10) still applies. |
+
+### P1.6 follow-on packet recommendation
+
+1. **Live flag-on dev-preview capture** of
+   `/dev/scene-preview?scenario=AOR-01` in all four camera
+   modes plus fullscreen. With the real closeout clip on disk,
+   this finally produces the visual evidence the placeholder
+   could not. After capture, this is the gate for promoting
+   AOR-01 from DRAFT to LIVE.
+2. **Coach review of AOR-01** — same recommendation as P1.5,
+   now unblocked on the asset axis.
+3. **P2 — decoder-specific animation states.** All asset and
+   scenario blockers are now retired.
