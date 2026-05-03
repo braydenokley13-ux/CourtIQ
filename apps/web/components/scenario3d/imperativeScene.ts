@@ -3651,6 +3651,31 @@ export const USE_GLB_ATHLETE_PREVIEW = false
 export const USE_IMPORTED_CLOSEOUT_CLIP = false
 
 /**
+ * Phase P (P2.2) — when true, the GLB athlete builder attaches the
+ * imported `back_cut` clip to every GLB figure and the resolver in
+ * `pickGlbClipForState` is allowed to switch a player into the
+ * `back_cut` action when the BACK_CUT intent fires. Defaults to
+ * `false`. Layered on top of `USE_GLB_ATHLETE_PREVIEW` — flipping
+ * it on while the parent flag is `false` is a no-op.
+ *
+ * Scope is intentionally narrow:
+ *   - One imported intent only — `back_cut`. EMPTY_SPACE_CUT and
+ *     other offensive intents still fall back to `cut_sprint`.
+ *   - Dev/test wiring only. Production traffic stays on the bespoke
+ *     procedural / GLB clips that ship today.
+ *   - Loader-level root-motion stripping is enforced regardless of
+ *     this flag — the strip is a property of the import path, not
+ *     of the back-cut clip specifically. See
+ *     `importedClipLoader.stripRootMotionTracks`.
+ *
+ * Toggling off must restore byte-identical pre-P2.2 behaviour: the
+ * BACK_CUT intent resolves to `cut_sprint`, no `back_cut` action
+ * exists on the GLB handle, and the imported back-cut asset is
+ * neither fetched nor cached.
+ */
+export const USE_IMPORTED_BACK_CUT_CLIP = false
+
+/**
  * P1.7 — dev-only runtime override key. The dev-preview page sets
  * `window[GLB_ATHLETE_PREVIEW_DEV_OVERRIDE_KEY] = true` BEFORE the
  * 3D canvas mounts when `?glb=1` is on the URL. Production never
@@ -3665,6 +3690,10 @@ export const GLB_ATHLETE_PREVIEW_DEV_OVERRIDE_KEY =
 /** P1.7 — companion override key for the imported closeout clip. */
 export const IMPORTED_CLOSEOUT_DEV_OVERRIDE_KEY =
   '__COURTIQ_IMPORTED_CLOSEOUT_DEV_OVERRIDE__'
+
+/** P2.2 — companion override key for the imported back-cut clip. */
+export const IMPORTED_BACK_CUT_DEV_OVERRIDE_KEY =
+  '__COURTIQ_IMPORTED_BACK_CUT_DEV_OVERRIDE__'
 
 /**
  * P1.7 — runtime check for the GLB athlete preview gate. Returns
@@ -3701,6 +3730,20 @@ export function isImportedCloseoutClipActive(): boolean {
   return Boolean(
     (window as unknown as Record<string, unknown>)[
       IMPORTED_CLOSEOUT_DEV_OVERRIDE_KEY
+    ],
+  )
+}
+
+/** P2.2 — companion runtime check for the imported back-cut clip. */
+export function isImportedBackCutClipActive(): boolean {
+  if (USE_IMPORTED_BACK_CUT_CLIP) return true
+  if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production') {
+    return false
+  }
+  if (typeof window === 'undefined') return false
+  return Boolean(
+    (window as unknown as Record<string, unknown>)[
+      IMPORTED_BACK_CUT_DEV_OVERRIDE_KEY
     ],
   )
 }
