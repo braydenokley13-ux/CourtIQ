@@ -212,13 +212,16 @@ describe('resolveGlbClipForIntent — BACK_CUT intent', () => {
   })
 
   it('back-cut flag does not leak into other offensive intents', () => {
-    // EMPTY_SPACE_CUT, JAB_OR_RIP, RECEIVE_READY, etc. must still
-    // resolve to cut_sprint when only importedBackCutActive is on.
+    // EMPTY_SPACE_CUT, JAB_OR_RIP, RECEIVE_READY, SHOT_READY,
+    // PASS_FOLLOWTHROUGH, and RESET_HOLD must still resolve to
+    // cut_sprint when only importedBackCutActive is on.
     const flags = { importedCloseoutActive: false, importedBackCutActive: true }
     expect(resolveGlbClipForIntent('EMPTY_SPACE_CUT', flags)).toBe('cut_sprint')
     expect(resolveGlbClipForIntent('JAB_OR_RIP', flags)).toBe('cut_sprint')
     expect(resolveGlbClipForIntent('RECEIVE_READY', flags)).toBe('cut_sprint')
     expect(resolveGlbClipForIntent('SHOT_READY', flags)).toBe('cut_sprint')
+    expect(resolveGlbClipForIntent('PASS_FOLLOWTHROUGH', flags)).toBe('cut_sprint')
+    expect(resolveGlbClipForIntent('RESET_HOLD', flags)).toBe('cut_sprint')
   })
 
   it('back-cut flag does not leak into closeout', () => {

@@ -1,16 +1,31 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import * as THREE from 'three'
 import {
+  GLB_IMPORTED_BACK_CUT_CLIP_URL,
   buildGlbAthletePreview,
+  getGlbAthleteHandle,
   GLB_ATHLETE_ASSET_URL,
   GLB_ATHLETE_USER_DATA_KEY,
   _resetGlbAthleteCache,
+  _resetGlbAthleteClipCache,
+  _resetGlbAthleteBoneMapAuditGuard,
+  _resetReadableBackCutClipCache,
+  _setGlbAthleteCacheForTest,
 } from './glbAthlete'
+import {
+  _resetImportedClipCache,
+  _setImportedClipCacheForTest,
+} from './importedClipLoader'
 import {
   USE_GLB_ATHLETE_PREVIEW,
   USE_IMPORTED_CLOSEOUT_CLIP,
   buildPlayerFigure,
   getPlayerIndicatorLayers,
 } from './imperativeScene'
+import {
+  assertMockCoversGlbBoneMap,
+  buildMockGlbAsset,
+} from './__fixtures__/mockGlbAsset'
 
 /**
  * Phase O-ASSET — GLB athlete preview path tests.
@@ -45,6 +60,76 @@ describe('Phase P (P1.0) — imported closeout flag default', () => {
     // and exists only so the determinism gate can prove the closeout
     // clip cannot move the player off the authored route.
     expect(USE_IMPORTED_CLOSEOUT_CLIP).toBe(false)
+  })
+})
+
+describe('P2.3 — readable back-cut action attachment', () => {
+  afterEach(() => {
+    _resetGlbAthleteCache()
+    _resetGlbAthleteClipCache()
+    _resetGlbAthleteBoneMapAuditGuard()
+    _resetReadableBackCutClipCache()
+    _resetImportedClipCache()
+  })
+
+  it('attaches the readable back-cut clip, not the raw imported posture', () => {
+    const asset = buildMockGlbAsset()
+    assertMockCoversGlbBoneMap(asset)
+    _setGlbAthleteCacheForTest(asset.scene, asset.skinnedMesh)
+
+    _setImportedClipCacheForTest(GLB_IMPORTED_BACK_CUT_CLIP_URL, {
+      clip: new THREE.AnimationClip('back_cut', 1, [
+        new THREE.VectorKeyframeTrack('root.position', [0, 1], [0, 0, 0, 0, 0, 4]),
+        new THREE.VectorKeyframeTrack(
+          'pelvis.position',
+          [0, 1],
+          [0, 0.1, 0, 0, 0.1, 3],
+        ),
+        new THREE.QuaternionKeyframeTrack(
+          'upperarm_l.quaternion',
+          [0],
+          [0.9, 0, 0, 0.44],
+        ),
+        new THREE.QuaternionKeyframeTrack(
+          'foot_l.quaternion',
+          [0],
+          [0, 0, 0, 1],
+        ),
+      ]),
+      strippedTrackNames: ['root.position', 'pelvis.position'],
+    })
+
+    const figure = buildGlbAthletePreview(
+      '#3BFF9D',
+      '#0F8C4E',
+      true,
+      false,
+      '12',
+      'idle',
+      { attachImportedBackCutClip: true },
+    )
+    expect(figure).not.toBeNull()
+    const handle = getGlbAthleteHandle(figure!)
+    expect(handle).not.toBeNull()
+    const clip = handle!.actions['back_cut']?.getClip()
+    expect(clip).toBeDefined()
+    expect(clip!.name).toBe('back_cut')
+
+    const names = clip!.tracks.map((t) => t.name).sort()
+    expect(names).toContain('spine_02.quaternion')
+    expect(names).toContain('Head.quaternion')
+    expect(names).toContain('upperarm_l.quaternion')
+    expect(names).toContain('lowerarm_r.quaternion')
+    expect(names).toContain('thigh_l.quaternion')
+    expect(names).not.toContain('root.position')
+    expect(names).not.toContain('pelvis.position')
+    expect(names).not.toContain('foot_l.quaternion')
+    for (const name of names) {
+      expect(name.endsWith('.position'), `${name} must not move the route`).toBe(
+        false,
+      )
+      expect(name.endsWith('.scale'), `${name} must not scale the rig`).toBe(false)
+    }
   })
 })
 

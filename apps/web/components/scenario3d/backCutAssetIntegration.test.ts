@@ -33,6 +33,10 @@ import * as path from 'node:path'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import {
+  buildReadableBackCutClip,
+  stripReadableBackCutSourceTracks,
+} from './glbAthlete'
+import {
   isRootMotionTrack,
   listStrippedRootMotionTrackNames,
   stripRootMotionTracks,
@@ -119,6 +123,69 @@ describe('P2.2 — real back_cut.glb integration', () => {
     expect(stripped.duration).toBe(parsed.duration)
   })
 
+  it('readable back cut replaces unsafe imported posture with pose-only teaching tracks', () => {
+    const rootStripped = stripRootMotionTracks(parsed)
+    const readable = buildReadableBackCutClip(rootStripped)
+    const names = readable.tracks.map((t) => t.name).sort()
+
+    // The raw asset's position/scale channels must not reach the
+    // mixer. Scenario data owns the BDW route.
+    for (const name of names) {
+      expect(name.endsWith('.position'), `${name} must not move the route`).toBe(
+        false,
+      )
+      expect(name.endsWith('.scale'), `${name} must not scale the rig`).toBe(false)
+    }
+
+    // Root/pelvis route channels and raw foot controls are gone.
+    expect(names).not.toContain('root.position')
+    expect(names).not.toContain('pelvis.position')
+    expect(names).not.toContain('root.quaternion')
+    expect(names).not.toContain('foot_l.quaternion')
+    expect(names).not.toContain('ball_r.quaternion')
+
+    // Teaching posture is present: shoulder turn, head check, compact
+    // arm pump, and bind-relative plant/burst legs.
+    for (const expected of [
+      'pelvis.quaternion',
+      'spine_02.quaternion',
+      'spine_03.quaternion',
+      'Head.quaternion',
+      'upperarm_l.quaternion',
+      'upperarm_r.quaternion',
+      'lowerarm_l.quaternion',
+      'lowerarm_r.quaternion',
+      'thigh_l.quaternion',
+      'thigh_r.quaternion',
+      'calf_l.quaternion',
+      'calf_r.quaternion',
+    ]) {
+      expect(names).toContain(expected)
+    }
+    expect(readable.name).toBe('back_cut')
+    expect(readable.duration).toBe(parsed.duration)
+  })
+
+  it('stripReadableBackCutSourceTracks is deterministic and leaves no raw core tracks', () => {
+    const rootStripped = stripRootMotionTracks(parsed)
+    const a = stripReadableBackCutSourceTracks(rootStripped)
+    const b = stripReadableBackCutSourceTracks(rootStripped)
+
+    expect(a.tracks.map((t) => t.name).sort()).toEqual(
+      b.tracks.map((t) => t.name).sort(),
+    )
+    const names = a.tracks.map((t) => t.name)
+    for (const name of names) {
+      expect(name.endsWith('.position'), `${name} must be stripped`).toBe(false)
+      expect(name.endsWith('.scale'), `${name} must be stripped`).toBe(false)
+      expect(name).not.toMatch(
+        /^(root|pelvis|spine_0[123]|neck_01|Head|clavicle_[lr]|upperarm_[lr]|lowerarm_[lr]|hand_[lr]|thigh_[lr]|calf_[lr]|foot_[lr]|ball_[lr])\./,
+      )
+    }
+    expect(a.name).toBe('back_cut')
+    expect(a.duration).toBe(rootStripped.duration)
+  })
+
   it('route invariance — stripped clip cannot move a bound root/pelvis off bind pose', () => {
     // Silence "No target node found" PropertyBinding warnings for
     // tracks targeting bones absent from this minimal rig.
@@ -169,6 +236,40 @@ describe('P2.2 — real back_cut.glb integration', () => {
       .tracks.map((t) => t.name)
       .sort()
     expect(a).toEqual(b)
+  })
+
+  it('route invariance — readable back cut cannot move root/pelvis translations', () => {
+    const originalWarn = console.warn
+    console.warn = () => {}
+    try {
+      const rigRoot = new THREE.Group()
+      const rootBone = new THREE.Bone()
+      rootBone.name = 'root'
+      rootBone.position.set(0, 0, 0)
+      rigRoot.add(rootBone)
+      const pelvisBone = new THREE.Bone()
+      pelvisBone.name = 'pelvis'
+      pelvisBone.position.set(0.13, 0.21, 0.42)
+      rootBone.add(pelvisBone)
+
+      const readable = buildReadableBackCutClip(stripRootMotionTracks(parsed))
+      const mixer = new THREE.AnimationMixer(rigRoot)
+      const action = mixer.clipAction(readable)
+      action.setLoop(THREE.LoopOnce, 1)
+      action.clampWhenFinished = true
+      action.play()
+      mixer.update(0)
+      mixer.update(parsed.duration + 1)
+
+      expect(pelvisBone.position.x).toBe(0.13)
+      expect(pelvisBone.position.y).toBe(0.21)
+      expect(pelvisBone.position.z).toBe(0.42)
+      expect(rootBone.position.x).toBe(0)
+      expect(rootBone.position.y).toBe(0)
+      expect(rootBone.position.z).toBe(0)
+    } finally {
+      console.warn = originalWarn
+    }
   })
 
   it('binding the stripped clip to a Quaternius-named rig drives the pelvis quaternion', () => {

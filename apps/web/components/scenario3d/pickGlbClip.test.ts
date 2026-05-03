@@ -21,6 +21,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  IMPORTED_BACK_CUT_DEV_OVERRIDE_KEY,
   IMPORTED_CLOSEOUT_DEV_OVERRIDE_KEY,
   pickGlbClipForState,
 } from './imperativeScene'
@@ -28,6 +29,12 @@ import {
 function setImportedCloseoutFlag(value: boolean): void {
   ;(window as unknown as Record<string, unknown>)[
     IMPORTED_CLOSEOUT_DEV_OVERRIDE_KEY
+  ] = value
+}
+
+function setImportedBackCutFlag(value: boolean): void {
+  ;(window as unknown as Record<string, unknown>)[
+    IMPORTED_BACK_CUT_DEV_OVERRIDE_KEY
   ] = value
 }
 
@@ -88,7 +95,12 @@ describe('pickGlbClipForState — AOR (ADVANTAGE_OR_RESET)', () => {
 })
 
 describe('pickGlbClipForState — BDW (BACKDOOR_WINDOW)', () => {
-  it('cutter on a generic cut → cut_sprint (intent BACK_CUT)', () => {
+  afterEach(() => {
+    setImportedBackCutFlag(false)
+  })
+
+  it('cutter on a generic cut → cut_sprint when the back-cut flag is off', () => {
+    setImportedBackCutFlag(false)
     expect(
       pickGlbClipForState({
         team: 'offense',
@@ -98,6 +110,19 @@ describe('pickGlbClipForState — BDW (BACKDOOR_WINDOW)', () => {
         role: 'cutter',
       }),
     ).toBe('cut_sprint')
+  })
+
+  it('cutter on a generic cut → back_cut when the back-cut flag is on', () => {
+    setImportedBackCutFlag(true)
+    expect(
+      pickGlbClipForState({
+        team: 'offense',
+        kind: 'cut',
+        isMoving: true,
+        decoderTag: 'BACKDOOR_WINDOW',
+        role: 'cutter',
+      }),
+    ).toBe('back_cut')
   })
 
   it('deny_defender → defense_slide (intent DEFENSIVE_DENY)', () => {
@@ -264,6 +289,11 @@ describe('pickGlbClipForState — stationary semantics preserved', () => {
 })
 
 describe('pickGlbClipForState — determinism', () => {
+  afterEach(() => {
+    setImportedCloseoutFlag(false)
+    setImportedBackCutFlag(false)
+  })
+
   it('same inputs always yield same output (BDW cutter)', () => {
     const args = {
       team: 'offense' as const,
@@ -312,5 +342,23 @@ describe('pickGlbClipForState — determinism', () => {
     expect(on1).toBe('closeout')
     expect(on2).toBe('closeout')
     setImportedCloseoutFlag(false)
+  })
+
+  it('BDW back-cut chain is deterministic across flag toggles', () => {
+    const args = {
+      team: 'offense' as const,
+      kind: 'cut' as const,
+      isMoving: true,
+      decoderTag: 'BACKDOOR_WINDOW' as const,
+      role: 'cutter' as const,
+    }
+
+    setImportedBackCutFlag(false)
+    expect(pickGlbClipForState(args)).toBe('cut_sprint')
+    expect(pickGlbClipForState(args)).toBe('cut_sprint')
+
+    setImportedBackCutFlag(true)
+    expect(pickGlbClipForState(args)).toBe('back_cut')
+    expect(pickGlbClipForState(args)).toBe('back_cut')
   })
 })
