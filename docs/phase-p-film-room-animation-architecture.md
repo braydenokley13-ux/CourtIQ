@@ -1045,6 +1045,33 @@ Confirm:
 
 ---
 
+## P3.0 — Teaching overlay architecture (LANDED)
+
+**Goal:** formalise the cue-first teaching layer that sits on top of the P2 readability primitives. CourtIQ should feel like *“coach paused film and is teaching you what to see.”*
+
+**What this packet adds (data + types + docs only — no renderer changes):**
+
+- `apps/web/lib/scenario3d/decoderOverlayPresets.ts` — per-decoder overlay preset map (BDW / AOR / ESC / SKR), clutter constants (`MAX_FREEZE_OVERLAYS_BEGINNER` etc.), and a pure `applyOverlayPreset` author helper.
+- `apps/web/lib/scenario3d/overlayBeats.ts` — `OverlayBeat` type, `sortBeats` deterministic sort, `compileBeatsToFlatOverlays` pure flattener. Spec-only; not yet wired into `Scene` schema.
+- `docs/phase-p3-teaching-overlays.md` — the full architecture doc (philosophy, primitives, presets, clutter rules, beat spec, founder examples, authoring checklist, grading linkage).
+- `docs/curriculum/SCENARIO_OVERLAY_SPEC.md` — author's reference checklist per decoder.
+
+**What this packet did NOT change:**
+- `TeachingOverlayController` is unchanged.
+- `Scene` schema is unchanged. No `overlayBeats[]` field is added.
+- BDW-01 and AOR-01 seed JSONs are unchanged.
+- Path / camera / animation systems are untouched.
+
+**Acceptance lock (P3.0):**
+- [ ] Every founder decoder has an entry in `DECODER_OVERLAY_PRESETS`.
+- [ ] Every preset's pre-answer cluster passes `isAllowedPreAnswerOverlay`.
+- [ ] `sortBeats` is deterministic across runs (`(phase, at_phase_ms, clutter_priority, beat_id)`).
+- [ ] `compileBeatsToFlatOverlays` drops malformed beats (NaN, Infinity, negative time) without throwing.
+- [ ] No physics, no randomness, no animation-driven movement, no scenario-data mutation.
+- [ ] Existing P2 tests remain green.
+
+---
+
 ## Appendix A — Do / Do Not summary
 
 ### Do
