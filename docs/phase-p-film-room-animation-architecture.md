@@ -438,7 +438,163 @@ Small. One sitting if the bone-map fix is the right diagnosis; two sittings if t
 
 - **O-POLISH-2** — material/jersey/numbers (separate from animation; deferred).
 - **P1 spike** — imported `closeout` clip on AOR-01 dev preview (depends on P0-LOCK passing).
-- **P2** — decoder mapping and per-tick intent selector.
+- **P2** — decoder mapping and per-tick intent selector. **(LANDED — see § P2 below.)**
+
+---
+
+## P2 — Typed Animation Intent Layer (LANDED)
+
+**Status:** Implemented. Flag-gating unchanged; AOR-01 still NEEDS-COACH-REVIEW; no production routes touched.
+
+### What this packet adds
+
+A typed semantic layer that maps **scenario meaning → AnimationIntent → GLB clip**. The intent is the stable handle; clip availability changes as assets land, but the intent vocabulary does not. Lives in `apps/web/lib/scenario3d/animationIntent.ts` with no THREE.js dependency, so it's safe to import from both renderers and seed-validation tooling.
+
+### V1 intent vocabulary (12 intents)
+
+| Intent | Film-room cue |
+|---|---|
+| `IDLE_READY` | Stationary but alert — default rest |
+| `RECEIVE_READY` | Catch position, weight loaded |
+| `JAB_OR_RIP` | Quick footwork — jab / rip-through |
+| `BACK_CUT` | Read denial, accelerate behind defender |
+| `EMPTY_SPACE_CUT` | Fill vacated paint |
+| `DEFENSIVE_DENY` | Press passing lane, active hands |
+| `DEFENSIVE_HELP_TURN` | Help defender pivots/turns to recover |
+| `CLOSEOUT` | Sprint at shooter to contest |
+| `SLIDE_RECOVER` | Lateral slide after closeout commitment |
+| `PASS_FOLLOWTHROUGH` | Passer's follow-through |
+| `SHOT_READY` | Open catch position, ready to shoot |
+| `RESET_HOLD` | Hold ball, no advantage — reset action |
+
+### Decoder mapping table
+
+| Decoder | Role | Intent |
+|---|---|---|
+| `ADVANTAGE_OR_RESET` | `receiver` | `RECEIVE_READY` (default) / `SHOT_READY` (branch=shot) / `JAB_OR_RIP` (branch=jab_or_rip) / `RESET_HOLD` (branch=reset) |
+| `ADVANTAGE_OR_RESET` | `closeout_defender` | `CLOSEOUT` |
+| `ADVANTAGE_OR_RESET` | `helper_defender` | `SLIDE_RECOVER` |
+| `BACKDOOR_WINDOW` | `cutter` | `BACK_CUT` |
+| `BACKDOOR_WINDOW` | `deny_defender` | `DEFENSIVE_DENY` |
+| `BACKDOOR_WINDOW` | `passer` | `PASS_FOLLOWTHROUGH` |
+| `EMPTY_SPACE_CUT` | `cutter` | `EMPTY_SPACE_CUT` |
+| `EMPTY_SPACE_CUT` | `receiver` | `RECEIVE_READY` |
+| `EMPTY_SPACE_CUT` | `helper_defender` | `DEFENSIVE_HELP_TURN` |
+| `SKIP_THE_ROTATION` | `passer` | `PASS_FOLLOWTHROUGH` |
+| `SKIP_THE_ROTATION` | `open_player` | `SHOT_READY` |
+| `SKIP_THE_ROTATION` | `helper_defender` | `DEFENSIVE_HELP_TURN` |
+| `SKIP_THE_ROTATION` | `closeout_defender` | `CLOSEOUT` |
+
+Off-axis combinations (decoder × role pairs not central to that decoder) all return safe defaults — the layer never throws, never returns `undefined`. Exhaustive matrix tested in `animationIntent.test.ts`.
+
+### Movement-kind fallback
+
+When decoder/role context is unavailable, `getMovementKindIntent(kind, team)` maps the schema's `SceneMovementKind` to an intent:
+
+| Movement kind | Intent (offense) | Intent (defense) |
+|---|---|---|
+| `closeout` | `CLOSEOUT` | `CLOSEOUT` |
+| `back_cut` | `BACK_CUT` | `BACK_CUT` |
+| `cut`, `baseline_sneak` | `EMPTY_SPACE_CUT` | `DEFENSIVE_HELP_TURN` |
+| `drive` | `EMPTY_SPACE_CUT` | `DEFENSIVE_HELP_TURN` |
+| `pass`, `skip_pass` | `PASS_FOLLOWTHROUGH` | `PASS_FOLLOWTHROUGH` |
+| `rip`, `jab` | `JAB_OR_RIP` | `JAB_OR_RIP` |
+| `rotation` | `IDLE_READY` | `DEFENSIVE_HELP_TURN` |
+| `stop_ball` | `DEFENSIVE_DENY` | `DEFENSIVE_DENY` |
+| `lift`, `drift` | `RECEIVE_READY` | `RECEIVE_READY` |
+
+### Intent → clip resolution rules
+
+`resolveGlbClipForIntent(intent, flags)` picks the best available GLB clip:
+
+- **`CLOSEOUT`** → `closeout` clip when `flags.importedCloseoutActive === true`; otherwise `defense_slide`.
+- **Defensive intents** (`DEFENSIVE_DENY`, `DEFENSIVE_HELP_TURN`, `SLIDE_RECOVER`) → `defense_slide`.
+- **Offensive moving intents** (`BACK_CUT`, `EMPTY_SPACE_CUT`, `JAB_OR_RIP`, `RECEIVE_READY`, `SHOT_READY`, `PASS_FOLLOWTHROUGH`, `RESET_HOLD`) → `cut_sprint` until dedicated clips land.
+- **`IDLE_READY`** → `idle_ready`.
+
+This is the only place that encodes clip availability. New imported clips land by adding a flag to `IntentClipFlags` and a branch in `resolveGlbClipForIntent` — the call sites in `imperativeScene.ts` do not change.
+
+### What is wired vs. what is still placeholder
+
+**Wired:**
+- `pickGlbClipForState` in `imperativeScene.ts` routes its CLOSEOUT path through `resolveGlbClipForIntent`. The imported-closeout flag gate is now owned by `animationIntent.ts` rather than encoded inline.
+- Dev-only `_logIntentSelection` breadcrumb prints `{ team, kind, isMoving, intent, clip }` to the browser console once per unique tuple per session, dedupe-guarded so the console stays readable. Production builds short-circuit on `NODE_ENV === 'production'`.
+- AOR-01: defender's `closeout` movement → `CLOSEOUT` intent → `closeout` clip (when flag on) or `defense_slide` (default).
+
+**Still placeholder (deliberately deferred):**
+- ~~Decoder + role context is **not** plumbed into `pickGlbClipForState` yet.~~ **Landed in P2.1 — see § P2.1 below.**
+- Most intents (`SHOT_READY`, `RESET_HOLD`, `JAB_OR_RIP`, `RECEIVE_READY`, etc.) share the same fallback clips. Dedicated clips land via P3+ as imported assets become available.
+- BDW/ESC/SKR scenarios still render with the existing decoder path; their visual overhaul is out of scope here.
+
+### Acceptance lock (P2)
+
+- [x] Typed `AnimationIntent` exists with all 12 v1 intents.
+- [x] Mappings exist for AOR / BDW / ESC / SKR × all roles.
+- [x] AOR-01 defender closeout resolves to `CLOSEOUT`.
+- [x] `CLOSEOUT` selects imported clip only when `isImportedCloseoutClipActive()` returns `true`.
+- [x] Missing/unknown role/intent paths fall back safely (never throw, always return a defined value).
+- [x] Determinism tests remain green (`glbAthleteEndToEndDeterminism`, `replayDeterminism`).
+- [x] `USE_GLB_ATHLETE_PREVIEW` and `USE_IMPORTED_CLOSEOUT_CLIP` remain `false` by default.
+- [x] No production routes promoted; AOR-01 remains in NEEDS-COACH-REVIEW.
+
+---
+
+## P2.1 — Decoder + Role Context Plumbed Through Renderer (LANDED)
+
+**Status:** Implemented. No flag changes; AOR-01 still NEEDS-COACH-REVIEW; no production route rollout.
+
+### What this packet adds
+
+Plumbs `scenario.decoder_tag` and per-player role into the GLB clip selector so different decoders produce different intents for the same movement kind. Before P2.1: a `'cut'` movement always picked `cut_sprint` regardless of context. After P2.1: a `'cut'` in BDW context resolves through `BACK_CUT`, in ESC context through `EMPTY_SPACE_CUT`, etc. — the clip output is still `cut_sprint` for both today (until dedicated clips land), but the intent layer now sees the correct semantic value, which is the prerequisite for any future per-decoder visual differentiation.
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `apps/web/lib/scenario3d/scene.ts` | `Scene3D.decoderTag?: DecoderTag` (in-memory only); `_coerceDecoderTag` narrows scenario `decoder_tag` to the closed union; `buildScene` propagates onto authored / preset / synth output. Zod scene schema unchanged. |
+| `apps/web/lib/scenario3d/animationIntent.ts` | New `deriveDecoderRole(ctx)` helper — best-effort mapping from scenario role strings (`'wing_defender_helping'`, `'denying_wing_defender'`, `'wing_shooter'`, …) to the closed `DecoderRole` vocabulary. Movement kind dominates; role-string substring matching second; `hasBall`/`isUser` tie-breakers last. Returns `undefined` when context is too thin. |
+| `apps/web/components/scenario3d/imperativeScene.ts` | `pickGlbClipForState` upgraded to options-object signature `{ team, kind, isMoving, decoderTag?, role? }`. When both `decoderTag` and `role` are present, intent is selected via `getDecoderAnimationIntent`; otherwise the legacy movement-kind dispatch runs byte-for-byte. `applyGlbAnimation` reads `scene.decoderTag` once per tick and derives each player's role inline. Debug breadcrumb expanded to `{ team, kind, isMoving, decoderTag, role, intent, clip }`. |
+
+### Updated function signature
+
+```ts
+pickGlbClipForState({
+  team: SceneTeam,
+  kind: SceneMovementKind | undefined,
+  isMoving: boolean,
+  decoderTag?: DecoderTag,
+  role?: DecoderRole,
+}): GlbAthleteAnimationName
+```
+
+### Example mappings
+
+| Decoder | Role | Movement | Result |
+|---|---|---|---|
+| AOR | closeout_defender | closeout (moving) | `CLOSEOUT` → `closeout` (flag on) / `defense_slide` (off) |
+| AOR | helper_defender | rotation (moving) | `SLIDE_RECOVER` → `defense_slide` |
+| AOR | receiver | lift (moving) | `RECEIVE_READY` → `cut_sprint` |
+| BDW | cutter | cut (moving) | `BACK_CUT` → `cut_sprint` |
+| BDW | deny_defender | (moving) | `DEFENSIVE_DENY` → `defense_slide` |
+| BDW | passer | pass (moving) | `PASS_FOLLOWTHROUGH` → `cut_sprint` |
+| ESC | cutter | cut (moving) | `EMPTY_SPACE_CUT` → `cut_sprint` |
+| ESC | helper_defender | (moving) | `DEFENSIVE_HELP_TURN` → `defense_slide` |
+| SKR | open_player | lift (moving) | `SHOT_READY` → `cut_sprint` |
+| SKR | helper_defender | rotation (moving) | `DEFENSIVE_HELP_TURN` → `defense_slide` |
+
+### Tests added
+
+- `animationIntent.test.ts` — 16 new tests for `deriveDecoderRole` (105 total in file).
+- `pickGlbClip.test.ts` — 20 new integration tests covering AOR/BDW/ESC/SKR × roles, fallback when role missing, stationary semantics, and determinism.
+
+### Acceptance lock (P2.1)
+
+- [x] Renderer uses decoder + role when both available.
+- [x] Different decoders produce different animation intents (BDW cutter → BACK_CUT vs. ESC cutter → EMPTY_SPACE_CUT).
+- [x] AOR-01 closeout still resolves to `CLOSEOUT` and gates on imported flag.
+- [x] Determinism tests remain green (`glbAthleteEndToEndDeterminism`, `replayDeterminism`, `closeoutAssetIntegration`).
+- [x] Fallback path identical to pre-P2.1 when `decoderTag` or `role` is missing.
+- [x] Flags remain `false` by default.
 
 ---
 

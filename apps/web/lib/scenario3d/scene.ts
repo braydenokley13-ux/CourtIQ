@@ -9,6 +9,7 @@ import { COURT, projectLegacyPoint, type CourtPoint } from './coords'
 import {
   resolveFreezeAtMs,
   sceneSchema,
+  type DecoderTag,
   type FreezeMarker,
   type OverlayPrimitive,
 } from './schema'
@@ -124,6 +125,14 @@ export interface Scene3D {
   postAnswerOverlays: OverlayPrimitive[]
   /** True if the scene was synthesised from legacy court_state. */
   synthetic: boolean
+  /**
+   * P2.1 — decoder family the scene belongs to. Carried in-memory only
+   * (the Zod scene schema is unchanged) so the renderer can pick a
+   * decoder-aware AnimationIntent at clip-selection time. `undefined`
+   * for legacy/preset/synthetic scenes that have no scenario context;
+   * the renderer falls back to the movement-kind path in that case.
+   */
+  decoderTag?: DecoderTag
 }
 
 interface AuthoredScene {
@@ -157,6 +166,30 @@ interface SourceScenario {
   user_role?: string
   /** Concept tags from the scenario; used to pick a default preset. */
   concept_tags?: string[]
+  /**
+   * P2.1 — decoder family. Read from the scenario's `decoder_tag`
+   * field (snake_case in seed JSON) and propagated onto the
+   * resulting `Scene3D`. Optional; legacy scenarios without a
+   * decoder tag fall through.
+   */
+  decoder_tag?: string
+}
+
+/**
+ * P2.1 — narrows the scenario's free-form `decoder_tag` string to the
+ * closed `DecoderTag` set, returning `undefined` for unknown values
+ * (legacy scenarios, typos, or scenarios outside the v1 decoder
+ * vocabulary). Defensive: never throws.
+ */
+const _DECODER_TAGS: ReadonlySet<DecoderTag> = new Set<DecoderTag>([
+  'BACKDOOR_WINDOW',
+  'EMPTY_SPACE_CUT',
+  'SKIP_THE_ROTATION',
+  'ADVANTAGE_OR_RESET',
+])
+function _coerceDecoderTag(raw: string | undefined): DecoderTag | undefined {
+  if (!raw) return undefined
+  return _DECODER_TAGS.has(raw as DecoderTag) ? (raw as DecoderTag) : undefined
 }
 
 /**
@@ -170,11 +203,15 @@ interface SourceScenario {
  */
 export function buildScene(scenario: SourceScenario): Scene3D {
   const id = scenario.id || 'scene'
+  const decoderTag = _coerceDecoderTag(scenario.decoder_tag)
 
   if (scenario.scene != null) {
     const parsed = sceneSchema.safeParse(scenario.scene)
     if (parsed.success) {
-      return sanitiseScene(normaliseAuthoredScene(id, parsed.data as AuthoredScene))
+      return sanitiseScene({
+        ...normaliseAuthoredScene(id, parsed.data as AuthoredScene),
+        decoderTag,
+      })
     }
     if (typeof console !== 'undefined') {
       console.warn(`[scenario3d] invalid scene for "${id}":`, parsed.error.flatten())
@@ -184,13 +221,13 @@ export function buildScene(scenario: SourceScenario): Scene3D {
   const conceptTags = scenario.concept_tags ?? []
   if (conceptTags.length > 0) {
     const preset = getPresetForConcept(id, conceptTags)
-    if (preset) return sanitiseScene(preset)
+    if (preset) return sanitiseScene({ ...preset, decoderTag })
   }
 
   if (scenario.court_state) {
     const synth = synthesiseSceneFromCourtState({ ...scenario, id, court_state: scenario.court_state })
     if (synth.players.length > 0) {
-      return sanitiseScene(synth)
+      return sanitiseScene({ ...synth, decoderTag })
     }
   }
 

@@ -26,6 +26,15 @@ import {
   type ResolvedMovement,
   type Timeline,
 } from '@/lib/scenario3d/timeline'
+import {
+  deriveDecoderRole,
+  getDecoderAnimationIntent,
+  resolveGlbClipForIntent,
+  type AnimationIntent,
+  type DecoderRole,
+  type IntentClipFlags,
+} from '@/lib/scenario3d/animationIntent'
+import type { DecoderTag } from '@/lib/scenario3d/schema'
 
 // Visual upgrade pass: warmer, richer hardwood; deeper, more saturated
 // paint; brighter team colors so jerseys pop against both floor and
@@ -1643,11 +1652,34 @@ export class MotionController {
     const dt = Math.max(0, Math.min(rawDt, 0.1))
     this.lastAnimTickWallMs = nowMs
 
+    const decoderTag = this.scene.decoderTag
     for (const player of this.scene.players) {
       const g = this.playerGroups.get(player.id)
       if (!g) continue
       const active = this.findActivePlayerMovement(player.id, t)
-      const clip = pickGlbClipForState(player.team, active?.kind, !!active)
+      // P2.1 — derive a DecoderRole from per-player context so
+      // pickGlbClipForState can select a decoder-aware AnimationIntent
+      // when both decoderTag and a confident role are available.
+      // `deriveDecoderRole` returns undefined when the context is too
+      // thin, in which case the picker falls through to the legacy
+      // movement-kind dispatch.
+      const role = decoderTag
+        ? deriveDecoderRole({
+            team: player.team,
+            playerRole: player.role,
+            movementKind: active?.kind,
+            hasBall: !!player.hasBall,
+            isUser: !!player.isUser,
+            decoder: decoderTag,
+          })
+        : undefined
+      const clip = pickGlbClipForState({
+        team: player.team,
+        kind: active?.kind,
+        isMoving: !!active,
+        decoderTag,
+        role,
+      })
       setGlbAthleteAnimation(g, clip)
       updateGlbAthletePose(g, dt)
     }
@@ -3837,19 +3869,71 @@ function buildGlbAthleteFigure(
  * with movement kind `closeout` map to the imported `closeout`
  * clip instead of the bespoke `defense_slide`. The flag-off path
  * is byte-identical to pre-P1.0 behaviour.
+ *
+ * P2 — the CLOSEOUT path is routed through `resolveGlbClipForIntent`
+ * so the imported-clip flag gate is owned in one place
+ * (`animationIntent.ts`).
+ *
+ * P2.1 — the function now accepts an options object. When a caller
+ * supplies BOTH `decoderTag` AND `role`, the intent is selected via
+ * `getDecoderAnimationIntent(decoderTag, role)` so different decoders
+ * (BDW vs. ESC vs. SKR vs. AOR) can produce different intents for
+ * the same movement kind. When either is missing the function falls
+ * through to the legacy movement-kind dispatch byte-for-byte, so
+ * scenes without a decoder context (presets, default scene, legacy
+ * fixtures, determinism tests) keep their existing behaviour.
  */
-function pickGlbClipForState(
-  team: 'offense' | 'defense',
-  kind: SceneMovementKind | undefined,
-  isMoving: boolean,
+export interface PickGlbClipOptions {
+  team: SceneTeam
+  kind: SceneMovementKind | undefined
+  isMoving: boolean
+  /** P2.1 — decoder family from the scenario, if known. */
+  decoderTag?: DecoderTag
+  /** P2.1 — derived DecoderRole for this player, if known. */
+  role?: DecoderRole
+}
+
+export function pickGlbClipForState(
+  opts: PickGlbClipOptions,
 ): GlbAthleteAnimationName {
-  if (team === 'defense') {
-    if (isImportedCloseoutClipActive() && kind === 'closeout') return 'closeout'
-    if (isMoving) return 'defense_slide'
-    if (kind === 'closeout' || kind === 'rotation') return 'defense_slide'
+  const { team, kind, isMoving, decoderTag, role } = opts
+  const flags: IntentClipFlags = {
+    importedCloseoutActive: isImportedCloseoutClipActive(),
+  }
+
+  // ---- Stationary: defender holds defensive stance for closeout/rotation,
+  // everyone else idles. CLOSEOUT runs through the resolver so the imported
+  // flag gate stays centralized.
+  if (!isMoving) {
+    if (team === 'defense' && kind === 'closeout') {
+      const clip = resolveGlbClipForIntent('CLOSEOUT', flags)
+      _logIntentSelection({ team, kind, isMoving, intent: 'CLOSEOUT', decoderTag, role, clip })
+      return clip
+    }
+    if (team === 'defense' && kind === 'rotation') return 'defense_slide'
     return 'idle_ready'
   }
-  if (!isMoving) return 'idle_ready'
+
+  // ---- Moving + full decoder context: prefer the semantic intent path.
+  if (decoderTag && role) {
+    const intent = getDecoderAnimationIntent(decoderTag, role)
+    const clip = resolveGlbClipForIntent(intent, flags)
+    _logIntentSelection({ team, kind, isMoving, intent, decoderTag, role, clip })
+    return clip
+  }
+
+  // ---- Moving, no decoder context: legacy movement-kind dispatch.
+  // This branch is byte-identical to the pre-P2.1 fallback so all
+  // existing tests (replay determinism, end-to-end determinism, AOR
+  // closeout integration) continue to pass.
+  if (team === 'defense') {
+    if (kind === 'closeout') {
+      const clip = resolveGlbClipForIntent('CLOSEOUT', flags)
+      _logIntentSelection({ team, kind, isMoving, intent: 'CLOSEOUT', decoderTag, role, clip })
+      return clip
+    }
+    return 'defense_slide'
+  }
   switch (kind) {
     case 'cut':
     case 'drive':
@@ -3862,6 +3946,39 @@ function pickGlbClipForState(
     default:
       return 'idle_ready'
   }
+}
+
+/**
+ * P2 / P2.1 — dev-only debug breadcrumb so QA can see which
+ * animation intent / clip was selected per frame, plus which decoder
+ * + role drove the selection. Deduped by (team, kind, isMoving,
+ * decoder, role, intent, clip) so a long replay does not flood the
+ * console. Production builds short-circuit on the NODE_ENV check.
+ */
+interface _IntentLogArgs {
+  team: SceneTeam
+  kind: SceneMovementKind | undefined
+  isMoving: boolean
+  intent: AnimationIntent
+  decoderTag: DecoderTag | undefined
+  role: DecoderRole | undefined
+  clip: GlbAthleteAnimationName
+}
+const _intentDebugSeen = new Set<string>()
+function _logIntentSelection(args: _IntentLogArgs): void {
+  if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production') return
+  if (typeof console === 'undefined') return
+  const { team, kind, isMoving, intent, decoderTag, role, clip } = args
+  const tag = `${team}|${kind ?? '∅'}|${isMoving ? '1' : '0'}|${decoderTag ?? '∅'}|${role ?? '∅'}|${intent}|${clip}`
+  if (_intentDebugSeen.has(tag)) return
+  _intentDebugSeen.add(tag)
+  // eslint-disable-next-line no-console
+  console.info('[animationIntent]', { team, kind, isMoving, decoderTag, role, intent, clip })
+}
+
+/** Test-only — reset the dedupe guard between cases. */
+export function _resetIntentDebugLogGuard(): void {
+  _intentDebugSeen.clear()
 }
 
 // =====================================================================
