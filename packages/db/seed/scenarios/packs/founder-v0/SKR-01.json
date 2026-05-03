@@ -1,0 +1,255 @@
+[
+  {
+    "id": "SKR-01",
+    "version": 1,
+    "status": "LIVE",
+    "title": "Skip the Overhelp",
+    "category": "OFFENSE",
+    "decoder_tag": "SKIP_THE_ROTATION",
+    "concept_tags": ["passing", "reading_help"],
+    "sub_concepts": ["skip_pass", "weak_side_advantage"],
+    "difficulty": 2,
+    "user_role": "ball_handler",
+    "game_context": "4-on-4 half-court shell. You bring the ball middle from the top of the key. The weak-side low man rotates over to tag your drive — the weak-side corner is now uncovered.",
+    "possession_setup": "You are the point guard at the top with the ball. As you threaten the rim, the weak-side corner defender (x4) rotates up to tag your drive. The weak-side corner shooter is now alone.",
+    "decision_moment": "x4 has left the weak corner and is loaded toward the strong side to stop your drive. The weak-side corner has no defender between the ball and the shooter.",
+    "visible_cue": "x4 has hips and chest pulled to the ball, feet inside the lane. Your weak-side corner shooter (o4) has no defender within ten feet.",
+    "court_state": {
+      "offense": [
+        { "id": "user", "x": 250, "y": 170, "role": "ball_handler", "hasBall": true },
+        { "id": "o2", "x": 470, "y": 10, "role": "strong_corner", "hasBall": false },
+        { "id": "o3", "x": 80, "y": 80, "role": "weak_wing", "hasBall": false },
+        { "id": "o4", "x": 30, "y": 10, "role": "weak_corner_shooter", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x1", "x": 250, "y": 190, "role": "on_ball", "hasBall": false },
+        { "id": "x2", "x": 440, "y": 30, "role": "strong_corner_defender", "hasBall": false },
+        { "id": "x3", "x": 100, "y": 100, "role": "weak_wing_defender", "hasBall": false },
+        { "id": "x4", "x": 70, "y": 30, "role": "weak_corner_low_man_helper", "hasBall": false }
+      ],
+      "ball_location": { "x": 250, "y": 170 }
+    },
+    "prompt": "The low man rotated to stop your drive. The weak corner is open.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Skip pass to the weak-side corner.",
+        "quality": "best",
+        "feedback_text": "Best read. The low man left the corner to help. Skip the rotation — your shooter has a clean catch-and-shoot before x4 can recover.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Kick to the weak-side wing.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. The wing is open too, but the corner is the cleaner shot — x4 is closer to the wing than to the corner on the recovery.",
+        "partial_feedback_text": "Wing kick is fine, but the better read was the corner — that's the longest closeout for the defense.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Force a layup into the help.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Two defenders are between you and the rim. The shot is contested when an open shooter is one pass away.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Pass to the strong-side corner.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. The strong corner is still guarded by x2. You passed to the only side the defense covered.",
+        "order": 4
+      }
+    ],
+    "best_read": "Pivot away from x1's recovery, see x4 in the lane, and skip the ball cross-court to o4 in the weak corner. The shot goes up before x4 can close out 22 feet of court.",
+    "acceptable_reads": [
+      "Kick to the weak-side wing (o3) — keeps the advantage alive, but x3 is closer than x4 on the recovery."
+    ],
+    "bad_reads": [
+      "Force the layup — two defenders are in the lane, the contested shot is lower value than the open skip.",
+      "Pass to the strong-side corner — the only side of the floor the defense did not abandon."
+    ],
+    "common_miss_reason": "Tunnel vision on the drive. Ball-handlers commit to the rim and stop reading the floor once the help arrives, missing the open weak-side shooter the help just created.",
+    "why_best_read_works": "x4 is the only weak-side defender in position to closeout the weak corner. By rotating to tag the drive, x4 has put themselves on the wrong side of the court relative to the open shooter. A skip pass takes ~0.5s; the recovery from the lane to the corner is ~2s. The math is in the offense's favor before the pass is even thrown.",
+    "decoder_teaching_point": "When help loads to the ball, the weak side is open. Skip the rotation — pass past the help to the open shooter.",
+    "lesson_connection": "skip-the-rotation",
+    "feedback": {
+      "correct": "Good read. The low man left the corner to tag your drive. You skipped past the rotation and the shooter caught it open.",
+      "partial": "Wing kick keeps the advantage alive. Next time, look at the longest closeout — the corner is further from the help than the wing.",
+      "wrong": "Look at where the help came from. When a defender leaves the weak side, the weak side is open. Skip the rotation."
+    },
+    "self_review_checklist": [
+      "Did I see the weak-side defender leave?",
+      "Did I find the longest closeout?",
+      "Did I throw the skip with one motion, not two?",
+      "Did my shooter catch on balance?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-03T00:00:00.000Z",
+      "notes": "P3.3 — approved for controlled production test. Difficulty 2 retained (user is the passer, on-ball read with execution — the only on-ball founder rep). Skip-pass arc accepted as deterministic; pass-type (overhead vs one-hand) is a renderer concern, not a seed concern."
+    },
+    "source_research_basis": "Skip-the-rotation against weak-side help is universally taught at every level; the cue (overhelp loaded to ball) is system-independent.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": []
+    },
+    "explanation_md": "**Skip the Rotation.** When you drive, the defense has to choose between guarding you and guarding everyone else. If a weak-side defender leaves their man to help on you, the player they left is open. Look across the floor — the longest closeout is the cleanest shot. Skip the rotation: pass past the help to the open shooter on the weak side. The pass takes half a second; the recovery takes two. The math favors the offense before the ball even leaves your hand.",
+    "xp_reward": 14,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "skip_the_overhelp",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        { "id": "user", "team": "offense", "role": "ball_handler", "label": "You", "start": { "x": 0, "z": 17 }, "isUser": true, "hasBall": true },
+        { "id": "o2", "team": "offense", "role": "strong_corner", "label": "2", "start": { "x": 22, "z": 1 } },
+        { "id": "o3", "team": "offense", "role": "weak_wing", "label": "3", "start": { "x": -16, "z": 9 } },
+        { "id": "o4", "team": "offense", "role": "weak_corner_shooter", "label": "4", "start": { "x": -22, "z": 1 } },
+        { "id": "x1", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": 0, "z": 19 } },
+        { "id": "x2", "team": "defense", "role": "strong_corner_defender", "label": "x2", "start": { "x": 19, "z": 3 } },
+        { "id": "x3", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": -14, "z": 10 } },
+        { "id": "x4", "team": "defense", "role": "weak_corner_low_man_helper", "label": "x4", "start": { "x": -19, "z": 3 } }
+      ],
+      "ball": {
+        "start": { "x": 0, "z": 17 },
+        "holderId": "user"
+      },
+      "movements": [
+        {
+          "id": "user_drive_middle",
+          "playerId": "user",
+          "kind": "drive",
+          "to": { "x": 4, "z": 9 },
+          "delayMs": 0,
+          "durationMs": 800
+        },
+        {
+          "id": "x1_recover",
+          "playerId": "x1",
+          "kind": "stop_ball",
+          "to": { "x": 5, "z": 11 },
+          "delayMs": 100,
+          "durationMs": 750
+        },
+        {
+          "id": "x4_overhelp_tag",
+          "playerId": "x4",
+          "kind": "rotation",
+          "to": { "x": 2, "z": 5 },
+          "delayMs": 250,
+          "durationMs": 750
+        }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1500 },
+      "answerDemo": [
+        {
+          "id": "user_pivot_skip",
+          "playerId": "user",
+          "kind": "jab",
+          "to": { "x": 4, "z": 10 },
+          "delayMs": 0,
+          "durationMs": 250
+        },
+        {
+          "id": "skip_pass_to_corner",
+          "playerId": "ball",
+          "kind": "skip_pass",
+          "to": { "x": -22, "z": 1 },
+          "delayMs": 200,
+          "durationMs": 700
+        },
+        {
+          "id": "o4_catch_and_shoot",
+          "playerId": "o4",
+          "kind": "lift",
+          "to": { "x": -22, "z": 1 },
+          "delayMs": 50,
+          "durationMs": 300
+        }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You kicked to the wing. x3 closed out before the shot.",
+          "movements": [
+            {
+              "id": "wing_kick",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": { "x": -16, "z": 9 },
+              "delayMs": 0,
+              "durationMs": 600
+            },
+            {
+              "id": "x3_closeout_wing",
+              "playerId": "x3",
+              "kind": "closeout",
+              "to": { "x": -15, "z": 9 },
+              "delayMs": 200,
+              "durationMs": 500
+            }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You forced the layup. Two defenders contested.",
+          "movements": [
+            {
+              "id": "user_force_drive",
+              "playerId": "user",
+              "kind": "drive",
+              "to": { "x": 2, "z": 3 },
+              "delayMs": 0,
+              "durationMs": 700
+            },
+            {
+              "id": "x4_meet_drive",
+              "playerId": "x4",
+              "kind": "stop_ball",
+              "to": { "x": 2, "z": 4 },
+              "delayMs": 100,
+              "durationMs": 500
+            }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You passed to the only side the defense covered.",
+          "movements": [
+            {
+              "id": "strong_corner_pass",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": { "x": 22, "z": 1 },
+              "delayMs": 0,
+              "durationMs": 600
+            },
+            {
+              "id": "x2_contest_corner",
+              "playerId": "x2",
+              "kind": "closeout",
+              "to": { "x": 21, "z": 2 },
+              "delayMs": 100,
+              "durationMs": 500
+            }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "help_pulse", "playerId": "x4", "role": "overhelp" },
+        { "kind": "defender_hip_arrow", "playerId": "x4" },
+        { "kind": "defender_chest_line", "playerId": "x4" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "passing_lane_open", "from": "user", "to": "o4" },
+        { "kind": "open_space_region", "anchor": { "x": -22, "z": 1 }, "radiusFt": 5 },
+        { "kind": "label", "anchor": { "x": -10, "z": 6 }, "text": "Skip past the help" }
+      ]
+    }
+  }
+]

@@ -2,7 +2,7 @@
   {
     "id": "AOR-01",
     "version": 1,
-    "status": "DRAFT",
+    "status": "LIVE",
     "title": "Catch and Read the Closeout",
     "category": "OFFENSE",
     "decoder_tag": "ADVANTAGE_OR_RESET",
@@ -86,8 +86,10 @@
     ],
     "coach_validation": {
       "level": "low",
-      "status": "needed",
-      "notes": "P1.5 first-pass authoring. Coach review pending — confirm the closeout cushion and timing read for a middle-school player."
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-03T00:00:00.000Z",
+      "notes": "P3.3 — approved for controlled production test. Cluster size (6/6) is over the P3.0 advisory beginner cap (3/3); follow-up packet may drop one label and one body cue. Closeout cushion + catch-and-shoot timing read accepted as-is for prod testing."
     },
     "source_research_basis": "Catch-and-shoot off a help-side closeout is universally taught at every level. Specifics of cushion and contest timing follow Phase P §6 AOR mapping.",
     "progression_metadata": {

@@ -13,6 +13,16 @@
       "id": "AOR-01",
       "file": "AOR-01.json",
       "prerequisites": []
+    },
+    {
+      "id": "ESC-01",
+      "file": "ESC-01.json",
+      "prerequisites": []
+    },
+    {
+      "id": "SKR-01",
+      "file": "SKR-01.json",
+      "prerequisites": []
     }
   ]
 }

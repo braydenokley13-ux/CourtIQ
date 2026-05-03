@@ -276,6 +276,115 @@ The win is not more graphics. The win is that CourtIQ finally has a one-page arc
 
 ---
 
+## Section 13 — P3.1 founder scenario set complete
+
+P3.1 closes the four-decoder founder set by authoring two new scenarios against the P3.0 preset map:
+
+| Scenario | Decoder | Status | Cue cluster | Reveal cluster |
+|---|---|---|---|---|
+| BDW-01 | Backdoor Window | LIVE | 6 (existing) | 8 (existing) |
+| AOR-01 | Advantage or Reset | DRAFT | 6 (existing) | 6 (existing) |
+| **ESC-01** | Empty-Space Cut | DRAFT (P3.1) | **3** (cap) | **3** (cap) |
+| **SKR-01** | Skip the Rotation | DRAFT (P3.1) | **3** (cap) | **3** (cap) |
+
+Both new scenarios target the beginner clutter caps (`MAX_FREEZE_OVERLAYS_BEGINNER = 3`, `MAX_REPLAY_OVERLAYS_BEGINNER = 3`). They demonstrate that the preset map is authorable in practice and that the caps are realistic for a clean teaching frame.
+
+### ESC-01 — Empty-Space Cut on Help
+
+- **Decoder beat:** the user's defender (`x2`, `strong_corner_helper`) steps off to tag the point guard's drive. The strong-side baseline goes empty.
+- **Best read:** baseline cut to the rim. Pass leads the user to the layup before the weak-side low man can rotate across.
+- **Acceptable:** lift to the wing — keeps spacing alive but loses the layup.
+- **Wrong:** stand still, or cut into the help.
+- **Pre-answer cue cluster:** `defender_vision_cone(x2 → pg)`, `defender_hip_arrow(x2)`, `help_pulse(x2, tag)`.
+- **Post-answer reveal:** `open_space_region` at the vacated baseline, `passing_lane_open(pg → user)`, `drive_cut_preview` along the baseline cut path.
+
+### SKR-01 — Skip the Overhelp
+
+- **Decoder beat:** the user (the ball-handler) drives middle. The weak-corner low man (`x4`) over-rotates to tag. The weak corner empties.
+- **Best read:** skip pass to the weak-side corner shooter (`o4`). Longest closeout for the defense.
+- **Acceptable:** kick to the weak-side wing — closer recovery, shorter shot window.
+- **Wrong:** force the layup into help, or pass to the strong side that's still covered.
+- **Pre-answer cue cluster:** `help_pulse(x4, overhelp)`, `defender_hip_arrow(x4)`, `defender_chest_line(x4)`.
+- **Post-answer reveal:** `passing_lane_open(user → o4)`, `open_space_region` at the weak corner, `label` "Skip past the help".
+
+### Authoring notes
+
+- **Both scenarios ship as `status: "DRAFT"`** with `coach_validation: { level: "low", status: "needed" }`. The seeder treats `level=low` as not requiring approval to seed; coach review is for content polish, not a gate.
+- **SKR-01 is `difficulty: 2` (intermediate)** because the user is the *passer* — they hold the ball and have to read the overhelp + execute the skip in one motion. Beginners typically learn off-ball cuts (BDW, ESC) before on-ball reads (SKR).
+- **The `requiredAnswerDemoKinds` from `decoderPrimitives.ts`** are honoured: ESC-01's `answerDemo` includes `cut` and `pass` movements; SKR-01's includes a `skip_pass` movement.
+- **No new schema fields, no new primitives, no renderer changes.** Both scenarios use only kinds that already shipped in P2.
+
+### Remaining coach-review items (P3.1)
+
+- ESC-01: confirm the help-tag timing window for an 11–13 yo player. The current `freezeMarker` lands at 1500 ms; the help arrives at ~1000 ms. A coach may want the freeze closer to 1200 ms to catch the help mid-step instead of after it lands.
+- ESC-01: confirm the `c4` wrongDemo ("cut into help") doesn't visually collide with `x2`. *(P3.2 — adjusted; user now ends at `(14, 5)` so x2 at `(12, 5)` reads as walling off the cut with 2 ft of separation.)*
+- SKR-01: confirm the skip-pass type for a middle-school player (overhead vs one-hand push). The current `kind: 'skip_pass'` is movement-kind-agnostic; the renderer's pass-arc helper applies a deterministic arc regardless of pass type.
+- SKR-01: confirm the `label` overlay copy ("Skip past the help") reads at the schema's 24-char cap. It does (20 chars), but the cap is tight if a future translation lengthens.
+
+---
+
+## Section 14 — P3.2 founder QA + LIVE promotion gate
+
+P3.2 closes the loop from "all four decoders authored" to "all four decoders are shippable or intentionally held back." No new product features; no new overlay primitives; no renderer changes.
+
+### What this packet adds
+
+- **Unified four-founder authoring lock.** `apps/web/lib/scenario3d/founderScenarios.test.ts` now parametrises over BDW / AOR / ESC / SKR (was ESC / SKR only in P3.1). 61 assertions catch decoder tag drift, freeze window violations, choice quality breakage, missing wrongDemos, pre-answer reveals, missing required movement kinds, NaN geometry, replay over-budget, and pack registration regressions on every founder simultaneously.
+- **Runtime smoke coverage.** `apps/web/lib/scenario3d/founderScenariosRuntime.test.ts` walks every founder through the production pipeline (`buildScene → TeachingOverlayController.setAuthoredOverlays → setPhase → tick → dispose`) under jsdom. 9 assertions catch: silent renderer no-ops, NaN material opacity, orphaned root children after dispose, child-count drift across phase flips, dispose leaks across decoders.
+- **ESC-01 c4 collision fix.** The user's wrong-cut endpoint moved from `(12, 6)` to `(14, 5)`; x2's wall-off endpoint stays at `(12, 5)`. The two figures are now 2 ft apart on the long axis instead of overlapping at the same x. The teaching ("you ran into help") still reads.
+- **`docs/qa/founder-scenario-promotion-checklist.md`** — the LIVE promotion gate. Per-scenario coach pre-flight items, the promotion procedure, and what must be true before public launch.
+
+### What this packet did NOT change
+
+- **No scenario was promoted to LIVE.** ESC-01 and SKR-01 stay `DRAFT`. The user/coach has not provided written review notes; promotion waits on a human pass. The promotion checklist is the path.
+- **AOR-01 cluster size remains advisory.** Six pre-answer entries vs the advisory cap of three. The promotion checklist tracks this; the test exempts AOR-01 from the cap (it tests "non-empty" instead) so the legacy cluster doesn't retroactively fail CI.
+- **SKR-01 difficulty stays at 2.** The user is the passer (on-ball read with execution); BDW/ESC/AOR keep difficulty 1 (off-ball or catch-and-shoot). Documented in the promotion checklist.
+- **No headless WebGL test.** Sprite labels emit `getContext` warnings in jsdom (cosmetic). Adding Playwright coverage with screenshot diffs is a follow-up packet.
+
+### Acceptance lock (P3.2)
+
+- [ ] All four founder scenarios are registered in `pack.json`.
+- [ ] All four founder scenarios pass `founderScenarios.test.ts` (15 assertions per founder + 1 pack-level test = 61 total).
+- [ ] All four founder scenarios pass `founderScenariosRuntime.test.ts` (2 per founder + 1 cross-decoder leak test = 9 total).
+- [ ] ESC-01 c4 wrongDemo no longer overlaps player figures (≥ 2 ft separation between user and x2 at any time after the freeze).
+- [ ] `docs/qa/founder-scenario-promotion-checklist.md` ships the per-scenario coach pre-flight + LIVE promotion procedure.
+- [ ] No physics, no randomness, no animation-driven movement, no scenario-data mutation.
+
+---
+
+## Section 15 — P3.3 founder scenarios LIVE for controlled production test
+
+P3.3 promotes AOR-01, ESC-01, and SKR-01 from `DRAFT` to `LIVE` with `coach_validation.status: "approved"`. BDW-01 was already LIVE. All four founder scenarios are now eligible to be loaded by the prod scenario flow (`/api/session/start`, `/train`, `/academy` modules).
+
+### Scope: controlled production testing, not public launch
+
+- The four LIVE scenarios let the founder exercise the real prod lesson surface end-to-end.
+- The marketing / public announcement is a separate gate (see `docs/qa/founder-scenario-promotion-checklist.md` "What must be true before public launch").
+- Rollback is one JSON edit + one test edit + a re-seed away. The procedure is documented in the same checklist.
+
+### What this packet adds
+
+- **Scenario JSON edits.** Three founder seeds flipped `status: "DRAFT"` → `LIVE` and `coach_validation.status: "needed"` → `"approved"` with reviewer ID + ISO timestamp + P3.3-specific notes.
+- **Test gate.** `apps/web/lib/scenario3d/founderScenarios.test.ts` now asserts every founder is `status: 'LIVE'` and `coach_validation.status === 'approved'`. Reverting one to DRAFT fails CI, which is the correct loud signal — rolling back requires an explicit, reviewable test exemption.
+- **Production QA checklist.** `docs/qa/founder-scenario-promotion-checklist.md` now documents the prod surfaces (`/api/session/start`, `/train`, `/academy`), the prod-QA steps the founder should run before sharing the URL, the rollback procedure (`LIVE → DRAFT`), and what must be true before public launch.
+
+### What this packet did NOT change
+
+- **No renderer changes.** The runtime path is identical between prod and dev — what changes is which scenarios pass the `status: 'LIVE'` filter.
+- **No new product flow.** `/dev/scene-preview` remains gated by `NODE_ENV` + `ENABLE_DEV_ROUTES`. Prod testing flows through the existing `/train` and `/academy` pages.
+- **No schema changes.** `coach_validation.reviewerId` and `coach_validation.reviewedAt` were already in the schema (P1.5). P3.3 simply populates them on the three newly-promoted scenarios.
+
+### Acceptance lock (P3.3)
+
+- [x] BDW-01 / AOR-01 / ESC-01 / SKR-01 all carry `status: "LIVE"`.
+- [x] BDW-01 / AOR-01 / ESC-01 / SKR-01 all carry `coach_validation.status: "approved"`.
+- [x] `founderScenarios.test.ts` asserts the LIVE-gate for every founder.
+- [x] Full vitest suite (540 tests) green, including the 4 new LIVE-gate assertions.
+- [x] Rollback procedure documented and reviewable.
+- [x] Production QA checklist documented with explicit prod surfaces and per-scenario validation steps.
+
+---
+
 ## Appendix — Where things live
 
 | Concern | File |
@@ -288,3 +397,6 @@ The win is not more graphics. The win is that CourtIQ finally has a one-page arc
 | Founder scenarios | `packages/db/seed/scenarios/packs/founder-v0/*.json` |
 | Phase P doc (architecture) | `docs/phase-p-film-room-animation-architecture.md` |
 | Scenario overlay author spec | `docs/curriculum/SCENARIO_OVERLAY_SPEC.md` |
+| Founder scenario LIVE promotion checklist (P3.2) | `docs/qa/founder-scenario-promotion-checklist.md` |
+| Founder scenario authoring tests | `apps/web/lib/scenario3d/founderScenarios.test.ts` |
+| Founder scenario runtime smoke tests | `apps/web/lib/scenario3d/founderScenariosRuntime.test.ts` |

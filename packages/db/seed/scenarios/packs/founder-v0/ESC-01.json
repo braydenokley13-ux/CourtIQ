@@ -1,0 +1,272 @@
+[
+  {
+    "id": "ESC-01",
+    "version": 1,
+    "status": "LIVE",
+    "title": "Empty-Space Cut on Help",
+    "category": "OFFENSE",
+    "decoder_tag": "EMPTY_SPACE_CUT",
+    "concept_tags": ["off_ball_movement", "reading_help"],
+    "sub_concepts": ["empty_space_cut", "help_read"],
+    "difficulty": 1,
+    "user_role": "strong_corner_cutter",
+    "game_context": "4-on-4 half-court shell. The point guard threatens a strong-side drive. Your defender is on the strong-side corner with you and steps in to tag the driver — the strong-side baseline opens up.",
+    "possession_setup": "You are the strong-side corner. The ball is at the slot. Your defender (x2) tags the driver as the point guard threatens the rim — your defender is now in the paint, not on you.",
+    "decision_moment": "x2 has rotated into the paint to tag the drive. The strong-side baseline between you and the rim is empty.",
+    "visible_cue": "x2 has hips and chest turned to the ball, head looking at the driver, feet planted in the paint. The lane between your corner and the rim has no defender in it.",
+    "court_state": {
+      "offense": [
+        { "id": "pg", "x": 280, "y": 140, "role": "ball_handler", "hasBall": true },
+        { "id": "user", "x": 470, "y": 10, "role": "strong_corner_cutter", "hasBall": false },
+        { "id": "o3", "x": 80, "y": 90, "role": "weak_wing", "hasBall": false },
+        { "id": "o4", "x": 30, "y": 10, "role": "weak_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x1", "x": 280, "y": 160, "role": "on_ball", "hasBall": false },
+        { "id": "x2", "x": 440, "y": 40, "role": "strong_corner_helper", "hasBall": false },
+        { "id": "x3", "x": 100, "y": 100, "role": "weak_wing_defender", "hasBall": false },
+        { "id": "x4", "x": 70, "y": 30, "role": "weak_corner_low_man", "hasBall": false }
+      ],
+      "ball_location": { "x": 280, "y": 140 }
+    },
+    "prompt": "Your defender stepped into the paint to help. Your spot is empty.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Cut baseline to the rim.",
+        "quality": "best",
+        "feedback_text": "Best read. Your defender left to help. The baseline is empty — cut to the rim and the passer hits you in stride.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Lift up to the wing.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. Lifting keeps spacing alive, but you gave up the layup that the help opened.",
+        "partial_feedback_text": "Lifting keeps spacing alive. The better read was the empty baseline — cut to the rim.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Stay in the corner and call for the ball.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. The pass to the corner is fine, but your defender recovers and you've missed the easy layup.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Cut up the lane into the help.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Cutting up walks into x2 and x1's recovery. Cut to the empty space, not into bodies.",
+        "order": 4
+      }
+    ],
+    "best_read": "Plant the inside foot and cut baseline to the front of the rim — your defender is in the paint helping, the baseline is empty, and the passer leads you to the layup before x4 can rotate across.",
+    "acceptable_reads": [
+      "Lift up to the wing — keeps the floor balanced but loses the empty-space layup."
+    ],
+    "bad_reads": [
+      "Stand still in the corner — defender recovers and the layup is gone.",
+      "Cut up the lane — cuts directly into the help and x1's recovery."
+    ],
+    "common_miss_reason": "Loyalty to the spot. Corner shooters wait for the kickout pass even when their defender has visibly given up the corner to take away the rim.",
+    "why_best_read_works": "x2 left the corner to tag the drive. There is no defender between the corner and the rim. A baseline cut beats x4's rotation because x4 starts on the weak-side — by the time x4 reads the cut and slides, the pass has already arrived.",
+    "decoder_teaching_point": "When your defender leaves to help, the space they vacated is yours. Cut into the empty space, not into bodies.",
+    "lesson_connection": "empty-space-cut",
+    "feedback": {
+      "correct": "Good read. Your defender left to tag the drive. You cut into the empty space and finished at the rim.",
+      "partial": "Lifting kept spacing alive. Next time, look at where your defender went. If they left to help, the space behind them is yours — cut to it.",
+      "wrong": "Watch your defender. If they leave to help, the space they vacated is open. Cut into the empty space, not into bodies."
+    },
+    "self_review_checklist": [
+      "Did I see my defender leave to help?",
+      "Did I find the empty space, not the crowd?",
+      "Did I cut hard, like I wanted the layup?",
+      "Did I show my hands at the rim?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-03T00:00:00.000Z",
+      "notes": "P3.3 — approved for controlled production test. P3.2 fixed the c4 wrongDemo collision (user now ends at (14, 5), x2 walls off at (12, 5) — 2 ft separation). Freeze at 1500 ms accepted; revisit if prod QA shows the cue reads better mid-step (~1200 ms)."
+    },
+    "source_research_basis": "Cutting into vacated help-space is universally taught at every level; the cue (defender turns help) is system-independent.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": []
+    },
+    "explanation_md": "**Empty-Space Cut.** Your defender stepped in to help on the drive. That means he is no longer guarding you — the space he was in is empty. Read his body. If his hips and chest are turned to the ball and his feet are in the paint, he is gone. Plant your inside foot and cut into the empty space. Show your hands at the rim. Watch his body, not the ball.",
+    "xp_reward": 12,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "empty_space_cut_on_help",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        { "id": "pg", "team": "offense", "role": "ball_handler", "label": "PG", "start": { "x": 6, "z": 14 }, "hasBall": true },
+        { "id": "user", "team": "offense", "role": "strong_corner_cutter", "label": "You", "start": { "x": 21, "z": 2 }, "isUser": true },
+        { "id": "o3", "team": "offense", "role": "weak_wing", "label": "3", "start": { "x": -16, "z": 10 } },
+        { "id": "o4", "team": "offense", "role": "weak_corner", "label": "4", "start": { "x": -22, "z": 1 } },
+        { "id": "x1", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": 6, "z": 16 } },
+        { "id": "x2", "team": "defense", "role": "strong_corner_helper", "label": "x2", "start": { "x": 19, "z": 4 } },
+        { "id": "x3", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": -14, "z": 11 } },
+        { "id": "x4", "team": "defense", "role": "weak_corner_low_man", "label": "x4", "start": { "x": -19, "z": 3 } }
+      ],
+      "ball": {
+        "start": { "x": 6, "z": 14 },
+        "holderId": "pg"
+      },
+      "movements": [
+        {
+          "id": "user_show_hands",
+          "playerId": "user",
+          "kind": "lift",
+          "to": { "x": 21, "z": 3 },
+          "delayMs": 0,
+          "durationMs": 500
+        },
+        {
+          "id": "pg_threat_drive",
+          "playerId": "pg",
+          "kind": "drive",
+          "to": { "x": 8, "z": 9 },
+          "delayMs": 0,
+          "durationMs": 800
+        },
+        {
+          "id": "x2_tag_help",
+          "playerId": "x2",
+          "kind": "rotation",
+          "to": { "x": 10, "z": 5 },
+          "delayMs": 250,
+          "durationMs": 750
+        }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1500 },
+      "answerDemo": [
+        {
+          "id": "user_plant_baseline",
+          "playerId": "user",
+          "kind": "cut",
+          "to": { "x": 14, "z": 1 },
+          "delayMs": 0,
+          "durationMs": 400
+        },
+        {
+          "id": "user_cut_to_rim",
+          "playerId": "user",
+          "kind": "cut",
+          "to": { "x": 4, "z": 1 },
+          "delayMs": 50,
+          "durationMs": 500
+        },
+        {
+          "id": "pg_drop_pass",
+          "playerId": "ball",
+          "kind": "pass",
+          "to": { "x": 4, "z": 1 },
+          "delayMs": 350,
+          "durationMs": 550
+        },
+        {
+          "id": "user_finish",
+          "playerId": "user",
+          "kind": "cut",
+          "to": { "x": 0, "z": 0.5 },
+          "delayMs": 50,
+          "durationMs": 350
+        }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You lifted out. The corner pass came, but the layup was gone.",
+          "movements": [
+            {
+              "id": "user_lift_to_wing",
+              "playerId": "user",
+              "kind": "lift",
+              "to": { "x": 18, "z": 9 },
+              "delayMs": 0,
+              "durationMs": 600
+            },
+            {
+              "id": "pg_pass_wing",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": { "x": 18, "z": 9 },
+              "delayMs": 200,
+              "durationMs": 500
+            }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You stayed put. The defender recovered before the pass arrived.",
+          "movements": [
+            {
+              "id": "x2_recover",
+              "playerId": "x2",
+              "kind": "rotation",
+              "to": { "x": 18, "z": 4 },
+              "delayMs": 0,
+              "durationMs": 500
+            },
+            {
+              "id": "pg_late_corner_pass",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": { "x": 21, "z": 2 },
+              "delayMs": 200,
+              "durationMs": 500
+            }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You cut into traffic. x2 and x1 close the lane.",
+          "movements": [
+            {
+              "id": "user_cut_into_help",
+              "playerId": "user",
+              "kind": "cut",
+              "to": { "x": 14, "z": 5 },
+              "delayMs": 0,
+              "durationMs": 700
+            },
+            {
+              "id": "x2_meet_cut",
+              "playerId": "x2",
+              "kind": "rotation",
+              "to": { "x": 12, "z": 5 },
+              "delayMs": 100,
+              "durationMs": 600
+            }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "defender_vision_cone", "playerId": "x2", "targetId": "pg" },
+        { "kind": "defender_hip_arrow", "playerId": "x2" },
+        { "kind": "help_pulse", "playerId": "x2", "role": "tag" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "open_space_region", "anchor": { "x": 12, "z": 2 }, "radiusFt": 4 },
+        { "kind": "passing_lane_open", "from": "pg", "to": "user" },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "user",
+          "path": [
+            { "x": 21, "z": 2 },
+            { "x": 14, "z": 1 },
+            { "x": 4, "z": 1 },
+            { "x": 0, "z": 0.5 }
+          ]
+        }
+      ]
+    }
+  }
+]
