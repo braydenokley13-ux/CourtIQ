@@ -609,7 +609,7 @@ export function buildGlbAthletePreview(
     _runBoneMapAuditOnce(cloned)
     _alignGlbFeetToFigureFloor(figure, cloned)
 
-    applyTeamColorToCloned(cloned, teamColor)
+    applyMultiRegionMaterialsToCloned(cloned, teamColor)
 
     const indicatorLayers = buildGlbIndicatorLayers(figure, teamColor, isUser, hasBall)
     ;(figure.userData as Record<string, unknown>).indicatorLayers = indicatorLayers
@@ -989,27 +989,266 @@ function findFirstSkinnedMesh(root: THREE.Object3D): THREE.SkinnedMesh | null {
   return found
 }
 
-function applyTeamColorToCloned(cloned: THREE.Object3D, teamColor: string): void {
-  const colorObj = new THREE.Color(teamColor)
+/**
+ * P1.8 — multi-region athlete tinting.
+ *
+ * The Quaternius mannequin ships as a single skinned mesh (M_Main)
+ * plus a thin "joints" overlay (M_Joints). Painting both meshes the
+ * same team colour reads as a flat plastic doll at film-room
+ * distance. P1.8 splits the athlete into five readable regions so
+ * the silhouette communicates "basketball player in jersey" rather
+ * than "tinted mannequin":
+ *
+ *   - jersey/torso/sleeve top  → team colour
+ *   - shorts                   → dark neutral
+ *   - skin (calves, forearms,
+ *     hands, neck, lower face) → athletic skin tone
+ *   - shoes                    → near-black
+ *   - hair (top of head)       → dark neutral
+ *
+ * The regions are chosen per-vertex by walking the SkinnedMesh's
+ * skin weights: each vertex's primary-bone name (and, for sleeves,
+ * its secondary-bone influence) maps to one of the five regions. A
+ * single MeshStandardMaterial with `vertexColors: true` then renders
+ * all five regions in one draw call without textures, custom shaders,
+ * or per-frame work — staying inside the P1.8 hard scope (no PBR,
+ * no per-frame material churn).
+ *
+ * Performance: the per-figure cost is one geometry clone (so the
+ * `color` attribute is per-figure rather than per-asset, which lets
+ * each team's jersey colour be baked in) plus one O(N) sweep over
+ * vertices to compute regions. The cloned geometry is disposed by
+ * the existing `disposeGroup` traversal when the figure is torn down.
+ */
+const GLB_REGION_COLOR = {
+  shorts: '#3a3d44',
+  skin: '#caa68a',
+  shoes: '#16181c',
+  hair: '#1a1c20',
+} as const
+
+type GlbRegion = 'jersey' | 'shorts' | 'skin' | 'shoes' | 'hair'
+
+/**
+ * Maps a vertex to a body region based on its primary skinning bone
+ * (and, for sleeves, its secondary). Heuristics are tuned for the
+ * Quaternius UAL2 / Unreal-style rig CourtIQ ships — bone-name
+ * prefixes follow the `lowercase_side` convention with the lone
+ * exception of `Head`.
+ *
+ * `primaryName` and `secondaryName` come from
+ * `SkinnedMesh.skeleton.bones[i].name`. Empty string is acceptable
+ * (returns 'skin' as the safest default).
+ */
+function regionForBoneNames(
+  primaryName: string,
+  secondaryName: string,
+  posY: number,
+): GlbRegion {
+  if (primaryName === 'pelvis' || primaryName.startsWith('thigh_')) return 'shorts'
+  if (primaryName.startsWith('calf_')) return 'skin'
+  if (primaryName.startsWith('foot_') || primaryName.startsWith('ball_')) return 'shoes'
+  if (primaryName.startsWith('spine_') || primaryName.startsWith('clavicle_')) {
+    return 'jersey'
+  }
+  if (primaryName === 'neck_01') return 'skin'
+  if (primaryName === 'Head') {
+    // Top of skull reads as hair, lower as skin/face. The mannequin
+    // stands ≈ 1.81 m, with head bone origin at ≈ 1.65 m; vertices
+    // above ~1.78 m sit on the cranium.
+    return posY > 1.78 ? 'hair' : 'skin'
+  }
+  if (primaryName.startsWith('upperarm_')) {
+    // Sleeve covers the proximal half of the upperarm. We
+    // disambiguate via the secondary skinning bone: a vertex on the
+    // upperarm whose secondary influence pulls from clavicle/spine
+    // sits high (sleeve), while one pulled by the lowerarm sits at
+    // the elbow seam (skin).
+    if (
+      secondaryName.startsWith('clavicle_') ||
+      secondaryName.startsWith('spine_')
+    ) {
+      return 'jersey'
+    }
+    return 'skin'
+  }
+  if (
+    primaryName.startsWith('lowerarm_') ||
+    primaryName.startsWith('hand_') ||
+    primaryName.startsWith('index_') ||
+    primaryName.startsWith('middle_') ||
+    primaryName.startsWith('pinky_') ||
+    primaryName.startsWith('ring_') ||
+    primaryName.startsWith('thumb_')
+  ) {
+    return 'skin'
+  }
+  return 'skin'
+}
+
+/** Test-only — exposes the region rule for unit coverage. */
+export function _regionForBoneNamesForTest(
+  primaryName: string,
+  secondaryName: string,
+  posY: number,
+): GlbRegion {
+  return regionForBoneNames(primaryName, secondaryName, posY)
+}
+
+function applyMultiRegionMaterialsToCloned(
+  cloned: THREE.Object3D,
+  teamColor: string,
+): void {
+  const teamCol = new THREE.Color(teamColor)
+  const shortsCol = new THREE.Color(GLB_REGION_COLOR.shorts)
+  const skinCol = new THREE.Color(GLB_REGION_COLOR.skin)
+  const shoeCol = new THREE.Color(GLB_REGION_COLOR.shoes)
+  const hairCol = new THREE.Color(GLB_REGION_COLOR.hair)
+
+  const colorForRegion = (region: GlbRegion): THREE.Color => {
+    switch (region) {
+      case 'jersey':
+        return teamCol
+      case 'shorts':
+        return shortsCol
+      case 'skin':
+        return skinCol
+      case 'shoes':
+        return shoeCol
+      case 'hair':
+        return hairCol
+    }
+  }
+
   cloned.traverse((child) => {
+    const sm = child as THREE.SkinnedMesh
     const mesh = child as THREE.Mesh
-    if (!mesh.isMesh && !(child as THREE.SkinnedMesh).isSkinnedMesh) return
-    const baseMat = mesh.material
+    if (!sm.isSkinnedMesh && !mesh.isMesh) return
+    const baseMat = (sm.material ?? mesh.material) as
+      | THREE.Material
+      | THREE.Material[]
+      | undefined
     if (!baseMat) return
-    const replaceMat = (m: THREE.Material): THREE.Material => {
+
+    // Joints overlay (M_Joints in the source asset) is a thin set of
+    // sphere knobs at every joint. Painted in the team colour they
+    // read like fantasy armour studs; tint them skin-neutral so they
+    // disappear into the silhouette.
+    const matName = Array.isArray(baseMat)
+      ? baseMat[0]?.name ?? ''
+      : baseMat.name ?? ''
+    const isJointsOverlay = matName.toLowerCase().includes('joint')
+
+    const disposeOld = (m: THREE.Material | THREE.Material[]): void => {
+      if (Array.isArray(m)) m.forEach((x) => x.dispose())
+      else m.dispose()
+    }
+
+    if (isJointsOverlay) {
       const swap = new THREE.MeshStandardMaterial({
-        color: colorObj.clone(),
+        color: skinCol.clone(),
+        roughness: 0.7,
+        metalness: 0.0,
+      })
+      disposeOld(baseMat)
+      if (Array.isArray(baseMat)) sm.material = sm.material = swap
+      else sm.material = swap
+      return
+    }
+
+    if (!sm.isSkinnedMesh || !sm.skeleton) {
+      // Plain mesh — fall back to a flat team-colour material.
+      const swap = new THREE.MeshStandardMaterial({
+        color: teamCol.clone(),
         roughness: 0.55,
         metalness: 0.05,
       })
-      m.dispose()
-      return swap
+      disposeOld(baseMat)
+      mesh.material = swap
+      return
     }
-    if (Array.isArray(baseMat)) {
-      mesh.material = baseMat.map((m) => replaceMat(m))
-    } else {
-      mesh.material = replaceMat(baseMat)
+
+    const geom = sm.geometry
+    const skinIdxAttr = geom.getAttribute('skinIndex') as
+      | THREE.BufferAttribute
+      | undefined
+    const skinWeightAttr = geom.getAttribute('skinWeight') as
+      | THREE.BufferAttribute
+      | undefined
+    const posAttr = geom.getAttribute('position') as
+      | THREE.BufferAttribute
+      | undefined
+    if (!skinIdxAttr || !skinWeightAttr || !posAttr) {
+      const swap = new THREE.MeshStandardMaterial({
+        color: teamCol.clone(),
+        roughness: 0.55,
+        metalness: 0.05,
+      })
+      disposeOld(baseMat)
+      sm.material = swap
+      return
     }
+
+    const boneNames = sm.skeleton.bones.map((b) => b.name)
+    const N = posAttr.count
+    const colorArray = new Float32Array(N * 3)
+    for (let i = 0; i < N; i++) {
+      // Find primary (highest weight) and secondary bone for this vertex.
+      const w0 = skinWeightAttr.getX(i)
+      const w1 = skinWeightAttr.getY(i)
+      const w2 = skinWeightAttr.getZ(i)
+      const w3 = skinWeightAttr.getW(i)
+      const i0 = skinIdxAttr.getX(i)
+      const i1 = skinIdxAttr.getY(i)
+      const i2 = skinIdxAttr.getZ(i)
+      const i3 = skinIdxAttr.getW(i)
+      let primaryW = -1
+      let primaryIdx = -1
+      let secondaryW = -1
+      let secondaryIdx = -1
+      const ws = [w0, w1, w2, w3]
+      const is = [i0, i1, i2, i3]
+      for (let k = 0; k < 4; k++) {
+        if (ws[k] > primaryW) {
+          secondaryW = primaryW
+          secondaryIdx = primaryIdx
+          primaryW = ws[k]
+          primaryIdx = is[k]
+        } else if (ws[k] > secondaryW) {
+          secondaryW = ws[k]
+          secondaryIdx = is[k]
+        }
+      }
+      const primaryName = boneNames[primaryIdx] ?? ''
+      const secondaryName = boneNames[secondaryIdx] ?? ''
+      const py = posAttr.getY(i)
+      const region = regionForBoneNames(primaryName, secondaryName, py)
+      const c = colorForRegion(region)
+      colorArray[i * 3] = c.r
+      colorArray[i * 3 + 1] = c.g
+      colorArray[i * 3 + 2] = c.b
+    }
+
+    // Clone geometry per-figure so each athlete carries its own
+    // colour buffer. The skinIndex/skinWeight clones still reference
+    // the same skeleton bone indices, which is correct — the cloned
+    // mesh continues to bind to the per-figure skeleton built by
+    // SkeletonUtils.clone.
+    const clonedGeom = geom.clone()
+    clonedGeom.setAttribute(
+      'color',
+      new THREE.Float32BufferAttribute(colorArray, 3),
+    )
+    sm.geometry = clonedGeom
+
+    const swap = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      vertexColors: true,
+      roughness: 0.6,
+      metalness: 0.05,
+    })
+    disposeOld(baseMat)
+    sm.material = swap
   })
 }
 
