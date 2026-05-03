@@ -1,0 +1,267 @@
+[
+  {
+    "id": "AOR-01",
+    "version": 1,
+    "status": "DRAFT",
+    "title": "Catch and Read the Closeout",
+    "category": "OFFENSE",
+    "decoder_tag": "ADVANTAGE_OR_RESET",
+    "concept_tags": ["catch_and_read", "closeout_read"],
+    "sub_concepts": ["shot_off_catch", "closeout_advantage"],
+    "difficulty": 1,
+    "user_role": "wing_shooter",
+    "game_context": "4-on-4 half-court shell. The ball reverses from the slot to the wing. Your defender was helping in the paint and has to close out to you.",
+    "possession_setup": "You are the right wing. Your defender (x2) was helping one pass away in the paint when the ball was at the slot. As the pass arrives, x2 sprints out to close out on you. The ball is in the air, you are set, and x2 is one or two steps short.",
+    "decision_moment": "The ball arrives at your hands. x2 is closing hard but is still a step or two short and decelerating.",
+    "visible_cue": "x2 is closing fast but has not yet closed the cushion. Their hands are not yet up. You have a clean catch and a clear sightline at the rim.",
+    "court_state": {
+      "offense": [
+        { "id": "pg", "x": 240, "y": 140, "role": "ball_handler", "hasBall": true },
+        { "id": "user", "x": 430, "y": 80, "role": "wing_shooter", "hasBall": false },
+        { "id": "o3", "x": 70, "y": 90, "role": "weak_wing", "hasBall": false },
+        { "id": "o4", "x": 470, "y": 10, "role": "strong_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x1", "x": 240, "y": 160, "role": "on_ball", "hasBall": false },
+        { "id": "x2", "x": 320, "y": 40, "role": "wing_defender_helping", "hasBall": false },
+        { "id": "x3", "x": 100, "y": 100, "role": "weak_wing_defender", "hasBall": false },
+        { "id": "x4", "x": 440, "y": 30, "role": "low_man", "hasBall": false }
+      ],
+      "ball_location": { "x": 240, "y": 140 }
+    },
+    "prompt": "The ball is coming. The defender is closing late.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Shoot it.",
+        "quality": "best",
+        "feedback_text": "Best read. The defender was helping and is still a step short. You have a clean look — take the shot off the catch.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Rip and drive past him.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. Driving works against a flying closeout, but this defender is decelerating under control. The shot was the cleaner read.",
+        "partial_feedback_text": "A drive can work, but you gave up the open jumper. Read the defender — when the closeout is short, shoot.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Pass it back to the point.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. You had an open shot. Passing it back gives the defense time to set up.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Hold the ball and pump fake.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. The defender catches up while you hesitate. The shot was open at the catch.",
+        "order": 4
+      }
+    ],
+    "best_read": "Catch in shooting pocket and rise immediately. The defender's closeout is short and under control — there is no contest at the catch, and any extra dribble lets him recover.",
+    "acceptable_reads": [
+      "Rip and drive baseline if the defender is sprinting past — produces a layup or a kickout, but loses the clean catch-and-shoot."
+    ],
+    "bad_reads": [
+      "Pass back to the point — gives up the open look and resets the defense.",
+      "Hold and pump fake — the defender closes the cushion and contests."
+    ],
+    "common_miss_reason": "Loyalty to the dribble. Wings catch and put the ball on the floor by reflex even when the defender's cushion already gives them the shot.",
+    "why_best_read_works": "The defender was helping one pass away. Closing out from the help position cannot beat the ball — a catch in the shooting pocket forces the contest before the defender's hands are up. The shot is open precisely because the defender bet on the help.",
+    "decoder_teaching_point": "On the catch, read the closeout. If the defender is short and under control, shoot. If he is flying by, attack. If he is set with no advantage, reset.",
+    "lesson_connection": "advantage-or-reset",
+    "feedback": {
+      "correct": "Good read. The closeout was short. You caught and shot before he could contest.",
+      "partial": "A drive can work against a flying closeout. This one was under control and short — the shot was open. Take it.",
+      "wrong": "Look at the closeout. If the defender is short and under control at the catch, the shot is open. Catch and shoot."
+    },
+    "self_review_checklist": [
+      "Did I see the defender helping before the pass arrived?",
+      "Did I catch in my shooting pocket?",
+      "Did I read the cushion before I dribbled?",
+      "Did I shoot before his hands were up?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "needed",
+      "notes": "P1.5 first-pass authoring. Coach review pending — confirm the closeout cushion and timing read for a middle-school player."
+    },
+    "source_research_basis": "Catch-and-shoot off a help-side closeout is universally taught at every level. Specifics of cushion and contest timing follow Phase P §6 AOR mapping.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": []
+    },
+    "explanation_md": "**Advantage or Reset.** Your defender was helping in the paint when the ball was at the slot. He has to close out to you while the ball is already in the air. That means he's running while you're catching — he can't beat the ball. If the closeout is short and under control, catch and shoot. If he's flying past you, drive. If he's set with no advantage, reset. Look at his feet and his cushion at the catch.",
+    "xp_reward": 12,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "catch_and_read_closeout",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        { "id": "pg", "team": "offense", "role": "ball_handler", "label": "PG", "start": { "x": -8, "z": 14 }, "hasBall": true },
+        { "id": "user", "team": "offense", "role": "wing_shooter", "label": "You", "start": { "x": 16, "z": 9 }, "isUser": true },
+        { "id": "o3", "team": "offense", "role": "weak_wing", "label": "3", "start": { "x": -16, "z": 10 } },
+        { "id": "o4", "team": "offense", "role": "strong_corner", "label": "4", "start": { "x": 22, "z": 1 } },
+        { "id": "x1", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": -8, "z": 16 } },
+        { "id": "x2", "team": "defense", "role": "wing_defender_helping", "label": "x2", "start": { "x": 6, "z": 5 } },
+        { "id": "x3", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": -14, "z": 11 } },
+        { "id": "x4", "team": "defense", "role": "low_man", "label": "x4", "start": { "x": 20, "z": 3 } }
+      ],
+      "ball": {
+        "start": { "x": -8, "z": 14 },
+        "holderId": "pg"
+      },
+      "movements": [
+        {
+          "id": "user_lift_to_catch",
+          "playerId": "user",
+          "kind": "lift",
+          "to": { "x": 16, "z": 10 },
+          "delayMs": 0,
+          "durationMs": 600
+        },
+        {
+          "id": "pg_pass_to_wing",
+          "playerId": "ball",
+          "kind": "pass",
+          "to": { "x": 16, "z": 10 },
+          "delayMs": 350,
+          "durationMs": 700
+        },
+        {
+          "id": "x2_closeout_to_wing",
+          "playerId": "x2",
+          "kind": "closeout",
+          "to": { "x": 14, "z": 8 },
+          "delayMs": 350,
+          "durationMs": 750
+        }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1500 },
+      "answerDemo": [
+        {
+          "id": "user_shot_lift",
+          "playerId": "user",
+          "kind": "lift",
+          "to": { "x": 16, "z": 10 },
+          "delayMs": 0,
+          "durationMs": 250
+        },
+        {
+          "id": "user_release_pass",
+          "playerId": "ball",
+          "kind": "pass",
+          "to": { "x": 0, "z": 0.5 },
+          "delayMs": 200,
+          "durationMs": 700
+        }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You drove past, but he recovered to contest.",
+          "movements": [
+            {
+              "id": "user_rip",
+              "playerId": "user",
+              "kind": "rip",
+              "to": { "x": 17, "z": 9 },
+              "delayMs": 0,
+              "durationMs": 300
+            },
+            {
+              "id": "user_drive_baseline",
+              "playerId": "user",
+              "kind": "drive",
+              "to": { "x": 18, "z": 2 },
+              "delayMs": 100,
+              "durationMs": 700
+            },
+            {
+              "id": "x2_recover_to_contest",
+              "playerId": "x2",
+              "kind": "rotation",
+              "to": { "x": 17, "z": 3 },
+              "delayMs": 200,
+              "durationMs": 700
+            }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You passed it back. The shot is gone.",
+          "movements": [
+            {
+              "id": "user_pass_back",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": { "x": -8, "z": 14 },
+              "delayMs": 0,
+              "durationMs": 600
+            },
+            {
+              "id": "x2_recover_to_set",
+              "playerId": "x2",
+              "kind": "closeout",
+              "to": { "x": 14, "z": 9 },
+              "delayMs": 0,
+              "durationMs": 500
+            }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You hesitated. The defender contests the late shot.",
+          "movements": [
+            {
+              "id": "x2_close_cushion",
+              "playerId": "x2",
+              "kind": "closeout",
+              "to": { "x": 16, "z": 9 },
+              "delayMs": 0,
+              "durationMs": 600
+            },
+            {
+              "id": "user_late_shot",
+              "playerId": "user",
+              "kind": "lift",
+              "to": { "x": 16, "z": 10 },
+              "delayMs": 600,
+              "durationMs": 200
+            }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "defender_vision_cone", "playerId": "x2", "targetId": "user" },
+        { "kind": "defender_hip_arrow", "playerId": "x2" },
+        { "kind": "defender_foot_arrow", "playerId": "x2" },
+        { "kind": "help_pulse", "playerId": "x4", "role": "low_man" },
+        { "kind": "label", "anchor": { "x": 16, "z": 12 }, "text": "Read the closeout" },
+        { "kind": "label", "anchor": { "x": 11, "z": 6 }, "text": "How much space?" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "open_space_region", "anchor": { "x": 16, "z": 10 }, "radiusFt": 4 },
+        { "kind": "defender_vision_cone", "playerId": "x2", "targetId": "user" },
+        { "kind": "defender_hip_arrow", "playerId": "x2" },
+        { "kind": "defender_foot_arrow", "playerId": "x2" },
+        { "kind": "timing_pulse", "anchor": { "x": 16, "z": 10 }, "durationMs": 600 },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "user",
+          "path": [
+            { "x": 16, "z": 9 },
+            { "x": 17, "z": 9 },
+            { "x": 18, "z": 2 }
+          ]
+        }
+      ]
+    }
+  }
+]
