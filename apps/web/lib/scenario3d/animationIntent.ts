@@ -417,6 +417,13 @@ export type GlbClipName =
   | 'defensive_deny'
   | 'closeout'
   | 'back_cut'
+  // P2.6 — shared readability primitives.
+  // - `receive_ready` — stationary catch / shot / reset pose, replaces
+  //    the legacy `cut_sprint` fallback for stationary read intents.
+  // - `closeout_read` — forward closeout fallback, replaces the legacy
+  //    `defense_slide` fallback for the CLOSEOUT flag-off path.
+  | 'receive_ready'
+  | 'closeout_read'
 
 export interface IntentClipFlags {
   /** True when `USE_IMPORTED_CLOSEOUT_CLIP` is active. */
@@ -430,10 +437,16 @@ export interface IntentClipFlags {
  *
  * Rules:
  *   - CLOSEOUT  → 'closeout' only when `importedCloseoutActive`;
- *                 otherwise falls back to 'defense_slide'.
+ *                 otherwise falls back to 'closeout_read' (P2.6 —
+ *                 forward closeout pose, replaces 'defense_slide').
  *   - BACK_CUT  → 'back_cut' only when `importedBackCutActive`;
  *                 otherwise falls back to 'cut_sprint'.
- *   - Offensive moving intents → 'cut_sprint'.
+ *   - RECEIVE_READY / SHOT_READY / RESET_HOLD → 'receive_ready' (P2.6
+ *                 — stationary catch / read pose, replaces the legacy
+ *                 'cut_sprint' fallback so a stationary catcher does
+ *                 not visibly run in place).
+ *   - Other offensive moving intents (EMPTY_SPACE_CUT, JAB_OR_RIP,
+ *     PASS_FOLLOWTHROUGH) → 'cut_sprint'.
  *   - DEFENSIVE_DENY → 'defensive_deny'.
  *   - Other defensive moving intents → 'defense_slide'.
  *   - Stationary/unknown → 'idle_ready'.
@@ -448,19 +461,24 @@ export function resolveGlbClipForIntent(
 ): GlbClipName {
   switch (intent) {
     case 'CLOSEOUT':
-      return flags.importedCloseoutActive ? 'closeout' : 'defense_slide'
+      return flags.importedCloseoutActive ? 'closeout' : 'closeout_read'
 
     case 'BACK_CUT':
       return flags.importedBackCutActive ? 'back_cut' : 'cut_sprint'
 
-    case 'EMPTY_SPACE_CUT':
-    case 'JAB_OR_RIP':
     case 'RECEIVE_READY':
     case 'SHOT_READY':
-    case 'PASS_FOLLOWTHROUGH':
     case 'RESET_HOLD':
-      // Offensive / neutral moving intents — best available is
-      // cut_sprint until dedicated clips land.
+      // P2.6 — stationary read intents share a dedicated catch /
+      // shot / reset pose. Pre-P2.6 they fell through to
+      // `cut_sprint`, which made a stationary catcher run in place.
+      return 'receive_ready'
+
+    case 'EMPTY_SPACE_CUT':
+    case 'JAB_OR_RIP':
+    case 'PASS_FOLLOWTHROUGH':
+      // Offensive moving intents — best available is `cut_sprint`
+      // until dedicated clips land.
       return 'cut_sprint'
 
     case 'DEFENSIVE_DENY':
