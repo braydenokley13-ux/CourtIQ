@@ -858,6 +858,27 @@ function _kickOffImportedCloseoutClipLoad(): void {
 }
 
 /**
+ * P1.7 — public preload for the imported closeout clip. Returns the
+ * cached + root-motion-stripped clip on success, or `null` if the
+ * asset is missing / network blocked / running outside a browser.
+ *
+ * Used by `Scenario3DCanvas`'s cold-load handoff: when both the GLB
+ * flag and the imported closeout flag are active, this kicks the
+ * fetch in parallel with the mannequin GLB and triggers an `apply`
+ * pass once both resolve, so the next scene rebuild builds figures
+ * with the real closeout clip in cache (no first-frame placeholder
+ * regression).
+ *
+ * Idempotent — repeat calls hit the existing cache. Never throws;
+ * caller handles `null` by leaving the synthetic placeholder in
+ * place.
+ */
+export function preloadImportedCloseoutClip(): Promise<unknown> {
+  if (typeof window === 'undefined') return Promise.resolve(null)
+  return loadImportedClip(GLB_IMPORTED_CLOSEOUT_CLIP_URL).catch(() => null)
+}
+
+/**
  * Test-only — exposes the synthetic placeholder closeout clip
  * (un-stripped) so tests can assert the strip behaviour against
  * the same authoring source the production builder uses.

@@ -24,6 +24,19 @@ export const dynamic = 'force-dynamic'
  *                      canvas renders. Used by the screenshot harness
  *                      so the same page captures both default and
  *                      fullscreen layouts.
+ *   ?glb=1             P1.7 — flips
+ *                      `imperativeScene.isGlbAthletePreviewActive()`
+ *                      to true via a runtime override window global
+ *                      so a dev/QA session can preview the GLB
+ *                      mannequin path without rebuilding. No-op in
+ *                      production builds (the route 404s anyway when
+ *                      `NODE_ENV === 'production'` AND
+ *                      `ENABLE_DEV_ROUTES !== '1'`).
+ *   ?closeout=1        P1.7 — flips
+ *                      `imperativeScene.isImportedCloseoutClipActive()`
+ *                      to true. Layered on top of `?glb=1`; ignored
+ *                      when `?glb=1` is absent (the imported closeout
+ *                      path only runs inside the GLB athlete builder).
  */
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
@@ -44,6 +57,13 @@ export default async function ScenePreviewPage({
     notFound()
   }
   const fullscreen = params.fullscreen === '1'
+  // P1.7 — dev-only flag-on overrides. Both default to `false`. The
+  // closeout override only takes effect when the GLB override is
+  // also on, since the imported closeout path runs inside the GLB
+  // athlete builder.
+  const enableGlbAthletePreview = params.glb === '1'
+  const enableImportedCloseoutClip =
+    enableGlbAthletePreview && params.closeout === '1'
 
   const packPath = path.resolve(
     process.cwd(),
@@ -92,6 +112,8 @@ export default async function ScenePreviewPage({
           decoder_tag: scenario.decoder_tag ?? null,
         }}
         fullscreen={fullscreen}
+        enableGlbAthletePreview={enableGlbAthletePreview}
+        enableImportedCloseoutClip={enableImportedCloseoutClip}
       />
     </Suspense>
   )

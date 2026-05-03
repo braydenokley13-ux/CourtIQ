@@ -3541,6 +3541,61 @@ export const USE_GLB_ATHLETE_PREVIEW = false
 export const USE_IMPORTED_CLOSEOUT_CLIP = false
 
 /**
+ * P1.7 — dev-only runtime override key. The dev-preview page sets
+ * `window[GLB_ATHLETE_PREVIEW_DEV_OVERRIDE_KEY] = true` BEFORE the
+ * 3D canvas mounts when `?glb=1` is on the URL. Production never
+ * sets this global, so production traffic is byte-identical to
+ * pre-P1.7. The override is also short-circuited when
+ * `process.env.NODE_ENV === 'production'` so a malicious page that
+ * sets the global in a prod build cannot escalate.
+ */
+export const GLB_ATHLETE_PREVIEW_DEV_OVERRIDE_KEY =
+  '__COURTIQ_GLB_ATHLETE_PREVIEW_DEV_OVERRIDE__'
+
+/** P1.7 — companion override key for the imported closeout clip. */
+export const IMPORTED_CLOSEOUT_DEV_OVERRIDE_KEY =
+  '__COURTIQ_IMPORTED_CLOSEOUT_DEV_OVERRIDE__'
+
+/**
+ * P1.7 — runtime check for the GLB athlete preview gate. Returns
+ * `true` when:
+ *   - `USE_GLB_ATHLETE_PREVIEW` is `true` at module level, OR
+ *   - the dev-only override window global is truthy AND the build
+ *     is not production.
+ *
+ * Use this helper at every consumer site instead of the const so a
+ * dev/QA session can flip the flag without rebuilding. The helper
+ * is cheap (one window read) and is called only from synchronous
+ * builder paths that already pay much higher costs.
+ */
+export function isGlbAthletePreviewActive(): boolean {
+  if (USE_GLB_ATHLETE_PREVIEW) return true
+  if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production') {
+    return false
+  }
+  if (typeof window === 'undefined') return false
+  return Boolean(
+    (window as unknown as Record<string, unknown>)[
+      GLB_ATHLETE_PREVIEW_DEV_OVERRIDE_KEY
+    ],
+  )
+}
+
+/** P1.7 — companion runtime check for the imported closeout clip. */
+export function isImportedCloseoutClipActive(): boolean {
+  if (USE_IMPORTED_CLOSEOUT_CLIP) return true
+  if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production') {
+    return false
+  }
+  if (typeof window === 'undefined') return false
+  return Boolean(
+    (window as unknown as Record<string, unknown>)[
+      IMPORTED_CLOSEOUT_DEV_OVERRIDE_KEY
+    ],
+  )
+}
+
+/**
  * Phase F / J / M / O-ASSET — public builder entry point. Returns,
  * in priority order:
  *   1. License-clean GLB athlete preview when
@@ -3569,7 +3624,7 @@ export function buildPlayerFigure(
   jerseyNumber: string,
   stance: PlayerStance,
 ): THREE.Group {
-  if (USE_GLB_ATHLETE_PREVIEW) {
+  if (isGlbAthletePreviewActive()) {
     try {
       const glb = buildGlbAthleteFigure(
         teamColor,
@@ -3690,7 +3745,7 @@ function buildGlbAthleteFigure(
       // flag are on does the imported clip get attached. The
       // selector in `pickGlbClipForState` must mirror the same gate
       // so a non-flagged build never picks `closeout`.
-      attachImportedCloseoutClip: USE_IMPORTED_CLOSEOUT_CLIP,
+      attachImportedCloseoutClip: isImportedCloseoutClipActive(),
     },
   )
 }
@@ -3711,7 +3766,7 @@ function pickGlbClipForState(
   isMoving: boolean,
 ): GlbAthleteAnimationName {
   if (team === 'defense') {
-    if (USE_IMPORTED_CLOSEOUT_CLIP && kind === 'closeout') return 'closeout'
+    if (isImportedCloseoutClipActive() && kind === 'closeout') return 'closeout'
     if (isMoving) return 'defense_slide'
     if (kind === 'closeout' || kind === 'rotation') return 'defense_slide'
     return 'idle_ready'

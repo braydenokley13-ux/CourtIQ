@@ -17,6 +17,8 @@ import {
   CameraController,
   disposeGroup,
   fitCameraToScene,
+  isGlbAthletePreviewActive,
+  isImportedCloseoutClipActive,
   MotionController,
   ReplayStateMachine,
   USE_GLB_ATHLETE_PREVIEW,
@@ -44,7 +46,7 @@ import {
   type QualityTier,
 } from '@/lib/scenario3d/quality'
 import { buildDustMotes, type DustMotes } from '@/lib/scenario3d/atmosphere'
-import { loadGlbAthleteAsset } from './glbAthlete'
+import { loadGlbAthleteAsset, preloadImportedCloseoutClip } from './glbAthlete'
 
 interface Scenario3DCanvasProps {
   /** Mounted as the WebGL fallback when WebGL is unavailable. */
@@ -469,8 +471,18 @@ export function Scenario3DCanvas({
     // pixel buffer + camera aspect track any wrapper-size change
     // that may have happened during the load. Gated on the flag so
     // GLB-off traffic never pays the 1.4MB asset fetch.
+    //
+    // P1.7 — when the imported closeout flag is ALSO on, kick off
+    // the closeout-clip fetch in parallel so the loader cache is
+    // warm before the next scene rebuild. The figure builder uses
+    // whatever clip is in the cache at build time (synthetic
+    // placeholder when cold, real GLB when warm); the next mount
+    // (resetCounter bump or scene change) picks up the real clip.
+    // Gated via `isImportedCloseoutClipActive()` so flag-off
+    // traffic never fetches the 60 KB closeout asset.
     let cancelled = false
-    if (USE_GLB_ATHLETE_PREVIEW) {
+    const glbActive = isGlbAthletePreviewActive()
+    if (glbActive) {
       void loadGlbAthleteAsset()
         .then(() => {
           if (cancelled) return
@@ -479,6 +491,16 @@ export function Scenario3DCanvas({
         .catch(() => {
           /* swallowed — apply still runs from the observer */
         })
+      if (isImportedCloseoutClipActive()) {
+        void preloadImportedCloseoutClip()
+          .then(() => {
+            if (cancelled) return
+            applyAfterTransition()
+          })
+          .catch(() => {
+            /* swallowed — synthetic placeholder fallback covers it */
+          })
+      }
     }
 
     return () => {
