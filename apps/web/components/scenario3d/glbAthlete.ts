@@ -125,6 +125,23 @@ const GLB_LOWER_BODY_BIND_QUATERNIONS: Readonly<
 }
 
 /**
+ * Audited local rest rotations for the Quaternius UAL2 arm bones.
+ * Like the lower body, these bones are far from identity in bind
+ * pose. Authoring small "basketball pose" deltas against identity
+ * makes the shoulders snap toward a mannequin/T-pose silhouette, so
+ * readable CourtIQ arm poses must start from bind and multiply in a
+ * small deterministic delta.
+ */
+const GLB_ARM_BIND_QUATERNIONS: Readonly<
+  Record<string, [number, number, number, number]>
+> = {
+  upperarm_l: [0.2320518, 0.6680781, -0.2315034, 0.6680044],
+  lowerarm_l: [0.0192334, 0, 0, 0.999815],
+  upperarm_r: [0.2320517, -0.6680781, 0.2315034, 0.6680044],
+  lowerarm_r: [0.0192334, 0, 0, 0.999815],
+}
+
+/**
  * P0-LOCK — one-shot dev-only bone-map audit. Walks the cloned
  * skeleton on first build, logs the actual bone names, and warns
  * about any `GLB_BONE_MAP` entry whose target bone is not present.
@@ -223,14 +240,57 @@ function buildGlbIdleReadyClip(): THREE.AnimationClip {
       ]),
     ),
   )
+  // Keep the mannequin out of its broad rest silhouette. Arms stay
+  // near the ribs with soft elbows so idle players read as ready,
+  // not parked in an asset bind pose.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftUpperArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 2.3, 0, 0.02),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 2.3, 0, 0.02),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightUpperArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 2.3, 0, -0.02),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 2.3, 0, -0.02),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftForeArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.42, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.42, 0),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightForeArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.42, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.42, 0),
+      ]),
+    ),
+  )
   // Knees softened (slight thigh forward).
   tracks.push(
     new THREE.QuaternionKeyframeTrack(
       `${GLB_BONE_MAP.leftThigh}.quaternion`,
       [0, duration],
       flattenGlbQuats([
-        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.06, 0, 0),
-        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.06, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.14, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.14, 0, 0),
       ]),
     ),
   )
@@ -239,8 +299,28 @@ function buildGlbIdleReadyClip(): THREE.AnimationClip {
       `${GLB_BONE_MAP.rightThigh}.quaternion`,
       [0, duration],
       flattenGlbQuats([
-        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.06, 0, 0),
-        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.06, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.14, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.14, 0, 0),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftShin}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, 0.08, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, 0.08, 0, 0),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightShin}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, 0.08, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, 0.08, 0, 0),
       ]),
     ),
   )
@@ -294,9 +374,9 @@ function buildGlbCutSprintClip(): THREE.AnimationClip {
       `${GLB_BONE_MAP.leftUpperArm}.quaternion`,
       t,
       flattenGlbQuats([
-        glbEulerQuat(0, 0, 0.7),
-        glbEulerQuat(0, 0, -0.5),
-        glbEulerQuat(0, 0, 0.7),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 0, 0, 0.7),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 0, 0, -0.5),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 0, 0, 0.7),
       ]),
     ),
   )
@@ -305,9 +385,9 @@ function buildGlbCutSprintClip(): THREE.AnimationClip {
       `${GLB_BONE_MAP.rightUpperArm}.quaternion`,
       t,
       flattenGlbQuats([
-        glbEulerQuat(0, 0, -0.5),
-        glbEulerQuat(0, 0, 0.7),
-        glbEulerQuat(0, 0, -0.5),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 0, 0, -0.5),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 0, 0, 0.7),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 0, 0, -0.5),
       ]),
     ),
   )
@@ -317,9 +397,9 @@ function buildGlbCutSprintClip(): THREE.AnimationClip {
       `${GLB_BONE_MAP.leftForeArm}.quaternion`,
       t,
       flattenGlbQuats([
-        glbEulerQuat(0, -0.9, 0),
-        glbEulerQuat(0, -0.4, 0),
-        glbEulerQuat(0, -0.9, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.9, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.4, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.9, 0),
       ]),
     ),
   )
@@ -328,9 +408,9 @@ function buildGlbCutSprintClip(): THREE.AnimationClip {
       `${GLB_BONE_MAP.rightForeArm}.quaternion`,
       t,
       flattenGlbQuats([
-        glbEulerQuat(0, -0.4, 0),
-        glbEulerQuat(0, -0.9, 0),
-        glbEulerQuat(0, -0.4, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.4, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.9, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.4, 0),
       ]),
     ),
   )
@@ -417,33 +497,45 @@ function buildGlbDefenseSlideClip(): THREE.AnimationClip {
       flattenGlbQuats([glbEulerQuat(0.18, 0, 0), glbEulerQuat(0.18, 0, 0)]),
     ),
   )
-  // Arms held up and out (active hands).
+  // Arms held active but below airplane/T-pose height.
   tracks.push(
     new THREE.QuaternionKeyframeTrack(
       `${GLB_BONE_MAP.leftUpperArm}.quaternion`,
       [0, duration],
-      flattenGlbQuats([glbEulerQuat(0, 0, 1.0), glbEulerQuat(0, 0, 1.0)]),
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 1.6, 0, 0.2),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 1.6, 0, 0.2),
+      ]),
     ),
   )
   tracks.push(
     new THREE.QuaternionKeyframeTrack(
       `${GLB_BONE_MAP.rightUpperArm}.quaternion`,
       [0, duration],
-      flattenGlbQuats([glbEulerQuat(0, 0, -1.0), glbEulerQuat(0, 0, -1.0)]),
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 1.6, 0, -0.2),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 1.6, 0, -0.2),
+      ]),
     ),
   )
   tracks.push(
     new THREE.QuaternionKeyframeTrack(
       `${GLB_BONE_MAP.leftForeArm}.quaternion`,
       [0, duration],
-      flattenGlbQuats([glbEulerQuat(0, -0.9, 0), glbEulerQuat(0, -0.9, 0)]),
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.72, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.72, 0),
+      ]),
     ),
   )
   tracks.push(
     new THREE.QuaternionKeyframeTrack(
       `${GLB_BONE_MAP.rightForeArm}.quaternion`,
       [0, duration],
-      flattenGlbQuats([glbEulerQuat(0, -0.9, 0), glbEulerQuat(0, -0.9, 0)]),
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.72, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.72, 0),
+      ]),
     ),
   )
   // Wide thigh splay + slight rock.
@@ -494,6 +586,139 @@ function buildGlbDefenseSlideClip(): THREE.AnimationClip {
   return new THREE.AnimationClip('defense_slide', duration, tracks)
 }
 
+/**
+ * P2.4 — readable `DEFENSIVE_DENY` posture.
+ *
+ * Teaching goal: before the back cut, the defender must visibly own
+ * the passing lane. This is a deterministic pose shim, not a movement
+ * system: every track is a quaternion, and scenario data still owns
+ * route position.
+ */
+function buildGlbDefensiveDenyClip(): THREE.AnimationClip {
+  const duration = 1.2
+  const tracks: THREE.KeyframeTrack[] = []
+
+  // Hips and chest angle into the lane so the defender reads as
+  // overplaying instead of standing square to the cutter.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.hips}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, -0.16, -0.04),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.hips, 0, -0.16, -0.04),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.spine}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbEulerQuat(0.16, -0.24, -0.08),
+        glbEulerQuat(0.16, -0.24, -0.08),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.head}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbEulerQuat(0.02, 0.18, 0.02),
+        glbEulerQuat(0.02, 0.18, 0.02),
+      ]),
+    ),
+  )
+
+  // Inside arm is in the lane, but below T-pose height; off arm stays
+  // bent near the body. Asymmetry is the visual read.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftUpperArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 1.1, 0, 0.45),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 1.1, 0, 0.45),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftForeArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.42, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.42, 0),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightUpperArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 2.25, 0, -0.04),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 2.25, 0, -0.04),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightForeArm}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.62, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.62, 0),
+      ]),
+    ),
+  )
+
+  // Athletic base: mild crouch, narrow enough to avoid leg folding.
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftThigh}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.32, 0, 0.08),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.32, 0, 0.08),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightThigh}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.28, 0, -0.06),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.28, 0, -0.06),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.leftShin}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, 0.18, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, 0.18, 0, 0),
+      ]),
+    ),
+  )
+  tracks.push(
+    new THREE.QuaternionKeyframeTrack(
+      `${GLB_BONE_MAP.rightShin}.quaternion`,
+      [0, duration],
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, 0.16, 0, 0),
+        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, 0.16, 0, 0),
+      ]),
+    ),
+  )
+
+  return new THREE.AnimationClip('defensive_deny', duration, tracks)
+}
+
 const _glbScratchEuler = new THREE.Euler()
 
 function glbEulerQuat(x: number, y: number, z: number): THREE.Quaternion {
@@ -508,6 +733,20 @@ function glbLowerBodyBindRelativeQuat(
   z: number,
 ): THREE.Quaternion {
   const bind = GLB_LOWER_BODY_BIND_QUATERNIONS[boneName]
+  if (!bind) return glbEulerQuat(x, y, z)
+  const [bx, by, bz, bw] = bind
+  return new THREE.Quaternion(bx, by, bz, bw)
+    .multiply(glbEulerQuat(x, y, z))
+    .normalize()
+}
+
+function glbArmBindRelativeQuat(
+  boneName: string,
+  x: number,
+  y: number,
+  z: number,
+): THREE.Quaternion {
+  const bind = GLB_ARM_BIND_QUATERNIONS[boneName]
   if (!bind) return glbEulerQuat(x, y, z)
   const [bx, by, bz, bw] = bind
   return new THREE.Quaternion(bx, by, bz, bw)
@@ -757,6 +996,7 @@ function getCachedGlbClips(): THREE.AnimationClip[] {
     buildGlbIdleReadyClip(),
     buildGlbCutSprintClip(),
     buildGlbDefenseSlideClip(),
+    buildGlbDefensiveDenyClip(),
   ]
   return _cachedGlbClips
 }
@@ -834,14 +1074,20 @@ function buildPlaceholderImportedCloseoutClip(): THREE.AnimationClip {
     new THREE.QuaternionKeyframeTrack(
       `${GLB_BONE_MAP.leftUpperArm}.quaternion`,
       [0, duration],
-      flattenGlbQuats([glbEulerQuat(0, 0, 1.4), glbEulerQuat(0, 0, 1.4)]),
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 0, 0, 1.4),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 0, 0, 1.4),
+      ]),
     ),
   )
   tracks.push(
     new THREE.QuaternionKeyframeTrack(
       `${GLB_BONE_MAP.rightUpperArm}.quaternion`,
       [0, duration],
-      flattenGlbQuats([glbEulerQuat(0, 0, -1.4), glbEulerQuat(0, 0, -1.4)]),
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 0, 0, -1.4),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 0, 0, -1.4),
+      ]),
     ),
   )
   // Forearms slightly bent.
@@ -849,14 +1095,20 @@ function buildPlaceholderImportedCloseoutClip(): THREE.AnimationClip {
     new THREE.QuaternionKeyframeTrack(
       `${GLB_BONE_MAP.leftForeArm}.quaternion`,
       [0, duration],
-      flattenGlbQuats([glbEulerQuat(0, -0.6, 0), glbEulerQuat(0, -0.6, 0)]),
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.6, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.6, 0),
+      ]),
     ),
   )
   tracks.push(
     new THREE.QuaternionKeyframeTrack(
       `${GLB_BONE_MAP.rightForeArm}.quaternion`,
       [0, duration],
-      flattenGlbQuats([glbEulerQuat(0, -0.6, 0), glbEulerQuat(0, -0.6, 0)]),
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.6, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.6, 0),
+      ]),
     ),
   )
   // Wide stance — thighs splay outward, knees bent.
@@ -1280,44 +1532,44 @@ function buildTeachingBackCutTracks(duration: number): THREE.KeyframeTrack[] {
       `${GLB_BONE_MAP.leftUpperArm}.quaternion`,
       t,
       flattenGlbQuats([
-        glbEulerQuat(0, 0, 0.25),
-        glbEulerQuat(0, 0, 0.45),
-        glbEulerQuat(0, 0, -0.42),
-        glbEulerQuat(0, 0, -0.2),
-        glbEulerQuat(0, 0, 0.3),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 0, 0, 0.25),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 0, 0, 0.45),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 0, 0, -0.42),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 0, 0, -0.2),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 0, 0, 0.3),
       ]),
     ),
     new THREE.QuaternionKeyframeTrack(
       `${GLB_BONE_MAP.rightUpperArm}.quaternion`,
       t,
       flattenGlbQuats([
-        glbEulerQuat(0, 0, -0.3),
-        glbEulerQuat(0, 0, -0.48),
-        glbEulerQuat(0, 0, 0.5),
-        glbEulerQuat(0, 0, 0.22),
-        glbEulerQuat(0, 0, -0.28),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 0, 0, -0.3),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 0, 0, -0.48),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 0, 0, 0.5),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 0, 0, 0.22),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 0, 0, -0.28),
       ]),
     ),
     new THREE.QuaternionKeyframeTrack(
       `${GLB_BONE_MAP.leftForeArm}.quaternion`,
       t,
       flattenGlbQuats([
-        glbEulerQuat(0, -0.72, 0),
-        glbEulerQuat(0, -0.88, 0),
-        glbEulerQuat(0, -0.54, 0),
-        glbEulerQuat(0, -0.64, 0),
-        glbEulerQuat(0, -0.78, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.72, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.88, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.54, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.64, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.78, 0),
       ]),
     ),
     new THREE.QuaternionKeyframeTrack(
       `${GLB_BONE_MAP.rightForeArm}.quaternion`,
       t,
       flattenGlbQuats([
-        glbEulerQuat(0, -0.78, 0),
-        glbEulerQuat(0, -0.58, 0),
-        glbEulerQuat(0, -0.92, 0),
-        glbEulerQuat(0, -0.7, 0),
-        glbEulerQuat(0, -0.76, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.78, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.58, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.92, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.7, 0),
+        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.76, 0),
       ]),
     ),
     // Plant-and-go legs, conservative and bind-relative to avoid the
@@ -1536,11 +1788,13 @@ export function _buildGlbAthleteClipsForTest(): {
   idle_ready: THREE.AnimationClip
   cut_sprint: THREE.AnimationClip
   defense_slide: THREE.AnimationClip
+  defensive_deny: THREE.AnimationClip
 } {
   return {
     idle_ready: buildGlbIdleReadyClip(),
     cut_sprint: buildGlbCutSprintClip(),
     defense_slide: buildGlbDefenseSlideClip(),
+    defensive_deny: buildGlbDefensiveDenyClip(),
   }
 }
 
@@ -2002,6 +2256,7 @@ export type GlbAthleteAnimationName =
   | 'idle_ready'
   | 'cut_sprint'
   | 'defense_slide'
+  | 'defensive_deny'
   | 'closeout'
   | 'back_cut'
 

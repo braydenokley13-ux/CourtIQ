@@ -414,6 +414,7 @@ export type GlbClipName =
   | 'idle_ready'
   | 'cut_sprint'
   | 'defense_slide'
+  | 'defensive_deny'
   | 'closeout'
   | 'back_cut'
 
@@ -433,7 +434,8 @@ export interface IntentClipFlags {
  *   - BACK_CUT  → 'back_cut' only when `importedBackCutActive`;
  *                 otherwise falls back to 'cut_sprint'.
  *   - Offensive moving intents → 'cut_sprint'.
- *   - Defensive moving intents → 'defense_slide'.
+ *   - DEFENSIVE_DENY → 'defensive_deny'.
+ *   - Other defensive moving intents → 'defense_slide'.
  *   - Stationary/unknown → 'idle_ready'.
  *
  * This is the single place that encodes clip availability. When a new
@@ -462,6 +464,8 @@ export function resolveGlbClipForIntent(
       return 'cut_sprint'
 
     case 'DEFENSIVE_DENY':
+      return 'defensive_deny'
+
     case 'DEFENSIVE_HELP_TURN':
     case 'SLIDE_RECOVER':
       return 'defense_slide'

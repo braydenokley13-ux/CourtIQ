@@ -3954,6 +3954,14 @@ export function pickGlbClipForState(
   // everyone else idles. CLOSEOUT runs through the resolver so the imported
   // flag gate stays centralized.
   if (!isMoving) {
+    if (decoderTag && role) {
+      const intent = getDecoderAnimationIntent(decoderTag, role)
+      if (intent === 'DEFENSIVE_DENY' || intent === 'CLOSEOUT') {
+        const clip = resolveGlbClipForIntent(intent, flags)
+        _logIntentSelection({ team, kind, isMoving, intent, decoderTag, role, clip })
+        return clip
+      }
+    }
     if (team === 'defense' && kind === 'closeout') {
       const clip = resolveGlbClipForIntent('CLOSEOUT', flags)
       _logIntentSelection({ team, kind, isMoving, intent: 'CLOSEOUT', decoderTag, role, clip })
