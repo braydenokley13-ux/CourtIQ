@@ -126,8 +126,7 @@ export type AorReceiverBranch = 'shot' | 'jab_or_rip' | 'reset'
  *
  * SKR — SKIP_THE_ROTATION:
  *   passer          → PASS_FOLLOWTHROUGH
- *   open_player     → RECEIVE_READY or SHOT_READY (open_player defaults
- *                     to SHOT_READY — they are catch-and-shoot ready)
+ *   open_player     → SHOT_READY (catch-and-shoot ready by definition)
  *   helper_defender → DEFENSIVE_HELP_TURN
  *   closeout_def    → CLOSEOUT
  */
@@ -296,7 +295,7 @@ export function getMovementKindIntent(
       return 'RECEIVE_READY'
 
     default:
-      return team === 'defense' ? 'IDLE_READY' : 'IDLE_READY'
+      return 'IDLE_READY'
   }
 }
 
