@@ -26,6 +26,10 @@ import {
   type ResolvedMovement,
   type Timeline,
 } from '@/lib/scenario3d/timeline'
+import {
+  resolveGlbClipForIntent,
+  type AnimationIntent,
+} from '@/lib/scenario3d/animationIntent'
 
 // Visual upgrade pass: warmer, richer hardwood; deeper, more saturated
 // paint; brighter team colors so jerseys pop against both floor and
@@ -3837,16 +3841,32 @@ function buildGlbAthleteFigure(
  * with movement kind `closeout` map to the imported `closeout`
  * clip instead of the bespoke `defense_slide`. The flag-off path
  * is byte-identical to pre-P1.0 behaviour.
+ *
+ * P2 — the CLOSEOUT path is now routed through the typed
+ * AnimationIntent layer (`resolveGlbClipForIntent`). The flag gate
+ * is owned in one place (`animationIntent.ts`) so future imported
+ * clips can be wired by adding a flag to `IntentClipFlags` rather
+ * than touching this dispatch table. All other branches preserve
+ * the pre-P2 behaviour byte-for-byte to keep determinism tests
+ * green.
  */
 function pickGlbClipForState(
   team: 'offense' | 'defense',
   kind: SceneMovementKind | undefined,
   isMoving: boolean,
 ): GlbAthleteAnimationName {
+  if (team === 'defense' && kind === 'closeout') {
+    // P2 — single semantic CLOSEOUT path; the resolver owns the
+    // imported-clip flag gate.
+    const clip = resolveGlbClipForIntent('CLOSEOUT', {
+      importedCloseoutActive: isImportedCloseoutClipActive(),
+    })
+    _logIntentSelection(team, kind, isMoving, 'CLOSEOUT', clip)
+    return clip
+  }
   if (team === 'defense') {
-    if (isImportedCloseoutClipActive() && kind === 'closeout') return 'closeout'
     if (isMoving) return 'defense_slide'
-    if (kind === 'closeout' || kind === 'rotation') return 'defense_slide'
+    if (kind === 'rotation') return 'defense_slide'
     return 'idle_ready'
   }
   if (!isMoving) return 'idle_ready'
@@ -3862,6 +3882,36 @@ function pickGlbClipForState(
     default:
       return 'idle_ready'
   }
+}
+
+/**
+ * P2 — dev-only debug breadcrumb so QA can see which animation
+ * intent / clip was selected per frame without instrumenting the
+ * call site. Emits at most one log per (team, kind, isMoving, intent,
+ * clip) tuple per page session so the console stays readable during
+ * a long replay. Production builds short-circuit on the NODE_ENV
+ * check so no log calls are emitted to user devices.
+ */
+const _intentDebugSeen = new Set<string>()
+function _logIntentSelection(
+  team: 'offense' | 'defense',
+  kind: SceneMovementKind | undefined,
+  isMoving: boolean,
+  intent: AnimationIntent,
+  clip: GlbAthleteAnimationName,
+): void {
+  if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production') return
+  if (typeof console === 'undefined') return
+  const tag = `${team}|${kind ?? '∅'}|${isMoving ? '1' : '0'}|${intent}|${clip}`
+  if (_intentDebugSeen.has(tag)) return
+  _intentDebugSeen.add(tag)
+  // eslint-disable-next-line no-console
+  console.info('[animationIntent]', { team, kind, isMoving, intent, clip })
+}
+
+/** Test-only — reset the dedupe guard between cases. */
+export function _resetIntentDebugLogGuard(): void {
+  _intentDebugSeen.clear()
 }
 
 // =====================================================================
