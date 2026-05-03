@@ -21,7 +21,6 @@ import {
   isImportedCloseoutClipActive,
   MotionController,
   ReplayStateMachine,
-  USE_GLB_ATHLETE_PREVIEW,
   type CameraMode,
   type ReplayState,
 } from './imperativeScene'
