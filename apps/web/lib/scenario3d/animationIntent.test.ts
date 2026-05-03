@@ -174,18 +174,95 @@ describe('getDecoderAnimationIntent — exhaustive fallback safety', () => {
 
 describe('resolveGlbClipForIntent — CLOSEOUT intent', () => {
   it('returns "closeout" clip when importedCloseoutActive=true', () => {
-    expect(resolveGlbClipForIntent('CLOSEOUT', { importedCloseoutActive: true })).toBe('closeout')
+    expect(
+      resolveGlbClipForIntent('CLOSEOUT', {
+        importedCloseoutActive: true,
+        importedBackCutActive: false,
+      }),
+    ).toBe('closeout')
   })
 
   it('falls back to "defense_slide" when importedCloseoutActive=false', () => {
-    expect(resolveGlbClipForIntent('CLOSEOUT', { importedCloseoutActive: false })).toBe(
-      'defense_slide',
-    )
+    expect(
+      resolveGlbClipForIntent('CLOSEOUT', {
+        importedCloseoutActive: false,
+        importedBackCutActive: false,
+      }),
+    ).toBe('defense_slide')
+  })
+})
+
+describe('resolveGlbClipForIntent — BACK_CUT intent', () => {
+  it('returns "back_cut" clip when importedBackCutActive=true', () => {
+    expect(
+      resolveGlbClipForIntent('BACK_CUT', {
+        importedCloseoutActive: false,
+        importedBackCutActive: true,
+      }),
+    ).toBe('back_cut')
+  })
+
+  it('falls back to "cut_sprint" when importedBackCutActive=false', () => {
+    expect(
+      resolveGlbClipForIntent('BACK_CUT', {
+        importedCloseoutActive: false,
+        importedBackCutActive: false,
+      }),
+    ).toBe('cut_sprint')
+  })
+
+  it('back-cut flag does not leak into other offensive intents', () => {
+    // EMPTY_SPACE_CUT, JAB_OR_RIP, RECEIVE_READY, etc. must still
+    // resolve to cut_sprint when only importedBackCutActive is on.
+    const flags = { importedCloseoutActive: false, importedBackCutActive: true }
+    expect(resolveGlbClipForIntent('EMPTY_SPACE_CUT', flags)).toBe('cut_sprint')
+    expect(resolveGlbClipForIntent('JAB_OR_RIP', flags)).toBe('cut_sprint')
+    expect(resolveGlbClipForIntent('RECEIVE_READY', flags)).toBe('cut_sprint')
+    expect(resolveGlbClipForIntent('SHOT_READY', flags)).toBe('cut_sprint')
+  })
+
+  it('back-cut flag does not leak into closeout', () => {
+    // CLOSEOUT must continue to gate on importedCloseoutActive only.
+    expect(
+      resolveGlbClipForIntent('CLOSEOUT', {
+        importedCloseoutActive: false,
+        importedBackCutActive: true,
+      }),
+    ).toBe('defense_slide')
+  })
+})
+
+describe('resolveGlbClipForIntent — BDW cutter end-to-end chain', () => {
+  it('BDW cutter resolves to BACK_CUT intent', () => {
+    expect(getDecoderAnimationIntent('BACKDOOR_WINDOW', 'cutter')).toBe('BACK_CUT')
+  })
+
+  it('BDW cutter chain produces back_cut clip when flag on', () => {
+    const intent = getDecoderAnimationIntent('BACKDOOR_WINDOW', 'cutter')
+    const clip = resolveGlbClipForIntent(intent, {
+      importedCloseoutActive: false,
+      importedBackCutActive: true,
+    })
+    expect(intent).toBe('BACK_CUT')
+    expect(clip).toBe('back_cut')
+  })
+
+  it('BDW cutter chain falls back to cut_sprint when flag off', () => {
+    const intent = getDecoderAnimationIntent('BACKDOOR_WINDOW', 'cutter')
+    const clip = resolveGlbClipForIntent(intent, {
+      importedCloseoutActive: false,
+      importedBackCutActive: false,
+    })
+    expect(intent).toBe('BACK_CUT')
+    expect(clip).toBe('cut_sprint')
   })
 })
 
 describe('resolveGlbClipForIntent — flag-off path unchanged for all intents', () => {
-  const FLAG_OFF = { importedCloseoutActive: false }
+  const FLAG_OFF = {
+    importedCloseoutActive: false,
+    importedBackCutActive: false,
+  }
 
   it('IDLE_READY → idle_ready', () => {
     expect(resolveGlbClipForIntent('IDLE_READY', FLAG_OFF)).toBe('idle_ready')
@@ -443,8 +520,9 @@ describe('determinism', () => {
   })
 
   it('resolveGlbClipForIntent is pure — same call twice', () => {
-    const a = resolveGlbClipForIntent('CLOSEOUT', { importedCloseoutActive: true })
-    const b = resolveGlbClipForIntent('CLOSEOUT', { importedCloseoutActive: true })
+    const flags = { importedCloseoutActive: true, importedBackCutActive: false }
+    const a = resolveGlbClipForIntent('CLOSEOUT', flags)
+    const b = resolveGlbClipForIntent('CLOSEOUT', flags)
     expect(a).toBe(b)
   })
 
@@ -456,8 +534,14 @@ describe('determinism', () => {
 
   it('AOR-01 closeout resolver chain is deterministic end-to-end', () => {
     const intent = getDecoderAnimationIntent('ADVANTAGE_OR_RESET', 'closeout_defender')
-    const clipOn = resolveGlbClipForIntent(intent, { importedCloseoutActive: true })
-    const clipOff = resolveGlbClipForIntent(intent, { importedCloseoutActive: false })
+    const clipOn = resolveGlbClipForIntent(intent, {
+      importedCloseoutActive: true,
+      importedBackCutActive: false,
+    })
+    const clipOff = resolveGlbClipForIntent(intent, {
+      importedCloseoutActive: false,
+      importedBackCutActive: false,
+    })
     expect(intent).toBe('CLOSEOUT')
     expect(clipOn).toBe('closeout')
     expect(clipOff).toBe('defense_slide')

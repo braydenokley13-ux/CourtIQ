@@ -100,6 +100,7 @@ asset can be considered shippable.
 ### Clips currently bundled
 
 - `clips/closeout.glb` — see entry below.
+- `clips/back_cut.glb` — see entry below.
 
 The synthetic in-code placeholder closeout clip authored inside
 `apps/web/components/scenario3d/glbAthlete.ts` continues to act as
@@ -167,6 +168,66 @@ existing bespoke clip vocabulary.
   (`USE_GLB_ATHLETE_PREVIEW` and `USE_IMPORTED_CLOSEOUT_CLIP`)
   remain `false` by default; QA must be performed locally with
   both flipped on against `/dev/scene-preview?scenario=AOR-01`.
+  See `apps/web/public/athlete/clips/README.md` checklist.
+
+### Back cut (`clips/back_cut.glb`)
+
+- **File:** `clips/back_cut.glb`
+- **Original animation name:** `NinjaJump_Start`
+- **Renamed to:** `back_cut` (single animation in this file)
+- **Pack:** Universal Animation Library 2 — Standard
+  (`Unreal-Godot/UAL2_Standard.glb`)
+- **Author:** Quaternius (<https://quaternius.com/>)
+- **Source URL:** <https://quaternius.com/packs/universalanimationlibrary2.html>
+- **Distribution archive:** `universal_animation_library_2standard.zip`
+  obtained from the OpenGameArt mirror at
+  <https://opengameart.org/content/universal-animation-library-2>
+- **Downloaded:** 2026-05-03
+- **License:** CC0 1.0 Universal — Public Domain Dedication
+  (<https://creativecommons.org/publicdomain/zero/1.0/>)
+- **License file:** `LICENSE.txt` in the parent `athlete/` directory
+  (verbatim copy of the `License.txt` shipped inside the pack
+  archive — same license as the bundled `mannequin.glb` and
+  `closeout.glb`).
+- **Bone naming source rig:** Quaternius UAL2 (Unreal/Godot rig).
+  Same rig as `mannequin.glb` and `closeout.glb` — no name adapter
+  needed. The loader's `GLB_BONE_MAP` audit resolves cleanly.
+- **Root motion:** **YES** in source. The original
+  `NinjaJump_Start` translates `root` and `pelvis` over the
+  ~0.97 s duration to read as a quick athletic burst forward. The
+  loader strips both via `DEFAULT_ROOT_MOTION_BONE_NAMES` (which
+  includes `root` AND `pelvis`) before any clip reaches the
+  `AnimationMixer`. Scenario timeline retains sole ownership of
+  `(x, z)` — the imported clip never moves the player off the
+  authored back-cut route.
+- **Why this clip qualifies as a back cut:** UAL2 ships no
+  basketball-style clips; of the 43 animations in
+  `UAL2_Standard.glb`, `NinjaJump_Start` is the closest sub-1.0 s
+  explosive change-of-direction read. Semantically maps to
+  "offensive cutter reads denial and accelerates behind the
+  defender" (Phase P §5 Vocabulary). Body language differs
+  visibly from `cut_sprint` (the bespoke even-tempo run cycle)
+  and from `closeout` (`Shield_Dash_RM`'s shielded forward
+  approach), so the BDW cutter under
+  `USE_IMPORTED_BACK_CUT_CLIP=true` is distinguishable from
+  the flag-off `cut_sprint` fallback.
+- **Extraction:** A scripted re-pack (Python + manual GLB JSON
+  + bin chunk surgery) extracts only the `NinjaJump_Start`
+  animation tracks targeting the same 23 core bones the
+  closeout extraction uses (root/pelvis/spine\_01..03/neck\_01/
+  Head/clavicle/upperarm/lowerarm/hand/thigh/calf/foot/ball).
+  The full UAL2 mesh / 42 unrelated clips are NOT bundled.
+  Resulting `back_cut.glb` is **57 KB** on disk
+  (vs. 8.06 MB for the full `UAL2_Standard.glb`).
+- **File format:** glTF binary v2 (`magic = "glTF"`, version
+  = 2). One animation. Single buffer chunk.
+- **File size:** ~57 KB (57,760 bytes) — well below the
+  500 KB soft target the GLB athlete prompt set.
+- **Visual QA:** Pending. All three flags
+  (`USE_GLB_ATHLETE_PREVIEW`, `USE_IMPORTED_CLOSEOUT_CLIP`,
+  `USE_IMPORTED_BACK_CUT_CLIP`) remain `false` by default; QA
+  must be performed locally with the relevant flags flipped on
+  against `/dev/scene-preview?scenario=BDW-01&glb=1&backcut=1`.
   See `apps/web/public/athlete/clips/README.md` checklist.
 
 CC BY-NC, CC BY-SA, and "personal use only" licenses are NOT

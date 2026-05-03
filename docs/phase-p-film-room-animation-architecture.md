@@ -598,6 +598,115 @@ pickGlbClipForState({
 
 ---
 
+## P2.2 — Imported BACK_CUT clip behind a flag (LANDED)
+
+**Status:** Implemented. Asset bundled, all flags still default `false`, BDW-01 visual QA still pending (`NEEDS-COACH-REVIEW`), no production route rollout.
+
+### Goal
+
+P2.1 threaded `decoder + role` into the GLB clip selector so the BDW cutter resolves to the `BACK_CUT` intent. Visually, however, that intent still mapped to the bespoke `cut_sprint` clip — the same body language an `EMPTY_SPACE_CUT` cutter rendered. P2.2 adds **one** new imported clip behind a default-off flag so the BDW cutter is *visually* differentiable from generic offensive locomotion.
+
+### Asset chosen
+
+| | |
+|---|---|
+| **File** | `apps/web/public/athlete/clips/back_cut.glb` |
+| **Source** | Quaternius Universal Animation Library 2 — Standard, `Unreal-Godot/UAL2_Standard.glb` (animation `NinjaJump_Start`) |
+| **Why this clip** | UAL2 ships no basketball-specific clips. Of the 43 animations in the pack, `NinjaJump_Start` is the closest sub-1.0 s explosive change-of-direction read — semantically maps to "offensive cutter reads denial and accelerates behind the defender" (Phase P §5 Vocabulary, §6 BDW mapping). Body language differs visibly from `cut_sprint` (the bespoke even-tempo run cycle) and from `closeout` (`Shield_Dash_RM`'s shielded forward approach). |
+| **License** | CC0 1.0 Universal — Public Domain Dedication. Verbatim license text: `apps/web/public/athlete/LICENSE.txt` (shared with `mannequin.glb` and `closeout.glb`). |
+| **Provenance** | `apps/web/public/athlete/ATTRIBUTION.md` → "Back cut (`clips/back_cut.glb`)" |
+| **Size** | ~57 KB (vs. 8.06 MB for the full `UAL2_Standard.glb`). Same 23-bone subset as `closeout.glb`. |
+| **Rig** | Quaternius UAL2 (Unreal/Godot rig), same as `mannequin.glb` and `closeout.glb`. No name adapter needed. |
+| **Root motion** | YES in source. The loader strip at `DEFAULT_ROOT_MOTION_BONE_NAMES` (already includes `root` AND `pelvis`) removes it. The scenario timeline retains sole ownership of (x, z). |
+
+### Feature flag
+
+```ts
+// apps/web/components/scenario3d/imperativeScene.ts
+export const USE_IMPORTED_BACK_CUT_CLIP = false
+export const IMPORTED_BACK_CUT_DEV_OVERRIDE_KEY =
+  '__COURTIQ_IMPORTED_BACK_CUT_DEV_OVERRIDE__'
+export function isImportedBackCutClipActive(): boolean { /* … */ }
+```
+
+Layered identically to the closeout flag (P1.7):
+
+- Defaults to `false` at module scope.
+- Helper returns `true` when the const is `true` OR the dev-only window-global override key is set in a non-production build.
+- `NODE_ENV === 'production'` short-circuits the override; production traffic is byte-identical to pre-P2.2.
+
+Dev override URL: `?backcut=1` on `/dev/scene-preview`. The dev-preview client wires `IMPORTED_BACK_CUT_DEV_OVERRIDE_KEY` and `preloadImportedBackCutClip()` before the canvas mounts, layered on top of `?glb=1` (the back-cut path only runs inside the GLB athlete builder).
+
+### Resolver behaviour
+
+```ts
+// apps/web/lib/scenario3d/animationIntent.ts
+export interface IntentClipFlags {
+  importedCloseoutActive: boolean
+  importedBackCutActive: boolean
+}
+
+resolveGlbClipForIntent('BACK_CUT', { …, importedBackCutActive: true })
+  // → 'back_cut'
+
+resolveGlbClipForIntent('BACK_CUT', { …, importedBackCutActive: false })
+  // → 'cut_sprint'    (byte-identical to pre-P2.2)
+```
+
+The flag does not leak into other offensive intents: `EMPTY_SPACE_CUT`, `JAB_OR_RIP`, `RECEIVE_READY`, `SHOT_READY`, `PASS_FOLLOWTHROUGH`, and `RESET_HOLD` all continue to fall through to `cut_sprint` regardless of `importedBackCutActive`. Only `BACK_CUT` is gated.
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `apps/web/public/athlete/clips/back_cut.glb` | New — 57 KB extracted GLB. |
+| `apps/web/public/athlete/ATTRIBUTION.md` | Added "Back cut" provenance entry. |
+| `apps/web/public/athlete/clips/README.md` | Added "Back cut (`back_cut.glb`)" section + P2.2 status checklist. |
+| `apps/web/components/scenario3d/imperativeScene.ts` | New `USE_IMPORTED_BACK_CUT_CLIP`, `IMPORTED_BACK_CUT_DEV_OVERRIDE_KEY`, and `isImportedBackCutClipActive()`. `pickGlbClipForState` populates `importedBackCutActive` in `IntentClipFlags`. `buildGlbAthleteFigure` threads `attachImportedBackCutClip` through the GLB builder. |
+| `apps/web/components/scenario3d/glbAthlete.ts` | New `GLB_IMPORTED_BACK_CUT_CLIP_URL`, `attachImportedBackCutClip` build option, `_getCachedImportedBackCutClipOrNull`, `_kickOffImportedBackCutClipLoad`, and the public `preloadImportedBackCutClip`. `GlbAthleteAnimationName` grows `'back_cut'`. Cold cache aliases the `back_cut` action slot to `cut_sprint` so the resolver-chosen action name is always present on the handle. |
+| `apps/web/lib/scenario3d/animationIntent.ts` | `IntentClipFlags` grows `importedBackCutActive`; `GlbClipName` grows `'back_cut'`; `resolveGlbClipForIntent` switches `BACK_CUT` through the flag. |
+| `apps/web/app/dev/scene-preview/page.tsx` + `ScenePreviewClient.tsx` | New `?backcut=1` query param wires the dev override and the preload promise so the canvas mounts with the back-cut clip already cached. |
+
+### Tests added
+
+- `animationIntent.test.ts` — new `BACK_CUT intent` block (flag on/off, no-leak across intents/closeout, BDW cutter end-to-end chain).
+- `runtimeFlagOverride.test.ts` — locks `USE_IMPORTED_BACK_CUT_CLIP === false`, default helper behaviour, dev-override flip, prod short-circuit, plus `preloadImportedBackCutClip` cache-hit + Promise contracts.
+- `backCutAssetIntegration.test.ts` — new file mirroring `closeoutAssetIntegration.test.ts`. Locks: bundled file parses to one clip named `back_cut`; carries pre-strip `<root>.position` + `<pelvis>.position`; `stripRootMotionTracks` removes those tracks while leaving rotation tracks intact; binding the stripped clip to a tiny rig and ticking the mixer past the duration leaves bound `root` + `pelvis` bones at their bind-pose translation (route invariance); stripping is deterministic; the stripped clip drives the Quaternius `pelvis` quaternion (catches a silent rename regression).
+- Existing `pickGlbClip.test.ts` BDW cutter test still passes — flag default `false` keeps BDW cutter → `cut_sprint`.
+- Existing `closeoutAssetIntegration.test.ts`, `glbAthleteEndToEndDeterminism.test.ts`, `replayDeterminism.test.ts` are unaffected (BACK_CUT path is independent of the closeout path).
+
+### Manual QA target
+
+`/dev/scene-preview?scenario=BDW-01&glb=1&backcut=1`
+
+Checklist (matches `apps/web/public/athlete/clips/README.md` §"Back cut" status):
+
+- [ ] BDW-01 loads.
+- [ ] Cutter visually performs a back-cut style burst (different body language from the flag-off `cut_sprint`).
+- [ ] Defender deny posture still visible.
+- [ ] Imported back-cut does not move the cutter off the authored BDW route (loader strip is doing its job).
+- [ ] Feet/legs are not broken at broadcast camera distance.
+- [ ] FOLLOW / REPLAY / BROADCAST / AUTO still work.
+- [ ] Fullscreen still works.
+- [ ] `?backcut=0` (default) returns to byte-identical pre-P2.2 visual behaviour.
+
+### Visual status
+
+**`NEEDS-COACH-REVIEW`** — same status as the closeout under P1.6. The asset, flag, resolver, loader strip, and route-invariance contracts are all unit-tested and green; visual acceptance against a real broadcast-camera capture is the next gate. The flag stays `false` by default so production traffic is unaffected.
+
+### Acceptance lock (P2.2)
+
+- [x] `back_cut.glb` exists on disk under `apps/web/public/athlete/clips/`.
+- [x] Attribution / license documented in `ATTRIBUTION.md` and `clips/README.md` (CC0, Quaternius UAL2 `NinjaJump_Start`).
+- [x] `USE_IMPORTED_BACK_CUT_CLIP` defaults to `false`.
+- [x] `BACK_CUT` intent resolves to the imported clip when the flag is active and to `cut_sprint` when off.
+- [x] Flag-off behaviour is byte-identical to pre-P2.2 (BDW cutter → `cut_sprint`).
+- [x] Loader-level root-motion strip is enforced; route invariance is locked by `backCutAssetIntegration.test.ts`.
+- [x] Determinism gates remain green (no test removed; one new file added).
+- [x] BDW cutter path is ready for visual QA at `/dev/scene-preview?scenario=BDW-01&glb=1&backcut=1`.
+
+---
+
 ## Appendix A — Do / Do Not summary
 
 ### Do

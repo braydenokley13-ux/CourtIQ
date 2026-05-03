@@ -33,14 +33,19 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import * as THREE from 'three'
 import {
   GLB_ATHLETE_PREVIEW_DEV_OVERRIDE_KEY,
+  IMPORTED_BACK_CUT_DEV_OVERRIDE_KEY,
   IMPORTED_CLOSEOUT_DEV_OVERRIDE_KEY,
   USE_GLB_ATHLETE_PREVIEW,
+  USE_IMPORTED_BACK_CUT_CLIP,
   USE_IMPORTED_CLOSEOUT_CLIP,
   isGlbAthletePreviewActive,
+  isImportedBackCutClipActive,
   isImportedCloseoutClipActive,
 } from './imperativeScene'
 import {
+  GLB_IMPORTED_BACK_CUT_CLIP_URL,
   GLB_IMPORTED_CLOSEOUT_CLIP_URL,
+  preloadImportedBackCutClip,
   preloadImportedCloseoutClip,
 } from './glbAthlete'
 import {
@@ -54,6 +59,7 @@ function clearOverrides(): void {
   const w = window as unknown as Record<string, unknown>
   delete w[GLB_ATHLETE_PREVIEW_DEV_OVERRIDE_KEY]
   delete w[IMPORTED_CLOSEOUT_DEV_OVERRIDE_KEY]
+  delete w[IMPORTED_BACK_CUT_DEV_OVERRIDE_KEY]
 }
 
 describe('P1.7 — runtime flag-override helpers', () => {
@@ -69,11 +75,15 @@ describe('P1.7 — runtime flag-override helpers', () => {
     // gone, which is a stop-the-line bug.
     expect(USE_GLB_ATHLETE_PREVIEW).toBe(false)
     expect(USE_IMPORTED_CLOSEOUT_CLIP).toBe(false)
+    // P2.2 — back-cut flag defaults false. Locked here so a typo
+    // landing on `true` is a CI failure, not a visual regression.
+    expect(USE_IMPORTED_BACK_CUT_CLIP).toBe(false)
   })
 
   it('helpers default to false when no override is set', () => {
     expect(isGlbAthletePreviewActive()).toBe(false)
     expect(isImportedCloseoutClipActive()).toBe(false)
+    expect(isImportedBackCutClipActive()).toBe(false)
   })
 
   it('helpers return true when the dev override window global is set in non-production', () => {
@@ -85,17 +95,25 @@ describe('P1.7 — runtime flag-override helpers', () => {
     const w = window as unknown as Record<string, unknown>
     w[GLB_ATHLETE_PREVIEW_DEV_OVERRIDE_KEY] = true
     expect(isGlbAthletePreviewActive()).toBe(true)
-    // closeout helper still false until its own override flips on.
+    // closeout / back-cut helpers still false until their own
+    // overrides flip on.
     expect(isImportedCloseoutClipActive()).toBe(false)
+    expect(isImportedBackCutClipActive()).toBe(false)
 
     w[IMPORTED_CLOSEOUT_DEV_OVERRIDE_KEY] = true
     expect(isImportedCloseoutClipActive()).toBe(true)
+    // back-cut still false — its override is independent.
+    expect(isImportedBackCutClipActive()).toBe(false)
+
+    w[IMPORTED_BACK_CUT_DEV_OVERRIDE_KEY] = true
+    expect(isImportedBackCutClipActive()).toBe(true)
   })
 
   it('helpers ignore the override when NODE_ENV === "production"', () => {
     const w = window as unknown as Record<string, unknown>
     w[GLB_ATHLETE_PREVIEW_DEV_OVERRIDE_KEY] = true
     w[IMPORTED_CLOSEOUT_DEV_OVERRIDE_KEY] = true
+    w[IMPORTED_BACK_CUT_DEV_OVERRIDE_KEY] = true
 
     const originalEnv = process.env.NODE_ENV
     try {
@@ -106,6 +124,7 @@ describe('P1.7 — runtime flag-override helpers', () => {
         'production'
       expect(isGlbAthletePreviewActive()).toBe(false)
       expect(isImportedCloseoutClipActive()).toBe(false)
+      expect(isImportedBackCutClipActive()).toBe(false)
     } finally {
       ;(process.env as unknown as Record<string, string>).NODE_ENV =
         originalEnv ?? 'test'
@@ -164,6 +183,35 @@ describe('P1.7 — preloadImportedCloseoutClip', () => {
     expect(result).toBeInstanceOf(Promise)
     // Attach a no-op catch so the unhandled-rejection logger does
     // not warn about the dangling promise across the test boundary.
+    void result.catch(() => null)
+  })
+})
+
+describe('P2.2 — preloadImportedBackCutClip', () => {
+  beforeEach(() => {
+    _resetImportedClipCache()
+  })
+  afterEach(() => {
+    _resetImportedClipCache()
+  })
+
+  it('hits the existing cache when an entry is already injected', async () => {
+    const fakeClip = new THREE.AnimationClip('back_cut', 1, [])
+    _setImportedClipCacheForTest(GLB_IMPORTED_BACK_CUT_CLIP_URL, {
+      clip: fakeClip,
+      strippedTrackNames: ['root.position', 'pelvis.position'],
+    })
+
+    await preloadImportedBackCutClip()
+
+    const cached = getCachedImportedClip(GLB_IMPORTED_BACK_CUT_CLIP_URL)
+    expect(cached).not.toBeNull()
+    expect(cached!.clip.name).toBe('back_cut')
+  })
+
+  it('returns a Promise (never throws synchronously)', () => {
+    const result = preloadImportedBackCutClip()
+    expect(result).toBeInstanceOf(Promise)
     void result.catch(() => null)
   })
 })

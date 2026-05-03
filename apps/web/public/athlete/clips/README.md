@@ -84,6 +84,48 @@ loader-strip contracts are unit-tested below.
      fullscreen that the defender plays closeout body language and
      that the player's authored x/z route is unchanged.
 
+## Back cut (`back_cut.glb`)
+
+- **Intent:** `BACK_CUT` — offensive cutter reads denial and
+  accelerates behind the defender. Sub-1 s explosive change of
+  direction. See Phase P §5 (Vocabulary) and §6 (BDW mapping).
+- **Status:** **bundled** (P2.2).
+  `back_cut.glb` is on disk in this folder, extracted from
+  Quaternius UAL2's `NinjaJump_Start` clip (CC0). Wired behind
+  `USE_IMPORTED_BACK_CUT_CLIP` (default `false`) and the dev
+  override key `?backcut=1` on `/dev/scene-preview`. When the
+  flag is off, the BACK_CUT intent falls back to the bespoke
+  `cut_sprint` clip — byte-identical to pre-P2.2 behaviour.
+- **Source:** see `apps/web/public/athlete/ATTRIBUTION.md` →
+  "Back cut (`clips/back_cut.glb`)" for license + provenance.
+
+### Asset status checklist (P2.2)
+
+- [x] Real `back_cut.glb` on disk in this folder.
+- [x] Attribution entry in `apps/web/public/athlete/ATTRIBUTION.md`
+      with source URL, downloaded date, license name, and a
+      pointer to the verbatim license text shipped alongside the
+      asset (`../LICENSE.txt`, shared with the bundled
+      `mannequin.glb` and `closeout.glb` since all ship under the
+      same UAL2 CC0 license).
+- [x] Bone names verified against the Quaternius UAL2 rig
+      (same 23-bone subset `closeout.glb` keeps).
+- [ ] Live `/dev/scene-preview?scenario=BDW-01&glb=1&backcut=1`
+      capture with both runtime overrides on (P2.2 visual QA).
+- [ ] Cutter visibly performs a back-cut style burst without
+      drifting off the authored BDW route.
+- [ ] Defender deny posture still visible.
+- [ ] FOLLOW / REPLAY / BROADCAST / AUTO camera modes and
+      fullscreen verified.
+
+The visual-QA boxes remain unchecked: all three flags
+(`USE_GLB_ATHLETE_PREVIEW`, `USE_IMPORTED_CLOSEOUT_CLIP`,
+`USE_IMPORTED_BACK_CUT_CLIP`) are still `false` by default, so
+a human-driven flag-on session in `/dev/scene-preview` is the
+next gate before the BDW-01 back cut ships behind a protected
+route. Determinism, route invariance, and loader-strip
+contracts are unit-tested below.
+
 ## What this folder must NOT contain
 
 - Clips authored against a non-CC0 / non-permissive license (CC BY-NC,
