@@ -99,39 +99,75 @@ asset can be considered shippable.
 
 ### Clips currently bundled
 
-**None.** As of the P1.5 packet, no real `.glb` clip is on disk
-under `clips/`. The GLB athlete system is wired to load a real
-`closeout.glb` if one appears (see `clips/README.md`), and falls
-back to a synthetic placeholder closeout clip authored
-programmatically inside `apps/web/components/scenario3d/glbAthlete.ts`
-when the cache is cold.
+- `clips/closeout.glb` — see entry below.
 
-The placeholder clip is **NOT a redistributable asset** — it lives
-in code, has no separate authoring source, and has no license
+The synthetic in-code placeholder closeout clip authored inside
+`apps/web/components/scenario3d/glbAthlete.ts` continues to act as
+the fallback when the bundled `closeout.glb` is not yet cached
+(e.g. the very first frame after a cold mount, or under JSDOM in
+tests). The placeholder is **NOT a redistributable asset** — it
+lives in code, has no separate authoring source, and has no license
 question because it is an internally-authored derivative of the
 existing bespoke clip vocabulary.
 
-### Closeout (`clips/closeout.glb`) — TODO
+### Closeout (`clips/closeout.glb`)
 
-When a real closeout clip is added, append the following block here
-with the actual values filled in. The seed validator and the
-imported-clip loader do not check this file, but a missing entry is
-the project's contract violation, not a runtime error.
-
-```
-- File: clips/closeout.glb
-- Original name: <as shipped by the source>
-- Author: <name + URL>
-- Source URL: <permalink>
-- Distribution archive: <archive name + URL>
-- Downloaded: YYYY-MM-DD
-- License: <CC0 1.0 / CC BY 4.0 / explicit-commercial / ...>
-- License file: clips/<asset-license-filename>.txt (verbatim copy)
-- Bone naming source rig: <Quaternius UAL2 / Mixamo / custom>
-- Root-motion stripping: enforced at the loader layer
-  (apps/web/components/scenario3d/importedClipLoader.ts).
-- Visual QA: <date + screenshot path>
-```
+- **File:** `clips/closeout.glb`
+- **Original animation name:** `Shield_Dash_RM`
+- **Renamed to:** `closeout` (single animation in this file)
+- **Pack:** Universal Animation Library 2 — Standard
+  (`Unreal-Godot/UAL2_Standard.glb`)
+- **Author:** Quaternius (<https://quaternius.com/>)
+- **Source URL:** <https://quaternius.com/packs/universalanimationlibrary2.html>
+- **Distribution archive:** `universal_animation_library_2standard.zip`
+  obtained from the OpenGameArt mirror at
+  <https://opengameart.org/content/universal-animation-library-2>
+- **Downloaded:** 2026-05-03
+- **License:** CC0 1.0 Universal — Public Domain Dedication
+  (<https://creativecommons.org/publicdomain/zero/1.0/>)
+- **License file:** `LICENSE.txt` in the parent `athlete/` directory
+  (verbatim copy of the `License.txt` shipped inside the pack
+  archive — same license as the bundled `mannequin.glb`).
+- **Bone naming source rig:** Quaternius UAL2 (Unreal/Godot rig).
+  Bone names match the rig already used by `mannequin.glb`
+  (`root`, `pelvis`, `spine_01`–`03`, `Head`, `clavicle/upperarm/
+  lowerarm/hand_l|r`, `thigh/calf/foot_l|r`, `ball_l|r`,
+  `neck_01`). No name adapter needed — the loader's bone-map
+  audit (`GLB_BONE_MAP` in `glbAthlete.ts`) resolves cleanly.
+- **Root motion:** **YES** in source. The original
+  `Shield_Dash_RM` (the `_RM` suffix is Quaternius's convention
+  for clips with root motion) translates `root` from `(0, 0, 0)`
+  to `(0, 0, 1.0)` and `pelvis` from `(~0.075, ~0.078, ~0.487)`
+  to `(~0.005, ~0.086, ~0.877)` over the 1.1 s duration. The
+  loader strips both via `DEFAULT_ROOT_MOTION_BONE_NAMES` (which
+  includes `root` AND `pelvis`) before any clip reaches the
+  `AnimationMixer`. Scenario timeline retains sole ownership of
+  `(x, z)`.
+- **Why this clip qualifies as a closeout:** UAL2 ships no
+  basketball-style clips; out of the 43 animations in
+  `UAL2_Standard.glb`, `Shield_Dash_RM` is the only sub-1.5s
+  forward defensive approach with a raised guard hand.
+  Semantically maps to "defender approaches the catch with a high
+  hand" (Phase P §5 Vocabulary). Body language differs visibly
+  from `defense_slide` (a lateral rocking stance), so the clip
+  also satisfies the P1.0 visual-distinguishability requirement.
+- **Extraction:** A scripted re-pack (Python + manual GLB JSON
+  + bin chunk surgery) extracts only the `Shield_Dash_RM`
+  animation tracks targeting the core bones used by
+  `GLB_BONE_MAP` (root/pelvis/spine\_xx/neck/Head/clavicle/
+  upperarm/lowerarm/hand/thigh/calf/foot/ball — 23 bones). The
+  full UAL2 mesh / 43-clip library is NOT bundled. The
+  resulting `closeout.glb` is **60 KB** on disk
+  (vs. 8.06 MB for the full `UAL2_Standard.glb`).
+- **File format:** glTF binary v2 (`magic = "glTF"`, version
+  = 2). One animation. Single buffer chunk.
+- **File size:** ~60 KB (61,444 bytes) — well below the
+  500 KB soft target the GLB athlete prompt set.
+- **Visual QA:** Pending. Both flags
+  (`USE_GLB_ATHLETE_PREVIEW` and `USE_IMPORTED_CLOSEOUT_CLIP`)
+  remain `false` by default; QA must be performed locally with
+  both flipped on against `/dev/scene-preview?scenario=AOR-01`.
+  See `apps/web/public/athlete/clips/README.md` checklist.
 
 CC BY-NC, CC BY-SA, and "personal use only" licenses are NOT
 acceptable for CourtIQ. Mixamo characters distributed in this

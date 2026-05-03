@@ -1335,3 +1335,335 @@ Same as P1.0's recommendation, narrowed:
 2. **Coach review of AOR-01.** Promote to LIVE if approved.
 3. **P2 — decoder-specific animation states.** Now unblocked on
    both axes (asset + scenario).
+
+## Phase P — P1.6 packet (real closeout asset on disk)
+
+The asset-sourcing micro-pass P1.5 called for. Lands a real,
+license-clean closeout animation in
+`apps/web/public/athlete/clips/closeout.glb` and the
+loader-strip-against-real-asset test the synthetic-only suites
+could not provide.
+
+### What this packet does
+
+1. **Adds a real `closeout.glb` (60 KB, CC0).** Extracted from
+   Quaternius Universal Animation Library 2 — the same pack that
+   ships the bundled `mannequin.glb`. The chosen source clip is
+   `Shield_Dash_RM`, a 1.1 s forward defensive approach with a
+   raised guard hand. UAL2 has 43 clips; none are
+   basketball-style; `Shield_Dash_RM` is the only sub-1.5 s
+   forward defensive-approach in the pack and reads as a
+   closeout once the root motion is stripped.
+
+   Extraction is a scripted GLB JSON+bin re-pack that copies
+   only the bone tracks `GLB_BONE_MAP` cares about (root,
+   pelvis, spine_01–03, neck_01, Head, clavicle/upperarm/
+   lowerarm/hand_l|r, thigh/calf/foot_l|r, ball_l|r — 23
+   bones) into a fresh GLB. The full UAL2 mesh + 42 unrelated
+   clips are NOT bundled. The animation is renamed `closeout`
+   so the loader's name-default picks it up.
+
+2. **Loader strip is unchanged.** `closeout.glb` carries
+   `root.position` AND `pelvis.position` tracks in the source
+   (translates 1.0 unit forward over 1.1 s). The existing
+   `DEFAULT_ROOT_MOTION_BONE_NAMES` already lists both, so the
+   loader strips them on the way in. No code changes were
+   required.
+
+3. **Adds `closeoutAssetIntegration.test.ts`.** Reads the
+   bundled GLB, parses through `GLTFLoader.parse`, and asserts
+   the real-asset path stays loader-safe:
+   - one clip named `closeout`, duration `(0, 2)` s.
+   - `root.position` and `pelvis.position` present in source
+     and classified as root motion.
+   - `stripRootMotionTracks` removes exactly those two and
+     leaves rotation tracks for every Phase O bone-mapped joint.
+   - the stripped clip cannot move a bound `pelvis` bone off
+     its bind pose translation; rotation tracks DO drift the
+     `pelvis.quaternion` (proves PropertyBinding still resolves).
+
+4. **Updates `ATTRIBUTION.md` and `clips/README.md`.** Replaces
+   the "asset is a TODO" prose with an actual provenance entry:
+   pack + source URL + downloaded date + license + bone-rig
+   note + extraction note + size + visual-QA-pending status.
+
+### What this packet does NOT do
+
+- Toggle either flag. `USE_GLB_ATHLETE_PREVIEW` and
+  `USE_IMPORTED_CLOSEOUT_CLIP` remain `false` by default.
+  Production traffic still pays no cold-load cost for either
+  asset.
+- Run the live `/dev/scene-preview?scenario=AOR-01` Mac/Chrome
+  capture. That requires a human-driven flag-on session and is
+  the next gate before AOR-01 promotes to LIVE.
+- Ship a per-clip license adapter. The closeout shares the
+  parent `LICENSE.txt` (CC0) the bundled mannequin uses, since
+  both come from the same pack archive. A future per-clip
+  asset from a different licensor would need its own
+  `LICENSE-<asset>.txt` next to the GLB.
+- Decoder-specific animation states (P2). Out of scope.
+
+### P1.6 dev-preview QA note (`/dev/scene-preview?scenario=AOR-01`)
+
+Static analysis only — both flags ship `false`, so the live
+visual capture is still pending.
+
+- Route loads the same way it did in P1.5: the dev-preview page
+  reads the AOR-01 seed JSON via the existing pack registry
+  (`apps/web/lib/scenario3d/pack.json` lists AOR-01).
+  `apps/web/lib/scenario3d/aor01Seed.test.ts` (11 tests) was
+  re-run after this packet — green.
+- `glbAthleteEndToEndDeterminism.test.ts` (8 tests) was re-run
+  with the bundled file on disk. The cases that exercise the
+  closeout action attached + playing still use the synthetic
+  placeholder clip (the test injects via
+  `_setImportedClipCacheForTest`); the bundled file is loader-
+  validated separately by `closeoutAssetIntegration.test.ts`.
+- The flag-off code path is byte-identical to pre-P1.6: the
+  GLB athlete builder skips the closeout attach branch, the
+  imported-clip cache is never populated, and no fetch goes
+  out for `/athlete/clips/closeout.glb`.
+- A flag-on local session WILL now fetch the bundled
+  `closeout.glb` once on cold mount. After that fetch, the
+  next figure-build will pick the real clip out of the loader
+  cache; the very first cold-mount frame still uses the
+  synthetic placeholder so there is no "static defender for
+  300 ms then animation kicks in" race. This carry-over from
+  P1.0 is unchanged.
+
+### P1.6 manual QA matrix
+
+| Item | Status | Notes |
+| --- | --- | --- |
+| Real `closeout.glb` on disk | Verified | 60 KB at `apps/web/public/athlete/clips/closeout.glb`. |
+| Attribution recorded with license + source URL | Verified | `apps/web/public/athlete/ATTRIBUTION.md` "Closeout" entry. |
+| Bone names match Quaternius UAL2 rig (no adapter needed) | Verified | Source bones: `root`, `pelvis`, `spine_01..03`, `Head`, `upperarm_l/r`, `lowerarm_l/r`, `thigh_l/r`, `calf_l/r`, `foot_l/r`, `ball_l/r`. All resolve via `GLB_BONE_MAP`. |
+| Root motion present in source | Verified | `root.position` 0→1.0 fwd; `pelvis.position` ~0.487→~0.877 fwd over 1.1 s. |
+| Loader strips both root tracks | Verified | `closeoutAssetIntegration.test.ts` "stripRootMotionTracks removes both root-motion tracks" case. |
+| Stripped clip cannot move a bound pelvis | Verified | `closeoutAssetIntegration.test.ts` "stripped clip cannot move a bound pelvis bone off its bind pose" case. |
+| Determinism gate green with the bundled asset on disk | Verified | `glbAthleteEndToEndDeterminism.test.ts` 8/8 — runs unaltered against the synthetic placeholder, but the real GLB co-exists on disk without disturbing module-level state. |
+| AOR-01 still loads | Verified | `aor01Seed.test.ts` 11/11; `pack.json` unchanged. |
+| Both flags default false | Verified | `imperativeScene.ts:3515` and `:3541` unchanged. |
+| Live `/dev/scene-preview?scenario=AOR-01` Mac/Chrome capture (flags on) | **Pending** | Requires human-driven flag-on session. The P1.5 step-by-step walkthrough above (steps 1–10) still applies. |
+
+### P1.6 follow-on packet recommendation
+
+1. **Live flag-on dev-preview capture** of
+   `/dev/scene-preview?scenario=AOR-01` in all four camera
+   modes plus fullscreen. With the real closeout clip on disk,
+   this finally produces the visual evidence the placeholder
+   could not. After capture, this is the gate for promoting
+   AOR-01 from DRAFT to LIVE.
+2. **Coach review of AOR-01** — same recommendation as P1.5,
+   now unblocked on the asset axis.
+3. **P2 — decoder-specific animation states.** All asset and
+   scenario blockers are now retired.
+
+## Phase P — P1.7 packet (closeout visual QA + cold-mount readiness)
+
+The flag-on capture P1.6 called for. Lands the dev-only flag-
+override path so a tester can preview the GLB + imported closeout
+clip without editing source, plus a cold-mount preload so the very
+first rendered frame uses the real Quaternius rig + real closeout
+clip (no synthetic-placeholder regression). The asset itself is
+unchanged — same `Shield_Dash_RM` extracted in P1.6.
+
+### What this packet does
+
+1. **Dev-only flag override.** Two new helpers in
+   `imperativeScene.ts`:
+     - `isGlbAthletePreviewActive()`
+     - `isImportedCloseoutClipActive()`
+   Both fall back to the existing module-level `USE_*_PREVIEW`
+   consts (default `false`) and only flip to `true` when:
+     - the const is `true`, OR
+     - `process.env.NODE_ENV !== 'production'` AND a dev-only
+       window-global override key is set
+       (`__COURTIQ_GLB_ATHLETE_PREVIEW_DEV_OVERRIDE__`,
+       `__COURTIQ_IMPORTED_CLOSEOUT_DEV_OVERRIDE__`).
+   The three existing consumers in `imperativeScene.ts` and the
+   one consumer in `Scenario3DCanvas.tsx` were updated to call
+   the helpers.
+
+2. **Dev-preview URL flag-on.** `/dev/scene-preview` accepts two
+   new query params, dev-only:
+     - `?glb=1` — flips `isGlbAthletePreviewActive()` for the
+       lifetime of this page render.
+     - `?closeout=1` — flips `isImportedCloseoutClipActive()`.
+       Layered on top of `?glb=1`; ignored when `?glb=1` is
+       absent (the imported closeout path only runs inside the
+       GLB athlete builder).
+   Both window globals are written during the render pass via a
+   `useState` initialiser, BEFORE any 3D canvas mount effect
+   runs. The route is already 404 in production unless
+   `ENABLE_DEV_ROUTES=1`, so the override never reaches a
+   production user.
+
+3. **Cold-mount readiness fix.** Two layers:
+     - **Dev-preview client blocks the canvas mount** on
+       `Promise.all([loadGlbAthleteAsset, preloadImportedCloseoutClip])`
+       when the corresponding flags are on, displaying a brief
+       "loading GLB assets…" placeholder until both resolve. The
+       very first rendered frame of the canvas builds figures
+       with both caches warm, so no placeholder regression.
+     - **Production / `/train` Scenario3DCanvas** also kicks the
+       `preloadImportedCloseoutClip()` fetch in parallel with the
+       existing mannequin GLB preload when both flags resolve to
+       true. Same defense-in-depth pattern as the existing GLB
+       asset cold-load handoff. Gated so flag-off traffic never
+       fetches the 60 KB asset.
+
+4. **No production default change.** Both module-level consts
+   remain `false`. A unit test (`runtimeFlagOverride.test.ts`)
+   re-locks both defaults and asserts the production-NODE_ENV
+   short-circuit fires even with the window globals set
+   (defense-in-depth).
+
+### What this packet does NOT do
+
+- Toggle the production defaults. The const flags remain
+  `USE_GLB_ATHLETE_PREVIEW = false` and
+  `USE_IMPORTED_CLOSEOUT_CLIP = false`.
+- Change figure-build semantics on cold mount in `/train`. The
+  preload is a defense-in-depth layer; the existing
+  procedural-fallback-then-GLB-on-next-mount carry-over from
+  P1.0 is unchanged for that path.
+- Add a Playwright screenshot capture target. Documented as a
+  manual capture step in the QA matrix below.
+- Replace the `closeout.glb` asset. The Quaternius UAL2
+  `Shield_Dash_RM` extraction from P1.6 stays — this packet is
+  the visual-QA gate, not an asset swap.
+- Implement P2 decoder-specific animation states.
+
+### How to test AOR-01 with both flags on
+
+1. Run the web app locally:
+   ```bash
+   pnpm --filter @courtiq/web dev
+   ```
+2. Open the dev preview with the override URL params:
+   ```
+   http://localhost:3000/dev/scene-preview?scenario=AOR-01&glb=1&closeout=1
+   ```
+3. The header banner reads `DEV PREVIEW · AOR-01 — auth bypassed
+   for QA only · glb=on · closeout=on`. While both assets fetch,
+   the canvas placeholder reads "loading GLB assets…" — usually
+   under 500 ms on broadband, longer on cold cache. Once both
+   resolve, the canvas mounts and the scene plays.
+4. To capture the four camera modes plus fullscreen, append the
+   matching query params (already supported in
+   `Scenario3DCanvas.tsx`):
+     - `&camera=follow`
+     - `&camera=replay`
+     - `&camera=broadcast`
+     - `&camera=auto` (default — omit to use)
+     - `&fullscreen=1` (auto-clicks the fullscreen button after
+       mount; combined with `&camera=broadcast` per the
+       checklist below)
+5. To revert: close the tab. Both window globals are scoped to
+   that page render and clear when the route unmounts. No
+   source edit was made.
+
+### P1.7 manual visual QA checklist (AOR-01)
+
+For each of the four camera modes plus fullscreen broadcast,
+inspect the freeze tick (1500 ms by default) and confirm:
+
+| Item | Pass / Fail / Note |
+| --- | --- |
+| Defender visibly closes out toward the receiver (forward stride or stride-stop body language) |  |
+| Raised guard hand reads as contest pressure (not lateral arms-out, not arms-down) |  |
+| Defender's authored route stays unchanged from `samplePlayer` (compare against `?glb=0` reference if needed) |  |
+| Freeze moment cushion is readable — receiver has caught the ball, defender is one to two steps short |  |
+| FOLLOW camera tracks the receiver smoothly without losing the defender's closeout silhouette |  |
+| REPLAY camera captures the defender's hand-up moment in the freeze frame |  |
+| BROADCAST camera frames both player + defender comfortably; no clipping |  |
+| AUTO camera (default fit) shows the full play |  |
+| Fullscreen BROADCAST fills the viewport; no black bands |  |
+| No obvious foot sliding / floating across the closeout duration (1.1 s) |  |
+| Clip does not read as "fantasy combat / shield dash" — the shoulder + hand pose matches a basketball closeout cue |  |
+
+The last row is the most subjective. The `Shield_Dash_RM` source
+is a generic forward defensive approach; on the Quaternius female
+mannequin it reads more like "athlete charging with a guard up"
+than "fantasy shield dash". If the tester or coach feels the
+fantasy read dominates, the mitigation is to swap the source to
+either `Idle_Shield_Loop` (low-energy, hands-up, no forward
+motion — would lose the "approach" cue) or to author a custom
+closeout in Blender and ship it under the same loader contract.
+That's the next packet boundary — out of P1.7's scope.
+
+### P1.7 manual screenshot capture targets
+
+The screenshot harness is `scripts/screenshot-scenario.ts` (Phase
+F). It already supports the dev-preview route and accepts a
+`SCENARIO=AOR-01` env var. Adding both flag params requires a
+small URL-builder tweak that is OUT OF P1.7 SCOPE — this packet
+documents the manual capture targets the harness extension can
+later automate.
+
+For each capture, the URL pattern is:
+```
+http://localhost:3000/dev/scene-preview?scenario=AOR-01&glb=1&closeout=1&camera=<mode>[&fullscreen=1]
+```
+
+Targets:
+1. **FOLLOW at freeze.** `camera=follow`. Capture at
+   `data-scene-ready=1` + 1500 ms (the freeze tick).
+2. **REPLAY at freeze.** `camera=replay`. Same timing.
+3. **BROADCAST at freeze.** `camera=broadcast`. Same timing.
+4. **Fullscreen BROADCAST at freeze.** `camera=broadcast&fullscreen=1`.
+   The fullscreen toggle auto-clicks after mount; the capture
+   should wait for `:fullscreen` to apply before snapping.
+
+Save the four PNGs under `docs/qa/courtiq/phase-p/p1-7-aor-01/`
+when the human capture pass runs. This packet's CI does NOT
+generate screenshots — pure manual capture per the matrix.
+
+### P1.7 manual QA matrix
+
+| Item | Status | Notes |
+| --- | --- | --- |
+| Both flag consts default to false | Verified | `runtimeFlagOverride.test.ts`. |
+| Helpers ignore override in NODE_ENV=production | Verified | `runtimeFlagOverride.test.ts`. |
+| Falsey override values do not flip the helper | Verified | `runtimeFlagOverride.test.ts`. |
+| Preload helper hits cache idempotently | Verified | `runtimeFlagOverride.test.ts`. |
+| Determinism gate green with helpers in place | Verified | `glbAthleteEndToEndDeterminism.test.ts` 8/8. |
+| AOR-01 still loads | Verified | `aor01Seed.test.ts` 11/11. |
+| Closeout root-motion strip still applied | Verified | `closeoutAssetIntegration.test.ts` 5/5. |
+| `?glb=1&closeout=1` URL turns the helpers on | Code-verified | Window-global write via `useState` initialiser; cannot be unit-tested without a full browser harness. |
+| Cold-mount placeholder fix in dev-preview | Verified by design | The dev-preview client blocks canvas mount on `Promise.all` of the two preloads; the canvas is created exactly once with warm caches. Manual capture pending. |
+| Cold-mount placeholder mitigation in `/train` | Documented | Production `/train` still kicks both preloads but does not block mount. First frame may use procedural fallback for the GLB rig and synthetic placeholder for the closeout; the next scene rebuild picks up the real assets. Acceptable because the `/train` flag stays false in shipping builds. |
+| Live `/dev/scene-preview?scenario=AOR-01&glb=1&closeout=1` capture (Mac/Chrome) | **Pending** | Human capture per the matrix above. |
+| Coach validation of cushion + cue timing | **Pending** | Same as P1.5 / P1.6. |
+| Visual acceptance of `Shield_Dash_RM` as closeout cue | **Pending** | The "fantasy combat read" subjective row in the per-mode checklist gates this. |
+
+### P1.7 visual-acceptance verdict
+
+**Status: PENDING** — the asset is loader-safe, route-safe, and
+determinism-safe. Visual acceptance requires a human pass against
+the per-mode checklist above. As of this packet, no human capture
+has been added to the repo. The `Shield_Dash_RM` source is the
+best CC0 candidate in Quaternius UAL2 (P1.6 audit) but reads
+slightly fantasy-coded; the tester / coach must decide whether
+the body language is close enough to a basketball closeout, or
+whether a Blender-authored bespoke clip is the correct next step.
+
+### P1.7 follow-on packet recommendation
+
+1. **Manual `?glb=1&closeout=1` capture pass** of AOR-01 in all
+   four camera modes plus fullscreen broadcast (per the
+   checklist + screenshot matrix above). Save under
+   `docs/qa/courtiq/phase-p/p1-7-aor-01/`.
+2. **Coach review of AOR-01 cue + cushion timing** — same
+   recommendation as P1.5 / P1.6, now fully unblocked on both
+   asset and review-tooling axes.
+3. **If the visual verdict is REJECT,** the next packet
+   replaces `closeout.glb` with either:
+     - Quaternius UAL2 `Idle_Shield_Loop` (lower energy, no
+       approach motion — would need pose-only rig).
+     - A bespoke Blender-authored clip on the same UAL2 rig
+       (CC0 self-authored, smallest visual scope).
+4. **If the visual verdict is ACCEPT,** the next packet is
+   **P2 — decoder-specific animation states.** All asset and
+   scenario blockers are retired.
