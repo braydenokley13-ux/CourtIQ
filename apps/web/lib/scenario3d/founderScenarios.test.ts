@@ -71,6 +71,13 @@ interface FounderScenarioJson {
   lesson_connection?: string
   feedback?: { correct: string; partial?: string; wrong: string }
   self_review_checklist?: string[]
+  coach_validation?: {
+    level: 'low' | 'medium' | 'high'
+    status: 'not_needed' | 'needed' | 'reviewed' | 'approved'
+    reviewerId?: string
+    reviewedAt?: string
+    notes?: string
+  }
   choices: FounderChoice[]
   scene: unknown
 }
@@ -159,6 +166,19 @@ describe('P3.1 — ESC-01 and SKR-01 founder scenario seeds', () => {
       it('declares the matching decoder_tag', async () => {
         const s = await loadFounder(spec.filename, spec.id)
         expect(s.decoder_tag).toBe(spec.decoderTag)
+      })
+
+      it('is LIVE with coach_validation.status=approved (P3.3 production gate)', async () => {
+        // P3.3 promotion gate. Every founder scenario must be LIVE +
+        // coach_validation.status='approved' before it ships to the
+        // controlled prod test. Reverting one to DRAFT/needed flips
+        // the seeder's status filter and pulls the scenario out of
+        // the founder pack at runtime — see the rollback procedure
+        // in docs/qa/founder-scenario-promotion-checklist.md.
+        const s = await loadFounder(spec.filename, spec.id)
+        expect(s.status).toBe('LIVE')
+        expect(s.coach_validation, 'coach_validation must be authored').toBeDefined()
+        expect(s.coach_validation?.status).toBe('approved')
       })
 
       it('ships every decoder authoring field required by the seed validator', async () => {
