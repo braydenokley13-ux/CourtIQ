@@ -609,7 +609,7 @@ export function buildGlbAthletePreview(
     _runBoneMapAuditOnce(cloned)
     _alignGlbFeetToFigureFloor(figure, cloned)
 
-    applyTeamColorToCloned(cloned, teamColor)
+    applyMultiRegionMaterialsToCloned(cloned, teamColor)
 
     const indicatorLayers = buildGlbIndicatorLayers(figure, teamColor, isUser, hasBall)
     ;(figure.userData as Record<string, unknown>).indicatorLayers = indicatorLayers
@@ -627,7 +627,14 @@ export function buildGlbAthletePreview(
       // synthetic placeholder (also stripped). A real
       // `closeout.glb` on disk is fetched in the background; when
       // that fetch lands, the next figure build will pick it up.
-      const closeoutClip = _ensurePlaceholderImportedCloseoutClip()
+      //
+      // P1.8 — pose readability. The raw imported clip (Quaternius
+      // UAL2 closeout) reads as fantasy lunge at the extremes; we
+      // dampen rotation tracks toward bind-pose before handing them
+      // to the mixer so the silhouette reads as basketball closeout
+      // pressure. The dampened clip is cached per source clip so
+      // the cost is paid once per asset swap, not per figure.
+      const closeoutClip = _getReadableCloseoutClip()
       actions['closeout'] = mixer.clipAction(closeoutClip)
       _kickOffImportedCloseoutClipLoad()
     }
@@ -840,6 +847,135 @@ function _ensurePlaceholderImportedCloseoutClip(): THREE.AnimationClip {
 }
 
 /**
+ * P1.8 — closeout pose readability filter.
+ *
+ * The Quaternius UAL2 closeout asset reads as fantasy/combat at the
+ * extremes (deep forward lean, wide arm spread, hands flared like a
+ * shield-dash). Per Phase P brief, CourtIQ wants the defender to read
+ * as a basketball closeout: upright-ish stance, controlled hand up,
+ * feet plant. We bias the imported clip toward bind-pose by slerping
+ * each rotation keyframe from identity to the authored value by a
+ * factor of `GLB_CLOSEOUT_DAMPEN_FACTOR < 1`. Translation tracks (if
+ * any survive the loader strip) are left untouched.
+ *
+ * This is a **per-clip post-process**, not a per-frame action weight
+ * trick: dampening the clip itself means we never have to keep the
+ * bespoke `defense_slide` action running in parallel, the mixer-tick
+ * assertion still sees a single running action, and the result reads
+ * the same on every figure.
+ *
+ * Cached so the post-process happens at most once per source clip
+ * (the cache key is the source clip identity; when the loader swaps
+ * the synthetic placeholder for a real-asset clip the cache invalidates
+ * automatically because the `source` reference changes).
+ */
+const GLB_CLOSEOUT_DAMPEN_FACTOR = 0.65
+
+function dampenClipRotationTracks(
+  clip: THREE.AnimationClip,
+  factor: number,
+): THREE.AnimationClip {
+  if (factor >= 1) return clip
+  const tracks = clip.tracks.map((t) => {
+    if (!(t instanceof THREE.QuaternionKeyframeTrack)) return t
+    const values = t.values
+    const out = new Float32Array(values.length)
+    for (let i = 0; i < values.length; i += 4) {
+      // Slerp from identity (0,0,0,1) to the authored quaternion by
+      // `factor`. The closed-form expression keeps the per-key cost
+      // tight (no Quaternion allocations in the inner loop).
+      let qx = values[i]
+      let qy = values[i + 1]
+      let qz = values[i + 2]
+      let qw = values[i + 3]
+      // Normalize defensively — imported keyframes occasionally
+      // arrive un-normalized after exporter round-trips.
+      const len = Math.hypot(qx, qy, qz, qw)
+      if (len > 1e-8) {
+        qx /= len
+        qy /= len
+        qz /= len
+        qw /= len
+      }
+      // Identity is (0, 0, 0, 1). Standard slerp(identity, q, t):
+      //   cosθ = q.w; sinθ = sqrt(1 - cosθ²); θ = acos(cosθ)
+      //   result = (sin((1-t)θ)/sinθ) * identity + (sin(tθ)/sinθ) * q
+      // For tiny angles fall back to nlerp.
+      const cosTheta = qw
+      let outX: number
+      let outY: number
+      let outZ: number
+      let outW: number
+      if (cosTheta > 0.9995) {
+        // Near identity already — linear interp + normalize.
+        outX = qx * factor
+        outY = qy * factor
+        outZ = qz * factor
+        outW = 1 - factor + qw * factor
+        const ln = Math.hypot(outX, outY, outZ, outW)
+        if (ln > 1e-8) {
+          outX /= ln
+          outY /= ln
+          outZ /= ln
+          outW /= ln
+        }
+      } else {
+        const theta = Math.acos(Math.max(-1, Math.min(1, cosTheta)))
+        const sinTheta = Math.sin(theta)
+        const a = Math.sin((1 - factor) * theta) / sinTheta
+        const b = Math.sin(factor * theta) / sinTheta
+        // identity contributes only to W.
+        outX = b * qx
+        outY = b * qy
+        outZ = b * qz
+        outW = a + b * qw
+      }
+      out[i] = outX
+      out[i + 1] = outY
+      out[i + 2] = outZ
+      out[i + 3] = outW
+    }
+    return new THREE.QuaternionKeyframeTrack(t.name, t.times.slice(), out)
+  })
+  return new THREE.AnimationClip(clip.name, clip.duration, tracks)
+}
+
+let _cleanedCloseoutCache:
+  | { source: THREE.AnimationClip; cleaned: THREE.AnimationClip }
+  | null = null
+
+/**
+ * Returns the imported closeout clip with its pose dampened toward
+ * bind-pose so it reads as basketball closeout pressure rather than
+ * fantasy lunge. The cache flips automatically when the source clip
+ * identity changes (e.g. real asset replaces the synthetic
+ * placeholder).
+ */
+function _getReadableCloseoutClip(): THREE.AnimationClip {
+  const source = _ensurePlaceholderImportedCloseoutClip()
+  if (_cleanedCloseoutCache?.source === source) {
+    return _cleanedCloseoutCache.cleaned
+  }
+  const cleaned = dampenClipRotationTracks(source, GLB_CLOSEOUT_DAMPEN_FACTOR)
+  _cleanedCloseoutCache = { source, cleaned }
+  return cleaned
+}
+
+/** Test-only — reset the dampened-closeout cache between cases. */
+export function _resetReadableCloseoutClipCache(): void {
+  _cleanedCloseoutCache = null
+}
+
+/** Test-only — exposes the rotation dampener so unit tests can lock the
+ *  factor and verify quaternion magnitude is reduced. */
+export function _dampenClipRotationTracksForTest(
+  clip: THREE.AnimationClip,
+  factor: number,
+): THREE.AnimationClip {
+  return dampenClipRotationTracks(clip, factor)
+}
+
+/**
  * Phase P (P1.0) — kicks off the async fetch of a real
  * `/athlete/clips/closeout.glb` if one is on disk. Resolves to the
  * cached, stripped clip on success, or `null` if no real asset is
@@ -989,27 +1125,265 @@ function findFirstSkinnedMesh(root: THREE.Object3D): THREE.SkinnedMesh | null {
   return found
 }
 
-function applyTeamColorToCloned(cloned: THREE.Object3D, teamColor: string): void {
-  const colorObj = new THREE.Color(teamColor)
+/**
+ * P1.8 — multi-region athlete tinting.
+ *
+ * The Quaternius mannequin ships as a single skinned mesh (M_Main)
+ * plus a thin "joints" overlay (M_Joints). Painting both meshes the
+ * same team colour reads as a flat plastic doll at film-room
+ * distance. P1.8 splits the athlete into five readable regions so
+ * the silhouette communicates "basketball player in jersey" rather
+ * than "tinted mannequin":
+ *
+ *   - jersey/torso/sleeve top  → team colour
+ *   - shorts                   → dark neutral
+ *   - skin (calves, forearms,
+ *     hands, neck, lower face) → athletic skin tone
+ *   - shoes                    → near-black
+ *   - hair (top of head)       → dark neutral
+ *
+ * The regions are chosen per-vertex by walking the SkinnedMesh's
+ * skin weights: each vertex's primary-bone name (and, for sleeves,
+ * its secondary-bone influence) maps to one of the five regions. A
+ * single MeshStandardMaterial with `vertexColors: true` then renders
+ * all five regions in one draw call without textures, custom shaders,
+ * or per-frame work — staying inside the P1.8 hard scope (no PBR,
+ * no per-frame material churn).
+ *
+ * Performance: the per-figure cost is one geometry clone (so the
+ * `color` attribute is per-figure rather than per-asset, which lets
+ * each team's jersey colour be baked in) plus one O(N) sweep over
+ * vertices to compute regions. The cloned geometry is disposed by
+ * the existing `disposeGroup` traversal when the figure is torn down.
+ */
+const GLB_REGION_COLOR = {
+  shorts: '#3a3d44',
+  skin: '#caa68a',
+  shoes: '#16181c',
+  hair: '#1a1c20',
+} as const
+
+type GlbRegion = 'jersey' | 'shorts' | 'skin' | 'shoes' | 'hair'
+
+/**
+ * Maps a vertex to a body region based on its primary skinning bone
+ * (and, for sleeves, its secondary). Heuristics are tuned for the
+ * Quaternius UAL2 / Unreal-style rig CourtIQ ships — bone-name
+ * prefixes follow the `lowercase_side` convention with the lone
+ * exception of `Head`.
+ *
+ * `primaryName` and `secondaryName` come from
+ * `SkinnedMesh.skeleton.bones[i].name`. Empty string is acceptable
+ * (returns 'skin' as the safest default).
+ */
+function regionForBoneNames(
+  primaryName: string,
+  secondaryName: string,
+  posY: number,
+): GlbRegion {
+  if (primaryName === 'pelvis' || primaryName.startsWith('thigh_')) return 'shorts'
+  if (primaryName.startsWith('calf_')) return 'skin'
+  if (primaryName.startsWith('foot_') || primaryName.startsWith('ball_')) return 'shoes'
+  if (primaryName.startsWith('spine_') || primaryName.startsWith('clavicle_')) {
+    return 'jersey'
+  }
+  if (primaryName === 'neck_01') return 'skin'
+  if (primaryName === 'Head') {
+    // Top of skull reads as hair, lower as skin/face. The mannequin
+    // stands ≈ 1.81 m, with head bone origin at ≈ 1.65 m; vertices
+    // above ~1.78 m sit on the cranium.
+    return posY > 1.78 ? 'hair' : 'skin'
+  }
+  if (primaryName.startsWith('upperarm_')) {
+    // Sleeve covers the proximal half of the upperarm. We
+    // disambiguate via the secondary skinning bone: a vertex on the
+    // upperarm whose secondary influence pulls from clavicle/spine
+    // sits high (sleeve), while one pulled by the lowerarm sits at
+    // the elbow seam (skin).
+    if (
+      secondaryName.startsWith('clavicle_') ||
+      secondaryName.startsWith('spine_')
+    ) {
+      return 'jersey'
+    }
+    return 'skin'
+  }
+  if (
+    primaryName.startsWith('lowerarm_') ||
+    primaryName.startsWith('hand_') ||
+    primaryName.startsWith('index_') ||
+    primaryName.startsWith('middle_') ||
+    primaryName.startsWith('pinky_') ||
+    primaryName.startsWith('ring_') ||
+    primaryName.startsWith('thumb_')
+  ) {
+    return 'skin'
+  }
+  return 'skin'
+}
+
+/** Test-only — exposes the region rule for unit coverage. */
+export function _regionForBoneNamesForTest(
+  primaryName: string,
+  secondaryName: string,
+  posY: number,
+): GlbRegion {
+  return regionForBoneNames(primaryName, secondaryName, posY)
+}
+
+function applyMultiRegionMaterialsToCloned(
+  cloned: THREE.Object3D,
+  teamColor: string,
+): void {
+  const teamCol = new THREE.Color(teamColor)
+  const shortsCol = new THREE.Color(GLB_REGION_COLOR.shorts)
+  const skinCol = new THREE.Color(GLB_REGION_COLOR.skin)
+  const shoeCol = new THREE.Color(GLB_REGION_COLOR.shoes)
+  const hairCol = new THREE.Color(GLB_REGION_COLOR.hair)
+
+  const colorForRegion = (region: GlbRegion): THREE.Color => {
+    switch (region) {
+      case 'jersey':
+        return teamCol
+      case 'shorts':
+        return shortsCol
+      case 'skin':
+        return skinCol
+      case 'shoes':
+        return shoeCol
+      case 'hair':
+        return hairCol
+    }
+  }
+
   cloned.traverse((child) => {
+    const sm = child as THREE.SkinnedMesh
     const mesh = child as THREE.Mesh
-    if (!mesh.isMesh && !(child as THREE.SkinnedMesh).isSkinnedMesh) return
-    const baseMat = mesh.material
+    if (!sm.isSkinnedMesh && !mesh.isMesh) return
+    const baseMat = (sm.material ?? mesh.material) as
+      | THREE.Material
+      | THREE.Material[]
+      | undefined
     if (!baseMat) return
-    const replaceMat = (m: THREE.Material): THREE.Material => {
+
+    // Joints overlay (M_Joints in the source asset) is a thin set of
+    // sphere knobs at every joint. Painted in the team colour they
+    // read like fantasy armour studs; tint them skin-neutral so they
+    // disappear into the silhouette.
+    const matName = Array.isArray(baseMat)
+      ? baseMat[0]?.name ?? ''
+      : baseMat.name ?? ''
+    const isJointsOverlay = matName.toLowerCase().includes('joint')
+
+    const disposeOld = (m: THREE.Material | THREE.Material[]): void => {
+      if (Array.isArray(m)) m.forEach((x) => x.dispose())
+      else m.dispose()
+    }
+
+    if (isJointsOverlay) {
       const swap = new THREE.MeshStandardMaterial({
-        color: colorObj.clone(),
+        color: skinCol.clone(),
+        roughness: 0.7,
+        metalness: 0.0,
+      })
+      disposeOld(baseMat)
+      ;(sm.isSkinnedMesh ? sm : mesh).material = swap
+      return
+    }
+
+    if (!sm.isSkinnedMesh || !sm.skeleton) {
+      // Plain mesh — fall back to a flat team-colour material.
+      const swap = new THREE.MeshStandardMaterial({
+        color: teamCol.clone(),
         roughness: 0.55,
         metalness: 0.05,
       })
-      m.dispose()
-      return swap
+      disposeOld(baseMat)
+      mesh.material = swap
+      return
     }
-    if (Array.isArray(baseMat)) {
-      mesh.material = baseMat.map((m) => replaceMat(m))
-    } else {
-      mesh.material = replaceMat(baseMat)
+
+    const geom = sm.geometry
+    const skinIdxAttr = geom.getAttribute('skinIndex') as
+      | THREE.BufferAttribute
+      | undefined
+    const skinWeightAttr = geom.getAttribute('skinWeight') as
+      | THREE.BufferAttribute
+      | undefined
+    const posAttr = geom.getAttribute('position') as
+      | THREE.BufferAttribute
+      | undefined
+    if (!skinIdxAttr || !skinWeightAttr || !posAttr) {
+      const swap = new THREE.MeshStandardMaterial({
+        color: teamCol.clone(),
+        roughness: 0.55,
+        metalness: 0.05,
+      })
+      disposeOld(baseMat)
+      sm.material = swap
+      return
     }
+
+    const boneNames = sm.skeleton.bones.map((b) => b.name)
+    const N = posAttr.count
+    const colorArray = new Float32Array(N * 3)
+    for (let i = 0; i < N; i++) {
+      // Find primary (highest weight) and secondary bone for this vertex.
+      const w0 = skinWeightAttr.getX(i)
+      const w1 = skinWeightAttr.getY(i)
+      const w2 = skinWeightAttr.getZ(i)
+      const w3 = skinWeightAttr.getW(i)
+      const i0 = skinIdxAttr.getX(i)
+      const i1 = skinIdxAttr.getY(i)
+      const i2 = skinIdxAttr.getZ(i)
+      const i3 = skinIdxAttr.getW(i)
+      let primaryW = -1
+      let primaryIdx = -1
+      let secondaryW = -1
+      let secondaryIdx = -1
+      const ws = [w0, w1, w2, w3]
+      const is = [i0, i1, i2, i3]
+      for (let k = 0; k < 4; k++) {
+        if (ws[k] > primaryW) {
+          secondaryW = primaryW
+          secondaryIdx = primaryIdx
+          primaryW = ws[k]
+          primaryIdx = is[k]
+        } else if (ws[k] > secondaryW) {
+          secondaryW = ws[k]
+          secondaryIdx = is[k]
+        }
+      }
+      const primaryName = boneNames[primaryIdx] ?? ''
+      const secondaryName = boneNames[secondaryIdx] ?? ''
+      const py = posAttr.getY(i)
+      const region = regionForBoneNames(primaryName, secondaryName, py)
+      const c = colorForRegion(region)
+      colorArray[i * 3] = c.r
+      colorArray[i * 3 + 1] = c.g
+      colorArray[i * 3 + 2] = c.b
+    }
+
+    // Clone geometry per-figure so each athlete carries its own
+    // colour buffer. The skinIndex/skinWeight clones still reference
+    // the same skeleton bone indices, which is correct — the cloned
+    // mesh continues to bind to the per-figure skeleton built by
+    // SkeletonUtils.clone.
+    const clonedGeom = geom.clone()
+    clonedGeom.setAttribute(
+      'color',
+      new THREE.Float32BufferAttribute(colorArray, 3),
+    )
+    sm.geometry = clonedGeom
+
+    const swap = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      vertexColors: true,
+      roughness: 0.6,
+      metalness: 0.05,
+    })
+    disposeOld(baseMat)
+    sm.material = swap
   })
 }
 

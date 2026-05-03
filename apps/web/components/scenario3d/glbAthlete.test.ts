@@ -71,3 +71,68 @@ describe('Phase O-ASSET — fallback when cache empty', () => {
     expect(layers).not.toBeNull()
   })
 })
+
+describe('P1.8 — closeout pose readability dampener', () => {
+  it('regionForBoneNames maps body parts to readable regions', async () => {
+    const mod = await import('./glbAthlete')
+    const r = mod._regionForBoneNamesForTest
+    expect(r('pelvis', '', 0.9)).toBe('shorts')
+    expect(r('thigh_l', '', 0.7)).toBe('shorts')
+    expect(r('calf_r', '', 0.3)).toBe('skin')
+    expect(r('foot_l', '', 0.05)).toBe('shoes')
+    expect(r('spine_02', '', 1.3)).toBe('jersey')
+    expect(r('clavicle_r', '', 1.55)).toBe('jersey')
+    // Sleeve seam: high on upper arm with shoulder secondary → jersey
+    expect(r('upperarm_l', 'clavicle_l', 1.4)).toBe('jersey')
+    // Below sleeve: upperarm with lowerarm secondary → skin
+    expect(r('upperarm_l', 'lowerarm_l', 1.0)).toBe('skin')
+    expect(r('lowerarm_r', '', 0.9)).toBe('skin')
+    expect(r('Head', '', 1.85)).toBe('hair')
+    expect(r('Head', '', 1.7)).toBe('skin')
+  })
+
+  it('dampenClipRotationTracks reduces rotation magnitude toward identity', async () => {
+    const THREE = await import('three')
+    const mod = await import('./glbAthlete')
+    // Build a clip with one large rotation ( 90° around x ).
+    const q = new THREE.Quaternion().setFromAxisAngle(
+      new THREE.Vector3(1, 0, 0),
+      Math.PI / 2,
+    )
+    const track = new THREE.QuaternionKeyframeTrack(
+      'pelvis.quaternion',
+      [0, 1],
+      [q.x, q.y, q.z, q.w, q.x, q.y, q.z, q.w],
+    )
+    const clip = new THREE.AnimationClip('t', 1, [track])
+    const dampened = mod._dampenClipRotationTracksForTest(clip, 0.5)
+    const v = (dampened.tracks[0].values as Float32Array)
+    const dq = new THREE.Quaternion(v[0], v[1], v[2], v[3])
+    // Half-strength of a 90° rotation is 45°. The cosine of half-angle
+    // is cos(22.5°) ≈ 0.924, so the dampened quaternion's w is much
+    // closer to 1 than the original (cos(45°) ≈ 0.707).
+    expect(dq.w).toBeGreaterThan(0.9)
+    expect(dq.w).toBeLessThan(1.0)
+    // Magnitude is preserved (still a unit quaternion).
+    expect(dq.length()).toBeCloseTo(1, 5)
+  })
+
+  it('dampenClipRotationTracks leaves non-quaternion tracks untouched', async () => {
+    const THREE = await import('three')
+    const mod = await import('./glbAthlete')
+    const positionTrack = new THREE.VectorKeyframeTrack(
+      'pelvis.position',
+      [0, 1],
+      [0, 0, 0, 1, 2, 3],
+    )
+    const rotTrack = new THREE.QuaternionKeyframeTrack(
+      'pelvis.quaternion',
+      [0],
+      [0, 0, 0, 1],
+    )
+    const clip = new THREE.AnimationClip('t', 1, [positionTrack, rotTrack])
+    const dampened = mod._dampenClipRotationTracksForTest(clip, 0.4)
+    expect(dampened.tracks[0]).toBeInstanceOf(THREE.VectorKeyframeTrack)
+    expect(Array.from(dampened.tracks[0].values)).toEqual([0, 0, 0, 1, 2, 3])
+  })
+})
