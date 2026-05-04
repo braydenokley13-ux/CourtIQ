@@ -196,12 +196,16 @@ function TrainPageInner() {
   // it to /api/session/start, which validates against LIVE scenarios
   // and returns them in order.
   const scenarioIdsParamRaw = searchParams.get('scenarioIds')
-  const scenarioIdsParam = scenarioIdsParamRaw
-    ? scenarioIdsParamRaw
-        .split(',')
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0)
-    : null
+  const scenarioIdsParam = useMemo(
+    () =>
+      scenarioIdsParamRaw
+        ? scenarioIdsParamRaw
+            .split(',')
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0)
+        : null,
+    [scenarioIdsParamRaw],
+  )
   const [userId, setUserId] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [scenarios, setScenarios] = useState<SessionScenario[]>([])
@@ -303,10 +307,7 @@ function TrainPageInner() {
         setLoading(false)
       }
     })()
-    // scenarioIdsParamRaw is the raw CSV string from the URL — using
-    // it as the effect dep keeps the array reference stable across
-    // renders (otherwise we'd reload the session on every render).
-  }, [router, conceptParam, scenarioParam, scenarioIdsParamRaw])
+  }, [router, conceptParam, scenarioParam, scenarioIdsParam])
 
   // Settle delay between the freeze beat firing and the timer starting
   // ticking — gives the kid ~700ms to register the question before the
