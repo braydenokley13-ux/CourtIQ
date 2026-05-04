@@ -3666,9 +3666,40 @@ export const IMPORTED_BACK_CUT_DEV_OVERRIDE_KEY =
   '__COURTIQ_IMPORTED_BACK_CUT_DEV_OVERRIDE__'
 
 /**
- * P1.7 — runtime check for the GLB athlete preview gate. Returns
- * `true` when:
+ * P3.3A — build-time env-var names that opt production into the GLB
+ * athlete and imported-clip paths without flipping the
+ * `USE_*` module-level consts (those stay `false` so the
+ * `runtimeFlagOverride.test.ts` defense-in-depth gate keeps catching
+ * accidental drift). Each var must be set to the literal string
+ * `'1'` to enable; any other value (including unset) leaves the
+ * gate closed.
+ *
+ * Why env-driven: `NEXT_PUBLIC_*` vars are inlined at build time by
+ * Next.js, so the value lives in both the server and client bundles
+ * and is resolved without a window/global read. This makes the
+ * production opt-in explicit per deployment (Vercel project env) and
+ * trivially reversible — flip the env var, redeploy, GLB is off
+ * again. See `docs/qa/production-glb-loading.md`.
+ */
+export const GLB_ATHLETE_PREVIEW_PROD_ENV_KEY =
+  'NEXT_PUBLIC_USE_GLB_ATHLETE_PREVIEW'
+export const IMPORTED_CLOSEOUT_PROD_ENV_KEY =
+  'NEXT_PUBLIC_USE_IMPORTED_CLOSEOUT_CLIP'
+export const IMPORTED_BACK_CUT_PROD_ENV_KEY =
+  'NEXT_PUBLIC_USE_IMPORTED_BACK_CUT_CLIP'
+
+function readProdEnvFlag(name: string): boolean {
+  if (typeof process === 'undefined') return false
+  return process.env?.[name] === '1'
+}
+
+/**
+ * P1.7 / P3.3A — runtime check for the GLB athlete preview gate.
+ * Returns `true` when:
  *   - `USE_GLB_ATHLETE_PREVIEW` is `true` at module level, OR
+ *   - the build-time env var `NEXT_PUBLIC_USE_GLB_ATHLETE_PREVIEW`
+ *     is set to `'1'` (production opt-in path; see P3.3A — production
+ *     GLB asset loading fix), OR
  *   - the dev-only override window global is truthy AND the build
  *     is not production.
  *
@@ -3676,9 +3707,16 @@ export const IMPORTED_BACK_CUT_DEV_OVERRIDE_KEY =
  * dev/QA session can flip the flag without rebuilding. The helper
  * is cheap (one window read) and is called only from synchronous
  * builder paths that already pay much higher costs.
+ *
+ * Security note: the window-global override remains short-circuited
+ * in production so a malicious page setting the global on a prod
+ * build cannot escalate. Production must opt in explicitly via the
+ * env var — that path is visible in the deployment config, reviewed
+ * during release, and reversible without a code change.
  */
 export function isGlbAthletePreviewActive(): boolean {
   if (USE_GLB_ATHLETE_PREVIEW) return true
+  if (readProdEnvFlag(GLB_ATHLETE_PREVIEW_PROD_ENV_KEY)) return true
   if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production') {
     return false
   }
@@ -3690,9 +3728,10 @@ export function isGlbAthletePreviewActive(): boolean {
   )
 }
 
-/** P1.7 — companion runtime check for the imported closeout clip. */
+/** P1.7 / P3.3A — companion runtime check for the imported closeout clip. */
 export function isImportedCloseoutClipActive(): boolean {
   if (USE_IMPORTED_CLOSEOUT_CLIP) return true
+  if (readProdEnvFlag(IMPORTED_CLOSEOUT_PROD_ENV_KEY)) return true
   if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production') {
     return false
   }
@@ -3704,9 +3743,10 @@ export function isImportedCloseoutClipActive(): boolean {
   )
 }
 
-/** P2.2 — companion runtime check for the imported back-cut clip. */
+/** P2.2 / P3.3A — companion runtime check for the imported back-cut clip. */
 export function isImportedBackCutClipActive(): boolean {
   if (USE_IMPORTED_BACK_CUT_CLIP) return true
+  if (readProdEnvFlag(IMPORTED_BACK_CUT_PROD_ENV_KEY)) return true
   if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production') {
     return false
   }

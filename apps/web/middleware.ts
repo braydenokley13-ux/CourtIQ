@@ -118,7 +118,18 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // P3.3A — `.glb` (and the broader public-asset prefix `/athlete/`)
+  // must bypass middleware entirely. Production GLB athletes live
+  // under `apps/web/public/athlete/...`; routing those static
+  // requests through the Supabase auth refresh adds latency and, if
+  // the Supabase env vars are unreachable or the call fails, can
+  // return 5xx instead of the bytes — manifesting as missing GLB
+  // models in production. The asset extensions (`glb`, `gltf`,
+  // `bin`, `hdr`, `ktx2`, `wasm`, `mp3`, `ogg`, `wav`, `mp4`,
+  // `webm`, `woff`, `woff2`, `ttf`, `txt`, `map`) are added
+  // alongside the existing image set so any future binary public
+  // asset is also unaffected.
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|favicon.svg|manifest.json|icons/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|favicon.svg|manifest.json|icons/|athlete/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|glb|gltf|bin|hdr|ktx2|wasm|mp3|ogg|wav|mp4|webm|woff|woff2|ttf|txt|map)$).*)',
   ],
 }
