@@ -1587,3 +1587,220 @@ A new user can:
    identity copy.
 
 If those five steps work, PTH-1 is shippable.
+
+---
+
+## 16. Future Roadmap
+
+Six phases from PTH-1 (config + UI) through PTH-6 (seasonal Pathways).
+Each phase is shippable on its own.
+
+### PTH-1 — Config + UI Foundation
+
+- **Goal.** A real Pathways product surface using only existing data.
+- **Features.** Typed config, `/pathways` hub, `/pathways/[slug]`
+  detail, progress derived from `Attempt` + `Mastery`, /train
+  integration via `scenarioIds=`.
+- **Risks.** Visual hierarchy on mobile (chapter map cramped); coming-
+  soon cards feeling empty.
+- **Success criteria.** New users can find Complete IQ Foundation,
+  start a chapter, finish a session, and see progress move.
+
+### PTH-2 — /train Integration + Progress Polish
+
+- **Goal.** Pathway context flows end-to-end through the training
+  loop.
+- **Features.** `pathway`/`chapter`/`node` query params honored;
+  `/train/summary` shows Pathway breadcrumb and "Up next" CTA;
+  `/api/session/start` accepts `scenarioIds[]` cleanly; chapter
+  detail page (optional `chapters/[chapterSlug]` route) ships if
+  user testing demands.
+- **Risks.** Summary page state pollution; query param bloat.
+- **Success criteria.** A player can run an entire Foundation
+  chapter without ever leaving the Pathway flow.
+
+### PTH-3 — Boss Challenges + Mixed Reads
+
+- **Goal.** Real test mechanics — chapter bosses and Pathway
+  capstone.
+- **Features.** `mode=boss-challenge` honored in /train; pass/fail
+  shape; `BossChallengeAttempt` table introduced *only if*
+  localStorage-driven boss state is insufficient. Pathway-level
+  Mixed-Read Final Test renders at Chapter 5.
+- **Risks.** Schema migration complexity; pass thresholds tuning.
+- **Success criteria.** Players can attempt a boss, fail, retry, and
+  pass; pass state persists across devices.
+
+### PTH-4 — Archetypes + Recommendations
+
+- **Goal.** Personalize the hub.
+- **Features.** Archetype derived from highest-accuracy decoder;
+  archetype label on home + Pathway hub; recommended Pathway swaps
+  based on archetype; weakest-decoder card.
+- **Risks.** Archetype ping-pong (player flips archetype with one
+  bad session); over-personalizing for new users.
+- **Success criteria.** Archetype label is stable across sessions
+  for an active player; Pathway recommendations match player
+  intuition in user testing.
+
+### PTH-5 — Coach / Parent Reporting
+
+- **Goal.** Pathway becomes shareable proof of work.
+- **Features.** Parent/coach toggle on detail page; emailable
+  Pathway report; "Send to my coach" stub becomes real (link with
+  read-only progress view); coach dashboard shows team-level
+  Pathway adoption; first non-player UserRole experience.
+- **Risks.** Privacy review (sharing youth data); link auth.
+- **Success criteria.** A parent can view a read-only Pathway
+  Mastery Report from a shared link.
+
+### PTH-6 — Seasonal Pathway System
+
+- **Goal.** Pathways as a recurring product surface, not a one-time
+  catalog.
+- **Features.** Seasonal Pathways (4-week tracks); paid Pathway
+  passes; coach-authored Pathways; cross-Pathway leaderboards;
+  Pathway-specific badges.
+- **Risks.** Content production cost (each Pathway needs 15–25
+  scenarios authored); paid-tier UX; coach moderation.
+- **Success criteria.** First seasonal Pathway ships on schedule;
+  paid Pathway has a clear conversion funnel.
+
+---
+
+## 17. Implementation Risks and Open Questions
+
+### Risks
+
+- **Duplicating Academy.** If a Pathway chapter starts owning lesson
+  body markdown, we now have two homes for the same content. Mitigation:
+  keep the *Decoder Lesson Node* a *link* into Academy, never a copy.
+  Code review checklist item: any markdown over 200 chars in Pathway
+  config is a smell.
+- **Unclear progress calculation.** "Mastered" can mean three things at
+  once (best-answer count, decoder accuracy, attempts threshold). v1's
+  `passCriteria` collapses this into one config object so the
+  derivation logic has *one* source of truth. Mitigation: dedicated
+  `getPathwayProgress` function with unit tests.
+- **Route / query complexity.** Six possible /train query params is a
+  lot. Mitigation: build URLs in a single helper (e.g.
+  `pathwayTrainHref(node)`) so the param shape lives in one place.
+  Never construct /train URLs ad-hoc in Pathway components.
+- **Scenario selection conflicts.** A Pathway node says "BDW-01,02,03"
+  but the weighted generator might want to inject spaced-rep reps. v1
+  resolves this by *bypassing* the weighted bundle entirely when
+  `scenarioIds=` is present. The trade-off: Pathway sessions skip
+  spaced-rep lookups. Acceptable for v1; PTH-3 can layer in a "Pathway
+  + spaced-rep blend" mode if needed.
+- **Too much locked content.** A new player who lands on /pathways and
+  sees 8 grayed-out cards might bounce. Mitigation: catalog cards must
+  carry real value copy (target archetype, problem solved); the
+  active Pathway must dominate above the fold.
+- **Overwhelming young players.** A 20-rep Pathway can feel like
+  homework. Mitigation: chapters are 5 reps each; sessions stay under
+  5 minutes; never autoplay the next chapter.
+- **Needing a better sub-concept taxonomy.** The current `concept_tags`
+  on Scenario rows aren't fine-grained enough to drive a "weakness
+  map" for personalization. v1 sidesteps this by using `decoder_tag`
+  instead. PTH-4 will need richer sub-concept tags.
+- **State drift between Mastery and Pathway progress.** `Mastery`
+  rolling-accuracy decays/updates on every attempt; Pathway "best
+  count" reads the most recent attempt per scenario. They can
+  disagree. Mitigation: be explicit in copy — Pathway shows "best
+  reads", Academy shows "rolling accuracy". Don't paper over the
+  difference.
+
+### Open product questions
+
+1. **Should Pathways auto-enroll new users?** v1 says yes — Foundation
+   is the default Pathway for everyone. Confirm with founder.
+2. **Does the Pathway hub replace or sit alongside `/home`?** Proposal:
+   sit alongside. Home still has streak + IQ; Pathways is the
+   directional layer. Confirm.
+3. **What's the right pass threshold for chapter mastery?** Proposal:
+   ≥ 0.80 decoder rolling accuracy + ≥ 4/5 best answers across the
+   chapter pack. Tunable.
+4. **How does a player retry a chapter they've mastered?** Proposal:
+   chapter row always carries a "Practice again" CTA that fires a
+   non-counting Mode-6 (Film Room) session. Confirm.
+5. **Should a coach see what archetype a player is?** Proposal: yes
+   in PTH-5; surface as a chip on the player profile in the coach
+   dashboard. Confirm.
+6. **Will Pathways have their own XP / IQ multipliers, or do they ride
+   on the existing scoring?** Proposal: ride on existing scoring for
+   v1. PTH-3 introduces boss multipliers per §8.
+7. **Is `/pathways` a top-nav peer to `/home`, `/academy`, `/profile`,
+   or a child of `/home`?** Proposal: top-nav peer. Confirm.
+8. **How do we handle a player who's already mastered all four
+   decoders before Pathways exist?** Proposal: Foundation marks itself
+   100% on first load and recommends the next coming-soon Pathway as
+   the headline; player can still re-run any chapter for fun. Confirm.
+9. **Can a player skip Foundation?** Proposal: not in v1. PTH-4 lets
+   archetype assignment skip the Pathway if all four decoders are
+   mastered. Confirm.
+
+---
+
+## 18. Recommended Build Prompt for Next Step (PTH-1)
+
+This is the prompt to hand to the next implementer (Claude / Codex /
+engineer) once this planning doc is approved.
+
+> **Build PTH-1: Pathways v1 — Config + UI Foundation.**
+>
+> Goal: ship the `/pathways` hub and the `/pathways/complete-iq-
+> foundation` detail page using a typed config and progress derived
+> from existing rows. No schema migration. No edits to the training
+> loop, renderer, or scenario seeds.
+>
+> 1. Create `apps/web/lib/pathways/types.ts` with `PathwayConfig`,
+>    `PathwayChapterConfig`, `SkillNodeConfig`, `BossChallengeConfig`,
+>    `PassCriteria`, `UnlockCriteria`, `PathwayTrainingMode`,
+>    `PathwayArchetype`, and `PathwayProgressSummary` from §12.
+> 2. Create `apps/web/lib/pathways/config.ts` exporting the full
+>    nine-Pathway catalog from §5. Only Complete IQ Foundation is
+>    `comingSoon: false`. The Foundation entry's chapters reference
+>    the existing founder-v0 scenarios (BDW-01..05, ESC-01..05, AOR-
+>    01..05, SKR-01..05) as outlined in §6.
+> 3. Create `apps/web/lib/pathways/progressService.ts` exporting
+>    `getPathwayProgress(userId, slug): Promise<PathwayProgressSummary>`.
+>    Derive node/chapter/Pathway state from `prisma.attempt` and
+>    `prisma.mastery` (both `concept` and `decoder` dimensions).
+>    Use `ChoiceQuality.best` to compute "best answers" counts.
+>    Apply the recommended-next priority order from §9.
+> 4. Create `apps/web/app/pathways/page.tsx` — the Hub. Active card
+>    + coming-soon catalog grid. Server component, like `/academy`.
+> 5. Create `apps/web/app/pathways/[pathwaySlug]/page.tsx` — the
+>    Detail / chapter map. Renders chapter rows, skill nodes,
+>    decoder lesson links into `/academy/<slug>`, and the
+>    recommended-next CTA. Server component.
+> 6. Add Pathway-aware `scenarioIds[]` support to
+>    `apps/web/lib/services/scenarioService.ts`. Specifically: extend
+>    `SessionBundleOptions` with `scenarioIds?: string[]` and, when
+>    present and all IDs are LIVE, build the bundle from those IDs in
+>    order, bypassing the weighted buckets. Mirror the existing
+>    `scenarioId` (singular) pin path.
+> 7. Add a single CTA card on `/home` linking to the active Pathway.
+>    Reuse existing home page layout primitives.
+> 8. Do not modify renderer files.
+> 9. Do not modify scenario seeds.
+> 10. Do not migrate the Prisma schema.
+> 11. Add unit tests for `getPathwayProgress` covering: cold start,
+>     partial completion, single-chapter mastery, full Pathway
+>     mastery, and the recommended-next priority order.
+> 12. Add a smoke test for `/pathways/complete-iq-foundation` that
+>     renders for an unauthenticated → signed-in user without
+>     throwing.
+>
+> Out of scope: boss challenge mode, mixed-read final, archetype
+> assignment, parent/coach reports, push notifications, admin CMS,
+> coming-soon notify-me persistence.
+>
+> Done when: a new user lands on `/pathways`, taps Complete IQ
+> Foundation, sees the five chapters, taps Continue, lands in
+> `/train` with the chapter's scenarios, completes a session, returns
+> to the Pathway page, and sees their progress ring move.
+
+---
+
+## Recommended Next Implementation Step.
