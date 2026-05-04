@@ -1,0 +1,178 @@
+[
+  {
+    "id": "BDW-05",
+    "version": 1,
+    "status": "LIVE",
+    "title": "Pass-Is-In-The-Air Backdoor",
+    "category": "OFFENSE",
+    "decoder_tag": "BACKDOOR_WINDOW",
+    "concept_tags": ["off_ball_movement", "reading_denial", "timing"],
+    "sub_concepts": ["backdoor_cut", "air_pass_read", "advanced_denial"],
+    "difficulty": 3,
+    "user_role": "off_ball_wing",
+    "game_context": "4-on-4 half-court shell. The slot has the ball and is reversing to your wing. Your defender (x2) sees the pass leave the slot's hands and jumps the lane — both feet leave the ground in front of you to intercept.",
+    "possession_setup": "You are the right wing. The ball is reversing from the left slot. Your defender (x2) is denying. As the ball goes up, x2 jumps the lane.",
+    "decision_moment": "x2's feet have left the floor. The ball is in the air. x2's chest is in the lane and his back is to the basket.",
+    "visible_cue": "x2 is committed in the air with his back to the rim. The lane behind him is wide open and his recovery is slow because he is airborne.",
+    "court_state": {
+      "offense": [
+        { "id": "pg", "x": 160, "y": 140, "role": "ball_handler", "hasBall": true },
+        { "id": "user", "x": 430, "y": 80, "role": "off_ball_wing", "hasBall": false },
+        { "id": "o3", "x": 70, "y": 90, "role": "weak_wing", "hasBall": false },
+        { "id": "o4", "x": 470, "y": 10, "role": "strong_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x1", "x": 160, "y": 160, "role": "on_ball", "hasBall": false },
+        { "id": "x2", "x": 380, "y": 100, "role": "denying_wing_defender_jumping_lane", "hasBall": false },
+        { "id": "x3", "x": 100, "y": 100, "role": "weak_wing_defender", "hasBall": false },
+        { "id": "x4", "x": 440, "y": 30, "role": "low_man", "hasBall": false }
+      ],
+      "ball_location": { "x": 160, "y": 140 }
+    },
+    "prompt": "Your defender jumped the lane. He's airborne. The rim is open.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Plant and back-cut while the pass is in the air.",
+        "quality": "best",
+        "feedback_text": "Best read. He left his feet. You cut behind him while he is airborne — by the time he lands the pass is already at the rim.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Slip the pass to the slot for a re-reverse.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. The slip back keeps possession, but you missed the easiest layup of the half.",
+        "partial_feedback_text": "A re-reverse keeps the play alive. The cleaner read was the airborne defender — cut behind him.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Flash to the elbow to receive.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Flashing to the elbow runs into x2's recovery zone. The empty space is at the rim, not the elbow.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Stand still and let the pass arrive.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. He left his feet to intercept — the pass is gone if you don't move. Cut while he is in the air.",
+        "order": 4
+      }
+    ],
+    "best_read": "Plant the outside foot while the ball is leaving the slot's hands and back-cut behind x2 to the front of the rim. The slot reads the cut and adjusts the pass off the dribble — the layup arrives before x2 can land and recover.",
+    "acceptable_reads": [
+      "Slip back to the slot — keeps the ball, loses the layup."
+    ],
+    "bad_reads": [
+      "Flash to the elbow — runs into x2's landing path and x1's help.",
+      "Stand still — x2 lands the interception."
+    ],
+    "common_miss_reason": "Players see the airborne defender as 'the steal is coming' and freeze. The cue is the opposite: an airborne defender cannot cover the rim. The cut window is open precisely because he committed.",
+    "why_best_read_works": "An airborne defender is the slowest defender on the floor. He has no foot in the ground for two beats and his body is going forward, not back. The cut path behind him to the rim has no defender; x4 starts in the strong corner and arrives a full beat after the pass.",
+    "decoder_teaching_point": "When a defender leaves his feet, the basket behind him is open. Cut while he is in the air, not after he lands.",
+    "lesson_connection": "backdoor-window",
+    "feedback": {
+      "correct": "Good read. He left his feet; you cut while he was airborne and got the layup.",
+      "partial": "A re-reverse kept the play alive. Next time, when the defender leaves his feet, the basket is yours.",
+      "wrong": "Watch his feet. If he leaves the ground, the rim behind him is open. Cut while he is in the air."
+    },
+    "self_review_checklist": [
+      "Did I see his feet leave the floor?",
+      "Did I cut while the ball was in the air, not after?",
+      "Did I cut behind him, not into his landing spot?",
+      "Did I show my hands at the rim?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-04T00:00:00.000Z",
+      "notes": "Air-pass backdoor is universally taught at every level. Difficulty 3 because the cut must start before the catch (timing-on-cue, not timing-on-result). Cluster fits beginner cap."
+    },
+    "source_research_basis": "Universally taught youth read at the advanced beginner level; backdoor against an airborne denier is system-independent.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": ["BDW-01", "BDW-02"]
+    },
+    "explanation_md": "**The Backdoor Window — air-pass variant.** When your defender leaves the floor to jump the lane, his recovery is the slowest it will ever be. The cut window is widest while he is airborne. Plant your outside foot and cut behind him to the rim — start the cut while the ball is still leaving the passer's hands. Show your hands at the rim. Watch his feet, not the ball.",
+    "xp_reward": 14,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "air_pass_backdoor",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        { "id": "pg", "team": "offense", "role": "ball_handler", "label": "PG", "start": { "x": -9, "z": 14 }, "hasBall": true },
+        { "id": "user", "team": "offense", "role": "off_ball_wing", "label": "You", "start": { "x": 18, "z": 8 }, "isUser": true },
+        { "id": "o3", "team": "offense", "role": "weak_wing", "label": "3", "start": { "x": -18, "z": 9 } },
+        { "id": "o4", "team": "offense", "role": "strong_corner", "label": "4", "start": { "x": 22, "z": 1 } },
+        { "id": "x1", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": -9, "z": 16 } },
+        { "id": "x2", "team": "defense", "role": "denying_wing_defender_jumping_lane", "label": "x2", "start": { "x": 14, "z": 10 } },
+        { "id": "x3", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": -15, "z": 10 } },
+        { "id": "x4", "team": "defense", "role": "low_man", "label": "x4", "start": { "x": 19, "z": 3 } }
+      ],
+      "ball": { "start": { "x": -9, "z": 14 }, "holderId": "pg" },
+      "movements": [
+        { "id": "user_set", "playerId": "user", "kind": "lift", "to": { "x": 18, "z": 9 }, "delayMs": 0, "durationMs": 500 },
+        { "id": "pg_pretend_pass", "playerId": "ball", "kind": "pass", "to": { "x": 11, "z": 10 }, "delayMs": 400, "durationMs": 400 },
+        { "id": "x2_jump_lane", "playerId": "x2", "kind": "rotation", "to": { "x": 11, "z": 11 }, "delayMs": 350, "durationMs": 500 }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1500 },
+      "answerDemo": [
+        { "id": "user_jab", "playerId": "user", "kind": "jab", "to": { "x": 19, "z": 9 }, "delayMs": 0, "durationMs": 200 },
+        { "id": "user_back_cut", "playerId": "user", "kind": "back_cut", "to": { "x": 4, "z": 2 }, "delayMs": 50, "durationMs": 700 },
+        { "id": "pg_air_lead_pass", "playerId": "ball", "kind": "pass", "to": { "x": 4, "z": 2 }, "delayMs": 350, "durationMs": 600 },
+        { "id": "user_finish", "playerId": "user", "kind": "cut", "to": { "x": 0, "z": 0.5 }, "delayMs": 50, "durationMs": 350 }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You slipped the pass back. The reverse kept the ball, but the layup is gone.",
+          "movements": [
+            { "id": "user_slip_back", "playerId": "user", "kind": "drift", "to": { "x": 18, "z": 8 }, "delayMs": 0, "durationMs": 400 },
+            { "id": "ball_back_to_pg", "playerId": "ball", "kind": "pass", "to": { "x": -9, "z": 14 }, "delayMs": 0, "durationMs": 500 }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You flashed to the elbow. x2 landed and met the catch.",
+          "movements": [
+            { "id": "user_flash_elbow", "playerId": "user", "kind": "lift", "to": { "x": 5, "z": 9 }, "delayMs": 0, "durationMs": 700 },
+            { "id": "x2_recover_to_elbow", "playerId": "x2", "kind": "rotation", "to": { "x": 6, "z": 9 }, "delayMs": 250, "durationMs": 600 }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You stood still. x2 landed and intercepted the pass.",
+          "movements": [
+            { "id": "pg_force_pass", "playerId": "ball", "kind": "pass", "to": { "x": 18, "z": 8 }, "delayMs": 0, "durationMs": 450 },
+            { "id": "x2_intercept", "playerId": "x2", "kind": "rotation", "to": { "x": 14, "z": 9 }, "delayMs": 100, "durationMs": 350 }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "defender_chest_line", "playerId": "x2" },
+        { "kind": "defender_foot_arrow", "playerId": "x2" },
+        { "kind": "label", "anchor": { "x": 4, "z": 4 }, "text": "Cut on the air pass" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "open_space_region", "anchor": { "x": 5, "z": 3 }, "radiusFt": 5 },
+        { "kind": "timing_pulse", "anchor": { "x": 11, "z": 11 }, "durationMs": 600 },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "user",
+          "path": [
+            { "x": 18, "z": 8 },
+            { "x": 19, "z": 9 },
+            { "x": 4, "z": 2 },
+            { "x": 0, "z": 0.5 }
+          ]
+        }
+      ]
+    }
+  }
+]

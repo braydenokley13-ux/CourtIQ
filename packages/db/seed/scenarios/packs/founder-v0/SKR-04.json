@@ -1,0 +1,168 @@
+[
+  {
+    "id": "SKR-04",
+    "version": 1,
+    "status": "LIVE",
+    "title": "Drag-Screen Skip to Trail",
+    "category": "OFFENSE",
+    "decoder_tag": "SKIP_THE_ROTATION",
+    "concept_tags": ["passing", "reading_help", "screen_action"],
+    "sub_concepts": ["skip_pass", "drop_coverage_read", "trail_lift"],
+    "difficulty": 3,
+    "user_role": "ball_handler",
+    "game_context": "4-on-4 half-court shell. You take a drag screen at the right slot. The screener's defender (x_screen) drops deep to wall up. The trail player has lifted from the weak slot to the top of the key. The drop creates a clean skip lane to the trail.",
+    "possession_setup": "You are the point guard. You take a drag screen from the trail slot at the right elbow extended. The screener's defender drops at the level of the rim, walling up the drive. The trail (o3) has lifted to the top of the key.",
+    "decision_moment": "x_screen has dropped deep — feet inside the elbow, chest to the ball. x1 is fighting over the top. The trail at the top of the key has no defender within 8 ft.",
+    "visible_cue": "x_screen is in drop coverage with chest to the ball. x1 is on your hip. The trail (o3) at the top of the key is alone — his defender (x_trail) sagged into the lane and never recovered the lift.",
+    "court_state": {
+      "offense": [
+        { "id": "user", "x": 320, "y": 130, "role": "ball_handler", "hasBall": true },
+        { "id": "screen", "x": 280, "y": 100, "role": "screener_pop", "hasBall": false },
+        { "id": "o3", "x": 240, "y": 170, "role": "trail_top_lifter", "hasBall": false },
+        { "id": "o4", "x": 30, "y": 10, "role": "weak_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x1", "x": 320, "y": 150, "role": "on_ball", "hasBall": false },
+        { "id": "x_screen", "x": 280, "y": 50, "role": "drop_coverage_helper", "hasBall": false },
+        { "id": "x_trail", "x": 200, "y": 70, "role": "weak_slot_late_help", "hasBall": false },
+        { "id": "x4", "x": 60, "y": 30, "role": "weak_corner_low_man", "hasBall": false }
+      ],
+      "ball_location": { "x": 320, "y": 130 }
+    },
+    "prompt": "The screen-defender is in drop. The trail at the top is alone.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Skip pass back to the trail at the top.",
+        "quality": "best",
+        "feedback_text": "Best read. The drop walled up the rim and left the top open. Skip back to the trail — clean shot at the top.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Pull up for the midrange jumper over the drop.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. The pull-up is a real shot, but the trail at the top is the cleaner look — no defender in his airspace.",
+        "partial_feedback_text": "Pull-up is okay. The trail had a longer closeout — the cleaner shot.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Drive into the drop for a contested layup.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. The drop is a wall. Driving into it gets a contested layup or charge — when the trail is open, that shot is bad.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Pocket pass to the popping screener.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. The screener's defender is between the screener and you — the pocket pass is contested. The trail is the cleaner read.",
+        "order": 4
+      }
+    ],
+    "best_read": "Reject the level of the screen, find the trail at the top, and skip the ball back. The trail catches in shooting pocket and rises before x_slot can closeout 18 ft from the weak side.",
+    "acceptable_reads": [
+      "Pull-up jumper over the drop — a real shot, but the trail is cleaner."
+    ],
+    "bad_reads": [
+      "Drive into the drop — wall meets you; layup is contested.",
+      "Pocket pass to the popping screener — the defender is between you and him."
+    ],
+    "common_miss_reason": "Ball-handlers see a drag screen as a downhill cue and force the rim. The cue against drop coverage is the opposite — the ball-handler should look back to the player who dropped from to set the screen, or to the trailing shooter the rotation forgot.",
+    "why_best_read_works": "Drop coverage trades the rim for the rim. The price is the top of the key — x_slot cannot leave the weak corner without giving up the corner shot. The trail at the top has no defender in his closeout cone; the skip is the longest closeout the defense can have.",
+    "decoder_teaching_point": "Against drop coverage, the trail at the top is open. Skip back over the action.",
+    "lesson_connection": "skip-the-rotation",
+    "feedback": {
+      "correct": "Good read. The drop walled the rim; you skipped back to the trail and the shot was clean.",
+      "partial": "Pull-up over the drop is a real shot. The trail was cleaner — longer closeout.",
+      "wrong": "When the screen-defender drops deep, the trail at the top is open. Skip back over the action."
+    },
+    "self_review_checklist": [
+      "Did I see the drop coverage?",
+      "Did I find the trail at the top?",
+      "Did I skip in one motion?",
+      "Did the trail catch in shooting pocket?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-04T00:00:00.000Z",
+      "notes": "Skip to trail against drop coverage is universally taught. Difficulty 3 because the user must read both the on-ball coverage and the help. Cluster fits beginner cap."
+    },
+    "source_research_basis": "Universally taught at every level; skip-to-trail against drop coverage is system-independent.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": ["SKR-01", "SKR-02"]
+    },
+    "explanation_md": "**Skip the Rotation — drop-coverage variant.** Drop coverage trades the rim for the top of the key. When the screen-defender drops deep to wall up, the trail at the top is alone. Skip the ball back over the action. Watch the screen-defender's depth, not the dribble.",
+    "xp_reward": 16,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "drag_screen_skip_to_trail",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        { "id": "user", "team": "offense", "role": "ball_handler", "label": "You", "start": { "x": 8, "z": 14 }, "isUser": true, "hasBall": true },
+        { "id": "screen", "team": "offense", "role": "screener_pop", "label": "5", "start": { "x": 4, "z": 11 } },
+        { "id": "o3", "team": "offense", "role": "trail_top_lifter", "label": "3", "start": { "x": 0, "z": 19 } },
+        { "id": "o4", "team": "offense", "role": "weak_corner", "label": "4", "start": { "x": -22, "z": 1 } },
+        { "id": "x1", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": 8, "z": 16 } },
+        { "id": "x_screen", "team": "defense", "role": "drop_coverage_helper", "label": "xS", "start": { "x": 4, "z": 5 } },
+        { "id": "x_trail", "team": "defense", "role": "weak_slot_late_help", "label": "xT", "start": { "x": -4, "z": 12 } },
+        { "id": "x4", "team": "defense", "role": "weak_corner_low_man", "label": "x4", "start": { "x": -19, "z": 3 } }
+      ],
+      "ball": { "start": { "x": 8, "z": 14 }, "holderId": "user" },
+      "movements": [
+        { "id": "user_use_screen", "playerId": "user", "kind": "drive", "to": { "x": 6, "z": 10 }, "delayMs": 0, "durationMs": 700 },
+        { "id": "x1_chase_over", "playerId": "x1", "kind": "rotation", "to": { "x": 7, "z": 11 }, "delayMs": 100, "durationMs": 600 },
+        { "id": "x_screen_drop", "playerId": "x_screen", "kind": "rotation", "to": { "x": 4, "z": 4 }, "delayMs": 100, "durationMs": 700 }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1400 },
+      "answerDemo": [
+        { "id": "user_pivot_back", "playerId": "user", "kind": "jab", "to": { "x": 7, "z": 11 }, "delayMs": 0, "durationMs": 250 },
+        { "id": "skip_to_trail", "playerId": "ball", "kind": "skip_pass", "to": { "x": 0, "z": 19 }, "delayMs": 200, "durationMs": 700 },
+        { "id": "trail_catch_and_shoot", "playerId": "o3", "kind": "lift", "to": { "x": 0, "z": 19 }, "delayMs": 50, "durationMs": 300 }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You pulled up over the drop. The shot was real but contested.",
+          "movements": [
+            { "id": "user_pull_up", "playerId": "user", "kind": "lift", "to": { "x": 6, "z": 9 }, "delayMs": 0, "durationMs": 400 },
+            { "id": "x_screen_contest", "playerId": "x_screen", "kind": "rotation", "to": { "x": 6, "z": 7 }, "delayMs": 100, "durationMs": 400 }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You drove into the drop. The wall met you.",
+          "movements": [
+            { "id": "user_drive_paint", "playerId": "user", "kind": "drive", "to": { "x": 4, "z": 4 }, "delayMs": 0, "durationMs": 700 },
+            { "id": "x_screen_wall", "playerId": "x_screen", "kind": "stop_ball", "to": { "x": 4, "z": 4 }, "delayMs": 0, "durationMs": 600 }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You pocket-passed the screener. The defender deflected it.",
+          "movements": [
+            { "id": "pocket_to_screen", "playerId": "ball", "kind": "pass", "to": { "x": 4, "z": 11 }, "delayMs": 0, "durationMs": 500 },
+            { "id": "x_screen_deflect", "playerId": "x_screen", "kind": "rotation", "to": { "x": 4, "z": 8 }, "delayMs": 100, "durationMs": 400 }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "defender_chest_line", "playerId": "x_screen" },
+        { "kind": "help_pulse", "playerId": "x_screen", "role": "overhelp" },
+        { "kind": "label", "anchor": { "x": 0, "z": 17 }, "text": "Trail is alone" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "passing_lane_open", "from": "user", "to": "o3" },
+        { "kind": "open_space_region", "anchor": { "x": 0, "z": 19 }, "radiusFt": 5 },
+        { "kind": "timing_pulse", "anchor": { "x": 0, "z": 19 }, "durationMs": 600 }
+      ]
+    }
+  }
+]

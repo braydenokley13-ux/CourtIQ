@@ -1,0 +1,177 @@
+[
+  {
+    "id": "BDW-03",
+    "version": 1,
+    "status": "LIVE",
+    "title": "Corner Denial Backdoor",
+    "category": "OFFENSE",
+    "decoder_tag": "BACKDOOR_WINDOW",
+    "concept_tags": ["off_ball_movement", "reading_denial"],
+    "sub_concepts": ["backdoor_cut", "corner_denial"],
+    "difficulty": 2,
+    "user_role": "strong_corner_shooter",
+    "game_context": "4-on-4 half-court shell. Ball is at the strong-side wing. Your defender denies the kickout to the corner — hand and foot in the lane, hips opened to the sideline, head turned to the wing.",
+    "possession_setup": "You are the strong-side corner. The wing has the ball after a reversal. Your defender (x2) sells out on the corner kickout — chest above your top foot, hand pressed into the passing lane.",
+    "decision_moment": "x2's hand is in the lane and his head has turned to the wing. The baseline behind him is empty.",
+    "visible_cue": "x2 has hand in lane, head off you, foot above your top foot. The strip from the corner along the baseline to the rim has no defender between you and the basket.",
+    "court_state": {
+      "offense": [
+        { "id": "pg", "x": 100, "y": 130, "role": "ball_handler", "hasBall": true },
+        { "id": "wing", "x": 410, "y": 80, "role": "strong_wing", "hasBall": false },
+        { "id": "user", "x": 470, "y": 10, "role": "strong_corner_shooter", "hasBall": false },
+        { "id": "o4", "x": 60, "y": 20, "role": "weak_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x1", "x": 100, "y": 150, "role": "on_ball", "hasBall": false },
+        { "id": "x_wing", "x": 410, "y": 100, "role": "wing_defender", "hasBall": false },
+        { "id": "x2", "x": 440, "y": 50, "role": "denying_corner_defender", "hasBall": false },
+        { "id": "x4", "x": 80, "y": 40, "role": "weak_corner_low_man", "hasBall": false }
+      ],
+      "ball_location": { "x": 100, "y": 130 }
+    },
+    "prompt": "Your defender is denying the corner. The baseline behind him is empty.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Backdoor along the baseline to the rim.",
+        "quality": "best",
+        "feedback_text": "Best read. He sold out on the kickout and gave you the baseline. Cut along the baseline to the rim.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Slide along the baseline to the short corner.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. The short corner pass works, but you traded a layup for a 10-footer.",
+        "partial_feedback_text": "The short-corner relocation keeps the play alive. The cleaner read was a baseline backdoor to the rim.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Stay in the corner and sprint up the lane line.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Sprinting up runs into x_wing and the help. You ignored the empty baseline behind your own defender.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Stand still and wait for the kickout.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. The kickout is dead — his hand is in the lane. Standing still gives him a stop or a steal.",
+        "order": 4
+      }
+    ],
+    "best_read": "Plant the inside foot and back-cut along the baseline behind x2 to the front of the rim. The wing reads the cut and drops a baseline pass before x4 can rotate from the weak side.",
+    "acceptable_reads": [
+      "Slide to the short corner — keeps possession but trades a layup for a midrange shot."
+    ],
+    "bad_reads": [
+      "Sprint up the lane line — runs into x_wing's gap and x1's recovery.",
+      "Stand still — denial wins; the kickout is deflected or dead."
+    ],
+    "common_miss_reason": "Corner shooters wait for the catch. When the kickout is denied they don't read 'rim is open' — they reset their feet in the same spot and the cut window closes.",
+    "why_best_read_works": "When x2 turns his head to the wing he loses sight of the cutter. The baseline strip from corner to rim is the longest empty lane on the floor; x4 starts on the weak side, so the rotation arrives a beat late.",
+    "decoder_teaching_point": "When the corner kickout is denied, the baseline to the rim is the open space. Cut behind him along the baseline.",
+    "lesson_connection": "backdoor-window",
+    "feedback": {
+      "correct": "Good read. He gave up the baseline to take the kickout away. You took the layup.",
+      "partial": "Short-corner relocation is a fine outlet. Next time, look at his head — if he turned away from you, the rim is yours.",
+      "wrong": "Watch his head and his hand. Hand in the lane and head turned means the baseline is open. Cut there."
+    },
+    "self_review_checklist": [
+      "Did I see his hand in the passing lane?",
+      "Did I see his head turn to the ball?",
+      "Did I cut behind him along the baseline?",
+      "Did I show my hands at the rim?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-04T00:00:00.000Z",
+      "notes": "Corner-denial baseline backdoor is universally taught. Cluster fits beginner cap (3 pre / 3 post). Difficulty 2 because the cue (head turned, hand in lane) is two body cues stacked."
+    },
+    "source_research_basis": "Universally taught at every level; baseline backdoor against corner denial is system-independent.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": ["BDW-01"]
+    },
+    "explanation_md": "**The Backdoor Window — corner-denial variant.** Your defender's hand is in the lane and his head is turned to the wing. He's sold out on the kickout. The baseline from corner to rim is the longest empty lane on the floor. Plant your inside foot and cut along the baseline. Show your hands at the rim. Watch his head and his hand, not your spot.",
+    "xp_reward": 12,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "corner_denial_backdoor",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        { "id": "pg", "team": "offense", "role": "ball_handler", "label": "PG", "start": { "x": -14, "z": 14 } },
+        { "id": "wing", "team": "offense", "role": "strong_wing", "label": "SG", "start": { "x": 17, "z": 9 }, "hasBall": true },
+        { "id": "user", "team": "offense", "role": "strong_corner_shooter", "label": "You", "start": { "x": 22, "z": 2 }, "isUser": true },
+        { "id": "o4", "team": "offense", "role": "weak_corner", "label": "4", "start": { "x": -22, "z": 1 } },
+        { "id": "x1", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": -14, "z": 16 } },
+        { "id": "x_wing", "team": "defense", "role": "wing_defender", "label": "xW", "start": { "x": 17, "z": 11 } },
+        { "id": "x2", "team": "defense", "role": "denying_corner_defender", "label": "x2", "start": { "x": 19, "z": 5 } },
+        { "id": "x4", "team": "defense", "role": "weak_corner_low_man", "label": "x4", "start": { "x": -19, "z": 3 } }
+      ],
+      "ball": { "start": { "x": 17, "z": 9 }, "holderId": "wing" },
+      "movements": [
+        { "id": "user_set", "playerId": "user", "kind": "lift", "to": { "x": 22, "z": 3 }, "delayMs": 0, "durationMs": 500 },
+        { "id": "x2_deny_corner", "playerId": "x2", "kind": "rotation", "to": { "x": 20, "z": 6 }, "delayMs": 200, "durationMs": 700 }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1400 },
+      "answerDemo": [
+        { "id": "user_jab_out", "playerId": "user", "kind": "jab", "to": { "x": 23, "z": 3 }, "delayMs": 0, "durationMs": 250 },
+        { "id": "user_baseline_back_cut", "playerId": "user", "kind": "back_cut", "to": { "x": 6, "z": 1 }, "delayMs": 100, "durationMs": 700 },
+        { "id": "wing_baseline_pass", "playerId": "ball", "kind": "pass", "to": { "x": 4, "z": 1 }, "delayMs": 450, "durationMs": 550 },
+        { "id": "user_finish", "playerId": "user", "kind": "cut", "to": { "x": 0, "z": 0.5 }, "delayMs": 50, "durationMs": 350 }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You slid to the short corner. The pass came; layup was gone.",
+          "movements": [
+            { "id": "user_short_corner", "playerId": "user", "kind": "drift", "to": { "x": 14, "z": 3 }, "delayMs": 0, "durationMs": 600 },
+            { "id": "wing_short_corner_pass", "playerId": "ball", "kind": "pass", "to": { "x": 14, "z": 3 }, "delayMs": 250, "durationMs": 500 }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You sprinted up the lane line into the help.",
+          "movements": [
+            { "id": "user_lift_lane", "playerId": "user", "kind": "lift", "to": { "x": 19, "z": 8 }, "delayMs": 0, "durationMs": 700 },
+            { "id": "x_wing_meet", "playerId": "x_wing", "kind": "rotation", "to": { "x": 19, "z": 9 }, "delayMs": 100, "durationMs": 600 }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You stood still. The kickout was tipped.",
+          "movements": [
+            { "id": "wing_force_kickout", "playerId": "ball", "kind": "pass", "to": { "x": 22, "z": 2 }, "delayMs": 0, "durationMs": 500 },
+            { "id": "x2_deflect", "playerId": "x2", "kind": "rotation", "to": { "x": 21, "z": 4 }, "delayMs": 100, "durationMs": 350 }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "defender_hand_in_lane", "playerId": "x2" },
+        { "kind": "defender_vision_cone", "playerId": "x2", "targetId": "wing" },
+        { "kind": "help_pulse", "playerId": "x4", "role": "low_man" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "open_space_region", "anchor": { "x": 8, "z": 1 }, "radiusFt": 5 },
+        { "kind": "passing_lane_blocked", "from": "wing", "to": "user" },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "user",
+          "path": [
+            { "x": 22, "z": 2 },
+            { "x": 23, "z": 3 },
+            { "x": 6, "z": 1 },
+            { "x": 0, "z": 0.5 }
+          ]
+        }
+      ]
+    }
+  }
+]

@@ -1,0 +1,178 @@
+[
+  {
+    "id": "AOR-05",
+    "version": 1,
+    "status": "LIVE",
+    "title": "Attack the Closeout's Outside Hip",
+    "category": "OFFENSE",
+    "decoder_tag": "ADVANTAGE_OR_RESET",
+    "concept_tags": ["catch_and_read", "closeout_read"],
+    "sub_concepts": ["attack_outside_hip", "controlled_closeout_read"],
+    "difficulty": 3,
+    "user_role": "wing_shooter",
+    "game_context": "4-on-4 half-court shell. The point swings the ball to your wing. Your defender (x2) closes out under control but with chopped feet — feet square, hands up, but his outside hip and outside foot are slightly forward. He has cushion to one side and not the other.",
+    "possession_setup": "You are the right wing. The point swings the ball to you. Your defender (x2) closes out under control with hands high, but his outside foot (baseline foot) is forward and his inside foot (top foot) is back — he is overcommitting to the baseline drive.",
+    "decision_moment": "x2 has hands up, feet chopped, but his outside hip is leaning baseline. The cushion to the middle is one full step wider than the cushion to the baseline.",
+    "visible_cue": "x2's outside foot is forward, hips facing the baseline. His inside hand is lower than his outside hand. The middle (his blind side) has a wider cushion than the baseline.",
+    "court_state": {
+      "offense": [
+        { "id": "pg", "x": 240, "y": 140, "role": "ball_handler", "hasBall": true },
+        { "id": "user", "x": 430, "y": 80, "role": "wing_shooter", "hasBall": false },
+        { "id": "o3", "x": 70, "y": 90, "role": "weak_wing", "hasBall": false },
+        { "id": "o4", "x": 470, "y": 10, "role": "strong_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x1", "x": 240, "y": 160, "role": "on_ball", "hasBall": false },
+        { "id": "x2", "x": 405, "y": 95, "role": "wing_defender_overcommit_baseline", "hasBall": false },
+        { "id": "x3", "x": 100, "y": 100, "role": "weak_wing_defender", "hasBall": false },
+        { "id": "x4", "x": 440, "y": 30, "role": "low_man", "hasBall": false }
+      ],
+      "ball_location": { "x": 240, "y": 140 }
+    },
+    "prompt": "He closed out with his outside foot forward. The middle is wider.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Rip and drive middle past his outside hip.",
+        "quality": "best",
+        "feedback_text": "Best read. His outside foot is forward — he gave you the middle. Rip and drive his outside hip; the lane is open.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Catch and shoot it.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. The shot is real — the cushion is set — but the drive is the cleaner read. His stance gives away the side.",
+        "partial_feedback_text": "The shot is fine. The drive past his outside hip is the cleaner read.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Drive baseline at his front foot.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. His outside foot is forward — that's the side he's protecting. Driving baseline runs into his stance.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Pass it back to the point.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. You had a clear advantage on his outside hip. Passing back wastes the read.",
+        "order": 4
+      }
+    ],
+    "best_read": "Rip the ball through to the middle side and drive past x2's outside hip. His weight is going baseline — his recovery foot has to come up and around. By the time he reverses, you're past the elbow and the help has to commit.",
+    "acceptable_reads": [
+      "Catch and shoot — real shot if the cushion is set, but the drive past the outside hip is cleaner."
+    ],
+    "bad_reads": [
+      "Drive baseline at his front foot — runs into his stance.",
+      "Pass back — wastes the stance read."
+    ],
+    "common_miss_reason": "Players read the cushion (close vs far) but not the stance (which side the cushion is on). The cue is the front foot — when one foot is forward, the cushion is bigger on the other side.",
+    "why_best_read_works": "A defender's front foot tells you which side he is protecting. Driving the opposite side puts your body past his hip before he can reverse direction. The middle drive forces x4 to help, and that creates kickout reads — x_slot can't leave the slot, x3 can't leave the weak side without giving up another shot.",
+    "decoder_teaching_point": "Read the closeout's stance, not just the cushion. Drive the side opposite his front foot.",
+    "lesson_connection": "advantage-or-reset",
+    "feedback": {
+      "correct": "Good read. His outside foot was forward; you drove the middle past his hip.",
+      "partial": "The shot was real. Next time, look at his front foot — drive the opposite side.",
+      "wrong": "Watch his front foot. Drive the side opposite where his front foot is. He can't recover that way."
+    },
+    "self_review_checklist": [
+      "Did I see which foot was forward?",
+      "Did I rip to the opposite side?",
+      "Did I drive past his hip, not his chest?",
+      "Did I keep my eyes up to read the help?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-04T00:00:00.000Z",
+      "notes": "Attack the outside hip is universally taught at the advanced beginner level. Difficulty 3 because the cue is two body parts (foot + hip) and the read is which side, not whether to attack. Cluster fits beginner cap."
+    },
+    "source_research_basis": "Universally taught at every level; attacking the closeout's stance side is system-independent.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": ["AOR-01", "AOR-02"]
+    },
+    "explanation_md": "**Advantage or Reset — stance variant.** A balanced cushion is not always a balanced stance. When the closeout's outside foot is forward, the middle is wider than the baseline. Rip to the middle side and drive past his outside hip. Watch his front foot, not just the cushion.",
+    "xp_reward": 16,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "attack_outside_hip",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        { "id": "pg", "team": "offense", "role": "ball_handler", "label": "PG", "start": { "x": -8, "z": 14 }, "hasBall": true },
+        { "id": "user", "team": "offense", "role": "wing_shooter", "label": "You", "start": { "x": 16, "z": 9 }, "isUser": true },
+        { "id": "o3", "team": "offense", "role": "weak_wing", "label": "3", "start": { "x": -16, "z": 10 } },
+        { "id": "o4", "team": "offense", "role": "strong_corner", "label": "4", "start": { "x": 22, "z": 1 } },
+        { "id": "x1", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": -8, "z": 16 } },
+        { "id": "x2", "team": "defense", "role": "wing_defender_overcommit_baseline", "label": "x2", "start": { "x": 14, "z": 8 } },
+        { "id": "x3", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": -14, "z": 11 } },
+        { "id": "x4", "team": "defense", "role": "low_man", "label": "x4", "start": { "x": 20, "z": 3 } }
+      ],
+      "ball": { "start": { "x": -8, "z": 14 }, "holderId": "pg" },
+      "movements": [
+        { "id": "user_lift_to_catch", "playerId": "user", "kind": "lift", "to": { "x": 16, "z": 10 }, "delayMs": 0, "durationMs": 600 },
+        { "id": "pg_pass_to_wing", "playerId": "ball", "kind": "pass", "to": { "x": 16, "z": 10 }, "delayMs": 350, "durationMs": 700 },
+        { "id": "x2_overcommit_baseline", "playerId": "x2", "kind": "closeout", "to": { "x": 15, "z": 8 }, "delayMs": 350, "durationMs": 700 }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1500 },
+      "answerDemo": [
+        { "id": "user_catch_lift", "playerId": "user", "kind": "lift", "to": { "x": 16, "z": 10 }, "delayMs": 0, "durationMs": 200 },
+        { "id": "user_rip_middle", "playerId": "user", "kind": "rip", "to": { "x": 14, "z": 11 }, "delayMs": 50, "durationMs": 250 },
+        { "id": "user_drive_middle", "playerId": "user", "kind": "drive", "to": { "x": 4, "z": 6 }, "delayMs": 100, "durationMs": 700 },
+        { "id": "user_finish", "playerId": "user", "kind": "cut", "to": { "x": 0, "z": 0.5 }, "delayMs": 50, "durationMs": 350 }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You shot. The cushion was set — the shot was contested.",
+          "movements": [
+            { "id": "user_force_shot", "playerId": "user", "kind": "lift", "to": { "x": 16, "z": 10 }, "delayMs": 0, "durationMs": 300 },
+            { "id": "x2_contest_shot", "playerId": "x2", "kind": "rotation", "to": { "x": 15, "z": 9 }, "delayMs": 0, "durationMs": 300 }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You drove baseline. His stance walled it off.",
+          "movements": [
+            { "id": "user_drive_baseline", "playerId": "user", "kind": "drive", "to": { "x": 18, "z": 3 }, "delayMs": 0, "durationMs": 700 },
+            { "id": "x2_baseline_wall", "playerId": "x2", "kind": "stop_ball", "to": { "x": 17, "z": 4 }, "delayMs": 100, "durationMs": 600 }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You passed back. The advantage was wasted.",
+          "movements": [
+            { "id": "user_pass_back", "playerId": "ball", "kind": "pass", "to": { "x": -8, "z": 14 }, "delayMs": 0, "durationMs": 600 },
+            { "id": "x2_recover_set", "playerId": "x2", "kind": "closeout", "to": { "x": 14, "z": 9 }, "delayMs": 0, "durationMs": 500 }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "defender_foot_arrow", "playerId": "x2" },
+        { "kind": "defender_hip_arrow", "playerId": "x2" },
+        { "kind": "label", "anchor": { "x": 10, "z": 11 }, "text": "Middle is wider" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "open_space_region", "anchor": { "x": 8, "z": 7 }, "radiusFt": 4 },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "user",
+          "path": [
+            { "x": 16, "z": 9 },
+            { "x": 14, "z": 11 },
+            { "x": 4, "z": 6 },
+            { "x": 0, "z": 0.5 }
+          ]
+        },
+        { "kind": "timing_pulse", "anchor": { "x": 14, "z": 10 }, "durationMs": 500 }
+      ]
+    }
+  }
+]

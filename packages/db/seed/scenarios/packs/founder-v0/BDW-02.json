@@ -1,0 +1,177 @@
+[
+  {
+    "id": "BDW-02",
+    "version": 1,
+    "status": "LIVE",
+    "title": "Top-Lock Backdoor",
+    "category": "OFFENSE",
+    "decoder_tag": "BACKDOOR_WINDOW",
+    "concept_tags": ["off_ball_movement", "reading_denial"],
+    "sub_concepts": ["backdoor_cut", "top_lock_read"],
+    "difficulty": 1,
+    "user_role": "off_ball_wing",
+    "game_context": "4-on-4 half-court shell. Slot-to-slot ball reversal threatens, but your defender top-locks you above the wing — chest above the line, foot in front of you, blocking the up-pass to the wing.",
+    "possession_setup": "You are the right wing. The ball is at the right slot. Your defender (x2) cheats above your shoulder to top-lock the up-pass back out to you.",
+    "decision_moment": "x2 has hips opened toward the sideline, lead foot above your top foot, head turned to the ball.",
+    "visible_cue": "x2 is above you, not between you and the rim. The lane between your spot and the basket is empty.",
+    "court_state": {
+      "offense": [
+        { "id": "pg", "x": 320, "y": 130, "role": "ball_handler", "hasBall": true },
+        { "id": "user", "x": 430, "y": 80, "role": "off_ball_wing", "hasBall": false },
+        { "id": "o3", "x": 70, "y": 90, "role": "weak_wing", "hasBall": false },
+        { "id": "o4", "x": 470, "y": 10, "role": "strong_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x1", "x": 320, "y": 150, "role": "on_ball", "hasBall": false },
+        { "id": "x2", "x": 410, "y": 50, "role": "denying_wing_defender_top_lock", "hasBall": false },
+        { "id": "x3", "x": 100, "y": 100, "role": "weak_wing_defender", "hasBall": false },
+        { "id": "x4", "x": 440, "y": 30, "role": "low_man", "hasBall": false }
+      ],
+      "ball_location": { "x": 320, "y": 130 }
+    },
+    "prompt": "Your defender top-locked above you. The lane behind him is empty.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Backdoor cut to the front of the rim.",
+        "quality": "best",
+        "feedback_text": "Best read. He's above you to take away the up-pass. The basket is wide open behind him — cut to the rim.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Drift to the corner for a deeper catch.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. Drifting opens a corner pass, but you walked away from a clean layup the top-lock just gave you.",
+        "partial_feedback_text": "Drifting keeps spacing, but the better read was the empty rim behind the top-lock.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Fight up the lane and ask for the ball above him.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. He's above you for a reason. Fighting up walks into his chest and the top-lock wins.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Curl across the top to the other slot.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Cutting across the top lets x2 trail you and stays in front of x1's help. The lane behind him is the open one.",
+        "order": 4
+      }
+    ],
+    "best_read": "Plant the top foot, drop the shoulder, and back-cut behind x2 to the front of the rim. The passer leads you to the layup before x4 can rotate from the corner.",
+    "acceptable_reads": [
+      "Drift to the corner — keeps possession, but you traded a layup for a longer catch."
+    ],
+    "bad_reads": [
+      "Fight up to the wing — the top-lock wins; deflection or no-pass.",
+      "Curl across the top — x2 trails the curl and the cut runs into x1."
+    ],
+    "common_miss_reason": "Players treat top-lock the same as side-deny and try to fight to the assigned spot. The cue (defender above the line) flips: behind him is open, not above him.",
+    "why_best_read_works": "A top-lock means the defender is selling out to take the up-pass. He gives up the rim by definition — his chest is on the wrong side of the cut path. A backdoor punishes the very stance that took away the catch.",
+    "decoder_teaching_point": "When a defender plays above you, the basket is behind him. Cut behind him, not around him.",
+    "lesson_connection": "backdoor-window",
+    "feedback": {
+      "correct": "Good read. He played above you to kill the up-pass. The rim was open and you took it.",
+      "partial": "Drifting kept the play alive. Next time, look at where his chest is. If he's above you, the rim behind him is open.",
+      "wrong": "Watch his chest. If your defender is above the line of the ball, the basket is behind him. Cut there."
+    },
+    "self_review_checklist": [
+      "Did I see his chest above my top foot?",
+      "Did I plant and cut behind him, not around him?",
+      "Did I cut hard enough to beat the help?",
+      "Did I show my hands at the rim?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-04T00:00:00.000Z",
+      "notes": "Top-lock backdoor is universally taught at every level. Cue (defender above the line) is system-independent; cluster fits beginner cap (3 pre / 3 post)."
+    },
+    "source_research_basis": "Universally taught youth-level read; top-lock backdoor is system-independent.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": ["BDW-01"]
+    },
+    "explanation_md": "**The Backdoor Window — top-lock variant.** When a defender plays above the line of the ball, his chest is between you and the pass — not between you and the basket. Plant your top foot, drop your shoulder, and cut behind him to the rim. Show your hands. Watch his chest, not your spot.",
+    "xp_reward": 12,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "top_lock_backdoor",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        { "id": "pg", "team": "offense", "role": "ball_handler", "label": "PG", "start": { "x": 8, "z": 14 }, "hasBall": true },
+        { "id": "user", "team": "offense", "role": "off_ball_wing", "label": "You", "start": { "x": 19, "z": 8 }, "isUser": true },
+        { "id": "o3", "team": "offense", "role": "weak_wing", "label": "3", "start": { "x": -17, "z": 9 } },
+        { "id": "o4", "team": "offense", "role": "strong_corner", "label": "4", "start": { "x": 22, "z": 1 } },
+        { "id": "x1", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": 8, "z": 16 } },
+        { "id": "x2", "team": "defense", "role": "denying_wing_defender_top_lock", "label": "x2", "start": { "x": 17, "z": 12 } },
+        { "id": "x3", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": -15, "z": 10 } },
+        { "id": "x4", "team": "defense", "role": "low_man", "label": "x4", "start": { "x": 19, "z": 3 } }
+      ],
+      "ball": { "start": { "x": 8, "z": 14 }, "holderId": "pg" },
+      "movements": [
+        { "id": "user_set", "playerId": "user", "kind": "lift", "to": { "x": 19, "z": 9 }, "delayMs": 0, "durationMs": 500 },
+        { "id": "x2_top_lock", "playerId": "x2", "kind": "rotation", "to": { "x": 17, "z": 11 }, "delayMs": 200, "durationMs": 700 }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1400 },
+      "answerDemo": [
+        { "id": "user_plant", "playerId": "user", "kind": "jab", "to": { "x": 20, "z": 9 }, "delayMs": 0, "durationMs": 250 },
+        { "id": "user_back_cut", "playerId": "user", "kind": "back_cut", "to": { "x": 5, "z": 2 }, "delayMs": 100, "durationMs": 750 },
+        { "id": "pg_lead_pass", "playerId": "ball", "kind": "pass", "to": { "x": 4, "z": 2 }, "delayMs": 500, "durationMs": 600 },
+        { "id": "user_finish", "playerId": "user", "kind": "cut", "to": { "x": 0, "z": 0.5 }, "delayMs": 50, "durationMs": 350 }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You drifted to the corner. The pass came, but the layup was gone.",
+          "movements": [
+            { "id": "user_drift_corner", "playerId": "user", "kind": "drift", "to": { "x": 22, "z": 2 }, "delayMs": 0, "durationMs": 700 },
+            { "id": "pg_corner_pass", "playerId": "ball", "kind": "pass", "to": { "x": 22, "z": 2 }, "delayMs": 250, "durationMs": 500 }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You fought up the lane. The top-lock won.",
+          "movements": [
+            { "id": "user_fight_up", "playerId": "user", "kind": "lift", "to": { "x": 17, "z": 11 }, "delayMs": 0, "durationMs": 600 },
+            { "id": "x2_hold_lock", "playerId": "x2", "kind": "rotation", "to": { "x": 17, "z": 11 }, "delayMs": 0, "durationMs": 600 }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You curled across. x2 trailed the curl, x1 tagged it.",
+          "movements": [
+            { "id": "user_curl_across", "playerId": "user", "kind": "cut", "to": { "x": 0, "z": 8 }, "delayMs": 0, "durationMs": 700 },
+            { "id": "x2_trail_curl", "playerId": "x2", "kind": "rotation", "to": { "x": 2, "z": 9 }, "delayMs": 100, "durationMs": 600 }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "defender_chest_line", "playerId": "x2" },
+        { "kind": "defender_foot_arrow", "playerId": "x2" },
+        { "kind": "defender_vision_cone", "playerId": "x2", "targetId": "pg" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "open_space_region", "anchor": { "x": 5, "z": 3 }, "radiusFt": 4 },
+        { "kind": "passing_lane_blocked", "from": "pg", "to": "user" },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "user",
+          "path": [
+            { "x": 19, "z": 8 },
+            { "x": 20, "z": 9 },
+            { "x": 5, "z": 2 },
+            { "x": 0, "z": 0.5 }
+          ]
+        }
+      ]
+    }
+  }
+]

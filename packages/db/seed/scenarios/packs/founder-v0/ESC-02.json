@@ -1,0 +1,176 @@
+[
+  {
+    "id": "ESC-02",
+    "version": 1,
+    "status": "LIVE",
+    "title": "Dunker-Spot Fill on Stunt",
+    "category": "OFFENSE",
+    "decoder_tag": "EMPTY_SPACE_CUT",
+    "concept_tags": ["off_ball_movement", "reading_help"],
+    "sub_concepts": ["empty_space_cut", "dunker_fill", "stunt_read"],
+    "difficulty": 1,
+    "user_role": "strong_wing_filler",
+    "game_context": "4-on-4 half-court shell. The point drives middle from the slot. Your defender stunts at the ball — one hard step into the lane to dig at the drive — leaving the dunker spot empty.",
+    "possession_setup": "You are the strong-side wing. The point is driving middle. Your defender (x2) stunts at the ball with a hard dig, hips and chest turned to the drive.",
+    "decision_moment": "x2 has stunted into the paint. His hips are turned to the ball and his back foot is off the floor. The dunker spot below the ball is empty.",
+    "visible_cue": "x2 has both hands at the ball, head turned to the drive, feet inside the lane line. The strip from your wing down to the strong-side dunker spot has no defender in it.",
+    "court_state": {
+      "offense": [
+        { "id": "pg", "x": 240, "y": 130, "role": "ball_handler", "hasBall": true },
+        { "id": "user", "x": 430, "y": 80, "role": "strong_wing_filler", "hasBall": false },
+        { "id": "o3", "x": 70, "y": 90, "role": "weak_wing", "hasBall": false },
+        { "id": "o4", "x": 30, "y": 10, "role": "weak_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x1", "x": 240, "y": 150, "role": "on_ball", "hasBall": false },
+        { "id": "x2", "x": 360, "y": 50, "role": "wing_help_stunter", "hasBall": false },
+        { "id": "x3", "x": 100, "y": 100, "role": "weak_wing_defender", "hasBall": false },
+        { "id": "x4", "x": 70, "y": 30, "role": "weak_corner_low_man", "hasBall": false }
+      ],
+      "ball_location": { "x": 240, "y": 130 }
+    },
+    "prompt": "Your defender stunted at the ball. The dunker spot is empty.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Cut to the dunker spot below the ball.",
+        "quality": "best",
+        "feedback_text": "Best read. He stunted at the ball and left you. Slide to the dunker spot — the dump-off pass arrives before he can recover.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Slide along the arc to the strong corner.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. The corner relocation keeps spacing, but you traded a layup for a 22-footer.",
+        "partial_feedback_text": "Corner relocation is fine, but the dunker fill was a layup.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Stay at your wing and call for the kickout.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. The kickout works, but you ignored the easy dump-off in the dunker spot. Standing still also lets x2 recover.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Cut up the lane line into the rim.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Cutting up the lane runs into x1 and the drive — you'll collide with the ball-handler.",
+        "order": 4
+      }
+    ],
+    "best_read": "Slide along the baseline into the dunker spot below the ball. The point reads the stunt and dumps the ball off as he gets stopped — the layup arrives before x2 can recover from the dig.",
+    "acceptable_reads": [
+      "Slide to the strong corner — keeps spacing alive but trades a layup for a long shot."
+    ],
+    "bad_reads": [
+      "Stand still — x2 recovers and the wing kickout is contested.",
+      "Cut up the lane line — collides with the drive."
+    ],
+    "common_miss_reason": "Wings think 'kickout' as soon as they see the drive. The cue here is the stunt — when the defender moves at the ball, the relocation toward the rim is open before any kickout.",
+    "why_best_read_works": "A stunt commits weight forward and away from the assignment. The dunker spot below the ball is the closest empty area — closer than the corner, closer than the elbow. The dump-off is a 6 ft pass against a defender whose chest is facing the wrong way.",
+    "decoder_teaching_point": "When your defender stunts at the ball, the dunker spot below you is empty. Fill it.",
+    "lesson_connection": "empty-space-cut",
+    "feedback": {
+      "correct": "Good read. He stunted; you filled the dunker spot and got the dump-off layup.",
+      "partial": "Corner relocation kept the play alive. Next time, look at his weight — if he stunts at the ball, the dunker spot is yours.",
+      "wrong": "Watch his hips. If he digs at the ball, the space below you is open. Fill the dunker spot."
+    },
+    "self_review_checklist": [
+      "Did I see his hips turn to the ball?",
+      "Did I slide low, not high?",
+      "Did I show my hands below the rim?",
+      "Did I call for the dump-off?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-04T00:00:00.000Z",
+      "notes": "Dunker-spot fill on stunt is universally taught. Cluster fits beginner cap (3 pre / 3 post)."
+    },
+    "source_research_basis": "Universally taught youth read; dunker-spot fill against a wing stunt is system-independent.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": ["ESC-01"]
+    },
+    "explanation_md": "**Empty-Space Cut — dunker-spot variant.** When your defender stunts at the ball, his weight is forward and his hips are off you. The dunker spot below you is the closest empty area on the floor. Slide low along the baseline. Show your hands. Watch his hips, not the ball.",
+    "xp_reward": 12,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "dunker_fill_on_stunt",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        { "id": "pg", "team": "offense", "role": "ball_handler", "label": "PG", "start": { "x": 0, "z": 14 }, "hasBall": true },
+        { "id": "user", "team": "offense", "role": "strong_wing_filler", "label": "You", "start": { "x": 18, "z": 8 }, "isUser": true },
+        { "id": "o3", "team": "offense", "role": "weak_wing", "label": "3", "start": { "x": -16, "z": 9 } },
+        { "id": "o4", "team": "offense", "role": "weak_corner", "label": "4", "start": { "x": -22, "z": 1 } },
+        { "id": "x1", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": 0, "z": 16 } },
+        { "id": "x2", "team": "defense", "role": "wing_help_stunter", "label": "x2", "start": { "x": 12, "z": 5 } },
+        { "id": "x3", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": -14, "z": 11 } },
+        { "id": "x4", "team": "defense", "role": "weak_corner_low_man", "label": "x4", "start": { "x": -19, "z": 3 } }
+      ],
+      "ball": { "start": { "x": 0, "z": 14 }, "holderId": "pg" },
+      "movements": [
+        { "id": "user_set", "playerId": "user", "kind": "lift", "to": { "x": 18, "z": 9 }, "delayMs": 0, "durationMs": 500 },
+        { "id": "pg_drive_middle", "playerId": "pg", "kind": "drive", "to": { "x": 4, "z": 8 }, "delayMs": 0, "durationMs": 800 },
+        { "id": "x2_stunt", "playerId": "x2", "kind": "rotation", "to": { "x": 8, "z": 6 }, "delayMs": 250, "durationMs": 700 }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1500 },
+      "answerDemo": [
+        { "id": "user_slide_baseline", "playerId": "user", "kind": "cut", "to": { "x": 8, "z": 2 }, "delayMs": 0, "durationMs": 600 },
+        { "id": "pg_dump_off", "playerId": "ball", "kind": "pass", "to": { "x": 6, "z": 2 }, "delayMs": 350, "durationMs": 450 },
+        { "id": "user_finish", "playerId": "user", "kind": "cut", "to": { "x": 0, "z": 0.5 }, "delayMs": 50, "durationMs": 350 }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You slid to the corner. The kickout came; the layup is gone.",
+          "movements": [
+            { "id": "user_corner_slide", "playerId": "user", "kind": "drift", "to": { "x": 22, "z": 1 }, "delayMs": 0, "durationMs": 700 },
+            { "id": "pg_corner_kickout", "playerId": "ball", "kind": "pass", "to": { "x": 22, "z": 1 }, "delayMs": 250, "durationMs": 500 }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You stayed put. x2 recovered before the kickout.",
+          "movements": [
+            { "id": "x2_recover_to_wing", "playerId": "x2", "kind": "rotation", "to": { "x": 16, "z": 9 }, "delayMs": 0, "durationMs": 600 },
+            { "id": "pg_late_kickout", "playerId": "ball", "kind": "pass", "to": { "x": 18, "z": 8 }, "delayMs": 200, "durationMs": 500 }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You cut up the lane and ran into the drive.",
+          "movements": [
+            { "id": "user_cut_lane_line", "playerId": "user", "kind": "cut", "to": { "x": 5, "z": 6 }, "delayMs": 0, "durationMs": 600 },
+            { "id": "pg_collision_path", "playerId": "pg", "kind": "drive", "to": { "x": 5, "z": 6 }, "delayMs": 0, "durationMs": 600 }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "defender_hip_arrow", "playerId": "x2" },
+        { "kind": "defender_vision_cone", "playerId": "x2", "targetId": "pg" },
+        { "kind": "help_pulse", "playerId": "x2", "role": "stunter" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "open_space_region", "anchor": { "x": 8, "z": 2 }, "radiusFt": 4 },
+        { "kind": "passing_lane_open", "from": "pg", "to": "user" },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "user",
+          "path": [
+            { "x": 18, "z": 8 },
+            { "x": 8, "z": 2 },
+            { "x": 0, "z": 0.5 }
+          ]
+        }
+      ]
+    }
+  }
+]

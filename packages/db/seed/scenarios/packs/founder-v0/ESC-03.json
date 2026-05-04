@@ -1,0 +1,177 @@
+[
+  {
+    "id": "ESC-03",
+    "version": 1,
+    "status": "LIVE",
+    "title": "45-Cut on Help Turn",
+    "category": "OFFENSE",
+    "decoder_tag": "EMPTY_SPACE_CUT",
+    "concept_tags": ["off_ball_movement", "reading_help"],
+    "sub_concepts": ["empty_space_cut", "forty_five_cut", "help_turn_read"],
+    "difficulty": 1,
+    "user_role": "weak_wing_cutter",
+    "game_context": "4-on-4 half-court shell. The strong-side wing drives middle. Your defender (x3) is on the weak-side wing and turns his hips toward the ball to be in help position. The 45° lane between your wing and the rim opens.",
+    "possession_setup": "You are the weak-side wing. The strong wing has the ball and is driving middle. Your defender (x3) turns his hips and chest to the ball — he is in help position with his back partially to you.",
+    "decision_moment": "x3's hips are facing the ball and his chest is no longer between you and the rim. The 45° lane from your wing to the front of the rim is empty.",
+    "visible_cue": "x3 has feet split-stance with the lead foot toward the ball, head turned to the drive, chest off you. The diagonal line from your wing to the rim has no defender on it.",
+    "court_state": {
+      "offense": [
+        { "id": "wing", "x": 410, "y": 80, "role": "ball_handler", "hasBall": true },
+        { "id": "user", "x": 70, "y": 80, "role": "weak_wing_cutter", "hasBall": false },
+        { "id": "o3", "x": 240, "y": 130, "role": "trail_slot", "hasBall": false },
+        { "id": "o4", "x": 30, "y": 10, "role": "weak_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x_wing", "x": 410, "y": 100, "role": "on_ball", "hasBall": false },
+        { "id": "x3", "x": 130, "y": 90, "role": "weak_wing_help_turn", "hasBall": false },
+        { "id": "x_slot", "x": 240, "y": 150, "role": "slot_defender", "hasBall": false },
+        { "id": "x4", "x": 60, "y": 30, "role": "weak_corner_low_man", "hasBall": false }
+      ],
+      "ball_location": { "x": 410, "y": 80 }
+    },
+    "prompt": "Your defender turned his hips to the ball. The 45° lane is empty.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "45° cut to the front of the rim.",
+        "quality": "best",
+        "feedback_text": "Best read. He turned his hips. The 45° lane is empty — cut to the rim and the wing finds you on the drive.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Lift to the top of the key for a swing pass.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. The swing keeps spacing, but you walked away from a clean cut to the rim.",
+        "partial_feedback_text": "Lifting to the top is fine spacing. The cleaner read was the empty 45° lane.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Stay on the weak wing and call for the skip pass.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. The skip is fine when your defender doesn't turn — but he turned. The 45° cut beats the skip.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Cut to the strong-side corner.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Cutting strong-side runs into the drive and the help. The empty space is on your side, not the ball's side.",
+        "order": 4
+      }
+    ],
+    "best_read": "Plant the outside foot and cut at 45° to the front of the rim. The wing reads the cut and pockets a one-handed pass before x4 can rotate from the weak corner.",
+    "acceptable_reads": [
+      "Lift to the top of the key — keeps the swing alive, but trades a layup for a longer pass."
+    ],
+    "bad_reads": [
+      "Stay on the weak wing — defender recovers; skip is contested.",
+      "Cut to the strong corner — runs into the drive."
+    ],
+    "common_miss_reason": "Weak-wing players default to spotting up for the skip pass. The cue is the help turn — once the defender's hips are off you, the cut is a layup, not a 25-foot skip.",
+    "why_best_read_works": "When x3 turns his hips to help, his recovery foot is the back foot. The 45° cut covers 12 ft of court while x3 has to flip hips and accelerate back — he is two beats behind the cutter. x4 rotates up but he starts in the weak corner, so the rotation arrives late.",
+    "decoder_teaching_point": "When your defender turns his hips to help, the 45° lane to the rim is yours. Cut, don't lift.",
+    "lesson_connection": "empty-space-cut",
+    "feedback": {
+      "correct": "Good read. He turned to help; you cut at 45° and finished at the rim.",
+      "partial": "Lifting kept spacing. Next time, look at his hips — if they turn to the ball, cut to the rim.",
+      "wrong": "Watch his hips. If they turn to the ball, the 45° lane behind him is open. Cut, don't stand."
+    },
+    "self_review_checklist": [
+      "Did I see his hips turn to the ball?",
+      "Did I plant my outside foot and cut at 45°?",
+      "Did I aim for the rim, not the elbow?",
+      "Did I show my hands at the rim?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-04T00:00:00.000Z",
+      "notes": "45-cut on help turn is universally taught. Cluster fits beginner cap (3 pre / 3 post)."
+    },
+    "source_research_basis": "Universally taught youth read; 45-cut against help turn is system-independent.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": ["ESC-01"]
+    },
+    "explanation_md": "**Empty-Space Cut — 45° variant.** When your defender turns his hips to help on the ball, his back is partially to you. The 45° lane from your wing to the rim is empty. Plant your outside foot and cut to the rim. Show your hands at the front of the rim. Watch his hips, not the ball.",
+    "xp_reward": 12,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "forty_five_cut_on_help_turn",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        { "id": "wing", "team": "offense", "role": "ball_handler", "label": "SG", "start": { "x": 17, "z": 9 }, "hasBall": true },
+        { "id": "user", "team": "offense", "role": "weak_wing_cutter", "label": "You", "start": { "x": -17, "z": 9 }, "isUser": true },
+        { "id": "o3", "team": "offense", "role": "trail_slot", "label": "3", "start": { "x": 0, "z": 14 } },
+        { "id": "o4", "team": "offense", "role": "weak_corner", "label": "4", "start": { "x": -22, "z": 1 } },
+        { "id": "x_wing", "team": "defense", "role": "on_ball", "label": "xW", "start": { "x": 17, "z": 11 } },
+        { "id": "x3", "team": "defense", "role": "weak_wing_help_turn", "label": "x3", "start": { "x": -11, "z": 10 } },
+        { "id": "x_slot", "team": "defense", "role": "slot_defender", "label": "xS", "start": { "x": 0, "z": 16 } },
+        { "id": "x4", "team": "defense", "role": "weak_corner_low_man", "label": "x4", "start": { "x": -19, "z": 3 } }
+      ],
+      "ball": { "start": { "x": 17, "z": 9 }, "holderId": "wing" },
+      "movements": [
+        { "id": "user_set", "playerId": "user", "kind": "lift", "to": { "x": -17, "z": 10 }, "delayMs": 0, "durationMs": 500 },
+        { "id": "wing_drive_middle", "playerId": "wing", "kind": "drive", "to": { "x": 8, "z": 8 }, "delayMs": 0, "durationMs": 800 },
+        { "id": "x3_help_turn", "playerId": "x3", "kind": "rotation", "to": { "x": -7, "z": 8 }, "delayMs": 250, "durationMs": 750 }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1500 },
+      "answerDemo": [
+        { "id": "user_plant", "playerId": "user", "kind": "jab", "to": { "x": -17, "z": 11 }, "delayMs": 0, "durationMs": 250 },
+        { "id": "user_cut_rim", "playerId": "user", "kind": "cut", "to": { "x": -3, "z": 2 }, "delayMs": 100, "durationMs": 700 },
+        { "id": "wing_pocket_pass", "playerId": "ball", "kind": "pass", "to": { "x": -3, "z": 2 }, "delayMs": 400, "durationMs": 600 },
+        { "id": "user_finish", "playerId": "user", "kind": "cut", "to": { "x": 0, "z": 0.5 }, "delayMs": 50, "durationMs": 350 }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You lifted to the top. The swing came; the layup is gone.",
+          "movements": [
+            { "id": "user_lift_top", "playerId": "user", "kind": "lift", "to": { "x": -2, "z": 18 }, "delayMs": 0, "durationMs": 600 },
+            { "id": "wing_swing_pass", "playerId": "ball", "kind": "pass", "to": { "x": -2, "z": 18 }, "delayMs": 250, "durationMs": 500 }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You stayed wide. x3 recovered to your wing before the skip arrived.",
+          "movements": [
+            { "id": "x3_recover_to_wing", "playerId": "x3", "kind": "rotation", "to": { "x": -15, "z": 10 }, "delayMs": 0, "durationMs": 600 },
+            { "id": "wing_skip_pass", "playerId": "ball", "kind": "skip_pass", "to": { "x": -17, "z": 9 }, "delayMs": 200, "durationMs": 600 }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You cut strong-side. You collided with the drive.",
+          "movements": [
+            { "id": "user_strong_cut", "playerId": "user", "kind": "cut", "to": { "x": 14, "z": 2 }, "delayMs": 0, "durationMs": 700 },
+            { "id": "x_wing_help_meet", "playerId": "x_wing", "kind": "rotation", "to": { "x": 12, "z": 4 }, "delayMs": 100, "durationMs": 600 }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "defender_hip_arrow", "playerId": "x3" },
+        { "kind": "defender_vision_cone", "playerId": "x3", "targetId": "wing" },
+        { "kind": "help_pulse", "playerId": "x3", "role": "tag" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "open_space_region", "anchor": { "x": -3, "z": 4 }, "radiusFt": 5 },
+        { "kind": "passing_lane_open", "from": "wing", "to": "user" },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "user",
+          "path": [
+            { "x": -17, "z": 9 },
+            { "x": -3, "z": 2 },
+            { "x": 0, "z": 0.5 }
+          ]
+        }
+      ]
+    }
+  }
+]

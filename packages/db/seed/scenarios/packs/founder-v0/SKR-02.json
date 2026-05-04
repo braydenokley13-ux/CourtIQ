@@ -1,0 +1,168 @@
+[
+  {
+    "id": "SKR-02",
+    "version": 1,
+    "status": "LIVE",
+    "title": "Wing Drive Skip to Weak Wing",
+    "category": "OFFENSE",
+    "decoder_tag": "SKIP_THE_ROTATION",
+    "concept_tags": ["passing", "reading_help"],
+    "sub_concepts": ["skip_pass", "weak_side_advantage", "wing_drive_read"],
+    "difficulty": 2,
+    "user_role": "ball_handler",
+    "game_context": "4-on-4 half-court shell. You drive baseline from the right wing. The weak-side wing defender (x3) sinks two steps into the lane to help on the rim — the weak-side wing shooter is now alone.",
+    "possession_setup": "You are the strong-side wing with the ball. You attack baseline. The weak-side wing defender (x3) sinks to wall up — feet inside the lane line, hand out, chest to the ball.",
+    "decision_moment": "x3 has sunk into the lane. His feet are inside the lane line, his chest is to you, and his back is partially to o3. The weak-side wing has no defender within 12 ft.",
+    "visible_cue": "x3 has feet in the paint, chest to the ball, head turned to your drive. o3 on the weak wing is alone — no defender in his airspace.",
+    "court_state": {
+      "offense": [
+        { "id": "user", "x": 410, "y": 80, "role": "ball_handler", "hasBall": true },
+        { "id": "o2", "x": 470, "y": 10, "role": "strong_corner", "hasBall": false },
+        { "id": "o3", "x": 70, "y": 80, "role": "weak_wing_shooter", "hasBall": false },
+        { "id": "o4", "x": 30, "y": 10, "role": "weak_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x1", "x": 410, "y": 100, "role": "on_ball", "hasBall": false },
+        { "id": "x2", "x": 440, "y": 30, "role": "strong_corner_defender", "hasBall": false },
+        { "id": "x3", "x": 200, "y": 50, "role": "weak_wing_help_defender", "hasBall": false },
+        { "id": "x4", "x": 60, "y": 30, "role": "weak_corner_low_man", "hasBall": false }
+      ],
+      "ball_location": { "x": 410, "y": 80 }
+    },
+    "prompt": "The weak-side wing defender sank to help. The weak wing is open.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Skip pass to the weak-side wing.",
+        "quality": "best",
+        "feedback_text": "Best read. x3 left the wing to wall up. Skip the rotation — your shooter has a clean catch and shot.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Kick to the weak-side corner.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. The weak corner is also open, but x4 is closer to the corner than x3 is to the wing — the wing is the cleaner shot.",
+        "partial_feedback_text": "Corner kick keeps the advantage. The wing is the cleaner shot — x3's recovery is the longest.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Force a layup over the help.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Two defenders are between you and the rim. The shot is contested when an open shooter is one pass away.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Pass to the strong-side corner.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. The strong corner is still guarded by x2. You passed to the only side the defense kept covered.",
+        "order": 4
+      }
+    ],
+    "best_read": "Pivot off the inside foot, find o3 on the weak wing, and skip the ball over the top. The shot goes up before x3 can closeout 18 feet of court.",
+    "acceptable_reads": [
+      "Kick to the weak-side corner — also open, but the closeout from x4 is shorter than x3's recovery to the wing."
+    ],
+    "bad_reads": [
+      "Force the layup — two defenders in the lane.",
+      "Pass to the strong corner — the only side still covered."
+    ],
+    "common_miss_reason": "Drivers commit to the rim and only see strong-side options. The cue is the weak-side help — once x3 sinks, the weak wing is the longest closeout on the floor.",
+    "why_best_read_works": "x3 has sunk to help. The skip-pass takes ~0.5s; x3's recovery to the weak wing is 18 ft of court — about 2s. The math is in the offense's favor before the pass leaves your hand. x4 cannot leave the corner without giving up the corner shot.",
+    "decoder_teaching_point": "When the weak-side wing defender sinks to help, the wing is the longest closeout. Skip past the help.",
+    "lesson_connection": "skip-the-rotation",
+    "feedback": {
+      "correct": "Good read. He sank to help; you skipped past the rotation and the shot was clean.",
+      "partial": "Corner kick keeps the advantage alive. Next time, look for the longest closeout — the wing is further from the help than the corner.",
+      "wrong": "Look at where the help came from. When the weak-side wing defender sinks, the weak wing is open. Skip past the help."
+    },
+    "self_review_checklist": [
+      "Did I see the weak-side wing defender sink?",
+      "Did I find the longest closeout?",
+      "Did I throw the skip with one motion?",
+      "Did my shooter catch in shooting pocket?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-04T00:00:00.000Z",
+      "notes": "Skip to weak wing on wing-drive help is universally taught. Difficulty 2 because the user is the passer (on-ball read with execution). Cluster fits beginner cap."
+    },
+    "source_research_basis": "Universally taught youth read; skip-the-rotation against wing-drive help is system-independent.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": ["SKR-01"]
+    },
+    "explanation_md": "**Skip the Rotation — wing-drive variant.** When you drive baseline from the wing, the weak-side wing defender often sinks to wall up. That leaves the weak wing alone. Pivot off the inside foot and skip the ball over the top to the wing. The skip pass beats the recovery — the math favors the offense before the ball leaves your hand.",
+    "xp_reward": 14,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "wing_drive_skip_to_weak_wing",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        { "id": "user", "team": "offense", "role": "ball_handler", "label": "You", "start": { "x": 17, "z": 9 }, "isUser": true, "hasBall": true },
+        { "id": "o2", "team": "offense", "role": "strong_corner", "label": "2", "start": { "x": 22, "z": 1 } },
+        { "id": "o3", "team": "offense", "role": "weak_wing_shooter", "label": "3", "start": { "x": -17, "z": 9 } },
+        { "id": "o4", "team": "offense", "role": "weak_corner", "label": "4", "start": { "x": -22, "z": 1 } },
+        { "id": "x1", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": 17, "z": 11 } },
+        { "id": "x2", "team": "defense", "role": "strong_corner_defender", "label": "x2", "start": { "x": 19, "z": 3 } },
+        { "id": "x3", "team": "defense", "role": "weak_wing_help_defender", "label": "x3", "start": { "x": -4, "z": 5 } },
+        { "id": "x4", "team": "defense", "role": "weak_corner_low_man", "label": "x4", "start": { "x": -19, "z": 3 } }
+      ],
+      "ball": { "start": { "x": 17, "z": 9 }, "holderId": "user" },
+      "movements": [
+        { "id": "user_drive_baseline", "playerId": "user", "kind": "drive", "to": { "x": 14, "z": 4 }, "delayMs": 0, "durationMs": 800 },
+        { "id": "x1_recover", "playerId": "x1", "kind": "stop_ball", "to": { "x": 13, "z": 6 }, "delayMs": 100, "durationMs": 750 },
+        { "id": "x3_sink_help", "playerId": "x3", "kind": "rotation", "to": { "x": 0, "z": 4 }, "delayMs": 250, "durationMs": 750 }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1500 },
+      "answerDemo": [
+        { "id": "user_pivot_skip", "playerId": "user", "kind": "jab", "to": { "x": 14, "z": 5 }, "delayMs": 0, "durationMs": 250 },
+        { "id": "skip_to_weak_wing", "playerId": "ball", "kind": "skip_pass", "to": { "x": -17, "z": 9 }, "delayMs": 200, "durationMs": 700 },
+        { "id": "o3_catch_and_shoot", "playerId": "o3", "kind": "lift", "to": { "x": -17, "z": 9 }, "delayMs": 50, "durationMs": 300 }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You kicked to the corner. x4 closed out before the shot.",
+          "movements": [
+            { "id": "corner_kick", "playerId": "ball", "kind": "pass", "to": { "x": -22, "z": 1 }, "delayMs": 0, "durationMs": 600 },
+            { "id": "x4_closeout_corner", "playerId": "x4", "kind": "closeout", "to": { "x": -20, "z": 2 }, "delayMs": 200, "durationMs": 500 }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You forced the layup. Two defenders contested.",
+          "movements": [
+            { "id": "user_force_drive", "playerId": "user", "kind": "drive", "to": { "x": 4, "z": 2 }, "delayMs": 0, "durationMs": 700 },
+            { "id": "x3_meet_drive", "playerId": "x3", "kind": "stop_ball", "to": { "x": 4, "z": 4 }, "delayMs": 100, "durationMs": 500 }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You passed to the only covered side.",
+          "movements": [
+            { "id": "strong_corner_pass", "playerId": "ball", "kind": "pass", "to": { "x": 22, "z": 1 }, "delayMs": 0, "durationMs": 600 },
+            { "id": "x2_contest_corner", "playerId": "x2", "kind": "closeout", "to": { "x": 21, "z": 2 }, "delayMs": 100, "durationMs": 500 }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "defender_chest_line", "playerId": "x3" },
+        { "kind": "help_pulse", "playerId": "x3", "role": "overhelp" },
+        { "kind": "defender_vision_cone", "playerId": "x3", "targetId": "user" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "passing_lane_open", "from": "user", "to": "o3" },
+        { "kind": "open_space_region", "anchor": { "x": -17, "z": 9 }, "radiusFt": 5 },
+        { "kind": "label", "anchor": { "x": -8, "z": 7 }, "text": "Longest closeout" }
+      ]
+    }
+  }
+]

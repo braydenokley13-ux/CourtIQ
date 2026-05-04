@@ -1,0 +1,167 @@
+[
+  {
+    "id": "AOR-03",
+    "version": 1,
+    "status": "LIVE",
+    "title": "No Advantage — Reset",
+    "category": "OFFENSE",
+    "decoder_tag": "ADVANTAGE_OR_RESET",
+    "concept_tags": ["catch_and_read", "closeout_read", "shot_selection"],
+    "sub_concepts": ["reset_decision", "no_advantage_read"],
+    "difficulty": 2,
+    "user_role": "wing_shooter",
+    "game_context": "4-on-4 half-court shell. Ball reverses to your wing on a slow swing. Your defender (x2) was in stance and closes out under control — feet chopped, hands up, cushion at the catch.",
+    "possession_setup": "You are the right wing. The ball reverses on a slow, walking pass. Your defender (x2) is in stance the whole time and arrives with the catch — chopped feet, hands up, balanced.",
+    "decision_moment": "x2 is set in front of you. His feet are chopped, his hands are up at shoulder height, his cushion is one arm's length. He has no momentum advantage either way.",
+    "visible_cue": "x2 has feet shoulder-width with both heels on the floor. Hands at shoulder height. Cushion is one arm's length — close enough to contest, far enough that he can slide either way.",
+    "court_state": {
+      "offense": [
+        { "id": "pg", "x": 240, "y": 140, "role": "ball_handler", "hasBall": true },
+        { "id": "user", "x": 430, "y": 80, "role": "wing_shooter", "hasBall": false },
+        { "id": "o3", "x": 70, "y": 90, "role": "weak_wing", "hasBall": false },
+        { "id": "o4", "x": 470, "y": 10, "role": "strong_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x1", "x": 240, "y": 160, "role": "on_ball", "hasBall": false },
+        { "id": "x2", "x": 410, "y": 95, "role": "wing_defender_set_closeout", "hasBall": false },
+        { "id": "x3", "x": 100, "y": 100, "role": "weak_wing_defender", "hasBall": false },
+        { "id": "x4", "x": 440, "y": 30, "role": "low_man", "hasBall": false }
+      ],
+      "ball_location": { "x": 240, "y": 140 }
+    },
+    "prompt": "He closed out under control. No clear advantage either way.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Reset — swing the ball back to the point.",
+        "quality": "best",
+        "feedback_text": "Best read. No advantage either way. Reset, run another action — don't take a contested mid-range shot.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Drive at his front foot to test the cushion.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. A controlled drive can produce a kickout if he slides. The reset is cleaner — no defender to beat, just rerun the action.",
+        "partial_feedback_text": "A controlled drive can work. The reset is cleaner — no defender to beat.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Force a contested three.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. He has hands up and cushion — the shot is contested. A contested three is a worse shot than a swing that gets a clean one.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Hold and pump fake.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. The pump fake works against momentum, but he is balanced — he won't bite. The pause gives x4 time to load.",
+        "order": 4
+      }
+    ],
+    "best_read": "Pivot off the inside foot and swing the ball back to the point. The defense gets to reset, but so do you — the next read might be a backdoor, a screen, or a better closeout. A neutral catch is not a shot opportunity.",
+    "acceptable_reads": [
+      "Drive at his front foot — produces a kickout if he commits, but the reset is cleaner."
+    ],
+    "bad_reads": [
+      "Force a contested three — bad shot when a swing produces a better one.",
+      "Hold and pump fake — he is balanced; the fake doesn't move him."
+    ],
+    "common_miss_reason": "Players think 'open catch = shot.' The cue is the closeout: when the defender is set with cushion, the catch is not a shot opportunity. The advantage is what creates the shot, not the catch.",
+    "why_best_read_works": "A neutral catch produces a neutral shot. The reset gives the offense a fresh action — a screen, a backdoor, a different closeout. Two seconds of patience often produces a better shot than the first one offered. Modern offense is built on multiple actions per possession, not the first look.",
+    "decoder_teaching_point": "If the closeout is set and you have no advantage, reset. The advantage creates the shot, not the catch.",
+    "lesson_connection": "advantage-or-reset",
+    "feedback": {
+      "correct": "Good read. No advantage either way. You reset and the offense ran another action.",
+      "partial": "Driving the front foot can work. The reset was cleaner — no defender to beat.",
+      "wrong": "Look at his stance. If he is set with cushion, the catch is not a shot. Reset and run another action."
+    },
+    "self_review_checklist": [
+      "Did I see his feet were chopped, not flying?",
+      "Did I see the cushion was set, not closed?",
+      "Did I have any way to attack without the advantage?",
+      "Did I reset before the shot clock pressed?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-04T00:00:00.000Z",
+      "notes": "Reset on no-advantage closeout is universally taught. Difficulty 2 because the absence of a cue is a cue (negative read). Cluster fits beginner cap."
+    },
+    "source_research_basis": "Universally taught at every level; reset on a set closeout is system-independent.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": ["AOR-01"]
+    },
+    "explanation_md": "**Advantage or Reset — reset variant.** A balanced closeout means no advantage. The catch is not a shot opportunity. Swing the ball, run another action, find a better closeout. The advantage creates the shot — not the catch.",
+    "xp_reward": 12,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "no_advantage_reset",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        { "id": "pg", "team": "offense", "role": "ball_handler", "label": "PG", "start": { "x": -8, "z": 14 }, "hasBall": true },
+        { "id": "user", "team": "offense", "role": "wing_shooter", "label": "You", "start": { "x": 16, "z": 9 }, "isUser": true },
+        { "id": "o3", "team": "offense", "role": "weak_wing", "label": "3", "start": { "x": -16, "z": 10 } },
+        { "id": "o4", "team": "offense", "role": "strong_corner", "label": "4", "start": { "x": 22, "z": 1 } },
+        { "id": "x1", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": -8, "z": 16 } },
+        { "id": "x2", "team": "defense", "role": "wing_defender_set_closeout", "label": "x2", "start": { "x": 14, "z": 10 } },
+        { "id": "x3", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": -14, "z": 11 } },
+        { "id": "x4", "team": "defense", "role": "low_man", "label": "x4", "start": { "x": 20, "z": 3 } }
+      ],
+      "ball": { "start": { "x": -8, "z": 14 }, "holderId": "pg" },
+      "movements": [
+        { "id": "user_lift_to_catch", "playerId": "user", "kind": "lift", "to": { "x": 16, "z": 10 }, "delayMs": 0, "durationMs": 600 },
+        { "id": "pg_pass_to_wing", "playerId": "ball", "kind": "pass", "to": { "x": 16, "z": 10 }, "delayMs": 350, "durationMs": 700 },
+        { "id": "x2_set_closeout", "playerId": "x2", "kind": "closeout", "to": { "x": 14, "z": 9 }, "delayMs": 350, "durationMs": 700 }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1500 },
+      "answerDemo": [
+        { "id": "user_pivot_reset", "playerId": "user", "kind": "lift", "to": { "x": 16, "z": 10 }, "delayMs": 0, "durationMs": 200 },
+        { "id": "user_swing_back", "playerId": "ball", "kind": "pass", "to": { "x": -8, "z": 14 }, "delayMs": 100, "durationMs": 600 }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You drove at his front foot. He slid; kickout was contested.",
+          "movements": [
+            { "id": "user_drive_front_foot", "playerId": "user", "kind": "drive", "to": { "x": 12, "z": 6 }, "delayMs": 0, "durationMs": 600 },
+            { "id": "x2_slide", "playerId": "x2", "kind": "rotation", "to": { "x": 12, "z": 6 }, "delayMs": 100, "durationMs": 500 }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You shot a contested three.",
+          "movements": [
+            { "id": "user_force_three", "playerId": "user", "kind": "lift", "to": { "x": 16, "z": 10 }, "delayMs": 0, "durationMs": 300 },
+            { "id": "x2_contest_three", "playerId": "x2", "kind": "rotation", "to": { "x": 15, "z": 9 }, "delayMs": 0, "durationMs": 300 }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You pump-faked. He didn't bite. x4 loaded.",
+          "movements": [
+            { "id": "user_pump_fake", "playerId": "user", "kind": "jab", "to": { "x": 16, "z": 10 }, "delayMs": 0, "durationMs": 400 },
+            { "id": "x4_load_help", "playerId": "x4", "kind": "rotation", "to": { "x": 16, "z": 6 }, "delayMs": 200, "durationMs": 500 }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "defender_foot_arrow", "playerId": "x2" },
+        { "kind": "defender_chest_line", "playerId": "x2" },
+        { "kind": "label", "anchor": { "x": 16, "z": 12 }, "text": "Set, no advantage" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "passing_lane_open", "from": "user", "to": "pg" },
+        { "kind": "label", "anchor": { "x": 0, "z": 14 }, "text": "Reset to next action" },
+        { "kind": "timing_pulse", "anchor": { "x": -8, "z": 14 }, "durationMs": 600 }
+      ]
+    }
+  }
+]

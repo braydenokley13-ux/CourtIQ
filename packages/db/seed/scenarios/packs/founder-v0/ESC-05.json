@@ -1,0 +1,176 @@
+[
+  {
+    "id": "ESC-05",
+    "version": 1,
+    "status": "LIVE",
+    "title": "Slot Slasher on Nail Help",
+    "category": "OFFENSE",
+    "decoder_tag": "EMPTY_SPACE_CUT",
+    "concept_tags": ["off_ball_movement", "reading_help"],
+    "sub_concepts": ["empty_space_cut", "slasher_cut", "nail_read"],
+    "difficulty": 2,
+    "user_role": "weak_slot_slasher",
+    "game_context": "4-on-4 half-court shell. The point drives middle from the slot. Your defender (x_slot) is the weak-side slot help — he steps to the nail (top of key, middle of the lane line) to dig at the drive. The strong-side elbow opens.",
+    "possession_setup": "You are the weak-side slot. The point drives middle. Your defender (x_slot) steps to the nail — feet on the lane line at the foul-line extended, hand digging at the ball.",
+    "decision_moment": "x_slot has stepped to the nail. His chest is to the ball, hand reaching at the dribble, feet inside the lane line. The strong-side elbow is empty.",
+    "visible_cue": "x_slot has both feet inside the lane line, head and chest to the ball, the strong-side elbow has no defender between you and the rim.",
+    "court_state": {
+      "offense": [
+        { "id": "pg", "x": 240, "y": 130, "role": "ball_handler", "hasBall": true },
+        { "id": "user", "x": 170, "y": 130, "role": "weak_slot_slasher", "hasBall": false },
+        { "id": "o3", "x": 410, "y": 80, "role": "strong_wing", "hasBall": false },
+        { "id": "o4", "x": 30, "y": 10, "role": "weak_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x1", "x": 240, "y": 150, "role": "on_ball", "hasBall": false },
+        { "id": "x_slot", "x": 240, "y": 110, "role": "weak_slot_help_at_nail", "hasBall": false },
+        { "id": "x_wing", "x": 410, "y": 100, "role": "strong_wing_defender", "hasBall": false },
+        { "id": "x4", "x": 60, "y": 30, "role": "weak_corner_low_man", "hasBall": false }
+      ],
+      "ball_location": { "x": 240, "y": 130 }
+    },
+    "prompt": "Your defender stepped to the nail. The strong-side elbow is empty.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Slash to the strong-side elbow.",
+        "quality": "best",
+        "feedback_text": "Best read. He stepped to the nail and gave up the elbow. Slash there — the point reads it and finds you in stride.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Lift to the top of the key for the shot.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. The lift is open if he doesn't recover, but he is one step closer to the top than to the elbow. The slash is faster.",
+        "partial_feedback_text": "Lift to the top is a fine option. The cleaner read was the strong-side elbow.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Stand at your slot and call for the kickout.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Standing still lets x_slot recover. The kickout is contested.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Cut behind the drive to the strong-side dunker.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Cutting behind the drive runs into x_wing's help and stays in the same crowd as the ball.",
+        "order": 4
+      }
+    ],
+    "best_read": "Plant the inside foot and slash diagonally to the strong-side elbow. The point reads the help and pockets a one-handed pass — the catch is in shooting pocket and the closeout from x_slot has to cover 12 ft of court.",
+    "acceptable_reads": [
+      "Lift to the top of the key — open if x_slot is slow to recover, but the slash to the elbow is faster."
+    ],
+    "bad_reads": [
+      "Stand still — x_slot recovers and the catch is contested.",
+      "Cut behind the drive — runs into x_wing and the strong-side help."
+    ],
+    "common_miss_reason": "Slot players default to spotting up at the top. The cue is the help going forward — once the defender steps to the nail, the slash to the elbow is faster than the lift up.",
+    "why_best_read_works": "The nail step takes x_slot's recovery foot away from your slot. The elbow is closer to your slot than to x_slot's nail position; you arrive first. x_wing cannot leave the ball-side wing without giving up the corner shot.",
+    "decoder_teaching_point": "When help steps to the nail, the strong-side elbow is the closest empty area. Slash, don't lift.",
+    "lesson_connection": "empty-space-cut",
+    "feedback": {
+      "correct": "Good read. He stepped to the nail; you slashed to the elbow and got the layup.",
+      "partial": "Lifting to the top is a fine option. Next time, look at where his feet went — if they're at the nail, the elbow is closer.",
+      "wrong": "Watch the nail. If his feet are at the nail, the strong-side elbow is yours."
+    },
+    "self_review_checklist": [
+      "Did I see his feet step to the nail?",
+      "Did I cut to the elbow, not the top?",
+      "Did I catch in shooting pocket?",
+      "Did I show my hands above the elbow?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-04T00:00:00.000Z",
+      "notes": "Slash to elbow on nail help is universally taught. Difficulty 2 because the player must distinguish nail vs full help (a high-vs-low cue). Cluster fits beginner cap."
+    },
+    "source_research_basis": "Universally taught youth read; slash to elbow against nail help is system-independent.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": ["ESC-01"]
+    },
+    "explanation_md": "**Empty-Space Cut — nail-help variant.** When your defender steps to the nail, his recovery foot is on the wrong side of you. Plant your inside foot and slash to the strong-side elbow. The catch is in shooting pocket. Watch his feet, not the ball.",
+    "xp_reward": 12,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "slot_slash_on_nail_help",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        { "id": "pg", "team": "offense", "role": "ball_handler", "label": "PG", "start": { "x": 0, "z": 14 }, "hasBall": true },
+        { "id": "user", "team": "offense", "role": "weak_slot_slasher", "label": "You", "start": { "x": -7, "z": 14 }, "isUser": true },
+        { "id": "o3", "team": "offense", "role": "strong_wing", "label": "3", "start": { "x": 17, "z": 9 } },
+        { "id": "o4", "team": "offense", "role": "weak_corner", "label": "4", "start": { "x": -22, "z": 1 } },
+        { "id": "x1", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": 0, "z": 16 } },
+        { "id": "x_slot", "team": "defense", "role": "weak_slot_help_at_nail", "label": "xS", "start": { "x": -3, "z": 12 } },
+        { "id": "x_wing", "team": "defense", "role": "strong_wing_defender", "label": "xW", "start": { "x": 16, "z": 11 } },
+        { "id": "x4", "team": "defense", "role": "weak_corner_low_man", "label": "x4", "start": { "x": -19, "z": 3 } }
+      ],
+      "ball": { "start": { "x": 0, "z": 14 }, "holderId": "pg" },
+      "movements": [
+        { "id": "user_set", "playerId": "user", "kind": "lift", "to": { "x": -7, "z": 15 }, "delayMs": 0, "durationMs": 500 },
+        { "id": "pg_drive_middle", "playerId": "pg", "kind": "drive", "to": { "x": 4, "z": 10 }, "delayMs": 0, "durationMs": 800 },
+        { "id": "x_slot_nail_dig", "playerId": "x_slot", "kind": "rotation", "to": { "x": 0, "z": 9 }, "delayMs": 250, "durationMs": 700 }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1500 },
+      "answerDemo": [
+        { "id": "user_plant", "playerId": "user", "kind": "jab", "to": { "x": -8, "z": 14 }, "delayMs": 0, "durationMs": 200 },
+        { "id": "user_slash", "playerId": "user", "kind": "cut", "to": { "x": 5, "z": 6 }, "delayMs": 50, "durationMs": 700 },
+        { "id": "pg_pocket_pass", "playerId": "ball", "kind": "pass", "to": { "x": 5, "z": 6 }, "delayMs": 350, "durationMs": 500 }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You lifted to the top. x_slot recovered and the shot was contested.",
+          "movements": [
+            { "id": "user_lift_top", "playerId": "user", "kind": "lift", "to": { "x": -2, "z": 18 }, "delayMs": 0, "durationMs": 600 },
+            { "id": "x_slot_recover", "playerId": "x_slot", "kind": "closeout", "to": { "x": -2, "z": 17 }, "delayMs": 200, "durationMs": 600 }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You stayed put. x_slot recovered and the kickout was tipped.",
+          "movements": [
+            { "id": "x_slot_recover_to_slot", "playerId": "x_slot", "kind": "rotation", "to": { "x": -5, "z": 14 }, "delayMs": 0, "durationMs": 600 },
+            { "id": "pg_late_kickout", "playerId": "ball", "kind": "pass", "to": { "x": -7, "z": 14 }, "delayMs": 200, "durationMs": 500 }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You cut behind the drive. x_wing met you in the strong-side dunker.",
+          "movements": [
+            { "id": "user_strong_dunker_cut", "playerId": "user", "kind": "cut", "to": { "x": 8, "z": 2 }, "delayMs": 0, "durationMs": 700 },
+            { "id": "x_wing_help_meet", "playerId": "x_wing", "kind": "rotation", "to": { "x": 8, "z": 4 }, "delayMs": 100, "durationMs": 600 }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "defender_foot_arrow", "playerId": "x_slot" },
+        { "kind": "defender_chest_line", "playerId": "x_slot" },
+        { "kind": "help_pulse", "playerId": "x_slot", "role": "nail" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "open_space_region", "anchor": { "x": 5, "z": 7 }, "radiusFt": 4 },
+        { "kind": "passing_lane_open", "from": "pg", "to": "user" },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "user",
+          "path": [
+            { "x": -7, "z": 14 },
+            { "x": -8, "z": 14 },
+            { "x": 5, "z": 6 }
+          ]
+        }
+      ]
+    }
+  }
+]

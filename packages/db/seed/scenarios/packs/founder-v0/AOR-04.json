@@ -1,0 +1,175 @@
+[
+  {
+    "id": "AOR-04",
+    "version": 1,
+    "status": "LIVE",
+    "title": "Catch and Shoot on X-Out",
+    "category": "OFFENSE",
+    "decoder_tag": "ADVANTAGE_OR_RESET",
+    "concept_tags": ["catch_and_read", "closeout_read"],
+    "sub_concepts": ["x_out_closeout", "shot_off_catch"],
+    "difficulty": 1,
+    "user_role": "weak_wing_shooter",
+    "game_context": "4-on-4 half-court shell. The strong-side wing drives baseline. The defense rotates: x4 tags the drive, your defender (x3) x-outs all the way to the corner. The drive kicks the ball back across the floor to you on the weak wing — your defender is two passes away.",
+    "possession_setup": "You are the weak-side wing. The strong wing drove baseline. Your defender (x3) x-outed to cover the corner. The strong wing finds you with the cross-court kickout. As the ball arrives, x3 has to closeout from the corner — the longest possible closeout.",
+    "decision_moment": "The ball arrives at your hands. x3 is just leaving the corner — at least 16 ft from your wing, hands not yet up.",
+    "visible_cue": "x3 is in the strong-side corner area, sprinting toward your wing with hands at his sides. You have a clean catch and a clean sightline at the rim.",
+    "court_state": {
+      "offense": [
+        { "id": "wing", "x": 410, "y": 60, "role": "ball_handler_strong_drive", "hasBall": true },
+        { "id": "user", "x": 70, "y": 80, "role": "weak_wing_shooter", "hasBall": false },
+        { "id": "o3", "x": 240, "y": 130, "role": "trail_slot", "hasBall": false },
+        { "id": "o4", "x": 30, "y": 10, "role": "weak_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x_wing", "x": 410, "y": 80, "role": "on_ball", "hasBall": false },
+        { "id": "x4", "x": 200, "y": 50, "role": "weak_corner_low_man_helper", "hasBall": false },
+        { "id": "x3", "x": 60, "y": 30, "role": "weak_wing_defender_x_out", "hasBall": false },
+        { "id": "x_slot", "x": 240, "y": 150, "role": "slot_defender", "hasBall": false }
+      ],
+      "ball_location": { "x": 410, "y": 60 }
+    },
+    "prompt": "The cross-court kickout arrives. x-out closeout is way too long.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Catch and shoot it.",
+        "quality": "best",
+        "feedback_text": "Best read. The x-out closeout is the longest on the floor. Catch in your shooting pocket and rise immediately.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Rip and drive — the closeout will be flying.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. If he flies past, the drive is real. But the shot is open right now — don't trade an open shot for a contested layup.",
+        "partial_feedback_text": "A drive can work if he flies. The shot was open at the catch — take it.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Pass it back to the strong wing.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. The advantage was the cross-court kickout — passing back wastes it.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Hold the ball and look for a swing.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. The shot is open at the catch. Holding lets x3 close the cushion.",
+        "order": 4
+      }
+    ],
+    "best_read": "Catch in shooting pocket, dip the ball, and rise. The x-out closeout cannot beat a one-motion catch-and-shoot. x4 is at the rim, x_slot can't leave the strong side — no second contest exists.",
+    "acceptable_reads": [
+      "Rip and drive if x3's last step flies past — produces a layup or kickout, but loses the open shot."
+    ],
+    "bad_reads": [
+      "Pass back — wastes the cross-court advantage.",
+      "Hold and swing — x3 closes the cushion before the next pass."
+    ],
+    "common_miss_reason": "Players see a defender running at them and put the ball on the floor by reflex. The cue is the closeout's start position — when the closeout has 16+ feet to cover, the shot is the cleanest read on the floor.",
+    "why_best_read_works": "An x-out closeout is the longest possible closeout. The defender is sprinting upright with hands down — he cannot get hands up before the catch lands in shooting pocket. The shot is open by definition; any extra dribble lets him recover.",
+    "decoder_teaching_point": "When the closeout starts long, the shot is open. Catch and rise — don't dribble.",
+    "lesson_connection": "advantage-or-reset",
+    "feedback": {
+      "correct": "Good read. The x-out couldn't beat the ball. You caught and shot before he could contest.",
+      "partial": "A drive can work if the closeout flies. The shot was open right now — take it.",
+      "wrong": "Look at where the closeout started. If he's 15+ feet away when the ball arrives, the shot is open."
+    },
+    "self_review_checklist": [
+      "Did I see x3 was at the corner when the pass left?",
+      "Did I catch in shooting pocket?",
+      "Did I rise on the catch, not after a dribble?",
+      "Did I follow through with a hand at the rim?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-04T00:00:00.000Z",
+      "notes": "Catch-and-shoot on x-out closeout is universally taught. Cluster fits beginner cap (3 pre / 3 post)."
+    },
+    "source_research_basis": "Universally taught at every level; catch-and-shoot off an x-out is system-independent.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": ["AOR-01"]
+    },
+    "explanation_md": "**Advantage or Reset — x-out variant.** When the closeout is the second rotation, it starts long. Catch in shooting pocket and rise. The closeout can't beat a one-motion catch-and-shoot. Watch where the closeout starts, not where it ends.",
+    "xp_reward": 12,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "x_out_catch_and_shoot",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        { "id": "wing", "team": "offense", "role": "ball_handler_strong_drive", "label": "SG", "start": { "x": 14, "z": 5 }, "hasBall": true },
+        { "id": "user", "team": "offense", "role": "weak_wing_shooter", "label": "You", "start": { "x": -17, "z": 9 }, "isUser": true },
+        { "id": "o3", "team": "offense", "role": "trail_slot", "label": "3", "start": { "x": 0, "z": 14 } },
+        { "id": "o4", "team": "offense", "role": "weak_corner", "label": "4", "start": { "x": -22, "z": 1 } },
+        { "id": "x_wing", "team": "defense", "role": "on_ball", "label": "xW", "start": { "x": 14, "z": 6 } },
+        { "id": "x4", "team": "defense", "role": "weak_corner_low_man_helper", "label": "x4", "start": { "x": 4, "z": 5 } },
+        { "id": "x3", "team": "defense", "role": "weak_wing_defender_x_out", "label": "x3", "start": { "x": -19, "z": 3 } },
+        { "id": "x_slot", "team": "defense", "role": "slot_defender", "label": "xS", "start": { "x": 0, "z": 16 } }
+      ],
+      "ball": { "start": { "x": 14, "z": 5 }, "holderId": "wing" },
+      "movements": [
+        { "id": "user_lift_to_catch", "playerId": "user", "kind": "lift", "to": { "x": -17, "z": 10 }, "delayMs": 0, "durationMs": 600 },
+        { "id": "wing_cross_kickout", "playerId": "ball", "kind": "skip_pass", "to": { "x": -17, "z": 10 }, "delayMs": 350, "durationMs": 700 },
+        { "id": "x3_x_out_closeout", "playerId": "x3", "kind": "closeout", "to": { "x": -15, "z": 8 }, "delayMs": 250, "durationMs": 800 }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1500 },
+      "answerDemo": [
+        { "id": "user_catch_and_lift", "playerId": "user", "kind": "lift", "to": { "x": -17, "z": 10 }, "delayMs": 0, "durationMs": 250 },
+        { "id": "user_release", "playerId": "ball", "kind": "pass", "to": { "x": 0, "z": 0.5 }, "delayMs": 200, "durationMs": 700 }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You drove. x3 stayed under control; x4 met the layup.",
+          "movements": [
+            { "id": "user_rip", "playerId": "user", "kind": "rip", "to": { "x": -16, "z": 9 }, "delayMs": 0, "durationMs": 250 },
+            { "id": "user_drive_in", "playerId": "user", "kind": "drive", "to": { "x": -8, "z": 4 }, "delayMs": 100, "durationMs": 700 },
+            { "id": "x4_help_meet", "playerId": "x4", "kind": "rotation", "to": { "x": -6, "z": 4 }, "delayMs": 200, "durationMs": 600 }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You passed it back. The advantage was wasted.",
+          "movements": [
+            { "id": "user_pass_back_strong", "playerId": "ball", "kind": "skip_pass", "to": { "x": 14, "z": 5 }, "delayMs": 0, "durationMs": 700 },
+            { "id": "x_wing_recover", "playerId": "x_wing", "kind": "rotation", "to": { "x": 13, "z": 6 }, "delayMs": 0, "durationMs": 500 }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You held. x3 closed the cushion before the next pass.",
+          "movements": [
+            { "id": "x3_close_cushion", "playerId": "x3", "kind": "closeout", "to": { "x": -16, "z": 9 }, "delayMs": 0, "durationMs": 600 },
+            { "id": "user_late_swing", "playerId": "ball", "kind": "pass", "to": { "x": 0, "z": 14 }, "delayMs": 600, "durationMs": 500 }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "defender_vision_cone", "playerId": "x3", "targetId": "user" },
+        { "kind": "defender_foot_arrow", "playerId": "x3" },
+        { "kind": "label", "anchor": { "x": -10, "z": 7 }, "text": "Long closeout" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "open_space_region", "anchor": { "x": -17, "z": 10 }, "radiusFt": 5 },
+        { "kind": "timing_pulse", "anchor": { "x": -17, "z": 10 }, "durationMs": 600 },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "user",
+          "path": [
+            { "x": -17, "z": 9 },
+            { "x": -17, "z": 10 }
+          ]
+        }
+      ]
+    }
+  }
+]

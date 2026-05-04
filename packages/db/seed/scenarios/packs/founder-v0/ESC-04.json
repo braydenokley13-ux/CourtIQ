@@ -1,0 +1,167 @@
+[
+  {
+    "id": "ESC-04",
+    "version": 1,
+    "status": "LIVE",
+    "title": "Corner Lift on Tag",
+    "category": "OFFENSE",
+    "decoder_tag": "EMPTY_SPACE_CUT",
+    "concept_tags": ["off_ball_movement", "reading_help", "spacing"],
+    "sub_concepts": ["empty_space_cut", "corner_lift", "tag_read"],
+    "difficulty": 2,
+    "user_role": "weak_corner_relocator",
+    "game_context": "4-on-4 half-court shell. The strong-side wing drives baseline. Your defender (x4) is the weak-side corner low-man and tags the roller / drive — he sprints into the paint to wall up. The weak-side wing area is now empty.",
+    "possession_setup": "You are the weak-side corner. The strong wing is driving baseline. Your defender (x4) is the low-man and rotates into the paint to tag the drive. Your assigned man-defender is gone.",
+    "decision_moment": "x4 has rotated into the lane. His chest is to the ball. The lift area from the corner up to the weak wing is empty — no defender between you and the rim along the lift path.",
+    "visible_cue": "x4 has feet inside the lane line, hips and chest turned to the ball, hands up in the paint. Your wing area above you is empty.",
+    "court_state": {
+      "offense": [
+        { "id": "wing", "x": 410, "y": 80, "role": "ball_handler", "hasBall": true },
+        { "id": "user", "x": 30, "y": 10, "role": "weak_corner_relocator", "hasBall": false },
+        { "id": "o3", "x": 240, "y": 130, "role": "trail_slot", "hasBall": false },
+        { "id": "o4", "x": 70, "y": 80, "role": "weak_wing", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x_wing", "x": 410, "y": 100, "role": "on_ball", "hasBall": false },
+        { "id": "x4", "x": 200, "y": 50, "role": "weak_corner_low_man_helper", "hasBall": false },
+        { "id": "x_slot", "x": 240, "y": 150, "role": "slot_defender", "hasBall": false },
+        { "id": "x3", "x": 100, "y": 100, "role": "weak_wing_defender", "hasBall": false }
+      ],
+      "ball_location": { "x": 410, "y": 80 }
+    },
+    "prompt": "Your defender tagged into the paint. The lift area is empty.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Lift hard from corner to wing for the open shot.",
+        "quality": "best",
+        "feedback_text": "Best read. Your defender left to tag. Lift to the wing — the kickout is clean and the closeout is too long.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Cut along the baseline to the strong-side dunker.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. The dunker fill is fine, but you walked into traffic when an open jumper was sitting on the lift.",
+        "partial_feedback_text": "A baseline cut is fine, but the lift was the cleaner shot.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Stay in the corner and call for the kickout.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. The corner is a long pass and a long closeout — but x_slot can rotate out. The lift gives you the cleaner catch.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Cut into the paint to fill the rim.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Cutting into the paint walks into x4's wall — he is already there. Fill above, not into him.",
+        "order": 4
+      }
+    ],
+    "best_read": "Lift from the corner up the wing arc to the open three. The ball-handler reads the tag and kicks the ball out in stride — the closeout has to come from x_slot or recover from x4, and either way is too long.",
+    "acceptable_reads": [
+      "Cut to the strong-side dunker spot — fine for the dump-off, but walks into traffic with a clean shot already on the board."
+    ],
+    "bad_reads": [
+      "Stand in the corner — x_slot rotates out and the catch is contested.",
+      "Cut into the paint — runs into x4's wall."
+    ],
+    "common_miss_reason": "Corner shooters wait for the catch in their assigned spot. The cue is the tag — once x4 leaves the corner, the lift up to the wing is the cleanest shot of any angle on the floor.",
+    "why_best_read_works": "When x4 rotates to tag, no defender is responsible for the lift area. x_slot can rotate but that opens the slot. x_wing cannot leave the ball. The lift is the position where any closeout is the longest possible distance — every defender is one rotation away.",
+    "decoder_teaching_point": "When the low-man tags the ball, lift from the corner. The defense cannot cover the lift without giving up another spot.",
+    "lesson_connection": "empty-space-cut",
+    "feedback": {
+      "correct": "Good read. He tagged; you lifted to the wing and got the clean shot.",
+      "partial": "A dunker cut is fine, but the lift was the cleaner shot. Look for the longest closeout next time.",
+      "wrong": "Watch where the help came from. If your low-man tagged the ball, the lift above you is open. Don't stand."
+    },
+    "self_review_checklist": [
+      "Did I see x4 leave the corner?",
+      "Did I lift hard, not drift?",
+      "Did I show my hands at the catch?",
+      "Was I in shooting pocket on the catch?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-04T00:00:00.000Z",
+      "notes": "Corner lift on tag is universally taught. Difficulty 2 because the cue is two-step (low-man tags, then lift opens). Cluster fits beginner cap."
+    },
+    "source_research_basis": "Universally taught at every level; corner lift against a low-man tag is system-independent.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": ["ESC-01"]
+    },
+    "explanation_md": "**Empty-Space Cut — corner lift variant.** When the weak-side low-man tags the ball, no defender owns the lift area above you. Lift hard from corner to wing. Catch in shooting pocket. Watch where the help came from, not the ball.",
+    "xp_reward": 12,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "corner_lift_on_tag",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        { "id": "wing", "team": "offense", "role": "ball_handler", "label": "SG", "start": { "x": 17, "z": 9 }, "hasBall": true },
+        { "id": "user", "team": "offense", "role": "weak_corner_relocator", "label": "You", "start": { "x": -22, "z": 1 }, "isUser": true },
+        { "id": "o3", "team": "offense", "role": "trail_slot", "label": "3", "start": { "x": 0, "z": 14 } },
+        { "id": "o4", "team": "offense", "role": "weak_wing", "label": "4", "start": { "x": -16, "z": 9 } },
+        { "id": "x_wing", "team": "defense", "role": "on_ball", "label": "xW", "start": { "x": 17, "z": 11 } },
+        { "id": "x4", "team": "defense", "role": "weak_corner_low_man_helper", "label": "x4", "start": { "x": -3, "z": 5 } },
+        { "id": "x_slot", "team": "defense", "role": "slot_defender", "label": "xS", "start": { "x": 0, "z": 16 } },
+        { "id": "x3", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": -14, "z": 11 } }
+      ],
+      "ball": { "start": { "x": 17, "z": 9 }, "holderId": "wing" },
+      "movements": [
+        { "id": "user_set", "playerId": "user", "kind": "lift", "to": { "x": -22, "z": 2 }, "delayMs": 0, "durationMs": 500 },
+        { "id": "wing_drive_baseline", "playerId": "wing", "kind": "drive", "to": { "x": 14, "z": 3 }, "delayMs": 0, "durationMs": 800 },
+        { "id": "x4_tag_paint", "playerId": "x4", "kind": "rotation", "to": { "x": 4, "z": 5 }, "delayMs": 250, "durationMs": 750 }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1500 },
+      "answerDemo": [
+        { "id": "user_lift_to_wing", "playerId": "user", "kind": "cut", "to": { "x": -17, "z": 9 }, "delayMs": 0, "durationMs": 700 },
+        { "id": "wing_kickout", "playerId": "ball", "kind": "pass", "to": { "x": -17, "z": 9 }, "delayMs": 350, "durationMs": 700 }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You cut to the dunker. x4's wall met you in the paint.",
+          "movements": [
+            { "id": "user_dunker_cut", "playerId": "user", "kind": "cut", "to": { "x": -8, "z": 2 }, "delayMs": 0, "durationMs": 700 },
+            { "id": "x4_meet_dunker", "playerId": "x4", "kind": "rotation", "to": { "x": -6, "z": 4 }, "delayMs": 100, "durationMs": 600 }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You stayed in the corner. x_slot rotated out and contested the catch.",
+          "movements": [
+            { "id": "wing_corner_pass", "playerId": "ball", "kind": "skip_pass", "to": { "x": -22, "z": 1 }, "delayMs": 0, "durationMs": 700 },
+            { "id": "x_slot_rotate_corner", "playerId": "x_slot", "kind": "closeout", "to": { "x": -19, "z": 3 }, "delayMs": 200, "durationMs": 600 }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You cut into the paint and ran into the help wall.",
+          "movements": [
+            { "id": "user_paint_cut", "playerId": "user", "kind": "cut", "to": { "x": -3, "z": 4 }, "delayMs": 0, "durationMs": 700 },
+            { "id": "x4_wall_up", "playerId": "x4", "kind": "rotation", "to": { "x": -3, "z": 4 }, "delayMs": 0, "durationMs": 600 }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "defender_chest_line", "playerId": "x4" },
+        { "kind": "help_pulse", "playerId": "x4", "role": "tag" },
+        { "kind": "defender_vision_cone", "playerId": "x4", "targetId": "wing" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "open_space_region", "anchor": { "x": -17, "z": 9 }, "radiusFt": 5 },
+        { "kind": "passing_lane_open", "from": "wing", "to": "user" },
+        { "kind": "timing_pulse", "anchor": { "x": -17, "z": 9 }, "durationMs": 600 }
+      ]
+    }
+  }
+]

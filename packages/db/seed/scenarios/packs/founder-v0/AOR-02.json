@@ -1,0 +1,179 @@
+[
+  {
+    "id": "AOR-02",
+    "version": 1,
+    "status": "LIVE",
+    "title": "Attack the Flying Closeout",
+    "category": "OFFENSE",
+    "decoder_tag": "ADVANTAGE_OR_RESET",
+    "concept_tags": ["catch_and_read", "closeout_read"],
+    "sub_concepts": ["rip_and_drive", "flying_closeout"],
+    "difficulty": 1,
+    "user_role": "wing_shooter",
+    "game_context": "4-on-4 half-court shell. Ball reverses to your wing. Your defender (x2) was helping in the paint and sprints out to closeout — but he sprints too long and his momentum carries him past your shoulder.",
+    "possession_setup": "You are the right wing. The point swings the ball to you. Your defender (x2) was helping inside; he sprints all the way to you and his hips fly past — chest above your head, both feet off the floor on the last step.",
+    "decision_moment": "x2's last step is too long. His hips are past your outside shoulder and his weight is going forward. The cushion is closed but his recovery foot is in the air.",
+    "visible_cue": "x2's hips are past your shoulder. His chest is above the line of the catch. His back foot is off the floor on the closeout's last step.",
+    "court_state": {
+      "offense": [
+        { "id": "pg", "x": 240, "y": 140, "role": "ball_handler", "hasBall": true },
+        { "id": "user", "x": 430, "y": 80, "role": "wing_shooter", "hasBall": false },
+        { "id": "o3", "x": 70, "y": 90, "role": "weak_wing", "hasBall": false },
+        { "id": "o4", "x": 470, "y": 10, "role": "strong_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x1", "x": 240, "y": 160, "role": "on_ball", "hasBall": false },
+        { "id": "x2", "x": 415, "y": 75, "role": "wing_defender_flying_closeout", "hasBall": false },
+        { "id": "x3", "x": 100, "y": 100, "role": "weak_wing_defender", "hasBall": false },
+        { "id": "x4", "x": 440, "y": 30, "role": "low_man", "hasBall": false }
+      ],
+      "ball_location": { "x": 240, "y": 140 }
+    },
+    "prompt": "The closeout is flying past you. The cushion is closed.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Rip and drive baseline past him.",
+        "quality": "best",
+        "feedback_text": "Best read. He flew past — his recovery foot is in the air. Rip and drive baseline; the layup is open.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Shot fake and step into the side jumper.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. The shot fake works — his momentum is going past — but the drive is the cleaner read; the lane is open and the shot fake gives the help time to recover.",
+        "partial_feedback_text": "Shot fake is fine. The drive was the cleaner read against a flying closeout.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Catch and shoot it.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. The closeout is right on top of you — the cushion is closed. Shooting through the contest is a bad shot when the drive is open.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Pass it back to the point.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. You had a flying closeout — the easiest defender to attack. Passing back gives up the advantage.",
+        "order": 4
+      }
+    ],
+    "best_read": "Rip the ball through the legs to the baseline side and drive past x2's outside shoulder. His momentum is going forward and away from the rim — by the time he stops and turns, you're already on the way to the layup.",
+    "acceptable_reads": [
+      "Shot fake and step-in jumper — works against a flying closeout but lets the help recover."
+    ],
+    "bad_reads": [
+      "Catch and shoot — the closeout is on top, the cushion is closed.",
+      "Pass it back — gives up the advantage the closeout created."
+    ],
+    "common_miss_reason": "Wings shoot every catch. The cue is the closeout's last step — when the recovery foot is in the air, the drive is faster than the shot.",
+    "why_best_read_works": "A flying closeout is a defender out of control. Once his momentum commits past your shoulder, he cannot reverse direction in less than two steps. The rip-and-drive covers the same distance in one — you arrive at the baseline with no contest. x4 is the help, but he starts in the strong corner and his closeout gets there a beat after the layup.",
+    "decoder_teaching_point": "Read the closeout. If he is flying past, attack the cushion side. If he is short and controlled, shoot. If he is set, reset.",
+    "lesson_connection": "advantage-or-reset",
+    "feedback": {
+      "correct": "Good read. He flew past; you ripped and drove the baseline for the layup.",
+      "partial": "Shot fake works. The drive was the cleaner read against a flying closeout.",
+      "wrong": "Look at his last step. If his hips are past you and his recovery foot is in the air, drive — don't shoot."
+    },
+    "self_review_checklist": [
+      "Did I see his hips fly past my shoulder?",
+      "Did I rip low, not high?",
+      "Did I drive baseline, not into help?",
+      "Did I keep my eyes up to read the help?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-04T00:00:00.000Z",
+      "notes": "Attack flying closeout is universally taught. Cluster fits beginner cap (3 pre / 3 post)."
+    },
+    "source_research_basis": "Universally taught at every level; rip-and-drive against a flying closeout is system-independent.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": ["AOR-01"]
+    },
+    "explanation_md": "**Advantage or Reset — attack variant.** When the closeout's last step takes him past your shoulder, his recovery foot is in the air. Rip the ball low and drive baseline — the layup is faster than the shot. Watch his hips on the last step, not the catch.",
+    "xp_reward": 12,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "attack_flying_closeout",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        { "id": "pg", "team": "offense", "role": "ball_handler", "label": "PG", "start": { "x": -8, "z": 14 }, "hasBall": true },
+        { "id": "user", "team": "offense", "role": "wing_shooter", "label": "You", "start": { "x": 16, "z": 9 }, "isUser": true },
+        { "id": "o3", "team": "offense", "role": "weak_wing", "label": "3", "start": { "x": -16, "z": 10 } },
+        { "id": "o4", "team": "offense", "role": "strong_corner", "label": "4", "start": { "x": 22, "z": 1 } },
+        { "id": "x1", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": -8, "z": 16 } },
+        { "id": "x2", "team": "defense", "role": "wing_defender_flying_closeout", "label": "x2", "start": { "x": 6, "z": 5 } },
+        { "id": "x3", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": -14, "z": 11 } },
+        { "id": "x4", "team": "defense", "role": "low_man", "label": "x4", "start": { "x": 20, "z": 3 } }
+      ],
+      "ball": { "start": { "x": -8, "z": 14 }, "holderId": "pg" },
+      "movements": [
+        { "id": "user_lift_to_catch", "playerId": "user", "kind": "lift", "to": { "x": 16, "z": 10 }, "delayMs": 0, "durationMs": 600 },
+        { "id": "pg_pass_to_wing", "playerId": "ball", "kind": "pass", "to": { "x": 16, "z": 10 }, "delayMs": 350, "durationMs": 700 },
+        { "id": "x2_flying_closeout", "playerId": "x2", "kind": "closeout", "to": { "x": 17, "z": 11 }, "delayMs": 350, "durationMs": 800 }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1500 },
+      "answerDemo": [
+        { "id": "user_catch_lift", "playerId": "user", "kind": "lift", "to": { "x": 16, "z": 10 }, "delayMs": 0, "durationMs": 200 },
+        { "id": "user_rip", "playerId": "user", "kind": "rip", "to": { "x": 17, "z": 9 }, "delayMs": 50, "durationMs": 250 },
+        { "id": "user_drive_baseline", "playerId": "user", "kind": "drive", "to": { "x": 14, "z": 2 }, "delayMs": 100, "durationMs": 700 },
+        { "id": "user_finish", "playerId": "user", "kind": "cut", "to": { "x": 0, "z": 0.5 }, "delayMs": 50, "durationMs": 350 }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You shot-faked and stepped in. x4 helped over and contested.",
+          "movements": [
+            { "id": "user_shot_fake", "playerId": "user", "kind": "jab", "to": { "x": 16, "z": 10 }, "delayMs": 0, "durationMs": 250 },
+            { "id": "user_side_step", "playerId": "user", "kind": "rip", "to": { "x": 14, "z": 8 }, "delayMs": 100, "durationMs": 400 },
+            { "id": "x4_help_over", "playerId": "x4", "kind": "rotation", "to": { "x": 14, "z": 6 }, "delayMs": 200, "durationMs": 500 }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You shot through the contest. The flying closeout blocked it.",
+          "movements": [
+            { "id": "user_force_shot", "playerId": "user", "kind": "lift", "to": { "x": 16, "z": 10 }, "delayMs": 0, "durationMs": 300 },
+            { "id": "x2_contest", "playerId": "x2", "kind": "closeout", "to": { "x": 16, "z": 10 }, "delayMs": 0, "durationMs": 300 }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You passed back. The advantage was wasted.",
+          "movements": [
+            { "id": "user_pass_back", "playerId": "ball", "kind": "pass", "to": { "x": -8, "z": 14 }, "delayMs": 0, "durationMs": 600 },
+            { "id": "x2_recover_set", "playerId": "x2", "kind": "closeout", "to": { "x": 14, "z": 9 }, "delayMs": 0, "durationMs": 500 }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "defender_hip_arrow", "playerId": "x2" },
+        { "kind": "defender_foot_arrow", "playerId": "x2" },
+        { "kind": "defender_chest_line", "playerId": "x2" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "open_space_region", "anchor": { "x": 16, "z": 3 }, "radiusFt": 4 },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "user",
+          "path": [
+            { "x": 16, "z": 9 },
+            { "x": 17, "z": 9 },
+            { "x": 14, "z": 2 },
+            { "x": 0, "z": 0.5 }
+          ]
+        },
+        { "kind": "timing_pulse", "anchor": { "x": 17, "z": 11 }, "durationMs": 500 }
+      ]
+    }
+  }
+]
