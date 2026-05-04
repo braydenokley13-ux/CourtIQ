@@ -520,3 +520,392 @@ In strict order, the renderer should attempt:
 - Alternative: render a static GLB pose for the first ~120 ms instead of
   the procedural figure.
 - Either approach is FR-2 scope.
+
+---
+
+## 7. Player Readability and Visual Language
+
+This section defines the rules a frame must obey to be teachable. It applies
+to GLB and procedural figures equally — fallback is only graceful if the
+visual language is consistent.
+
+### 7.1 Color system
+
+Five colors carry meaning. Anything else is decoration.
+
+| Element | Color | Token |
+| --- | --- | --- |
+| User (offense) | Electric brand green | `--brand` `#3BE383` |
+| Other offense | Soft warm white | `--text` (90% alpha) |
+| Defense (key — the cue defender) | Heat red ring + warm body | `--heat` `#FF4D6D` (ring), warm body |
+| Defense (other) | Cool slate, desaturated | derived from `--text-mute` |
+| Ball | Orange — never the user color | `--xp` `#FF8A3D` |
+
+The "key defender" is determined by the decoder preset (`deny_defender`,
+`closeout_defender`, `helper_defender`, `helper_defender` for SKR
+overhelp). When the preset cannot resolve, key defender = the closest
+defender to the user.
+
+### 7.2 User-player highlight
+
+- A subtle ground-level glow ring (~0.6 ft radius) under the user.
+- Slightly lifted on freeze (ring brightens 20%).
+- Never bright enough to fight the cue overlay.
+
+### 7.3 Active defender highlight
+
+- A heat-red rim around the key defender, applied via the
+  `defender_*_arrow` overlay primitives we already have.
+- Pulsing — but only during pre-answer. Post-answer reveals replace the
+  pulse with a static path.
+
+### 7.4 Ball-handler marker
+
+- Already shipping (`hasBall` ring on the player marker).
+- On freeze: ball-handler ring intensifies; passer cue (the
+  `PASS_FOLLOWTHROUGH` intent) fires at the start of the answer leg.
+
+### 7.5 Open-player marker
+
+- Used in SKR primarily. The `open_player` role gets a thin white
+  indicator that flares up *post-answer* to show "this is who got the
+  pass."
+- Pre-answer, the open player is *not* highlighted — the player has to
+  read the cue, not be told the answer.
+
+### 7.6 Team tinting for GLB and procedural
+
+- GLB: a per-team tint applied via material override on the cloned mesh.
+  The tint must not bleach skin tones; we apply it to a "jersey" submesh
+  if the rig supports it, otherwise to the whole body at low intensity
+  (~12%).
+- Procedural: the existing tint stays. The goal is parity, not perfection.
+
+### 7.7 Rings and grounding shadows
+
+- Every figure renders a soft circular shadow under its feet (radius scales
+  with figure size). The shadow grounds the figure on the court, which is
+  the single biggest "is this a video game" tell.
+- The user ring sits on top of the shadow; the key-defender pulse sits
+  above the user ring.
+- Z-order: court → shadow → ring → figure → ball → overlays.
+
+### 7.8 Figure scale consistency
+
+- GLB rig stands at ~5.93 ft (post-`GLB_M_TO_FT_SCALE`).
+- Procedural figure stands at `ATH_TOTAL_HEIGHT = 5.95 ft`.
+- Acceptable delta: ±0.05 ft. Any drift larger than that is a bug.
+
+### 7.9 Silhouette readability
+
+- At 200 px tall on a phone, the figure must read as a basketball player.
+  Test: convert the figure to pure black on white, can a coach name the
+  pose?
+- The current mannequin fails this test. The procedural figure passes it
+  weakly. The "basketball ready" delta in §5.6 is what fixes it for the
+  GLB.
+
+### 7.10 Why current GLBs may look stiff / small / unclear
+
+- Bind pose sits in a rest position, not a basketball stance.
+- Hand-authored deltas are small to avoid bone-chain pop, which means a
+  "denial" pose looks like a slight arm raise instead of a real denial.
+- No premium per-clip motion library yet — fallback to `cut_sprint` or
+  `idle_ready` makes everyone look the same.
+- Single rig with no jersey detail flattens silhouette.
+
+### 7.11 Visual contrast without childishness
+
+- We do not add comic outlines, exaggerated colors, or cartoon shading.
+  CourtIQ is "premium, modern, fast, elite" (see PRODUCT_SPEC §2.3).
+- Contrast comes from: lighting, color temperature (warm offense / cool
+  defense), tint intensity, and grounding shadow.
+- Avoid emojis, stickers, "GREAT JOB!" overlays, particle bursts. Win
+  bursts and badges are reserved for badge earn moments only (see
+  PRODUCT_SPEC §10).
+
+### 7.12 The minimum readable frame rule
+
+At any freeze frame, the player must be able to identify, within 1.5 s, all
+of the following:
+
+1. The **ball** (orange, plus possession ring on the holder).
+2. The **user** (green ring, brand glow).
+3. The **key defender** (heat red, with at least one body cue overlay).
+4. The **relevant space or lane** (open-space patch, passing-lane line, or
+   drive-cut preview — pre or post depending on phase).
+5. The **best-read target** (post-answer only — never pre-answer; that
+   would give away the read).
+
+A scenario that fails this rule on freeze is a **content bug.** The QA
+route in §11 makes this checkable.
+
+### 7.13 Composition checklist (per scene)
+
+A frame should be checked against this list before content goes LIVE:
+
+- [ ] User is in the frame and visible.
+- [ ] Key defender is in the frame and the cue is on-camera (not behind).
+- [ ] Ball is visible.
+- [ ] Open space is visible (or will be on best-read replay).
+- [ ] No two players overlap silhouette at freeze.
+- [ ] Camera does not occlude any cue overlay.
+- [ ] On phone, all of the above hold at 393 × 700 px.
+
+---
+
+## 8. Decoder-Specific Camera System
+
+`AutoFitCamera` is good for ensuring nothing leaves frame. It is not a
+film-room camera. This section describes what one looks like.
+
+### 8.1 Camera is decoder-aware AND phase-aware
+
+The same scene gets a different framing in different replay phases.
+Phases: `setup → playing → frozen → consequence → replaying → done`.
+
+- **Watch (intro / playing):** broadcast-style framing. Bounding-box
+  auto-fit is acceptable here (it is what we ship).
+- **Freeze:** *teaching angle* — composed by the decoder preset around
+  the cue defender, the user, and the open space. This is the only phase
+  where camera is fully on-rails.
+- **Answer (consequence / replaying):** action-following. The camera
+  tracks the read as it happens, with a slight lag so the read feels
+  earned.
+- **Done:** holds the final frame for ~700 ms, then releases to whatever
+  framing the next scenario needs.
+
+### 8.2 Camera concepts
+
+We define five named presets. The dropdown in `PremiumOverlay` already
+exposes a subset (`auto`, `broadcast`, `tactical`, `follow`, `replay`).
+We extend the same union — we do not invent a new mechanism.
+
+1. **Teaching Angle.** *Default freeze framing.* Built per decoder. Frames
+   the user, key defender, ball, and open-space patch in the lower 2/3 of
+   the screen. Pitch ~24°, slightly lower than auto-fit, so body-cue
+   overlays sit above the heads.
+2. **Broadcast.** Auto-fit, ~32° pitch. Used in watch phase by default.
+3. **Player Read Angle.** Over-the-shoulder of the user, looking past
+   them at the key defender. Used for ESC and BDW where the user's read
+   is what matters.
+4. **Help Defense Angle.** Side-on, weak-side-toward-camera. Used for SKR
+   to make the over-help and the abandoned shooter visible in the same
+   frame.
+5. **Top-Down Coach Board.** Pure top-down (90° pitch). Used in replay
+   teaching mode and in *Film Room Review* (a Pathways concern).
+
+### 8.3 Default camera per decoder + phase
+
+| Decoder | Setup | Watch | Freeze | Replay |
+| --- | --- | --- | --- | --- |
+| `BACKDOOR_WINDOW` | Broadcast | Broadcast | Teaching Angle (over user, looking through deny defender to rim) | Player Read Angle, then Top-Down for the cut path |
+| `EMPTY_SPACE_CUT` | Broadcast | Broadcast | Teaching Angle (showing helper's vision direction) | Player Read Angle, then Help Defense Angle for the empty patch |
+| `ADVANTAGE_OR_RESET` | Broadcast | Broadcast | Teaching Angle (low, frames the closeout's feet) | Player Read Angle, then Top-Down for the drive |
+| `SKIP_THE_ROTATION` | Broadcast | Broadcast | Help Defense Angle (the frame of a film room) | Top-Down for the skip pass arc |
+
+### 8.4 Cue-locked framing
+
+For each decoder, the freeze framing must include:
+
+- **BACKDOOR_WINDOW** — frame: user, denying defender, passer, rim lane.
+- **EMPTY_SPACE_CUT** — frame: user, helper defender (whose head turned),
+  the empty floor patch they just left.
+- **ADVANTAGE_OR_RESET** — frame: receiver (user), closeout defender's
+  feet, the driving lane behind them.
+- **SKIP_THE_ROTATION** — frame: ball-handler, helper (the over-helper),
+  weak-side target.
+
+These are explicit invariants the camera preset must satisfy. The QA route
+should *fail* a scenario whose freeze frame is missing any of these.
+
+### 8.5 Default camera logic
+
+- On scene mount: pick the decoder + phase preset.
+- On phase transition: lerp camera position over 250–400 ms (longer for
+  freeze entry to feel like a coach pause).
+- On user override (camera dropdown in `PremiumOverlay`): user's choice
+  wins. We do not interrupt manual control.
+- On URL `?camera=` param: same as user override. Persists for the
+  session.
+
+### 8.6 User camera override
+
+- Manual camera control is allowed; the system never *forces* a frame.
+- When the user manually pans, decoder presets stop running for that
+  scene. They resume on the next scenario.
+
+### 8.7 Mobile camera constraints
+
+- Phone aspect ratio (≈ 9:19.5 portrait, 19.5:9 landscape) makes the
+  Help Defense Angle hard — too much vertical sky. On phones, we tighten
+  the pitch by ~5° and dolly in 10%.
+- The Top-Down Coach Board is naturally phone-friendly because aspect
+  ratio is ignorable from above.
+- Test every preset at 393 px × 700 px landscape and at 393 px × 852 px
+  portrait. If a cue is occluded by the user's thumb, we redesign the
+  preset.
+
+### 8.8 Preventing the camera from hiding the cue
+
+- The freeze framing must keep the cue defender's relevant body part
+  (hand, hip, foot, chest, vision) visible.
+- The QA route renders a "cue visibility" check: ray-cast from the camera
+  to the cue defender's relevant joint; if obstructed, fail.
+- This is the single most common failure mode of "looks fine" cameras.
+
+### 8.9 How Pathways difficulty changes camera support
+
+- **Beginner (Learn the Cue).** Camera lerps deeper into the cue,
+  generously. The freeze framing might even move the camera to a
+  slow-zoom on the defender's hand for a beat.
+- **Intermediate (Mixed Reads).** Camera holds Broadcast through the
+  freeze; teaching angle is reserved for replay.
+- **Advanced (Boss Challenge).** No camera assist. Broadcast through the
+  whole rep.
+- **Film Room Review (post-miss).** Full assist — cameras switch like a
+  highlight package.
+
+The renderer respects `cameraAssist: 'full' | 'partial' | 'none'`. The
+Pathways layer chooses; the renderer does not impose.
+
+---
+
+## 9. Cue Overlay and Coach Annotation System
+
+`decoderOverlayPresets.ts` already names the right primitives. What is
+missing is **adaptive behavior** — the same scenario should layer overlays
+differently depending on Pathways mode, and overlay timing should feel
+like a coach annotating, not a HUD.
+
+### 9.1 The four families
+
+For each decoder, the canonical overlay clusters are:
+
+#### BACKDOOR_WINDOW
+- **Pre-answer:**
+  - `defender_hand_in_lane` on the denying defender
+  - `defender_vision_cone` from denying defender to passer (proves they're
+    ball-watching)
+  - `passing_lane_blocked` from passer to user (the lane he's denying)
+- **Post-answer:**
+  - `open_space_region` anchored on the rim corridor
+  - `drive_cut_preview` along the user's back-cut path
+  - `label` on the cue: "Defender is denying"
+
+#### EMPTY_SPACE_CUT
+- **Pre-answer:**
+  - `defender_vision_cone` on helper, target = ball
+  - `defender_hip_arrow` on helper (showing hips turned to ball)
+  - `help_pulse` on helper, role = `tag` (or `nail` / `stunter` per
+    scenario)
+- **Post-answer:**
+  - `open_space_region` anchored on the vacated paint or empty corner
+  - `passing_lane_open` from passer to user
+  - `drive_cut_preview` along user's cut path
+  - `label` on the cue: "Eyes left — move now"
+
+#### ADVANTAGE_OR_RESET
+- **Pre-answer:**
+  - `defender_foot_arrow` on closeout defender (parallel feet vs.
+    staggered)
+  - `defender_hip_arrow` on closeout defender (momentum)
+  - `defender_chest_line` on closeout defender (tilt forward = high
+    closeout)
+- **Post-answer (branch-specific):**
+  - **Late closeout:** `open_space_region` anchored on shooting pocket +
+    `timing_pulse` + label "Late closeout — shoot"
+  - **Flying closeout:** `drive_cut_preview` baseline + label "Flying
+    closeout — drive"
+  - **Set defender:** label "Set defender — reset" + ball-flow arrow
+
+#### SKIP_THE_ROTATION
+- **Pre-answer:**
+  - `help_pulse` on over-helper, role = `overhelp`
+  - `defender_chest_line` on over-helper
+  - `defender_hip_arrow` on over-helper
+- **Post-answer:**
+  - `passing_lane_open` from passer to weak-side open player
+  - `open_space_region` anchored weak-side
+  - `drive_cut_preview` arrow showing "catch → shoot" or "catch → swing"
+  - `label` on cue: "Help came from here"
+
+### 9.2 Beginner vs. advanced overlay behavior
+
+| Mode | Pre-answer overlays | Post-answer overlays | Decoder pill |
+| --- | --- | --- | --- |
+| Learn the Cue (beginner) | All 3 cluster overlays | All 3 reveal overlays + label | Visible on freeze |
+| Freeze-Frame Read | All 3 cluster overlays | 2/3 reveal overlays | Visible on freeze |
+| No-Hint Rep | 1 overlay (cue only) | 2 reveal overlays | Hidden on freeze |
+| Mixed Reads | 1 overlay (cue only) | 1 reveal overlay | Hidden on freeze |
+| Boss Challenge | 0 overlays | 0 overlays | Hidden entirely |
+| Film Room Review | All overlays + extras | All overlays + extras | Visible the whole rep |
+
+This is data, not policy — it lives in a `getOverlayLevel(mode)` helper
+that the imperative overlay controller already has the seam for.
+
+### 9.3 Overlay clutter rules
+
+The clutter caps from `decoderOverlayPresets.ts` stay:
+
+- Beginner: 3 pre / 3 post.
+- Intermediate: 4 max.
+- Advanced: 5 max.
+
+Overlays are never stacked on top of each other in screen space. If two
+primitives would occupy the same pixel band, drop the lower-priority one.
+
+### 9.4 Label style
+
+- Mono/sans-serif (JetBrains Mono for chip-style labels, Inter for body).
+- Size: ~12 px on phone.
+- Anchor: above the cue, with a 4-px gap to the figure silhouette.
+- Color: warm white on a 60% black blur background.
+- Animation: fade in over 80 ms, never bouncy.
+- Maximum 5 words.
+
+### 9.5 Pre-answer vs. post-answer differences
+
+- **Pre-answer overlays describe the cue.** They never name the answer.
+  "Defender is denying" is allowed; "cut backdoor" is not.
+- **Post-answer overlays describe the read.** They name the action and
+  the space. "Cut behind" + open-space patch + lane arrow.
+- The label voice changes: pre-answer is *observation*, post-answer is
+  *teaching*.
+
+### 9.6 Pathways connection
+
+- Early pathway reps run in Learn the Cue / Freeze-Frame Read modes →
+  full overlays.
+- Mid pathway reps run in No-Hint Rep / Mixed Reads → minimal overlays.
+- Boss challenges → no overlays, no decoder pill.
+- Film Room Review (post-miss) → maximum overlays + label sequencing.
+- The `chapter.cameraAssist` and `chapter.overlayLevel` config that
+  Pathways exposes are the levers; the renderer just reads them.
+
+### 9.7 Cluster overlay choreography
+
+Even with three primitives, *order matters*. The freeze should feel like a
+coach pointing.
+
+- t = 0 ms (freeze): scene clamps, world dims 6%.
+- t = 40 ms: first cluster overlay (the body cue — usually the hip or
+  hand arrow) fades in.
+- t = 120 ms: second overlay (the disambiguator — vision cone or
+  chest-line) fades in.
+- t = 220 ms: third overlay (the lane line or label) fades in.
+- t = 320 ms: decoder pill animates in.
+- t = 350 ms: question is fully interactive.
+
+Total stage-in: ~350 ms. Below the 500 ms attention threshold; never
+"slow."
+
+### 9.8 Overlay invariants the QA route should enforce
+
+1. Pre-answer cluster contains only kinds in `PRE_ANSWER_OVERLAY_KINDS`.
+2. Cluster size ≤ clutter cap for the difficulty tier.
+3. Every overlay references a player or anchor that exists in the scene.
+4. The cue overlay points to the *key defender* the decoder identifies.
+5. No two overlays occupy the same pixel band at freeze.
+6. Post-answer reveal includes at least one of: open-space region,
+   passing lane, drive-cut preview.
