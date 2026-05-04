@@ -909,3 +909,332 @@ Total stage-in: ~350 ms. Below the 500 ms attention threshold; never
 5. No two overlays occupy the same pixel band at freeze.
 6. Post-answer reveal includes at least one of: open-space region,
    passing lane, drive-cut preview.
+
+---
+
+## 10. Replay Teaching Mode
+
+The replay state machine is correct. The replay *experience* needs work.
+This section describes how the answer leg should *teach*, not just
+animate.
+
+### 10.1 What the replay must accomplish
+
+When the user picks an answer, the replay leg must:
+
+1. **Return to the cue moment.** The player needs to see the same frame
+   they decided on, not the start of the possession.
+2. **Pause or slow briefly.** The cue moment lands one more time, so the
+   player can compare what they saw to what was actually there.
+3. **Show the cue.** Pre-answer overlays repaint, often with a label that
+   was hidden during the rep.
+4. **Show the correct action path.** The answer leg plays from the freeze
+   snapshot, using `samplePositionsAt` so defenders do not snap back.
+5. **Show why it worked.** Post-answer overlays paint the open space, the
+   passing lane, the drive-cut preview *as the action happens*, not after.
+6. **End with a short teaching label.** A single chip — "Read the
+   denial." / "Punish the help." — lands as the rep ends. This is also
+   the bridge to the Pathways summary.
+
+### 10.2 Replay timing
+
+| Beat | Time | What happens |
+| --- | --- | --- |
+| Wrong choice locked in | 0 ms | Choice tile flashes red; haptic |
+| Consequence leg starts | 80 ms | Camera dims 6%, slow-mo to 0.6× |
+| Consequence plays | 80–1500 ms | Wrong-demo movements run from snapshot |
+| Snap to freeze snapshot | 1500 ms | Camera lerps back to teaching angle |
+| Cue overlays repaint | 1500–1700 ms | Pre-answer cluster fades in again |
+| Decoder pill animates | 1700 ms | "Backdoor Window" chip lifts in |
+| Answer leg starts | 1900 ms | Best-read movements run from snapshot |
+| Post-answer overlays | 1900 ms onward | Open-space + lane + drive-cut paint as action unfolds |
+| Teaching label lands | At leg end | One-line chip, fades over 500 ms |
+| Done | +700 ms | CTA: "Next" or "Why?" |
+
+| Beat | Time (best-read) | What happens |
+| --- | --- | --- |
+| Correct choice locked in | 0 ms | Tile flashes green; haptic |
+| Quick reset to snapshot | 80 ms | No consequence — straight to teaching |
+| Cue overlays repaint | 200 ms | Pre-answer cluster fades in |
+| Decoder pill animates | 400 ms | Chip lifts in |
+| Answer leg starts | 600 ms | Best-read movements run from snapshot |
+| Post-answer overlays | 600 ms onward | Same as wrong path |
+| Teaching label lands | At leg end | Same chip |
+| Done | +700 ms | CTA: "Next" |
+
+Total wrong-path replay: ~2.5–4 s. Total best-read replay: ~2 s.
+
+### 10.3 Overlay phasing in replay
+
+- The pre-answer cluster paints again at the start of the replay so the
+  cue is reinforced.
+- Post-answer overlays paint *as the action happens*, not all at once.
+  - For BDW: the back-cut path arrow paints behind the user as they cut.
+  - For ESC: the open-space patch lights up at the moment the helper's
+    head turns.
+  - For AOR: the drive-cut preview paints as the user takes the first
+    dribble; the timing pulse on the shooting pocket fires at the catch.
+  - For SKR: the passing-lane line paints as the ball leaves the
+    passer's hand; the open-space patch lights up at the catch.
+- Both clusters fade together when the leg ends.
+
+### 10.4 When to show wrong-read comparison
+
+- Default for wrong choices: consequence leg only. Don't make the player
+  watch the right read *plus* a side-by-side.
+- *Optional* in Film Room Review mode: show wrong-then-right as a split
+  replay, with overlays on both. This is a Pathways concern.
+- Never on a correct rep. We do not need to remind the player of the
+  alternative they *didn't* take.
+
+### 10.5 Connecting replay to feedback text
+
+- Today: feedback text mounts in the tray after the replay completes.
+- Improvement: the *one-line* feedback (the `feedback_text` on the
+  picked choice) lands on the freeze snapshot frame as a label, *during*
+  the replay. Player reads it as a label first; full text waits in the
+  tray.
+- The deeper "Why?" stays collapsible. We keep the fast loop fast.
+
+### 10.6 Per-decoder replay character
+
+Each decoder has its own teaching beat:
+
+- **BACKDOOR_WINDOW.** The replay is about *space behind a defender*. The
+  back-cut should feel decisive — slow-mo for the plant, normal speed
+  for the cut.
+- **EMPTY_SPACE_CUT.** The replay is about *timing*. The replay
+  highlights the head-turn moment with a brief overlay flash, then runs
+  the cut at normal speed.
+- **ADVANTAGE_OR_RESET.** The replay is about *reading feet*. Camera
+  drops low at freeze; replay highlights the lead foot before the drive
+  starts.
+- **SKIP_THE_ROTATION.** The replay is about *vision across the floor*.
+  Top-down camera in replay traces the skip arc; the open shooter
+  pulses as the ball arrives.
+
+### 10.7 Film Room Review mode (later)
+
+Pathways introduces a Film Room Review mode that revisits missed
+scenarios with full assist. The renderer support for this is:
+
+- Camera assist = full.
+- Overlay level = max.
+- Slow-mo at 0.4× through the cue moment.
+- Decoder pill stays visible for the whole rep.
+- Wrong-then-right split replay enabled.
+
+We do not implement this in FR-1. We design for it now so the
+`overlayLevel` and `cameraAssist` config seams exist.
+
+---
+
+## 11. Scenario-by-Scenario QA System
+
+This is the **most important section in the document for shipping speed.**
+We cannot iterate on visual quality without a tool that lets us see all 20
+scenarios in 60 seconds.
+
+### 11.1 The route
+
+- Path: `/dev/scenario-preview`
+- Gating:
+  - In `NODE_ENV !== 'production'` always.
+  - In production, only when an explicit env flag is set
+    (`NEXT_PUBLIC_ENABLE_DEV_ROUTES=1`) **and** the user is an admin.
+  - Never linked from the marketing or app navigation.
+
+### 11.2 Layout
+
+A two-column layout:
+
+- **Left column (320 px on desktop, full width on mobile):** scenario
+  selector, metadata panel, render panel, manual QA checklist.
+- **Right column (rest of the viewport):** the `Scenario3DCanvas` running
+  the selected scenario.
+
+### 11.3 Scenario selector
+
+- A dropdown or list of all 20 founder-v0 scenarios, grouped by decoder
+  family (BDW / ESC / AOR / SKR), sorted by difficulty.
+- Each item shows: ID, title, difficulty chip, cue label.
+- Selecting an item swaps the canvas to render that scenario in `intro`
+  mode with autoplay.
+- Keyboard shortcuts: `J` / `K` for next/previous; `R` to reset the
+  scene; `F` to skip to freeze.
+
+### 11.4 Scenario metadata panel
+
+For the selected scenario, surface:
+
+- ID (`BDW-02`, etc.)
+- Title (`Denied Reversal at the Top`)
+- Decoder tag
+- Difficulty (1–5)
+- Prompt text
+- Visible cue (free-form)
+- Best-read explanation
+- Decoder teaching point (one-liner)
+
+Source: directly from the seed JSON files in
+`packages/db/seed/scenarios/packs/founder-v0/`.
+
+### 11.5 Render metadata panel
+
+For the live canvas, surface:
+
+- Player render path per player (`glb` / `procedural` / `2d` / `proxy`)
+- Per-player `pick:reason` from the decision log
+- Animation intent per player
+- Selected clip per player (or `-` if static)
+- Fallback reason (cumulative count)
+- Camera preset (decoder + phase)
+- Overlay preset name + count
+- Overlay level (beginner/intermediate/advanced)
+- Replay phase (`idle | setup | playing | frozen | consequence | replaying | done`)
+- `freezeAtMs` value
+- Active label
+
+This is a superset of `GlbDebugBadge`. Most of the data is already
+exposed through `_getPlayerFigureDecisionLog`,
+`isGlbAthletePreviewActive`, `isImportedCloseoutClipActive`,
+`isImportedBackCutClipActive`. The QA route just renders it.
+
+### 11.6 Manual QA checklist
+
+A persistent checklist next to the canvas. The checklist state is
+**not** stored — it is a coach-the-eye tool, not a database.
+
+- [ ] Cue is visible at freeze
+- [ ] User is visible
+- [ ] Key defender is visible
+- [ ] Ball is visible
+- [ ] Open space is visible at replay
+- [ ] Best answer is visually supported
+- [ ] Player sizes are readable
+- [ ] Camera angle is acceptable
+- [ ] Overlays are not cluttered
+- [ ] Cue overlay points to the right defender
+- [ ] Replay shows the correct read clearly
+- [ ] On phone landscape, all of the above hold
+
+Each item has a "fail" button that copies the scenario ID + the failed
+item to clipboard so an issue can be filed in seconds.
+
+### 11.7 Why this is essential before scaling content
+
+- Visual fixes without a way to see them are guessing.
+- A scenario QA pass that takes 5 minutes per scenario × 20 scenarios =
+  100 minutes. With this tool: 20 minutes.
+- When we add the next 20 scenarios, the same tool covers them with no
+  additional engineering.
+- Visual regressions land *during* development instead of in production.
+
+### 11.8 Design tradeoffs we explicitly accept
+
+- This is **not** a full admin CMS. It is a preview tool.
+- It does **not** edit scenarios. Editing remains JSON-first.
+- It does **not** persist QA state. Every page load is a fresh checklist.
+- It does **not** capture screenshots automatically. That's a v2.
+
+### 11.9 Optional future additions
+
+- Side-by-side comparison of two scenarios.
+- A "fail" button that opens a pre-filled GitHub issue.
+- Auto-screenshot on freeze for a visual regression baseline.
+- Timeline scrubber for any phase.
+
+These are nice-to-haves and explicitly out of FR-1 scope.
+
+---
+
+## 12. Debug and Observability Plan
+
+The renderer should be observable from outside (developers + QA) without
+leaking anything in production.
+
+### 12.1 Debug modes
+
+- `?glbDebug=1` — existing badge; keep.
+- `?forceGlb=1` — already a runtime flag (`_isForceGlbAthletePreview`);
+  exposed as URL flag.
+- `?debugFilmRoom=1` — **new**. Surfaces the teaching state, not the
+  asset state.
+- `?scenario=BDW-02` — already supported in some paths; unify so it works
+  on `/train`, `/dev/scenario-preview`, and any film-room demo route.
+- `/dev/scenario-preview` — see §11.
+
+### 12.2 What `debugFilmRoom=1` shows
+
+A small badge (or the right column of the QA route) showing:
+
+- Selected scenario ID + title
+- Camera preset (current phase)
+- Overlay preset name
+- Overlay level (beginner/intermediate/advanced)
+- Render path summary (`glb ×8 · procedural ×2`)
+- GLB model loader status
+- Animation clip status per intent
+- Fallback reasons (cumulative)
+- Scene bounds (Box3 size)
+- Replay phase
+- Freeze time elapsed
+- Decoder family
+- Visible cue summary
+
+### 12.3 What normal users see
+
+- None of the debug badges.
+- All the polish (camera, overlays, replay).
+- A graceful fallback if anything fails.
+
+### 12.4 What developers see
+
+- The full debug stack with the URL flag.
+- All pick decisions, all fallback reasons.
+- The decoder + camera + overlay state for the active phase.
+
+### 12.5 Avoiding answer-key leakage in production
+
+- Pre-answer overlays must never include the answer.
+- The decoder pill is fine to show before answer (it tells you the family,
+  not the answer).
+- The `feedback_text`, `is_correct`, `explanation_md` are fetched
+  *after* attempt submission (per `ARCHITECTURE.md` §5.4). This stays.
+- The QA route is gated to dev / admin. The route itself never appears
+  in production navigation.
+- `debugFilmRoom=1` may surface the best-read explanation only when
+  `NODE_ENV !== 'production'`.
+
+### 12.6 What should be logged to console
+
+- One structured `console.info` line per fallback transition.
+- One `console.warn` when an overlay preset references a missing role.
+- One `console.warn` when an overlay primitive references a missing
+  player ID.
+- One `console.warn` when a cue is occluded by the camera (best-effort
+  ray-cast).
+- All other logs gated behind the dev flag.
+
+### 12.7 What should be shown in the UI
+
+- Nothing in production unless the dev flag is on.
+- In QA route + debug modes: render-path summary, decision log,
+  scenario metadata.
+- Never an "error toast" for a fallback. Fallback is design, not error.
+
+### 12.8 How this supports production QA
+
+- A coach-author can be sent a link with `?glbDebug=1&debugFilmRoom=1`
+  and report what they saw with the badge values attached.
+- Sentry / PostHog can ingest the structured fallback breadcrumbs to
+  measure how often each fallback fires in the wild.
+- The QA route gives a single screen to validate any scenario change.
+
+### 12.9 Observability invariants
+
+- Production users never see debug UI without an explicit flag.
+- Debug UI never blocks the canvas — it overlays.
+- Debug logs do not include PII.
+- Debug flags are URL-based, not cookie-based, so a session is not
+  contaminated.
