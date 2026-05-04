@@ -1,10 +1,57 @@
-# Production GLB Asset Loading QA (P3.3A → P3.3B)
+# Production GLB Asset Loading QA (P3.3A → P3.3C)
 
-**Status:** P3.3B — second pass on the production GLB asset loading
-fix. P3.3A wired up the env-var opt-in surface but production still
-rendered procedural athletes after the env vars were set. Two
-remaining causes were stacked on top of P3.3A; both are fixed below.
-P3.3 LIVE promotion stays paused until the QA checklist passes.
+**Status:** P3.3C — third pass on the production GLB asset loading
+fix. P3.3A wired up the env-var opt-in surface, P3.3B replaced the
+dynamic `process.env[name]` access with static-literal reads, and
+P3.3C removed the surrounding `typeof process === 'undefined'` guard
+that was *still* causing the prod opt-in to be a silent no-op even
+after both prior passes landed. P3.3 LIVE promotion stays paused
+until the QA checklist passes.
+
+## P3.3C — what was *still* broken after P3.3B
+
+Even after P3.3B made the `process.env.NEXT_PUBLIC_*` access static,
+production *still* rendered procedural figures with the env vars set.
+Root cause:
+
+The body of each env-flag reader had the shape:
+
+```ts
+function readGlbAthletePreviewEnvFlag(): boolean {
+  if (typeof process === 'undefined') return false
+  return process.env.NEXT_PUBLIC_USE_GLB_ATHLETE_PREVIEW === '1'
+}
+```
+
+Webpack's `DefinePlugin` rewrites the static
+`process.env.NEXT_PUBLIC_USE_GLB_ATHLETE_PREVIEW` member expression
+into a string literal at build time, so the second line is safe in
+the browser bundle (it becomes `return "1" === '1'`). But
+`DefinePlugin` does **not** touch the bare `typeof process` operator
+on the first line. In a production browser bundle where `process`
+is not defined as a runtime global, the guard returns `'undefined'`
+and the function short-circuits to `false` BEFORE the inlined
+literal is ever evaluated — silently turning the env-var prod
+opt-in back into a no-op even though Vercel inlined `'1'` into the
+bundle correctly.
+
+### What P3.3C changed
+
+- **`apps/web/components/scenario3d/imperativeScene.ts`** — removed
+  the `if (typeof process === 'undefined') return false` guard from
+  all three env-flag readers (`readGlbAthletePreviewEnvFlag`,
+  `readImportedCloseoutEnvFlag`, `readImportedBackCutEnvFlag`).
+  Each body is now a single static `===` against the literal `'1'`.
+  After DefinePlugin runs, the browser bundle has no runtime
+  reference to `process` at all in those readers; SSR / Node tests
+  always have `process` defined, so the unguarded read is also
+  safe there.
+- **`apps/web/components/scenario3d/productionGlbAssetGate.test.ts`**
+  — added a regression test that scans `imperativeScene.ts` and
+  fails if any of the three readers grows a `typeof process` /
+  `typeof window` guard around the static env read. Locks the fix
+  in so a future "defensive" refactor cannot reintroduce the
+  silent-no-op.
 
 ---
 

@@ -3689,8 +3689,9 @@ export const IMPORTED_BACK_CUT_PROD_ENV_KEY =
   'NEXT_PUBLIC_USE_IMPORTED_BACK_CUT_CLIP'
 
 /**
- * P3.3B — production env-var readers, one per flag, written as
- * **static** `process.env.LITERAL` member expressions.
+ * P3.3B / P3.3C — production env-var readers, one per flag, written
+ * as **static** `process.env.LITERAL` member expressions with NO
+ * surrounding runtime guards.
  *
  * Why three readers instead of one parametrised reader: Next.js /
  * webpack's `DefinePlugin` only inlines `process.env.<LITERAL>` at
@@ -3702,6 +3703,20 @@ export const IMPORTED_BACK_CUT_PROD_ENV_KEY =
  * even when the env vars were correctly set in Vercel: the value
  * was inlined into the bundle for the static `NODE_ENV` check above
  * but never reached the dynamic `process.env?.[name]` lookup.
+ *
+ * Why the body is just one bare `===` line: the previous P3.3B
+ * implementation also gated the read behind
+ * `if (typeof process === 'undefined') return false`. That guard is
+ * NOT a static `process.env.LITERAL` pattern, so webpack does not
+ * rewrite it. In a production browser bundle where `process` isn't
+ * defined as a runtime global, the guard short-circuits to `false`
+ * BEFORE the inlined literal is ever consulted — silently turning
+ * the prod env-var opt-in back into a no-op even though Vercel
+ * inlined `'1'` into the bundle. After DefinePlugin runs, this
+ * function's body becomes `return "1" === '1'` in the browser
+ * bundle, with no runtime reference to `process` at all; in SSR
+ * and Node tests `process` is always defined, so the unguarded
+ * read is also safe there.
  *
  * Each function below is a single `===` comparison against the
  * literal `'1'`. The bundler replaces the LHS with the build-time
@@ -3715,17 +3730,14 @@ export const IMPORTED_BACK_CUT_PROD_ENV_KEY =
  * read them dynamically.
  */
 function readGlbAthletePreviewEnvFlag(): boolean {
-  if (typeof process === 'undefined') return false
   return process.env.NEXT_PUBLIC_USE_GLB_ATHLETE_PREVIEW === '1'
 }
 
 function readImportedCloseoutEnvFlag(): boolean {
-  if (typeof process === 'undefined') return false
   return process.env.NEXT_PUBLIC_USE_IMPORTED_CLOSEOUT_CLIP === '1'
 }
 
 function readImportedBackCutEnvFlag(): boolean {
-  if (typeof process === 'undefined') return false
   return process.env.NEXT_PUBLIC_USE_IMPORTED_BACK_CUT_CLIP === '1'
 }
 
