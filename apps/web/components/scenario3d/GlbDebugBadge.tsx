@@ -215,7 +215,7 @@ export function summariseGlbAssetDetail(
   scene: THREE.Object3D,
   embeddedAnimations: readonly THREE.AnimationClip[] | null,
 ): NonNullable<BadgeState['loaderDetail']> {
-  let sceneChildCount = scene.children.length
+  const sceneChildCount = scene.children.length
   let meshCount = 0
   let skinnedMeshCount = 0
   const bones = new Set<string>()
