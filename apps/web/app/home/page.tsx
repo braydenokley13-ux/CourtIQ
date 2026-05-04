@@ -50,6 +50,15 @@ interface RecentSession {
   iq_delta: number
 }
 
+/** Minimal shape we read off /api/pathways/:slug/progress. */
+interface PathwayProgressLite {
+  pathwayProgress: number
+  pathwayMastered: boolean
+  recommendedNext: { trainHref: string; label: string } | null
+}
+
+const FOUNDATION_DETAIL_HREF = '/pathways/complete-iq-foundation'
+
 function greeting(): string {
   const h = new Date().getHours()
   if (h < 12) return 'Good morning'
@@ -120,6 +129,7 @@ export default function HomePage() {
   const [userName, setUserName] = useState<string | null>(null)
   const [data, setData] = useState<ProfileData | null>(null)
   const [sessions, setSessions] = useState<RecentSession[]>([])
+  const [pathway, setPathway] = useState<PathwayProgressLite | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -135,10 +145,13 @@ export default function HomePage() {
       const name = user.user_metadata?.full_name ?? user.email?.split('@')[0] ?? 'Player'
       setUserName(name)
 
-      // Fetch profile + recent sessions in parallel
-      const [profileRes, sessionsRes] = await Promise.all([
+      // Fetch profile + recent sessions + foundation pathway progress
+      // in parallel. Pathway endpoint is auth-cookie-based; failing it
+      // shouldn't block the rest of the home dashboard.
+      const [profileRes, sessionsRes, pathwayRes] = await Promise.all([
         fetch(`/api/profile?userId=${user.id}`),
         fetch(`/api/sessions/recent?userId=${user.id}`),
+        fetch(`/api/pathways/complete-iq-foundation/progress`),
       ])
 
       if (profileRes.ok) {
@@ -146,6 +159,9 @@ export default function HomePage() {
       }
       if (sessionsRes.ok) {
         setSessions(await sessionsRes.json())
+      }
+      if (pathwayRes.ok) {
+        setPathway(await pathwayRes.json())
       }
       setLoading(false)
     }
@@ -248,6 +264,34 @@ export default function HomePage() {
             delay={4}
           />
         </div>
+
+        {/* Pathway CTA — single lightweight card pointing to the
+            active Pathway. Falls back to "Start" copy when the user
+            has no progress yet so the card never reads as empty. */}
+        <motion.div custom={4.5} initial="hidden" animate="show" variants={fadeUp} className="mb-5">
+          <Link
+            href={FOUNDATION_DETAIL_HREF}
+            className="group flex items-center justify-between gap-3 rounded-2xl border-2 border-[#3BE383]/30 bg-[#0F1F1A] p-4 transition-colors hover:border-[#3BE383]/60"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-[#3BE383]">
+                {pathway?.pathwayMastered ? 'Pathway mastered' : 'Continue your Pathway'}
+              </p>
+              <p className="mt-1 font-display text-[16px] font-bold leading-tight text-[#F9FAFB]">
+                Complete IQ Foundation
+              </p>
+              <p className="mt-1 text-[12px] text-[#9CA3AF]">
+                {pathway?.recommendedNext?.label ?? 'Build your basketball brain from the ground up.'}
+              </p>
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              <p className="font-display text-[20px] font-black leading-none text-[#3BE383]">
+                {Math.round((pathway?.pathwayProgress ?? 0) * 100)}%
+              </p>
+              <p className="text-[10px] uppercase tracking-[1.2px] text-[#4B5563]">progress</p>
+            </div>
+          </Link>
+        </motion.div>
 
         {/* Train CTA */}
         <motion.div custom={5} initial="hidden" animate="show" variants={fadeUp} className="mb-5">
@@ -386,8 +430,9 @@ export default function HomePage() {
         {/* Nav links */}
         <motion.div custom={7} initial="hidden" animate="show" variants={fadeUp} className="mt-5 grid grid-cols-2 gap-3">
           {[
-            { href: '/profile', label: '📊 Profile & Stats' },
+            { href: '/pathways', label: '🧭 Pathways' },
             { href: '/academy', label: '🎓 IQ Academy' },
+            { href: '/profile', label: '📊 Profile & Stats' },
             { href: '/leaderboard', label: '🏆 Leaderboard' },
             { href: '/settings', label: '⚙️ Settings' },
           ].map(({ href, label }) => (
