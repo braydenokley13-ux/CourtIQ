@@ -46,6 +46,7 @@ import {
 } from '@/lib/scenario3d/quality'
 import { buildDustMotes, type DustMotes } from '@/lib/scenario3d/atmosphere'
 import { loadGlbAthleteAsset, preloadImportedCloseoutClip } from './glbAthlete'
+import { GlbDebugBadge, isGlbDebugBadgeEnabled } from './GlbDebugBadge'
 
 interface Scenario3DCanvasProps {
   /** Mounted as the WebGL fallback when WebGL is unavailable. */
@@ -255,6 +256,14 @@ export function Scenario3DCanvas({
   const [rendererCreated, setRendererCreated] = useState(false)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
   const [debugMode, setDebugMode] = useState(false)
+  // P3.3C — `isGlbDebugBadgeEnabled()` reads `window.location.search`,
+  // which is undefined during SSR. Gate the badge mount behind a
+  // client-only post-hydration flag so the SSR markup and the first
+  // client render agree (no hydration warning).
+  const [glbDebugEnabled, setGlbDebugEnabled] = useState(false)
+  useEffect(() => {
+    setGlbDebugEnabled(isGlbDebugBadgeEnabled())
+  }, [])
   const [emergencyMode, setEmergencyMode] = useState(false)
   const [orbitMode, setOrbitMode] = useState(false)
   // Always pin to the simple imperative path — the JSX Court3D +
@@ -495,6 +504,30 @@ export function Scenario3DCanvas({
     // traffic never fetches the 60 KB closeout asset.
     let cancelled = false
     const glbActive = isGlbAthletePreviewActive()
+
+    // P3.3C — one-shot console summary so the in-prod gate state is
+    // grep-able from the browser console (and Sentry breadcrumbs)
+    // without opening `/dev/glb-debug`. Public-only payload: every
+    // `NEXT_PUBLIC_*` var is already inlined in the client bundle and
+    // visible in source. Logged once per canvas mount; the visual
+    // `<GlbDebugBadge />` below carries the same data when
+    // `?glbDebug=1` (or `window.__COURTIQ_GLB_DEBUG__`) is set.
+    try {
+      // eslint-disable-next-line no-console
+      console.info('[CourtIQ GLB]', {
+        env: {
+          glb: process.env.NEXT_PUBLIC_USE_GLB_ATHLETE_PREVIEW ?? '',
+          closeout: process.env.NEXT_PUBLIC_USE_IMPORTED_CLOSEOUT_CLIP ?? '',
+          backCut: process.env.NEXT_PUBLIC_USE_IMPORTED_BACK_CUT_CLIP ?? '',
+        },
+        gate: glbActive,
+        commit: process.env.NEXT_PUBLIC_COMMIT_SHA ?? 'unknown',
+      })
+    } catch {
+      // Console writes can throw if the page captured `console.info`
+      // and rethrows; the gate decision must not depend on it.
+    }
+
     if (glbActive) {
       void loadGlbAthleteAsset()
         .then((result) => {
@@ -1419,6 +1452,11 @@ export function Scenario3DCanvas({
           emergency render
         </div>
       ) : null}
+      {/* P3.3C — production-route GLB debug badge. Mounts only when
+          `?glbDebug=1` is on the URL or `window.__COURTIQ_GLB_DEBUG__`
+          was set from the console; otherwise stays unmounted so prod
+          users never load the asset probes. */}
+      {glbDebugEnabled ? <GlbDebugBadge /> : null}
     </div>
   )
 }
