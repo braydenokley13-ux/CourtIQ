@@ -16,18 +16,18 @@
     "visible_cue": "x2 has hand in lane, head off you, foot above your top foot. The strip from the corner along the baseline to the rim has no defender between you and the basket.",
     "court_state": {
       "offense": [
-        { "id": "pg", "x": 100, "y": 130, "role": "ball_handler", "hasBall": true },
-        { "id": "wing", "x": 410, "y": 80, "role": "strong_wing", "hasBall": false },
+        { "id": "pg", "x": 100, "y": 130, "role": "ball_handler_initiator", "hasBall": false },
+        { "id": "wing", "x": 410, "y": 80, "role": "strong_wing", "hasBall": true },
         { "id": "user", "x": 470, "y": 10, "role": "strong_corner_shooter", "hasBall": false },
         { "id": "o4", "x": 60, "y": 20, "role": "weak_corner", "hasBall": false }
       ],
       "defense": [
-        { "id": "x1", "x": 100, "y": 150, "role": "on_ball", "hasBall": false },
-        { "id": "x_wing", "x": 410, "y": 100, "role": "wing_defender", "hasBall": false },
+        { "id": "x1", "x": 100, "y": 150, "role": "initiator_defender", "hasBall": false },
+        { "id": "x_wing", "x": 410, "y": 100, "role": "on_ball", "hasBall": false },
         { "id": "x2", "x": 440, "y": 50, "role": "denying_corner_defender", "hasBall": false },
         { "id": "x4", "x": 80, "y": 40, "role": "weak_corner_low_man", "hasBall": false }
       ],
-      "ball_location": { "x": 100, "y": 130 }
+      "ball_location": { "x": 410, "y": 80 }
     },
     "prompt": "Your defender is denying the corner. The baseline behind him is empty.",
     "choices": [

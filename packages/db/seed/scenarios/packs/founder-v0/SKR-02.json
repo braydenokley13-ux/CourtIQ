@@ -112,14 +112,14 @@
         { "id": "o4", "team": "offense", "role": "weak_corner", "label": "4", "start": { "x": -22, "z": 1 } },
         { "id": "x1", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": 17, "z": 11 } },
         { "id": "x2", "team": "defense", "role": "strong_corner_defender", "label": "x2", "start": { "x": 19, "z": 3 } },
-        { "id": "x3", "team": "defense", "role": "weak_wing_help_defender", "label": "x3", "start": { "x": -4, "z": 5 } },
+        { "id": "x3", "team": "defense", "role": "weak_wing_help_defender", "label": "x3", "start": { "x": -14, "z": 9 } },
         { "id": "x4", "team": "defense", "role": "weak_corner_low_man", "label": "x4", "start": { "x": -19, "z": 3 } }
       ],
       "ball": { "start": { "x": 17, "z": 9 }, "holderId": "user" },
       "movements": [
         { "id": "user_drive_baseline", "playerId": "user", "kind": "drive", "to": { "x": 14, "z": 4 }, "delayMs": 0, "durationMs": 800 },
         { "id": "x1_recover", "playerId": "x1", "kind": "stop_ball", "to": { "x": 13, "z": 6 }, "delayMs": 100, "durationMs": 750 },
-        { "id": "x3_sink_help", "playerId": "x3", "kind": "rotation", "to": { "x": 0, "z": 4 }, "delayMs": 250, "durationMs": 750 }
+        { "id": "x3_sink_help", "playerId": "x3", "kind": "rotation", "to": { "x": -2, "z": 5 }, "delayMs": 250, "durationMs": 1000 }
       ],
       "freezeMarker": { "kind": "atMs", "atMs": 1500 },
       "answerDemo": [

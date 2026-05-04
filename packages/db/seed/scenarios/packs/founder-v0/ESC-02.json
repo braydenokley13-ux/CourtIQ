@@ -111,7 +111,7 @@
         { "id": "o3", "team": "offense", "role": "weak_wing", "label": "3", "start": { "x": -16, "z": 9 } },
         { "id": "o4", "team": "offense", "role": "weak_corner", "label": "4", "start": { "x": -22, "z": 1 } },
         { "id": "x1", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": 0, "z": 16 } },
-        { "id": "x2", "team": "defense", "role": "wing_help_stunter", "label": "x2", "start": { "x": 12, "z": 5 } },
+        { "id": "x2", "team": "defense", "role": "wing_help_stunter", "label": "x2", "start": { "x": 16, "z": 9 } },
         { "id": "x3", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": -14, "z": 11 } },
         { "id": "x4", "team": "defense", "role": "weak_corner_low_man", "label": "x4", "start": { "x": -19, "z": 3 } }
       ],
@@ -119,7 +119,7 @@
       "movements": [
         { "id": "user_set", "playerId": "user", "kind": "lift", "to": { "x": 18, "z": 9 }, "delayMs": 0, "durationMs": 500 },
         { "id": "pg_drive_middle", "playerId": "pg", "kind": "drive", "to": { "x": 4, "z": 8 }, "delayMs": 0, "durationMs": 800 },
-        { "id": "x2_stunt", "playerId": "x2", "kind": "rotation", "to": { "x": 8, "z": 6 }, "delayMs": 250, "durationMs": 700 }
+        { "id": "x2_stunt", "playerId": "x2", "kind": "rotation", "to": { "x": 9, "z": 7 }, "delayMs": 250, "durationMs": 800 }
       ],
       "freezeMarker": { "kind": "atMs", "atMs": 1500 },
       "answerDemo": [
