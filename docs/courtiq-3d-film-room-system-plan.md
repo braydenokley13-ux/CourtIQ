@@ -1616,3 +1616,221 @@ release boundaries.
 - **Success criteria.**
   - The 13-year-old quality bar in §2 passes.
   - Silhouette-readability test passes for the new rig.
+
+---
+
+## 16. MVP Scope
+
+The first thing we ship is **FR-1 — Film-Room QA Route + Debug
+Observability**. Nothing else. This is a deliberate ordering decision.
+
+### 16.1 Why QA tooling first
+
+- We currently *cannot see* the 20 scenarios side-by-side. Any visual
+  decision made before this lands is a guess.
+- Authors and engineers can validate every fix immediately — no DB
+  seed, no `/train` walk-through, no clicking past unrelated scenarios.
+- Three of the four "what is broken" findings in §2.3 (silent fallback,
+  cue-not-on-camera, overlay clutter) are *findable* only with a tool
+  that lets us flip between scenarios in seconds.
+- Fixing GLB reliability (FR-2) without QA tooling means we can't tell
+  whether the fix worked across all 20 scenarios.
+- The QA matrix in §14 only earns its keep if there is a UI that
+  surfaces it next to the live render.
+
+### 16.2 What FR-1 ships
+
+- `/dev/scenario-preview` route, gated to dev or
+  `NEXT_PUBLIC_ENABLE_DEV_ROUTES=1` + admin.
+- Scenario selector for all 20 founder-v0 IDs, grouped by decoder
+  family.
+- Scenario metadata panel (ID, title, decoder, difficulty, prompt, cue
+  text, best-read explanation).
+- Render metadata panel (per-player render path, animation intent,
+  selected clip, fallback reason, camera preset, overlay level, replay
+  phase).
+- Manual QA checklist (12 items per §11.6).
+- `?debugFilmRoom=1` URL flag rendering the same panel as a badge on
+  any canvas.
+- Embedded QA matrix (§14) shown beside the live canvas.
+
+### 16.3 What FR-1 does NOT ship
+
+- No new GLBs.
+- No new clips.
+- No camera presets.
+- No overlay choreography.
+- No replay teaching polish.
+- No renderer rewrite.
+- No scenario edits.
+- No schema migration.
+- No persisted QA data.
+- No screenshot capture.
+- No production-user-facing changes.
+
+### 16.4 Why not start with GLB or camera fixes
+
+- Without QA tooling, we'd verify those fixes by playing through
+  `/train` 20 times. That's a 100-minute regression test per change,
+  which kills iteration speed.
+- A camera fix that improves 18 scenarios but breaks 2 is invisible
+  without per-scenario validation.
+- Asset pipeline work (FR-8) is the most expensive thing in the
+  roadmap. It should be informed by data from FR-1, not by intuition.
+
+### 16.5 Success criteria
+
+- A reviewer can pick any of the 20 scenarios in < 5 s.
+- The render-path summary surfaces `glb` vs. `procedural` correctly.
+- The QA matrix renders alongside each scenario.
+- A failure on any of the 12 checklist items is one click away from a
+  clipboard payload that includes the scenario ID and the failed item.
+- The route never appears in production navigation.
+
+---
+
+## 17. Risks and Open Questions
+
+### 17.1 Risks
+
+- **Overbuilding the renderer before QA tools.** The biggest risk in
+  this plan. Mitigation: FR-1 first, hard scope.
+- **Chasing realism instead of readability.** Premium athletes are
+  attractive but a beautifully-rendered scene that does not teach is a
+  failure. Mitigation: every change measured against §4.
+- **Adding too many overlays.** The clutter caps already exist; we
+  must enforce them in code, not just convention.
+- **Making the GLB asset pipeline too expensive.** A custom rig is
+  weeks of work. Mitigation: stage v2/v3 (improve what we have)
+  before v4 (premium pipeline). Defer FR-8 until FR-1–FR-7 are paying
+  back.
+- **Inconsistent mobile camera.** The presets in §8 work in landscape
+  desktop; phones need overrides. Mitigation: explicit phone-aspect
+  testing in FR-4.
+- **Scenario content not matching visual scene.** A scenario whose
+  freeze cue is described as "x2 hand in lane" but whose scene state
+  doesn't position x2's hand convincingly is a content bug. The QA
+  matrix surfaces these.
+- **Debug tools leaking answer keys.** If we surface
+  `explanation_md` in `debugFilmRoom=1`, that has to be dev-only.
+  Mitigation: gate behind `NODE_ENV !== 'production'`.
+- **Pathways and Film Room becoming disconnected.** §13.7 is the
+  contract; it must stay in sync as both surfaces evolve. Mitigation:
+  a single test imports the table and asserts both sides honor it.
+- **Determinism regressions.** Camera lerps, overlay choreography,
+  slow-mo all introduce time. `replayDeterminism.test.ts` must extend.
+- **Performance regressions.** Camera transitions, dim, slow-mo all
+  consume frame budget. The in-loop FPS guard must stay; new effects
+  ship behind a runtime degradation path.
+
+### 17.2 Open questions
+
+- **Should GLBs be stylized or realistic?** Recommendation: stylized.
+  Easier to license / author, easier to read at broadcast distance,
+  consistent with the CourtIQ brand voice.
+- **Should CourtIQ buy/source assets or create custom ones?**
+  Recommendation: license a basketball-specific Mixamo-style pack for
+  v3, custom-rig for v4 if the budget exists. Custom-rig is the only
+  way to get a true CourtIQ silhouette.
+- **Should all scenarios require GLB before launch?** No — the
+  fallback hierarchy is part of the design. But the cold-cache
+  procedural-first-frame must be eliminated.
+- **How much hinting should boss challenges remove?** All overlays,
+  all decoder pills, all camera assist. Auto-fit broadcast camera
+  only. The whole point of a boss challenge.
+- **How should mobile camera differ from desktop?** Tighter pitch
+  (~5°), 10% dolly in, no Help Defense Angle (replaced with Top-Down
+  Coach Board for SKR on phone).
+- **Should coach/parent users see film-room replays?** Eventually,
+  yes — Film Room Review is a coach-friendly surface. v1 is
+  player-only.
+- **Should we ever support full-court scenarios?** The half-court is
+  canonical (per `ARCHITECTURE.md` §4.2). Transition scenarios may
+  need full-court eventually; not in founder-v0.
+- **Should the cue overlay choreography be per-scenario or
+  per-decoder?** Per-decoder, with per-scenario timing offsets.
+  Authors should not have to design choreography from scratch.
+- **Where do branded jerseys live in the rig?** Submesh on the GLB,
+  tinted at runtime. v4 problem; v1 paints whole-body tint at low
+  intensity.
+
+---
+
+## 18. Recommended Next Implementation Prompt
+
+The next implementation step is **FR-1 — Film-Room QA Route + Debug
+Observability.** Use the prompt below as a starting point for the
+implementer.
+
+> **Build FR-1: the dev-only film-room QA preview route and the
+> `debugFilmRoom=1` overlay.**
+>
+> **Build:**
+> - Add `/dev/scenario-preview` (only mounted when
+>   `NODE_ENV !== 'production'` or
+>   `NEXT_PUBLIC_ENABLE_DEV_ROUTES=1` AND the user is admin).
+> - Two-column layout (per `docs/courtiq-3d-film-room-system-plan.md`
+>   §11.2).
+> - Left column:
+>   - Scenario selector listing all 20 founder-v0 scenarios
+>     (`packages/db/seed/scenarios/packs/founder-v0/`), grouped by
+>     decoder family, sorted by difficulty.
+>   - Scenario metadata panel (ID, title, decoder, difficulty,
+>     prompt, cue, best-read explanation, decoder teaching point —
+>     read directly from seed JSON).
+>   - Render metadata panel (per-player render path, animation
+>     intent, selected clip, fallback reason, camera preset, overlay
+>     level, replay phase).
+>   - Manual QA checklist (the 12 items in §11.6 — purely UI, no
+>     persistence).
+>   - QA matrix row for the selected scenario (§14).
+> - Right column: live `Scenario3DCanvas` rendering the selected
+>   scenario in `intro` mode, autoplaying.
+> - Add `?debugFilmRoom=1` URL flag (and
+>   `window.__COURTIQ_FILM_ROOM_DEBUG__`) which mounts a compact
+>   badge with the same render metadata on any canvas.
+> - Add `isDebugFilmRoom()` to
+>   `apps/web/lib/scenario3d/feature.ts`.
+> - Surface the existing `_getPlayerFigureDecisionLog`,
+>   `isGlbAthletePreviewActive`,
+>   `isImportedCloseoutClipActive`,
+>   `isImportedBackCutClipActive` to the badge.
+> - Add a new `apps/web/lib/scenario3d/qaMatrix.ts` containing the
+>   per-scenario data from the planning doc §14 — pure data, no
+>   THREE.js imports.
+>
+> **Do NOT:**
+> - Modify any renderer file beyond reading from existing exports.
+> - Modify any scenario seed JSON.
+> - Add or remove GLB assets.
+> - Add or rewrite camera presets.
+> - Add or rewrite overlay choreography.
+> - Modify the schema.
+> - Modify Pathways modules.
+> - Add a screenshot or persistence layer.
+> - Surface the QA route in production navigation.
+>
+> **Tests:**
+> - Render-path summary unit tests (extend
+>   `apps/web/components/scenario3d/glbDebugBadge.test.ts` or add a
+>   new file) for the new badge.
+> - QA matrix data integrity test asserting all 20 founder-v0 IDs
+>   appear exactly once.
+> - Snapshot the dev page rendering for each of the 20 scenarios
+>   (lightweight — assert the page mounts without throwing).
+>
+> **Done means:**
+> - `pnpm test` passes.
+> - `pnpm typecheck` passes.
+> - `pnpm lint` passes.
+> - `pnpm build` passes.
+> - Visiting `/dev/scenario-preview` in development renders the
+>   layout described above.
+> - Visiting `/dev/scenario-preview` in production (without the env
+>   flag) renders a 404.
+> - `?debugFilmRoom=1` mounts the badge on `/train` without
+>   regressing existing tests.
+
+This prompt assumes the implementer has read this planning document end-to-end.
+
+Recommended Next Implementation Step.
