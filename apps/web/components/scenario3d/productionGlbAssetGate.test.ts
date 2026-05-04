@@ -25,6 +25,8 @@
 
 /* @vitest-environment jsdom */
 
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   GLB_ATHLETE_PREVIEW_DEV_OVERRIDE_KEY,
@@ -182,6 +184,71 @@ describe('P3.3A — env var prod-opt-in flips the runtime gates', () => {
     }
     process.env[GLB_ATHLETE_PREVIEW_PROD_ENV_KEY] = '1'
     expect(isGlbAthletePreviewActive()).toBe(true)
+  })
+})
+
+describe('P3.3B — env-var reads must be statically inlinable by webpack', () => {
+  // The P3.3A regression that made this gate silently no-op in
+  // production was a *dynamic* property access on `process.env` —
+  // `process.env?.[name]`. Webpack's DefinePlugin only inlines
+  // `process.env.<LITERAL>` at build time; a computed property name
+  // is left as a runtime lookup against an empty `process.env` stub
+  // in the browser bundle, so the env value never reached the gate.
+  //
+  // This test reads the source file and asserts that:
+  //   1. each canonical NEXT_PUBLIC_* name appears as a literal
+  //      member expression on `process.env` somewhere in the file
+  //      (the only form DefinePlugin replaces), and
+  //   2. the source contains no `process.env?.[` or `process.env[`
+  //      bracket access against a variable. We allow `process.env[`
+  //      with a string literal for completeness, but the dynamic
+  //      pattern that broke prod is forbidden.
+  it('imperativeScene.ts uses static literal env reads only', async () => {
+    const file = path.resolve(
+      __dirname,
+      'imperativeScene.ts',
+    )
+    const raw = await fs.readFile(file, 'utf8')
+
+    // Strip comments before scanning — the failure-mode docstring
+    // intentionally writes out `process.env[name]` to explain what
+    // *not* to do, and we don't want that text to trip the regex.
+    const src = raw
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1')
+
+    expect(src).toContain('process.env.NEXT_PUBLIC_USE_GLB_ATHLETE_PREVIEW')
+    expect(src).toContain('process.env.NEXT_PUBLIC_USE_IMPORTED_CLOSEOUT_CLIP')
+    expect(src).toContain('process.env.NEXT_PUBLIC_USE_IMPORTED_BACK_CUT_CLIP')
+
+    // `process.env?.[name]` and `process.env[name]` are the dynamic
+    // forms webpack cannot inline. The exact P3.3A regression was
+    // `process.env?.[name]`. Lock it out so a future refactor cannot
+    // reintroduce it.
+    expect(src).not.toMatch(/process\.env\?\.\[[A-Za-z_$]/)
+    expect(src).not.toMatch(/process\.env\[[A-Za-z_$][A-Za-z_$0-9]*\]/)
+  })
+
+  it('flag readers return the inlined value for the canonical key names', () => {
+    // Vitest runs in Node, so `process.env.NEXT_PUBLIC_*` is the
+    // real Node process.env entry. We mutate it and confirm the
+    // gate flips. In production this same expression is replaced by
+    // webpack with the literal build-time value, so a passing test
+    // here proves the *runtime* contract; the source-shape test
+    // above proves the *bundling* contract.
+    const before =
+      process.env.NEXT_PUBLIC_USE_GLB_ATHLETE_PREVIEW
+    try {
+      ;(process.env as Record<string, string | undefined>)
+        .NEXT_PUBLIC_USE_GLB_ATHLETE_PREVIEW = '1'
+      expect(isGlbAthletePreviewActive()).toBe(true)
+      ;(process.env as Record<string, string | undefined>)
+        .NEXT_PUBLIC_USE_GLB_ATHLETE_PREVIEW = ''
+      expect(isGlbAthletePreviewActive()).toBe(false)
+    } finally {
+      ;(process.env as Record<string, string | undefined>)
+        .NEXT_PUBLIC_USE_GLB_ATHLETE_PREVIEW = before
+    }
   })
 })
 
