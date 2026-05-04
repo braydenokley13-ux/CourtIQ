@@ -235,6 +235,20 @@ export function Scenario3DCanvas({
     duration: number
     startedAt: number
   } | null>(null)
+  // P3.3B — bumped once when the asynchronous GLB athlete cold-load
+  // completes, so the scene-build effect re-runs and swaps the
+  // procedural cold-cache fallback for the loaded GLB mannequin.
+  // Without this trigger, the very first scene rendered after a
+  // page navigation always showed procedural figures (the imperative
+  // scene-build is synchronous — calling `buildGlbAthletePreview`
+  // returns `null` while the cache is cold, falling through to
+  // procedural). Subsequent scenes within the same canvas mount
+  // were already fine because the cache was warm by then; the bug
+  // surfaced as "the very first scenario on /train always shows
+  // procedural." Bump-once-on-warm-up reliably upgrades that first
+  // scenario without churning later builds (the load-effect deps
+  // are `[]`, so the bump fires at most once per canvas mount).
+  const [glbCacheReadyTick, setGlbCacheReadyTick] = useState(0)
   const [mode, setMode] = useState<'probing' | '3d' | 'fallback'>('probing')
   const [webglSupported, setWebglSupported] = useState<boolean | null>(null)
   const [canvasMounted, setCanvasMounted] = useState(false)
@@ -483,9 +497,16 @@ export function Scenario3DCanvas({
     const glbActive = isGlbAthletePreviewActive()
     if (glbActive) {
       void loadGlbAthleteAsset()
-        .then(() => {
+        .then((result) => {
           if (cancelled) return
           applyAfterTransition()
+          // P3.3B — flip the cache-ready tick so the scene-build
+          // effect re-runs and replaces the cold-cache procedural
+          // fallback with the loaded GLB mannequin. Only fires when
+          // the load actually produced a cache entry; a `null`
+          // result (asset missing, parse failure, network blocked)
+          // leaves the procedural figure in place exactly as before.
+          if (result) setGlbCacheReadyTick((n) => n + 1)
         })
         .catch(() => {
           /* swallowed — apply still runs from the observer */
@@ -989,7 +1010,22 @@ export function Scenario3DCanvas({
     // controller, in contrast, depends on replayMode (the timeline it
     // resolves changes when mode changes), so replayMode IS a dep.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, visibleScene, emergencyMode, debugMode, simpleMode, replayMode])
+  }, [
+    mode,
+    visibleScene,
+    emergencyMode,
+    debugMode,
+    simpleMode,
+    replayMode,
+    // P3.3B — rebuild the imperative scene once the GLB cold-load
+    // completes so the very first scenario after a page navigation
+    // upgrades from procedural to the GLB mannequin. The load effect
+    // bumps this exactly once per canvas mount (when the load
+    // resolves with a non-null cache entry); subsequent scene
+    // changes happen via `visibleScene` and find the cache already
+    // warm, so this dep is a no-op for them.
+    glbCacheReadyTick,
+  ])
 
   // Push live camera-mode changes into the existing controller. No
   // scene rebuild — just a target recompute, so the next parent rAF

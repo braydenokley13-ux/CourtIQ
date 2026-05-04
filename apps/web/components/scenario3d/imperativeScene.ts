@@ -3688,9 +3688,45 @@ export const IMPORTED_CLOSEOUT_PROD_ENV_KEY =
 export const IMPORTED_BACK_CUT_PROD_ENV_KEY =
   'NEXT_PUBLIC_USE_IMPORTED_BACK_CUT_CLIP'
 
-function readProdEnvFlag(name: string): boolean {
+/**
+ * P3.3B — production env-var readers, one per flag, written as
+ * **static** `process.env.LITERAL` member expressions.
+ *
+ * Why three readers instead of one parametrised reader: Next.js /
+ * webpack's `DefinePlugin` only inlines `process.env.<LITERAL>` at
+ * build time. A dynamic access — e.g. `process.env[name]` or
+ * `process.env?.[name]` — is **not** statically analysable, so the
+ * bundler leaves the lookup intact, and the browser sees an empty
+ * `process.env` stub at runtime. That made the previous P3.3A
+ * helper (`readProdEnvFlag(name)`) silently a no-op in production
+ * even when the env vars were correctly set in Vercel: the value
+ * was inlined into the bundle for the static `NODE_ENV` check above
+ * but never reached the dynamic `process.env?.[name]` lookup.
+ *
+ * Each function below is a single `===` comparison against the
+ * literal `'1'`. The bundler replaces the LHS with the build-time
+ * value at compile time, so the entire branch folds to a constant
+ * in the production bundle (and remains read-from-process.env in
+ * Node tests so the existing Vitest suites keep working).
+ *
+ * The `_PROD_ENV_KEY` exports below are kept (and continue to
+ * point at the canonical name strings) so docs / debug surfaces
+ * can reference them without drift, but the helpers above never
+ * read them dynamically.
+ */
+function readGlbAthletePreviewEnvFlag(): boolean {
   if (typeof process === 'undefined') return false
-  return process.env?.[name] === '1'
+  return process.env.NEXT_PUBLIC_USE_GLB_ATHLETE_PREVIEW === '1'
+}
+
+function readImportedCloseoutEnvFlag(): boolean {
+  if (typeof process === 'undefined') return false
+  return process.env.NEXT_PUBLIC_USE_IMPORTED_CLOSEOUT_CLIP === '1'
+}
+
+function readImportedBackCutEnvFlag(): boolean {
+  if (typeof process === 'undefined') return false
+  return process.env.NEXT_PUBLIC_USE_IMPORTED_BACK_CUT_CLIP === '1'
 }
 
 /**
@@ -3716,7 +3752,7 @@ function readProdEnvFlag(name: string): boolean {
  */
 export function isGlbAthletePreviewActive(): boolean {
   if (USE_GLB_ATHLETE_PREVIEW) return true
-  if (readProdEnvFlag(GLB_ATHLETE_PREVIEW_PROD_ENV_KEY)) return true
+  if (readGlbAthletePreviewEnvFlag()) return true
   if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production') {
     return false
   }
@@ -3731,7 +3767,7 @@ export function isGlbAthletePreviewActive(): boolean {
 /** P1.7 / P3.3A — companion runtime check for the imported closeout clip. */
 export function isImportedCloseoutClipActive(): boolean {
   if (USE_IMPORTED_CLOSEOUT_CLIP) return true
-  if (readProdEnvFlag(IMPORTED_CLOSEOUT_PROD_ENV_KEY)) return true
+  if (readImportedCloseoutEnvFlag()) return true
   if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production') {
     return false
   }
@@ -3746,7 +3782,7 @@ export function isImportedCloseoutClipActive(): boolean {
 /** P2.2 / P3.3A — companion runtime check for the imported back-cut clip. */
 export function isImportedBackCutClipActive(): boolean {
   if (USE_IMPORTED_BACK_CUT_CLIP) return true
-  if (readProdEnvFlag(IMPORTED_BACK_CUT_PROD_ENV_KEY)) return true
+  if (readImportedBackCutEnvFlag()) return true
   if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production') {
     return false
   }

@@ -1,10 +1,10 @@
-# Production GLB Asset Loading QA (P3.3A)
+# Production GLB Asset Loading QA (P3.3A → P3.3B)
 
-**Status:** P3.3A — production GLB asset loading fix. Pauses P3.3 LIVE
-promotion of founder scenarios until production renders the
-license-clean GLB athletes and the imported animation clips
-(closeout / back-cut), matching local `/dev/scene-preview?glb=1`
-behavior.
+**Status:** P3.3B — second pass on the production GLB asset loading
+fix. P3.3A wired up the env-var opt-in surface but production still
+rendered procedural athletes after the env vars were set. Two
+remaining causes were stacked on top of P3.3A; both are fixed below.
+P3.3 LIVE promotion stays paused until the QA checklist passes.
 
 ---
 
@@ -32,6 +32,65 @@ a stack of three things, all defaulting safe:
    Supabase auth refresh — slower and, if Supabase is unreachable
    or the env vars are missing, can 5xx instead of returning the
    bytes.
+
+## P3.3B — what was *still* broken after P3.3A
+
+Even with the env vars set in Vercel and a redeploy completed, prod
+QA still showed procedural figures. Two further root causes:
+
+1. **Dynamic `process.env` access — webpack `DefinePlugin` cannot
+   inline it.** P3.3A introduced a `readProdEnvFlag(name)` helper
+   that did `process.env?.[name] === '1'`. `DefinePlugin` only
+   replaces *static* member expressions (`process.env.NEXT_PUBLIC_X`).
+   A dynamic computed-property access is left untouched in the
+   bundle, and the production browser bundle has an empty
+   `process.env` stub at runtime, so the lookup always returned
+   `undefined`. The gate was permanently off in production no
+   matter what Vercel had configured.
+
+2. **Cold-cache first scene was never upgraded.** The imperative
+   scene-build (`Scenario3DCanvas` line ~710) is synchronous;
+   `buildGlbAthletePreview()` returns `null` while the GLB cache
+   is cold and the figure-builder falls through to the procedural
+   Phase F figure. The async `loadGlbAthleteAsset()` resolves a
+   moment later but only triggered a renderer resize — never a
+   scene rebuild — so the very first scenario after navigation
+   stayed procedural until the user advanced to the next scene.
+
+### What P3.3B changed
+
+- **`apps/web/components/scenario3d/imperativeScene.ts`** — replaced
+  the parametric `readProdEnvFlag(name)` with three static-literal
+  readers (one per env var). Each reader is a single
+  `process.env.NEXT_PUBLIC_X === '1'` comparison, which `DefinePlugin`
+  inlines at build time so the value actually reaches the browser.
+- **`apps/web/components/scenario3d/Scenario3DCanvas.tsx`** — added a
+  `glbCacheReadyTick` state that is bumped exactly once per canvas
+  mount when `loadGlbAthleteAsset()` resolves with a populated cache
+  entry. The scene-build effect now lists this as a dep so it
+  rebuilds, swapping the procedural cold-cache fallback for the
+  GLB mannequin without churning subsequent scene transitions
+  (which already find the cache warm).
+- **`apps/web/app/dev/glb-debug/`** — new production-safe debug
+  surface at `/dev/glb-debug` that reports:
+  - `NEXT_PUBLIC_*` flag values as the *client bundle* sees them
+    (proof that DefinePlugin inlined them correctly),
+  - the same flags as the *server* injected at build time,
+  - each runtime gate boolean (`isGlbAthletePreviewActive` etc.),
+  - HTTP HEAD probe results for each `/athlete/...` GLB URL,
+  - whether `loadGlbAthleteAsset()` resolved with a cache entry,
+  - and `NEXT_PUBLIC_COMMIT_SHA` so QA can confirm the deployed
+    build actually contains the P3.3B fix.
+  Page lives under `/dev/`, which the middleware already routes
+  around the Supabase auth refresh, so it is reachable in
+  production without an account. Only `NEXT_PUBLIC_*` values are
+  rendered — they are public by definition (inlined into the
+  client bundle).
+- **`apps/web/components/scenario3d/productionGlbAssetGate.test.ts`**
+  — added a regression test that scans `imperativeScene.ts` and
+  forbids any further `process.env?.[name]` / `process.env[name]`
+  dynamic access patterns. The next-time refactor cannot
+  reintroduce the P3.3A regression.
 
 ## What changed in P3.3A
 
@@ -87,6 +146,24 @@ redeploy.
 
 Run this once after the env vars land. Capture browser DevTools
 screenshots of each pass / fail.
+
+### `/dev/glb-debug` (do this first)
+
+- [ ] Open `https://<prod-host>/dev/glb-debug` in production.
+- [ ] Confirm the **Build / commit** section shows the expected
+      `NEXT_PUBLIC_COMMIT_SHA` (matches the deployed commit on the
+      Vercel dashboard) and `NODE_ENV: production`.
+- [ ] Confirm the three rows in **Env flags (client bundle)** all
+      show the literal `"1"`. If any show `""`, the build did not
+      inline them — re-check Vercel env-var scope (must be
+      Production), then redeploy.
+- [ ] Confirm the three rows in **Runtime gates** all show `true`.
+- [ ] Confirm each row in **Asset HEAD probes** shows `200`.
+- [ ] Confirm **Loader cold-load result** shows `cache populated`.
+
+If `/dev/glb-debug` reports green across all sections, the
+remaining `/train` checks are the contract verification. If
+anything shows red there, fix it before opening `/train`.
 
 ### Asset network
 
@@ -155,6 +232,8 @@ If any of the above fails:
 | GLB requests return **401** with `WWW-Authenticate` | Middleware matcher still catching the route | Confirm `apps/web/middleware.ts` matcher excludes `/athlete/` and `glb` |
 | GLB requests return **404** | Asset missing from `apps/web/public/athlete/...` or build did not include it | `ls apps/web/public/athlete/clips/` locally; redeploy if file is missing |
 | GLB requests return **200** but figure is still procedural | Env vars not inlined — was the build run after setting the vars? | Trigger a fresh Vercel deploy; `NEXT_PUBLIC_*` is build-time |
+| GLB requests return **200**, env vars set in Vercel, but `/dev/glb-debug` still shows `""` for client-bundle flags | Build cache is serving a pre-P3.3B bundle | Trigger a clean Vercel redeploy (no cache) so the new static-read pattern lands in the browser bundle |
+| `/dev/glb-debug` shows runtime gates `true` but the very first `/train` scenario still renders procedural for ~1s, then upgrades | Expected behavior on a cold CDN cache (1.4 MB asset has to land before the rebuild trigger fires) | None required — the P3.3B `glbCacheReadyTick` rebuild swaps to GLB on cold-load completion |
 | Console shows `Failed to parse` on a GLB response | MIME type or partial response | Confirm `Content-Length` matches the file size on disk; check Vercel CDN cache |
 | Renderer mounts but freezes | Three.js GLTFLoader async failure | Open the scenario3d error boundary; check console for `THREE.GLTFLoader: ...` errors. Falls back to procedural automatically |
 | Dev preview works but prod does not | Env var set on Preview but not Production environment | Check Vercel **Production** scope of the env var |
@@ -174,6 +253,10 @@ Only then resume the P3.3 LIVE promotion flow per
 
 ## Related files
 
+- `apps/web/app/dev/glb-debug/` — production-safe `/dev/glb-debug`
+  readout (P3.3B).
+- `apps/web/components/scenario3d/Scenario3DCanvas.tsx` — cold-load
+  rebuild trigger (`glbCacheReadyTick`, P3.3B).
 - `apps/web/components/scenario3d/imperativeScene.ts` —
   `isGlbAthletePreviewActive` and the env-var keys.
 - `apps/web/components/scenario3d/glbAthlete.ts` — `GLB_ATHLETE_ASSET_URL`,
