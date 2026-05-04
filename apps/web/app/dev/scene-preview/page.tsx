@@ -32,6 +32,10 @@ export const dynamic = 'force-dynamic'
  *                      production builds (the route 404s anyway when
  *                      `NODE_ENV === 'production'` AND
  *                      `ENABLE_DEV_ROUTES !== '1'`).
+ *   ?forceGlb=1        Production-parity alias for `?glb=1`. This
+ *                      keeps the preview route aligned with `/train`
+ *                      so QA can use the same hard override in both
+ *                      places.
  *   ?closeout=1        P1.7 — flips
  *                      `imperativeScene.isImportedCloseoutClipActive()`
  *                      to true. Layered on top of `?glb=1`; ignored
@@ -66,7 +70,7 @@ export default async function ScenePreviewPage({
   // closeout override only takes effect when the GLB override is
   // also on, since the imported closeout path runs inside the GLB
   // athlete builder.
-  const enableGlbAthletePreview = params.glb === '1'
+  const enableGlbAthletePreview = params.glb === '1' || params.forceGlb === '1'
   const enableImportedCloseoutClip =
     enableGlbAthletePreview && params.closeout === '1'
   const enableImportedBackCutClip =
