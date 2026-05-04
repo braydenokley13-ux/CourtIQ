@@ -972,3 +972,375 @@ profile**:
 The data hooks for this are already present (the existing weighting in
 `generateSessionBundle`). PTH-4 wires them through Pathway-aware filters
 without changing the schema.
+
+---
+
+## 10. Relationship to Academy
+
+Pathways and Academy are **complementary**, not redundant. Today's
+`/academy` already exists, with `Module → Lesson → Concept → Mastery`,
+plus a separate decoder list. Pathways do not replace Academy. They
+*conduct* it.
+
+### The clean split
+
+- **Academy is the textbook.** Modules teach concepts. Lessons explain
+  cues. The reader can pick any chapter, any time, in any order. State =
+  *did I read this?* + *did I master the underlying concept?*
+- **Pathways is the journey.** A directed arc that *uses* Academy lessons
+  as nodes inside chapters. State = *where am I on this track?*
+
+Said differently: Academy is "what should I learn?". Pathways is "what
+am I becoming?".
+
+### How they connect
+
+- A **Pathway chapter's Decoder Lesson Node links to its Academy lesson.**
+  Tapping it routes to `/academy/<lesson-slug>` (e.g. `backdoor-window`),
+  which already exists. The Academy lesson page can show a
+  *You're inside Complete IQ Foundation, Chapter 1* breadcrumb when
+  arrived via a Pathway.
+- An **Academy lesson can recommend Pathway reps.** "Practice this read
+  in *Read the Denial* → 5 reps." A small Pathway promo at the bottom of
+  the Academy lesson page.
+- **Missed Pathway reps recommend Academy review.** When the player
+  fails a chapter boss, the Mastery Report's "Watch this" card links
+  back to that decoder's Academy lesson.
+
+### What lives where
+
+| Surface | Owns |
+| --- | --- |
+| **Academy** | Lesson body markdown, decoder explanations, evergreen reference content, decoder-mastery tile (already shipped). |
+| **Pathways** | Player identity arc, chapter ordering, skill node graph, boss challenge wrappers, Pathway-level Mastery Reports, archetype labels. |
+| **/train** | The session itself. Both Academy and Pathways link into /train; only the params change. |
+
+### What we don't duplicate
+
+- **No new Concept rows.** Pathways do not create Concepts.
+- **No new Module rows.** A "chapter" is *not* a Module. Modules are
+  Academy's unit of mastery; chapters are Pathways' unit of journey.
+- **No second Mastery model.** Pathway mastery rings read from existing
+  `Mastery` rows by `dimension` (concept or decoder).
+- **No second lesson surface.** The Pathway chapter's "Learn the Cue"
+  tile is *the existing Academy lesson page*, optionally framed with a
+  Pathway breadcrumb.
+
+### The contract
+
+> Every concept lives in Academy.
+> Every journey lives in Pathways.
+> Every rep lives in /train.
+> No piece of content lives in two places.
+
+If we ever feel the urge to write a "lesson" inside a Pathway chapter,
+that lesson belongs in Academy, and the chapter should *link* to it.
+
+---
+
+## 11. Data Model Recommendation
+
+### v1: typed config, no migration
+
+The single biggest decision: **Pathways v1 is a typed TypeScript config
+file**, not a set of database tables. Three reasons.
+
+1. **Speed to ship.** A config file ships in a day; a migration plus
+   admin tooling ships in weeks.
+2. **Existing data is sufficient.** Every number Pathways needs is
+   derivable from `Attempt`, `SessionRun`, `Mastery`, `Scenario`. There
+   is no per-user state Pathways must persist that today's tables don't
+   already cover.
+3. **Lower risk.** A config-only Pathway can be edited, A/B tested,
+   re-ordered, and tuned without touching the schema or the seed
+   pipeline.
+
+What v1 uses today:
+
+- **`Scenario.id`** — referenced by `scenarioIds[]` in the Pathway config.
+- **`Scenario.decoder_tag`** — used to color-code chapters and group
+  scenarios by decoder.
+- **`Scenario.concept_tags`** — used to bridge to Academy modules.
+- **`Mastery(user_id, concept_id, dimension)`** — both `concept` and
+  `decoder` rows are already populated by `masteryService.update`
+  (see `apps/web/lib/services/masteryService.ts`). Pathway page reads
+  them directly.
+- **`Attempt`** — most-recent attempt per scenario per user is the
+  source-of-truth for "did the player give the best answer on this
+  scenario?"
+- **`ScenarioChoice.quality`** — `best | acceptable | wrong` already
+  ships, so a "best answers" count is a single query away.
+
+The Pathway config file is the single source of truth for Pathway
+identity, chapter list, scenario IDs, and mastery thresholds. v1 lives
+at `apps/web/lib/pathways/config.ts` (proposal — see §12).
+
+### Future DB model (later, not v1)
+
+When Pathways become persistent — for example because we want
+*per-user* enrollment, A/B Pathway variants, custom coach Pathways, or
+explicit "Pathway started at" timestamps for streak gamification — we
+will introduce these tables. **All of this is later.**
+
+```
+model Pathway {
+  id              String   @id @default(uuid())
+  slug            String   @unique
+  title           String
+  subtitle        String?
+  archetype       String?
+  status          PathwayStatus  @default(ACTIVE)
+  estimated_min   Int?
+  parent_summary  String?  // long-form
+  coach_summary   String?
+  recommended_for String[]
+  unlock_rule     Json?    // typed unlock criteria
+  chapters        PathwayChapter[]
+  enrollments     PathwayEnrollment[]
+}
+
+model PathwayChapter {
+  id              String   @id @default(uuid())
+  pathway_id      String
+  pathway         Pathway  @relation(fields: [pathway_id], references: [id])
+  slug            String
+  order           Int
+  title           String
+  subtitle        String?
+  basketball_cue  String
+  decoder_tag     DecoderTag?
+  parent_summary  String?
+  coach_summary   String?
+  pass_criteria   Json
+  mastery_criteria Json
+  skill_nodes     SkillNode[]
+  boss_challenge  BossChallenge?
+  progress        ChapterProgress[]
+  @@unique([pathway_id, slug])
+}
+
+model SkillNode {
+  id              String   @id @default(uuid())
+  chapter_id      String
+  chapter         PathwayChapter @relation(fields: [chapter_id], references: [id])
+  slug            String
+  order           Int
+  kind            SkillNodeKind  // LEARN_CUE | SCENARIO_SET | BOSS | FILM_ROOM | MIXED
+  scenario_ids    String[]
+  training_mode   String          // matches PathwayTrainingMode union
+  prerequisite_node_ids String[]
+  @@unique([chapter_id, slug])
+}
+
+model PathwayEnrollment {
+  id              String   @id @default(uuid())
+  user_id         String
+  pathway_id      String
+  pathway         Pathway @relation(fields: [pathway_id], references: [id])
+  status          EnrollmentStatus // ACTIVE | PAUSED | COMPLETED
+  started_at      DateTime  @default(now())
+  completed_at    DateTime?
+  current_chapter_slug String?
+  @@unique([user_id, pathway_id])
+}
+
+model ChapterProgress {
+  id              String  @id @default(uuid())
+  user_id         String
+  chapter_id      String
+  chapter         PathwayChapter @relation(fields: [chapter_id], references: [id])
+  state           ChapterState  // LOCKED | UNLOCKED | IN_PROGRESS | COMPLETED | MASTERED
+  best_count      Int     @default(0)
+  attempts_count  Int     @default(0)
+  mastered_at     DateTime?
+  @@unique([user_id, chapter_id])
+}
+
+model BossChallenge {
+  id              String   @id @default(uuid())
+  chapter_id      String   @unique
+  chapter         PathwayChapter @relation(fields: [chapter_id], references: [id])
+  scenario_ids    String[]
+  scoring         Json     // pass thresholds, multipliers
+  attempts        BossChallengeAttempt[]
+}
+
+model BossChallengeAttempt {
+  id              String   @id @default(uuid())
+  user_id         String
+  boss_id         String
+  boss            BossChallenge @relation(fields: [boss_id], references: [id])
+  session_run_id  String?
+  best_count      Int
+  total           Int
+  passed          Boolean
+  created_at      DateTime @default(now())
+  @@index([user_id, boss_id, created_at])
+}
+
+enum PathwayStatus    { ACTIVE COMING_SOON RETIRED }
+enum SkillNodeKind    { LEARN_CUE SCENARIO_SET BOSS FILM_ROOM MIXED }
+enum EnrollmentStatus { ACTIVE PAUSED COMPLETED }
+enum ChapterState     { LOCKED UNLOCKED IN_PROGRESS COMPLETED MASTERED }
+```
+
+**This DB model is later, not v1.** Ship the config-first version,
+validate the product, then migrate when the persistence requirement is
+real (coach Pathways, paid seasons, A/B testing).
+
+---
+
+## 12. Suggested TypeScript Config Shape
+
+The full Pathway catalog ships as a typed export at
+`apps/web/lib/pathways/config.ts` (proposal). The pathway page imports
+this file directly; the API surface (if any) just re-emits it.
+
+### Top-level types
+
+```ts
+// apps/web/lib/pathways/types.ts (proposal — not implemented yet)
+
+import type { DecoderTag } from '@prisma/client'
+
+export type PathwayTrainingMode =
+  | 'learn-the-cue'
+  | 'freeze-frame-read'
+  | 'no-hint'
+  | 'mixed-reads'
+  | 'boss-challenge'
+  | 'film-room'
+  | 'pressure-test'
+
+export type PathwayArchetype =
+  | 'ball-watcher'
+  | 'cutter'
+  | 'connector'
+  | 'attacker'
+  | 'floor-general'
+  | 'off-ball-weapon'
+  | 'help-defender-punisher'
+
+export interface UnlockCriteria {
+  /** Other pathway slugs that must be mastered first (later use). */
+  pathwaysMastered?: string[]
+  /** Minimum IQ score before this pathway is recommended. */
+  minIq?: number
+  /** Special-case: open from day one. */
+  alwaysAvailable?: boolean
+}
+
+export interface PassCriteria {
+  /** Minimum number of `best` answers across the node's scenario set. */
+  minBest?: number
+  /** Minimum decoder rolling accuracy required to consider node mastered. */
+  minDecoderAccuracy?: number
+  /** Minimum decoder attempts required (avoid mastering on a single rep). */
+  minDecoderAttempts?: number
+  /** Boss-only: percentage of best answers required across the run. */
+  bossBestRatio?: number
+  /** Boss-only: minimum answered scenarios for the result to count. */
+  bossMinAttempts?: number
+}
+
+export interface SkillNodeConfig {
+  slug: string
+  order: number
+  title: string
+  subtitle?: string
+  kind: 'learn-cue' | 'scenario-set' | 'boss' | 'film-room' | 'mixed'
+  trainingMode: PathwayTrainingMode
+  /** Existing Scenario IDs (e.g. 'BDW-01'). Pathways never own scenarios. */
+  scenarioIds: string[]
+  /** Optional: Academy lesson slug to link from this node. */
+  academyLessonSlug?: string
+  /** Slugs of nodes within the same chapter that must be completed first. */
+  prerequisiteNodeSlugs?: string[]
+  passCriteria?: PassCriteria
+}
+
+export interface BossChallengeConfig {
+  slug: string
+  title: string
+  subtitle?: string
+  /** Scenario pool (mixed/random within the chapter or pathway). */
+  scenarioIds: string[]
+  passCriteria: PassCriteria
+  /** Hide decoder pill, suppress hints, single attempt. */
+  hideDecoderPill: true
+}
+
+export interface PathwayChapterConfig {
+  slug: string
+  order: number
+  title: string
+  subtitle: string
+  /** The single basketball cue this chapter teaches. */
+  basketballCue: string
+  /** Primary decoder; null for the mixed-read capstone chapter. */
+  decoderTag: DecoderTag | null
+  skillNodes: SkillNodeConfig[]
+  bossChallenge?: BossChallengeConfig
+  passCriteria: PassCriteria
+  masteryCriteria: PassCriteria
+  /** Two voices, surfaced on the Mastery Report. */
+  parentSummary: string
+  coachSummary: string
+  /** Internal goal copy (player-voice). */
+  goal: string
+}
+
+export interface PathwayConfig {
+  slug: string
+  title: string
+  subtitle: string
+  description: string
+  /** Color-bound to the Pathway hero strip; null = use brand. */
+  accentToken?: 'brand' | 'iq' | 'xp' | 'info' | 'heat'
+  decoderTags: DecoderTag[]
+  chapters: PathwayChapterConfig[]
+  unlockCriteria: UnlockCriteria
+  passCriteria: PassCriteria
+  estimatedMinutes: number
+  recommendedFor: PathwayArchetype[]
+  targetArchetype: PathwayArchetype
+  comingSoon: boolean
+  parentSummary: string
+  coachSummary: string
+}
+
+export interface PathwayProgressSummary {
+  slug: string
+  pathwayProgress: number          // 0..1
+  chapters: Array<{
+    slug: string
+    state: 'locked' | 'unlocked' | 'in_progress' | 'completed' | 'mastered'
+    progress: number               // 0..1
+    bestCount: number
+    attemptedCount: number
+    decoderAccuracy: number | null
+  }>
+  recommendedNext: {
+    chapterSlug: string
+    skillNodeSlug: string
+    /** Built /train URL (with scenarioIds + mode params). */
+    trainHref: string
+    label: string                  // e.g. "Continue Beat the Closeout"
+  } | null
+  weakestDecoder: DecoderTag | null
+  pathwayMastered: boolean
+}
+```
+
+### Why this shape
+
+- All identity data — title, summaries, archetype — is config. Editable
+  without a migration.
+- Scenario references are by **string ID** to existing rows. The Pathway
+  config never duplicates scenario content.
+- Both `passCriteria` and `masteryCriteria` are normalized objects with
+  the same fields, so rendering the same shape across nodes/chapters is
+  trivial.
+- `PathwayProgressSummary` is the *single object* the Pathway page
+  consumes, decoupled from Prisma — derived once on the server and
+  shipped to the client without leaking row shapes.
