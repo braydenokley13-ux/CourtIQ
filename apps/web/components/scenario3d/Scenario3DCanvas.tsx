@@ -48,8 +48,19 @@ import {
   type QualityTier,
 } from '@/lib/scenario3d/quality'
 import { buildDustMotes, type DustMotes } from '@/lib/scenario3d/atmosphere'
-import { loadGlbAthleteAsset, preloadImportedCloseoutClip } from './glbAthlete'
-import { GlbDebugBadge, isGlbDebugBadgeEnabled } from './GlbDebugBadge'
+import {
+  GLB_ATHLETE_ASSET_URL,
+  GLB_IMPORTED_BACK_CUT_CLIP_URL,
+  GLB_IMPORTED_CLOSEOUT_CLIP_URL,
+  loadGlbAthleteAsset,
+  preloadImportedCloseoutClip,
+} from './glbAthlete'
+import {
+  GlbDebugBadge,
+  glbDebugLog,
+  isForceGlbUrlActive,
+  isGlbDebugBadgeEnabled,
+} from './GlbDebugBadge'
 
 interface Scenario3DCanvasProps {
   /** Mounted as the WebGL fallback when WebGL is unavailable. */
@@ -284,6 +295,18 @@ export function Scenario3DCanvas({
     }
     setForceGlb(force)
     _setForceGlbAthletePreview(force)
+    if (force) {
+      glbDebugLog('forceGlb=1 detected — diagnostic override active', {
+        url: GLB_ATHLETE_ASSET_URL,
+      })
+      // The asset-load trigger lives in the resize/setup effect below,
+      // gated on `isGlbAthletePreviewActive() || isForceGlbUrlActive()`.
+      // We do NOT also kick the load here, because that would
+      // double-bump `glbCacheReadyTick` on resolve and rebuild the
+      // scene twice on first mount — the loader itself is idempotent
+      // but the React render storm is wasteful. Putting the load in
+      // ONE place keeps the cold→warm rebuild deterministic.
+    }
     return () => {
       // Clear the override on unmount so a hot-reload during dev
       // doesn't leave the next mount stuck on force-glb behaviour.
@@ -530,6 +553,12 @@ export function Scenario3DCanvas({
     // traffic never fetches the 60 KB closeout asset.
     let cancelled = false
     const glbActive = isGlbAthletePreviewActive()
+    // forceGlb=1 is a diagnostic override that must trigger the
+    // asset load path even when the env-var gate is off — otherwise
+    // the figure builder finds a cold cache, returns the magenta
+    // marker, and the scene never rebuilds. Read synchronously from
+    // the URL so we do not race React state at mount.
+    const forceGlbFromUrl = isForceGlbUrlActive()
 
     // P3.3C — one-shot console summary so the in-prod gate state is
     // grep-able from the browser console (and Sentry breadcrumbs)
@@ -547,6 +576,7 @@ export function Scenario3DCanvas({
           backCut: process.env.NEXT_PUBLIC_USE_IMPORTED_BACK_CUT_CLIP ?? '',
         },
         gate: glbActive,
+        forceGlb: forceGlbFromUrl,
         commit: process.env.NEXT_PUBLIC_COMMIT_SHA ?? 'unknown',
       })
     } catch {
@@ -554,11 +584,34 @@ export function Scenario3DCanvas({
       // and rethrows; the gate decision must not depend on it.
     }
 
-    if (glbActive) {
+    glbDebugLog('canvas mount probe', {
+      gate: glbActive,
+      forceGlb: forceGlbFromUrl,
+      env: {
+        glb: process.env.NEXT_PUBLIC_USE_GLB_ATHLETE_PREVIEW ?? '',
+        closeout: process.env.NEXT_PUBLIC_USE_IMPORTED_CLOSEOUT_CLIP ?? '',
+        backCut: process.env.NEXT_PUBLIC_USE_IMPORTED_BACK_CUT_CLIP ?? '',
+      },
+      assetUrls: {
+        athlete: GLB_ATHLETE_ASSET_URL,
+        closeout: GLB_IMPORTED_CLOSEOUT_CLIP_URL,
+        backCut: GLB_IMPORTED_BACK_CUT_CLIP_URL,
+      },
+    })
+
+    if (glbActive || forceGlbFromUrl) {
+      glbDebugLog('kicking athlete GLB load', {
+        url: GLB_ATHLETE_ASSET_URL,
+        reason: glbActive ? 'env-gate' : 'forceGlb-url',
+      })
       void loadGlbAthleteAsset()
         .then((result) => {
           if (cancelled) return
           applyAfterTransition()
+          glbDebugLog('athlete GLB load resolved', {
+            ok: result != null,
+            url: GLB_ATHLETE_ASSET_URL,
+          })
           // P3.3B — flip the cache-ready tick so the scene-build
           // effect re-runs and replaces the cold-cache procedural
           // fallback with the loaded GLB mannequin. Only fires when
@@ -567,16 +620,30 @@ export function Scenario3DCanvas({
           // leaves the procedural figure in place exactly as before.
           if (result) setGlbCacheReadyTick((n) => n + 1)
         })
-        .catch(() => {
+        .catch((err) => {
+          glbDebugLog('athlete GLB load threw', {
+            error: err instanceof Error ? err.message : String(err),
+            url: GLB_ATHLETE_ASSET_URL,
+          })
           /* swallowed — apply still runs from the observer */
         })
       if (isImportedCloseoutClipActive()) {
+        glbDebugLog('kicking imported closeout clip preload', {
+          url: GLB_IMPORTED_CLOSEOUT_CLIP_URL,
+        })
         void preloadImportedCloseoutClip()
           .then(() => {
             if (cancelled) return
             applyAfterTransition()
+            glbDebugLog('imported closeout preload resolved', {
+              url: GLB_IMPORTED_CLOSEOUT_CLIP_URL,
+            })
           })
-          .catch(() => {
+          .catch((err) => {
+            glbDebugLog('imported closeout preload threw', {
+              error: err instanceof Error ? err.message : String(err),
+              url: GLB_IMPORTED_CLOSEOUT_CLIP_URL,
+            })
             /* swallowed — synthetic placeholder fallback covers it */
           })
       }
@@ -1027,6 +1094,19 @@ export function Scenario3DCanvas({
           const gateOn = isGlbAthletePreviewActive()
           const cacheReady = glbCacheReadyTick > 0
           const decisions = _getPlayerFigureDecisionLog()
+
+          // Always emit a debug-mode summary so an operator running
+          // ?debugGlb=1 / ?forceGlb=1 sees the per-scene decision
+          // breakdown without needing the env-var gate to be on.
+          glbDebugLog('per-figure decisions', {
+            totalFigures: decisions.length,
+            decisions,
+            sceneId: visibleScene.id,
+            gateOn,
+            forceGlb,
+            cacheReady,
+          })
+
           if (gateOn && cacheReady && decisions.length > 0) {
             const offenders = decisions.filter((d) => d.pick !== 'glb')
             if (offenders.length > 0) {
@@ -1046,6 +1126,40 @@ export function Scenario3DCanvas({
               // the path is healthy from the console alone.
               // eslint-disable-next-line no-console
               console.info('[CourtIQ GLB] all figures took GLB path', {
+                figures: decisions.length,
+                sceneId: visibleScene.id,
+              })
+            }
+          }
+
+          // forceGlb-specific diagnostic: when the override is on but
+          // any figure still ended up as the magenta marker, surface
+          // a single grep-able error line with the underlying GLB
+          // failure reason so the tester does not have to dig.
+          if (forceGlb && decisions.length > 0) {
+            const markerFigures = decisions.filter(
+              (d) => d.pick === 'force-glb-marker',
+            )
+            if (markerFigures.length > 0) {
+              // eslint-disable-next-line no-console
+              console.error(
+                '[CourtIQ GLB ERROR] forceGlb=1 active but GLB build failed for some figures (magenta marker rendered)',
+                {
+                  totalFigures: decisions.length,
+                  markerFigures: markerFigures.length,
+                  reasons: Array.from(
+                    new Set(markerFigures.map((d) => d.reason)),
+                  ),
+                  cacheReady,
+                  sceneId: visibleScene.id,
+                  hint: cacheReady
+                    ? 'cache is warm but build threw — see error field on each marker decision'
+                    : 'cache cold at build time — next scene rebuild after asset load should swap to real GLB',
+                },
+              )
+            } else if (decisions.every((d) => d.pick === 'glb')) {
+              // eslint-disable-next-line no-console
+              console.info('[CourtIQ GLB] forceGlb=1 succeeded — all figures rendered as GLB', {
                 figures: decisions.length,
                 sceneId: visibleScene.id,
               })
