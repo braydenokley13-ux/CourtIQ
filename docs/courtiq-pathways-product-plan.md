@@ -667,3 +667,308 @@ schema change.
   (default: Off-Ball Weapon if Cutter-leaning, Closeout Killer if Attacker-
   leaning — derived from which decoder accuracy is highest).
 - **Share.** "Send to my coach" / "Send to my parent" stub.
+
+---
+
+## 7. Skill Tree / Map UX
+
+The **chapter map** is the single most important Pathway surface. It is the
+campaign select that the player taps over and over. It must read at a glance:
+where am I, what's next, what's locked, what's mastered.
+
+### Node types
+
+- **Decoder Lesson Node** — links to the existing academy lesson for the
+  chapter's decoder. Visual: brand-tinted card with the lesson icon.
+- **Scenario Set Node** — opens a /train session with that node's
+  scenario IDs. Visual: small node with mastery ring around the icon.
+- **Boss Challenge Node** — chapter-end test. Visual: heavier card with a
+  "BOSS" eyebrow chip, slight heat-red glow when locked.
+- **Mastery Report Node** — surfaces only after a chapter is mastered.
+  Visual: brand-green check, `Done` chip.
+- **Mixed-Read Final Node** — only on Chapter 5 of any Pathway. Visual:
+  larger card spanning two columns, purple-iq tint to signal capstone.
+
+### Node states
+
+- `locked` — prerequisite not met; muted, lock icon, "Finish X to unlock"
+  micro-copy.
+- `unlocked` — available but not started; brand outline, hairline-2 fill.
+- `in_progress` — at least one attempt logged on its scenarios; iq-purple
+  ring partially filled.
+- `completed` — all scenarios in the node attempted at least once.
+- `mastered` — pass criteria met (per §9); brand ring fully closed, soft
+  brand glow.
+
+### Mastery rings
+
+Every Scenario Set, Decoder, Chapter, and Pathway gets a ring. Rings show
+*progress toward mastery*, not raw count. Computed from existing data:
+
+- Scenario Set ring = (best-answer count on those scenarios) / (set size).
+- Chapter ring = (mastered scenario sets in that chapter) / (total sets).
+- Decoder ring = `Mastery(decoder).rolling_accuracy` clamped to [0, 1].
+- Pathway ring = average of chapter rings.
+
+### Boss challenge cards
+
+- Visual weight: noticeably bigger than scenario set nodes.
+- Locked appearance: dim with a single-line requirement ("3/3 chapter sets
+  mastered to unlock").
+- Unlocked appearance: heat-red eyebrow chip *BOSS*, brand glow when
+  hovered, "BEST OF 1 · 5 REPS · NO HINTS · 80% TO PASS" stat row.
+- After pass: switches to a brand-green *CLEARED* chip with the score, e.g.
+  *CLEARED · 5/5*.
+
+### Decoder color coding
+
+Each decoder owns one accent so the chapter map is glanceable.
+
+- **BACKDOOR_WINDOW** — `--brand` (electric green). Cue: cut behind.
+- **EMPTY_SPACE_CUT** — `--info` (sky blue). Cue: cut into space.
+- **ADVANTAGE_OR_RESET** — `--xp` (orange). Cue: read feet, then choose.
+- **SKIP_THE_ROTATION** — `--iq` (purple). Cue: pass opposite the help.
+- **Mixed Reads / Capstone** — `--heat` (heat-red). Cue: identify the cue.
+
+(Color tokens are existing CIQ tokens defined in ARCHITECTURE.md §4.2.)
+
+### Recommended next node
+
+Exactly one node on the entire map carries a *Up Next* chip and a soft
+breathing pulse. The recommendation logic is in §9. This is the single
+"what do I tap?" answer the player needs.
+
+### Weak-skill warning
+
+If the player has a chapter where decoder accuracy is < 0.50 with ≥ 3
+attempts, that chapter shows a small *Watch this* chip in heat-red. Not
+punishing — informational. It's also the suggested boss-challenge retry
+target.
+
+### Visual hierarchy (top to bottom)
+
+1. Pathway hero strip — title, archetype chip, parent/coach summary toggle.
+2. Pathway progress ring + chapter dots row.
+3. Recommended next action card (sticky-ish on mobile).
+4. Chapter list — each chapter is a row with its node cluster inside.
+5. Pathway mastery report card (locked until all chapters mastered).
+6. Coming-soon next-Pathway teaser at the bottom.
+
+### Desktop vs. mobile layouts
+
+- **Mobile (primary).** Single column. Each chapter row has nodes laid out
+  left-to-right with horizontal scroll if needed. Recommended next action
+  pinned just below header until the player taps it.
+- **Desktop.** Two-column layout for the map: chapter rail on the left
+  (sticky), node cluster + decoder lesson on the right. Wider mastery
+  rings, parent/coach summary always visible.
+
+The map is **not** a literal zig-zag tree like Academy — Pathways are
+linear by design (the chapters are an arc, not a graph), so the map is a
+clean ordered list of chapter rows. Skill nodes within a chapter can fan
+out, but chapter order is fixed.
+
+---
+
+## 8. Training Modes Inside Pathways
+
+Pathways introduce *training modes* — the same `/train` engine in different
+postures. Modes are how the same scenario serves different stages of
+learning. Modes are config, not new code paths in v1.
+
+### Mode 1 — Learn the Cue
+
+- **Purpose.** Introduce the decoder before any reps. Player reads the
+  academy lesson tile and gets one easy rep with full hints on.
+- **UI behavior.** Decoder pill visible. Pre-freeze cue overlays at full
+  visibility. Self-review checklist auto-expanded.
+- **Scenario selection.** First (lowest difficulty) scenario in the
+  chapter's family.
+- **Scoring.** Half IQ multiplier so the introduction rep doesn't punish
+  or inflate.
+- **Where it appears.** First node of every chapter.
+
+### Mode 2 — Freeze-Frame Read
+
+- **Purpose.** Standard guided rep — the current /train experience, with
+  decoder pill and cue overlays.
+- **UI behavior.** As today: decoder pill visible, freeze marker, choices,
+  feedback, replay.
+- **Scenario selection.** Sequential within the chapter's pack
+  (difficulty-ascending).
+- **Scoring.** Standard IQ + XP per current `iqService` formula.
+- **Where it appears.** Default for non-boss skill nodes.
+
+### Mode 3 — No-Hint Rep
+
+- **Purpose.** Force the player to identify the read without the decoder
+  pill or pre-freeze cue overlays.
+- **UI behavior.** Decoder pill *hidden*. Pre-freeze overlays suppressed
+  (post-answer overlays still allowed).
+- **Scenario selection.** Same chapter, same decoder; one scenario the
+  player has already passed at least once.
+- **Scoring.** 1.2× IQ multiplier (recognition without hint is harder).
+- **Where it appears.** "Test the cue" node late in each chapter; warmups
+  in Chapter 5.
+
+### Mode 4 — Mixed Reads
+
+- **Purpose.** Train cue identification across decoders.
+- **UI behavior.** Decoder pill hidden; decoder-specific micro-praise
+  swapped for generic praise; explanation-md still surfaces post-answer.
+- **Scenario selection.** Random pull from all decoders the Pathway has
+  taught so far. v1 implementation: just pass `scenarioIds` of mixed
+  scenarios to the existing /train flow.
+- **Scoring.** 1.3× IQ multiplier.
+- **Where it appears.** Chapter 5 of Complete IQ Foundation; *Pressure &
+  Speed* and *Advanced Game Reads* later.
+
+### Mode 5 — Boss Challenge
+
+- **Purpose.** Single-attempt chapter test.
+- **UI behavior.** Decoder pill hidden. No replay button. No "Why?"
+  expansion until the boss is fully complete. Single CTA: keep going.
+- **Scenario selection.** All scenarios for that decoder, randomized.
+- **Scoring.** 1.5× IQ multiplier on best answers; 0× on misses (no
+  penalty either, to keep youth motivation up). Pass = ≥ 80% best
+  across the run.
+- **Where it appears.** End of every chapter.
+
+### Mode 6 — Film Room Review
+
+- **Purpose.** *Post*-mistake reflection. Lets the player re-watch the
+  best-read replay and the consequence replay back-to-back without the
+  rep counting.
+- **UI behavior.** Reuses today's replay components; no choices, no
+  scoring. Two buttons: "best read" / "what would have happened".
+- **Scenario selection.** Most recent missed scenario, or any scenario
+  the player taps from the chapter's history.
+- **Scoring.** None.
+- **Where it appears.** Mastery Report and chapter detail page; never
+  in a session.
+
+### Mode 7 — Pressure Test
+
+- **Purpose.** Train cue recognition at game speed.
+- **UI behavior.** Same as Freeze-Frame Read but with a shorter on-screen
+  freeze (~half the default settle window) and the timer ticking
+  immediately at freeze.
+- **Scenario selection.** Random within Pathway, only scenarios the
+  player has previously mastered.
+- **Scoring.** 1.4× IQ multiplier.
+- **Where it appears.** Pathway 5.8 *Pressure & Speed Mode* (later);
+  Chapter 5 second node of Complete IQ Foundation only after the warmup.
+
+### Mode behavior in v1
+
+v1 ships **only Mode 1, Mode 2, and Mode 4** for Complete IQ Foundation.
+Mode 5 (Boss) and Mode 7 (Pressure) come in PTH-3. Mode 6 (Film Room)
+comes in PTH-2 reusing today's replay UI. Mode 3 (No-Hint) is a query-
+param flag (`?mode=no-hint`) that the train page can choose to honor by
+hiding the decoder pill — config only, no engine change.
+
+---
+
+## 9. Progress and Recommendation Logic
+
+Progress is **derived**, not stored, in v1. Every number on a Pathway page
+can be computed from rows that already exist: `Attempt`, `SessionRun`,
+`Mastery` (concept + decoder dimensions), and the static Pathway config.
+
+### Building blocks (existing data)
+
+- `Attempt(user_id, scenario_id, choice_id, is_correct, created_at)` — row
+  per rep.
+- `Mastery(user_id, concept_id, dimension, rolling_accuracy, attempts_count,
+  spaced_rep_due_at)` — already split by `concept` and `decoder`
+  dimension.
+- Per-scenario `decoder_tag` and `concept_tags` on the `Scenario` row.
+- `ChoiceQuality` (`best | acceptable | wrong`) on the chosen choice — gives
+  us a "best answer" signal richer than pass/fail.
+
+### Per-skill-node progress
+
+For a node whose `scenarioIds = [s1, s2, s3]`:
+
+- `attemptedCount` = unique scenario IDs from `Attempt` where
+  `scenario_id in [s1,s2,s3]` and `user_id = self`.
+- `bestCount` = unique scenario IDs where the most recent attempt's choice
+  was `quality = best`.
+- `state`:
+  - `bestCount = scenarioIds.length` → `mastered`.
+  - `attemptedCount = scenarioIds.length` → `completed`.
+  - `attemptedCount > 0` → `in_progress`.
+  - else if all prerequisite nodes are `mastered`/`completed` → `unlocked`.
+  - else → `locked`.
+
+### Per-chapter progress
+
+- `chapterProgress = mastered_skill_nodes / total_skill_nodes` (0–1).
+- `chapterMastered` = (all non-boss nodes mastered) AND (boss node passed).
+
+### Per-Pathway progress
+
+- `pathwayProgress = average(chapterProgress)` across all chapters.
+- `pathwayMastered` = all chapters mastered.
+
+### Recommended next chapter
+
+Run in this priority order, return the first match:
+
+1. **Resume rule.** If any chapter is `in_progress`, recommend the most
+   recent in-progress chapter's next un-mastered skill node.
+2. **Sequence rule.** Otherwise, the lowest-order chapter that is
+   `unlocked` and not mastered.
+3. **Weakness rule.** If all chapters are mastered except one and that
+   chapter has decoder accuracy < 0.6, recommend it (priority over
+   sequence).
+4. **Capstone rule.** If all decoders are mastered but the Pathway boss
+   has not been attempted, recommend the boss.
+
+The result is a **single recommendation object** the Pathway page can
+render as one card.
+
+### Weakest decoder
+
+`weakestDecoder = argmin( Mastery(decoder).rolling_accuracy )` across the
+four decoders the Pathway uses, with a minimum 3-attempt floor so a single
+wrong rep doesn't dominate.
+
+If a Pathway's chapter map shows a *Watch this* chip on a chapter, it's the
+chapter whose decoder is `weakestDecoder`.
+
+### Users with no attempts (cold start)
+
+- Pathway progress = 0%.
+- Recommended next = Chapter 1, Skill Node 1 (Learn the Cue).
+- All chapters past Chapter 1 are visually `locked`.
+- Hub shows: "Start your first Pathway: Complete IQ Foundation."
+
+### Users with partial completion
+
+- Show every node's true state (no rounding up).
+- Recommended next is the next un-mastered node within the highest-
+  numbered in-progress chapter.
+- Mastery Report appears on completed chapters only.
+
+### Boss challenge unlock
+
+- Per-chapter boss: unlocks when all non-boss skill nodes in that chapter
+  are at `completed` or `mastered`.
+- Pathway boss (Mixed-Read Final): unlocks when all four decoder masteries
+  are at ≥ 0.65 AND all four chapter bosses have been attempted.
+
+### Future evolution into adaptive personalization
+
+PTH-4+ replaces the priority-rule recommender with a derived **player
+profile**:
+
+- Archetype assignment from highest-mastery decoder.
+- Adaptive next-rep selection inside a Pathway based on weakness *and*
+  spaced-rep due-at.
+- Cross-Pathway recommendation: "you've mastered Foundation Chapter 3 →
+  start Closeout Killer."
+
+The data hooks for this are already present (the existing weighting in
+`generateSessionBundle`). PTH-4 wires them through Pathway-aware filters
+without changing the schema.
