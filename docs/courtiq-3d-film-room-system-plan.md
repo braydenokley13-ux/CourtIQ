@@ -1238,3 +1238,381 @@ A small badge (or the right column of the QA route) showing:
 - Debug logs do not include PII.
 - Debug flags are URL-based, not cookie-based, so a session is not
   contaminated.
+
+---
+
+## 13. Connection to CourtIQ Pathways
+
+The film room exists in service of Pathways. A great rep with no
+direction is a quiz; a great rep inside a Pathway chapter is an actual
+training session. This section names the seams.
+
+### 13.1 Pathway-aware overlay intensity
+
+Pathways exposes an `overlayLevel` per chapter (`Learn the Cue` →
+beginner, `Boss Challenge` → none). The renderer reads this and adjusts
+the overlay cluster per §9.2. No new schema; the chapter config is a
+runtime input to the canvas.
+
+### 13.2 Pathway-aware camera assist
+
+Same shape: `cameraAssist: 'full' | 'partial' | 'none'`. The renderer's
+camera preset machinery respects it. Boss challenges run with auto-fit
+broadcast only.
+
+### 13.3 Beginner pathway reps = more help
+
+- Camera lerps deeper into the cue.
+- Overlay cluster paints in full.
+- Decoder pill shows pre-freeze.
+- Slow-mo on freeze entry is more pronounced.
+- Replay overlays are maxed.
+
+### 13.4 Later pathway reps = less hinting
+
+- Camera holds Broadcast through the freeze.
+- Overlay cluster is the cue only.
+- Decoder pill animates in *after* the answer.
+- Slow-mo entry is subtle (~150 ms).
+- Replay overlays are minimal.
+
+### 13.5 Boss challenges = no overlays, no decoder label
+
+- `overlayLevel: none`. Overlay controller mounts but does not paint.
+- `cameraAssist: none`. Auto-fit only.
+- Decoder pill never appears.
+- Player has to read everything raw.
+- This is the entire point of a boss challenge.
+
+### 13.6 Missed reps trigger Film Room Review
+
+- A wrong answer flagged at end-of-session triggers a Film Room Review
+  rep on the *next* visit.
+- Film Room Review uses overlay level = max, camera assist = full,
+  slow-mo = strong, wrong-then-right replay enabled.
+- This is the surface that turns a missed read into a learned read.
+
+### 13.7 Chapter difficulty maps to overlay level
+
+| Chapter type | Overlay level | Camera assist | Decoder pill |
+| --- | --- | --- | --- |
+| Decoder Lesson | Beginner | Full | Yes (pre-freeze) |
+| Skill Node (early) | Beginner | Partial | Yes (pre-freeze) |
+| Skill Node (mid) | Intermediate | Partial | Yes (post-freeze) |
+| Boss Challenge | None | None | No |
+| Mixed-Read Final | Intermediate | None | No |
+| Film Room Review | Advanced (max) | Full | Yes (full rep) |
+
+This table is a *contract* between Pathways and the film room. Either
+side can refer to it.
+
+### 13.8 Pathways-driven mastery → film room reflections
+
+- Per-decoder mastery (BDW / ESC / AOR / SKR) is tracked via existing
+  `Mastery` rows. The film room can surface "you've now mastered this
+  cue" on the rep that crosses the threshold.
+- A mastered decoder can render with a subtle "mastered" frame chrome
+  (a thin gold hairline) — but only on the chapter that's about that
+  decoder. Never gimmicky.
+
+### 13.9 Player archetype influences training mode
+
+- An "Off-Ball Weapon" archetype emphasizes ESC + BDW reps.
+- A "Closeout Killer" emphasizes AOR.
+- A "Help Defense Punisher" emphasizes SKR.
+- The film room does not need to know the archetype — but it can read
+  the per-decoder camera/overlay defaults from the Pathway chapter
+  config the player is currently on.
+
+### 13.10 Pathway progress reports use film-room patterns
+
+- Mistake patterns ("missed every BDW rep where the denial was on the
+  ball-handler's strong side") feed Pathway progress summaries.
+- The renderer is the source of truth for what was actually shown; the
+  attempt log is the source of truth for what was answered. Pathways
+  joins them at the report layer.
+
+### 13.11 What we do NOT couple
+
+- Scenario JSON does not reference Pathways. Scenarios are reusable.
+- The renderer does not import Pathways modules. It accepts
+  `overlayLevel` + `cameraAssist` as props.
+- Mastery / archetype calculation lives in `packages/core` and Pathways
+  services. The film room reads outputs.
+
+This keeps the film room self-contained — it works in `/train` (no
+Pathway), works inside a Pathway chapter, works in Film Room Review.
+Same code path, three calling configurations.
+
+---
+
+## 14. Founder-v0 Film-Room QA Matrix
+
+A scenario-by-scenario checklist to drive FR-1 QA and to give
+implementers a per-scenario contract. Field meanings:
+
+- **Decoder** — family tag.
+- **Primary visual cue** — the body part that, by itself, sells the
+  read.
+- **Required camera frame** — what must be in the freeze frame.
+- **Required player highlight** — beyond the standard user/ball, who
+  must be visually emphasized.
+- **Required overlay** — minimum pre-answer overlay set per §9.1.
+- **Known risk** — the most likely failure mode for this scenario.
+- **QA priority** — `high` (front of FR-1 QA), `medium`, `low`.
+
+### 14.1 BDW family — Backdoor Window
+
+| ID | Decoder | Primary cue | Required camera frame | Required highlight | Required overlay | Known risk | QA priority |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **BDW-01** | BDW | x2 hand-in-lane (wing denial) | User, x2, PG, rim corridor visible | x2 (key defender) | hand-in-lane + vision-cone + passing-lane-blocked | x2 hand may not render visibly on procedural fallback | **high** |
+| **BDW-02** | BDW | x_top chest above user (top-lock) | User at slot, x_top denying, middle lane visible | x_top | chest-line + hand-in-lane + vision-cone | Camera may hide the middle lane behind the user | **high** |
+| **BDW-03** | BDW | x3 top-locks corner | User in corner, x3, baseline lane visible | x3 | hand-in-lane + chest-line + passing-lane-blocked | Baseline corridor may clip out of frame on phone | **high** |
+| **BDW-04** | BDW | x_user jumps flare | User on weak wing, x_user mid-jump, screener space | x_user | hip-arrow + chest-line + vision-cone | The "cheat" pose is hard to read without a clip | medium |
+| **BDW-05** | BDW | Lift defender beats user to wing | User mid-lift, defender ahead, baseline open | x_user | foot-arrow + hip-arrow + chest-line | Reverse-cut path may not paint cleanly post-answer | medium |
+
+### 14.2 ESC family — Empty-Space Cut
+
+| ID | Decoder | Primary cue | Required camera frame | Required highlight | Required overlay | Known risk | QA priority |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **ESC-01** | ESC | D4 head turn to ball | User on weak wing, D4 turned, empty corner | D4 | vision-cone + hip-arrow + help-pulse(tag) | "Eyes turn" cue may not be visible without a clip; vision cone has to do the work | **high** |
+| **ESC-02** | ESC | D4 hips turn to roller | User at slot, D4 mid-tag, empty slot | D4 | hip-arrow + help-pulse(tag) + vision-cone | Multiple cues stack; risk of clutter | **high** |
+| **ESC-03** | ESC | D3 head turned to ball, skip in air | User in weak corner, ball mid-skip, D3 flat-footed | D3 + ball | vision-cone + hip-arrow + help-pulse(tag) | Pass arc must not block the cue | medium |
+| **ESC-04** | ESC | x_weak stunt foot in lane | User on weak wing, post on block, stunt foot visible | x_weak | foot-arrow + help-pulse(tag) + vision-cone | Stunt foot is small at broadcast distance | medium |
+| **ESC-05** | ESC | User's defender ball-watching | User at weak slot, vacated wing, defender turned | x_user | hip-arrow + vision-cone + help-pulse(tag) | "Ball-watcher" is the most subtle cue in the family | medium |
+
+### 14.3 AOR family — Advantage or Reset
+
+| ID | Decoder | Primary cue | Required camera frame | Required highlight | Required overlay | Known risk | QA priority |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **AOR-01** | AOR | D4 parallel feet, momentum forward | User catching wing, D4 closeout pose, lane clear | D4 (feet) | foot-arrow + hip-arrow + chest-line | Feet are tiny at broadcast distance; need low camera | **high** |
+| **AOR-02** | AOR | D4 set, balanced, hand high | User catching, D4 stable, no driving lane | D4 | foot-arrow + chest-line + hip-arrow | Easy to confuse with AOR-01 if camera doesn't show the difference | **high** |
+| **AOR-03** | AOR | D4 still 4 ft away on catch | User catching wing, D4 mid-stride, shooting pocket open | D4 + user shooting pocket | distance label + foot-arrow + open-space(pocket) | Shooting pocket overlay must paint pre-answer; today no kind exists for "distance label" | medium |
+| **AOR-04** | AOR | D4 chest tilted, weight back | User in corner, D4 high closeout, baseline open | D4 chest | chest-line + foot-arrow + hip-arrow | Chest-tilt reads as "lean," not "high closeout" without practice | medium |
+| **AOR-05** | AOR | D_user sideways, lead foot at ball | User on weak wing, D_user recovering sideways | D_user (hip) | hip-arrow + foot-arrow + chest-line | Branched read (drive/reset) requires correct intent dispatch | **high** |
+
+### 14.4 SKR family — Skip the Rotation
+
+| ID | Decoder | Primary cue | Required camera frame | Required highlight | Required overlay | Known risk | QA priority |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **SKR-01** | SKR | D5 stunt + paint collapse | Driver, paint shading, weak corner empty | D5 | help-pulse(overhelp) + hip-arrow + chest-line | Diagonal of the floor must be visible — Help Defense Angle required | **high** |
+| **SKR-02** | SKR | Tagger pulled to roller | Ball-handler, tagger committed, weak corner open | Tagger | help-pulse(overhelp) + hip-arrow + chest-line | Roller and tagger may overlap in frame | medium |
+| **SKR-03** | SKR | Double-team on post | Post + double, weak corner empty | Bracketing defender | help-pulse(overhelp) + chest-line + hip-arrow | Double-team is two figures; may clutter | medium |
+| **SKR-04** | SKR | Help defender steps in on dribble-at | Ball-handler, helper step, weak corner open | Helper | help-pulse(overhelp) + hip-arrow + chest-line | Dribble-at angle is unfamiliar to most viewers | medium |
+| **SKR-05** | SKR | X-out below, slot exposed | Driver baseline, X-out arrows, weak slot | X-out defender | help-pulse(overhelp) + chest-line + hip-arrow | Multiple defenders in motion — camera must isolate the cue | **high** |
+
+### 14.5 Cross-family invariants the matrix enforces
+
+- Every scenario has 3 required pre-answer overlay primitives. ≤ 3 = the
+  beginner cap from `decoderOverlayPresets.ts`.
+- Every scenario names a single key defender for the heat-red highlight.
+- Every scenario specifies what must be in the freeze frame for the
+  camera ray-cast cue check.
+- Known risks become FR-1 QA failure cases.
+
+### 14.6 Using the matrix
+
+- The QA route in §11 should *display* this matrix per scenario, so a
+  reviewer compares the live render to the contract in real time.
+- A scenario is **shippable** when every checkbox in §11.6 passes
+  against the criteria in §14.1–14.4.
+
+---
+
+## 15. Implementation Phases
+
+Phased roadmap. Each phase has a hard scope. Phase boundaries are
+release boundaries.
+
+### FR-1 — Film-Room QA Route + Debug Observability
+
+- **Goal.** See every scenario in 60 seconds. Make every fallback,
+  camera, overlay decision visible to the dev/QA team.
+- **Scope.**
+  - Build `/dev/scenario-preview` with selector, metadata panel, render
+    panel, manual checklist.
+  - Wire `?debugFilmRoom=1` to surface teaching state.
+  - Surface render-path summary, decoder, camera preset, overlay level
+    in a dev-only badge.
+  - Keep the existing `GlbDebugBadge` intact.
+- **Files likely touched.**
+  - `apps/web/app/(dev)/dev/scenario-preview/page.tsx` (new, dev only)
+  - `apps/web/lib/scenario3d/feature.ts` (add `isDebugFilmRoom`,
+    `getScenarioParam`)
+  - `apps/web/components/scenario3d/FilmRoomDebugBadge.tsx` (new)
+  - `apps/web/lib/scenario3d/qaMatrix.ts` (new — embed the §14 data)
+  - No renderer files modified.
+- **Tests needed.**
+  - Render-path summary unit tests (already partially exist via
+    `summarisePlayerFigureDecisions`).
+  - Snapshot test for the dev page (renders with each scenario).
+  - QA-matrix data integrity test (every founder-v0 ID appears once).
+- **Risks.**
+  - Dev route accidentally shipped to production. Mitigation: env-flag
+    gate + admin check + no nav link.
+  - Performance regression from the debug badge. Mitigation: badge is
+    only mounted when the flag is on.
+- **Success criteria.**
+  - A reviewer can pick any of the 20 scenarios in < 5 s.
+  - The render-path summary correctly reports `glb` vs. `procedural`
+    per scenario.
+  - The QA matrix renders alongside each scenario.
+
+### FR-2 — GLB / Fallback Reliability
+
+- **Goal.** Every user sees the GLB, every time, or a clean fallback —
+  never a half-render.
+- **Scope.**
+  - Warm `loadGlbAthleteAsset()` before canvas mount.
+  - Add an "GLB-pose-only" middle path between `glb-with-clip` and
+    `procedural`.
+  - Consolidate the four fallback reasons into a clean visible
+    breadcrumb in dev.
+  - Tests for the silent-failure paths.
+- **Files likely touched.**
+  - `apps/web/components/scenario3d/glbAthlete.ts`
+  - `apps/web/components/scenario3d/imperativeScene.ts` (the figure
+    decision log)
+  - `apps/web/components/scenario3d/Scenario3DCanvas.tsx` (cache warm)
+- **Tests.**
+  - `productionGlbAssetGate.test.ts` extended.
+  - New test: cold-cache scenario does not render procedural.
+- **Risks.**
+  - Cache warm adds latency. Mitigation: do it parallel to scene mount.
+  - Pose-only fallback may look frozen. Mitigation: it should — that's
+    intentional.
+- **Success criteria.**
+  - 100% GLB render rate across the founder-v0 pack on a warm cache.
+  - Cold-cache first frame is a static GLB pose, not procedural.
+
+### FR-3 — Player Readability and Visual Language
+
+- **Goal.** Every figure passes the §7 minimum readable frame rule.
+- **Scope.**
+  - Refine team tinting parity between GLB and procedural.
+  - Add per-team subtle color temperature.
+  - Improve grounding shadows.
+  - Author a "basketball ready" bind-pose delta for the GLB.
+- **Files likely touched.**
+  - `apps/web/components/scenario3d/glbAthlete.ts` (bind-relative
+    deltas, materials)
+  - `apps/web/components/scenario3d/imperativeScene.ts` (procedural
+    figure tint parity)
+- **Tests.**
+  - Snapshot rendering at 393 px wide.
+  - Silhouette-readability spot test (manual, in the QA route).
+- **Risks.**
+  - Tint may fight court palette.
+  - Bind-pose changes may break existing clips (the existing audit
+    catches this).
+- **Success criteria.**
+  - Offense / defense readable in 0.5 s without label.
+  - User identifiable in 0.5 s.
+
+### FR-4 — Decoder-Aware Camera Presets
+
+- **Goal.** The freeze frame teaches the read.
+- **Scope.**
+  - Implement the four named presets (`Teaching`, `Player Read`,
+    `Help Defense`, `Top-Down Coach Board`).
+  - Wire decoder + phase → preset.
+  - Honor `cameraAssist: 'full' | 'partial' | 'none'`.
+- **Files likely touched.**
+  - `apps/web/components/scenario3d/AutoFitCamera.tsx` (wrapped, not
+    replaced)
+  - New: `apps/web/lib/scenario3d/cameraPresets.ts`
+  - `apps/web/components/scenario3d/Scenario3DCanvas.tsx` (preset
+    dispatch)
+- **Tests.**
+  - Cue-visibility ray-cast test per scenario.
+  - Snapshot freeze frame per (decoder × camera assist).
+- **Risks.**
+  - Camera transitions can feel jumpy. Mitigation: lerp 250–400 ms.
+  - Mobile aspect breaks Help Defense Angle. Mitigation: per-aspect
+    overrides.
+- **Success criteria.**
+  - The cue is visible in the freeze frame on all 20 scenarios at
+    393 px landscape.
+
+### FR-5 — Adaptive Cue Overlays
+
+- **Goal.** Same scenario reads differently across Pathways modes.
+- **Scope.**
+  - `getOverlayLevel(mode)` helper.
+  - Stage-in choreography per §9.7.
+  - Pre-answer label fade-in / post-answer label sequence.
+- **Files likely touched.**
+  - `apps/web/components/scenario3d/imperativeTeachingOverlay.ts`
+  - `apps/web/lib/scenario3d/decoderOverlayPresets.ts` (read-only data,
+    consumer-side change)
+- **Tests.**
+  - Beginner / advanced overlay count assertions.
+  - Choreography timing assertions.
+- **Risks.**
+  - Adding choreography may regress determinism. Mitigation: extend
+    `replayDeterminism.test.ts`.
+- **Success criteria.**
+  - Boss challenge mode renders zero overlays.
+  - Beginner mode renders three.
+
+### FR-6 — Replay Teaching Polish
+
+- **Goal.** The replay leg teaches the read with cadence.
+- **Scope.**
+  - Slow-mo entry to freeze.
+  - World dim + cue overlay choreography on freeze.
+  - Per-decoder replay character (BDW slow-mo on plant, AOR low camera,
+    SKR top-down skip arc).
+  - End-of-rep teaching label.
+- **Files likely touched.**
+  - `apps/web/components/scenario3d/ScenarioReplayController.tsx` and
+    its imperative twin in `imperativeScene.ts`
+- **Tests.**
+  - Replay determinism (existing).
+  - Phase-transition timing tolerance.
+- **Risks.**
+  - Slow-mo at the freeze can feel sluggish. Mitigation: 250 ms cap.
+- **Success criteria.**
+  - Wrong-path replay lands a clear consequence + best-read in < 4 s.
+  - Best-read replay lands in < 2 s.
+
+### FR-7 — Pathways Integration
+
+- **Goal.** The film room respects `overlayLevel` and `cameraAssist`
+  passed by Pathways.
+- **Scope.**
+  - Accept the two props at `Scenario3DView`.
+  - Plumb to overlay controller and camera dispatcher.
+- **Files likely touched.**
+  - `apps/web/components/scenario3d/Scenario3DView.tsx`
+  - `apps/web/components/scenario3d/Scenario3DCanvas.tsx`
+  - Possibly a new `lib/scenario3d/filmRoomMode.ts`.
+- **Tests.**
+  - Mode → overlay/camera contract tests.
+- **Risks.**
+  - Modes may proliferate. Mitigation: keep §13.7 table as the contract.
+- **Success criteria.**
+  - Boss challenge mode renders the canvas with zero camera/overlay
+    assistance.
+
+### FR-8 — Premium Athlete Asset Pipeline
+
+- **Goal.** The athlete looks like a basketball player.
+- **Scope.**
+  - Replace the placeholder GLB with a premium athlete (custom or
+    licensed).
+  - Author premium clips for the priority intents in §5.7.
+  - Migrate the bind-pose delta authored in FR-3 to the new rig.
+- **Files likely touched.**
+  - `apps/web/public/athlete/*`
+  - `apps/web/components/scenario3d/glbAthlete.ts`
+  - Attribution + license docs.
+- **Tests.**
+  - Visual regression suite extended.
+  - Bone-map audit re-runs against the new rig.
+- **Risks.**
+  - Cost (asset creation / licensing).
+  - Schedule (custom rig is multi-week).
+- **Success criteria.**
+  - The 13-year-old quality bar in §2 passes.
+  - Silhouette-readability test passes for the new rig.
