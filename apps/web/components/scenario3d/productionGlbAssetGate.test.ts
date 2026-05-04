@@ -229,6 +229,83 @@ describe('P3.3B — env-var reads must be statically inlinable by webpack', () =
     expect(src).not.toMatch(/process\.env\[[A-Za-z_$][A-Za-z_$0-9]*\]/)
   })
 
+  it('flag readers do not gate the env read behind a `typeof process` guard (P3.3C)', async () => {
+    // P3.3C regression: the previous body of each reader was
+    //
+    //   if (typeof process === 'undefined') return false
+    //   return process.env.NEXT_PUBLIC_X === '1'
+    //
+    // DefinePlugin inlines the literal `process.env.NEXT_PUBLIC_X`
+    // access into the production browser bundle (so the second line
+    // becomes `return "1" === '1'` after the build), but it does
+    // NOT touch the bare `typeof process` operator. In a browser
+    // bundle where `process` is not defined as a runtime global, the
+    // guard short-circuits to `false` BEFORE the inlined literal is
+    // ever evaluated — silently turning the env-var prod opt-in
+    // back into a no-op even when Vercel inlined `'1'` correctly.
+    //
+    // Lock the body of each reader to a single static `===` against
+    // the literal `'1'`. No surrounding `typeof process` /
+    // `typeof window` / etc. guards.
+    const file = path.resolve(__dirname, 'imperativeScene.ts')
+    const raw = await fs.readFile(file, 'utf8')
+
+    // Strip comments so doc-string examples don't false-positive.
+    const src = raw
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1')
+
+    for (const fnName of [
+      'readGlbAthletePreviewEnvFlag',
+      'readImportedCloseoutEnvFlag',
+      'readImportedBackCutEnvFlag',
+    ]) {
+      // Match the function body up to the closing brace.
+      const re = new RegExp(
+        `function\\s+${fnName}\\s*\\([^)]*\\)\\s*:\\s*boolean\\s*\\{([\\s\\S]*?)\\n\\}`,
+      )
+      const match = src.match(re)
+      expect(match, `expected to find ${fnName}`).not.toBeNull()
+      const body = match![1]
+      // Body must contain exactly one `return process.env.NEXT_PUBLIC_…` line.
+      expect(body).toMatch(/return\s+process\.env\.NEXT_PUBLIC_[A-Z_]+\s*===\s*'1'/)
+      // And no `typeof process` / `typeof window` short-circuits.
+      expect(body).not.toMatch(/typeof\s+process/)
+      expect(body).not.toMatch(/typeof\s+window/)
+    }
+  })
+
+  it('gate stays on across closeout / back-cut companions when only their env var flips (P3.3C)', () => {
+    // Independent regression for the companion clips. Same root
+    // cause as the GLB athlete gate — a typeof-process guard would
+    // have broken these too.
+    const before = {
+      glb: process.env.NEXT_PUBLIC_USE_GLB_ATHLETE_PREVIEW,
+      closeout: process.env.NEXT_PUBLIC_USE_IMPORTED_CLOSEOUT_CLIP,
+      backCut: process.env.NEXT_PUBLIC_USE_IMPORTED_BACK_CUT_CLIP,
+    }
+    try {
+      ;(process.env as Record<string, string | undefined>)
+        .NEXT_PUBLIC_USE_GLB_ATHLETE_PREVIEW = ''
+      ;(process.env as Record<string, string | undefined>)
+        .NEXT_PUBLIC_USE_IMPORTED_CLOSEOUT_CLIP = '1'
+      expect(isImportedCloseoutClipActive()).toBe(true)
+
+      ;(process.env as Record<string, string | undefined>)
+        .NEXT_PUBLIC_USE_IMPORTED_CLOSEOUT_CLIP = ''
+      ;(process.env as Record<string, string | undefined>)
+        .NEXT_PUBLIC_USE_IMPORTED_BACK_CUT_CLIP = '1'
+      expect(isImportedBackCutClipActive()).toBe(true)
+    } finally {
+      ;(process.env as Record<string, string | undefined>)
+        .NEXT_PUBLIC_USE_GLB_ATHLETE_PREVIEW = before.glb
+      ;(process.env as Record<string, string | undefined>)
+        .NEXT_PUBLIC_USE_IMPORTED_CLOSEOUT_CLIP = before.closeout
+      ;(process.env as Record<string, string | undefined>)
+        .NEXT_PUBLIC_USE_IMPORTED_BACK_CUT_CLIP = before.backCut
+    }
+  })
+
   it('flag readers return the inlined value for the canonical key names', () => {
     // Vitest runs in Node, so `process.env.NEXT_PUBLIC_*` is the
     // real Node process.env entry. We mutate it and confirm the
