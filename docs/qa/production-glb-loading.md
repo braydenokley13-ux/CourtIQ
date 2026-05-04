@@ -1,12 +1,114 @@
-# Production GLB Asset Loading QA (P3.3A → P3.3C)
+# Production GLB Asset Loading QA (P3.3A → P3.3F)
 
-**Status:** P3.3C — third pass on the production GLB asset loading
-fix. P3.3A wired up the env-var opt-in surface, P3.3B replaced the
-dynamic `process.env[name]` access with static-literal reads, and
-P3.3C removed the surrounding `typeof process === 'undefined'` guard
-that was *still* causing the prod opt-in to be a silent no-op even
-after both prior passes landed. P3.3 LIVE promotion stays paused
-until the QA checklist passes.
+**Status:** P3.3F — fourth pass. P3.3A → P3.3C made the env-var
+opt-in actually fire in the production browser bundle. P3.3F
+addresses Case E: even with all gates green (env flags inlined,
+runtime gates true, asset HEAD probes 200, GLTFLoader cache
+populated), production still rendered procedural figures because
+`buildPlayerFigure` had two `try { ... } catch {}` blocks that
+silently swallowed every GLB-path failure. P3.3 LIVE promotion
+stays paused until the QA checklist passes.
+
+## P3.3F — what was *still* broken after P3.3C
+
+`/dev/glb-debug` reported all green:
+
+  - `NEXT_PUBLIC_USE_*` flags inlined as `"1"` in the client bundle
+  - `isGlbAthletePreviewActive()` and companion gates returning `true`
+  - HTTP HEAD probes for `/athlete/...` returning `200`
+  - `loadGlbAthleteAsset()` resolving with a populated cache entry
+    (GLTFLoader successfully parsed the bundled mannequin)
+
+…and `/train` *still* rendered procedural athletes. Case E: GLB
+loaded, renderer kept picking procedural.
+
+Root cause: silent fallback in `imperativeScene.ts buildPlayerFigure`
+and `glbAthlete.ts buildGlbAthletePreview`. Both used a `try { ... }
+catch {}` with NO logging. Any per-figure construction failure
+(throw inside `cloneSkinned` / `_runBoneMapAuditOnce` /
+`applyMultiRegionMaterialsToCloned`, or a `cache !== loaded` instance
+mismatch) silently reverted every figure to the Phase F procedural
+fallback for the lifetime of the canvas mount, with no console
+signal explaining why. Operators saw "loader succeeds, renderer
+falls back" with no way to identify the cause.
+
+### What P3.3F changed
+
+- **`apps/web/components/scenario3d/glbAthlete.ts`** — added a
+  module-scope `_lastGlbBuildFailure` tracker that records the
+  reason every time `buildGlbAthletePreview` returns null
+  (`cache-cold` / `threw` / `not-browser`) or succeeds (`success`).
+  The caught exception's message is preserved on the `threw` path.
+  Exported `_getLastGlbBuildFailure()` for callers; existing
+  return-value contract (`THREE.Group | null`) is unchanged so
+  determinism + e2e suites are unaffected.
+
+- **`apps/web/components/scenario3d/imperativeScene.ts`** — added
+  `_figureDecisionLog` (per-figure `pick` + `reason` + optional
+  `error` recorded on every `buildPlayerFigure` call), exported
+  `_resetPlayerFigureDecisionLog()` / `_getPlayerFigureDecisionLog()`
+  so `Scenario3DCanvas` can reset before each scene-build and read
+  after. Reasons stay stable across releases for grep-friendly logs:
+  `gate-on-cache-warm`, `glb-cache-cold`, `glb-threw`,
+  `glb-not-browser`, `glb-returned-null`, `premium-flag-on`,
+  `skinned-flag-on`, `gate-off`. The decision recorded on the FINAL
+  pick inherits the GLB failure reason (e.g. premium chosen because
+  GLB was cache-cold reads as `pick=premium reason=glb-cache-cold`),
+  so the operator can blame the GLB path correctly even when a
+  downstream shim absorbed the fallback.
+
+- **`apps/web/components/scenario3d/imperativeScene.ts`** —
+  `_setForceGlbAthletePreview(true)` runtime override (wired to
+  `?forceGlb=1` on the URL by `Scenario3DCanvas`). When on:
+    * skips the skinned / premium / Phase-F fallback chain entirely,
+    * returns a bright magenta marker (`name:
+      'glb-force-glb-failure-marker'`) for any figure the GLB
+      builder could not produce — failure is unmistakable,
+    * records `pick: 'force-glb-marker'` with the underlying GLB
+      reason in the decision log.
+
+- **`apps/web/components/scenario3d/Scenario3DCanvas.tsx`** —
+  resets the decision log immediately before each
+  `buildBasketballGroup` call. After the build settles, when the
+  GLB gate is on AND the loader cache became warm at least once
+  this canvas mount (`glbCacheReadyTick > 0`) AND any per-figure
+  decision is non-`glb`, emits a single grep-able
+  `[CourtIQ GLB ERROR] Renderer selected procedural despite GLB ready`
+  console.error with the offender list, total figure count, the
+  current `forceGlb` state, and `sceneId`. When all figures took
+  the GLB path it emits a positive
+  `[CourtIQ GLB] all figures took GLB path` breadcrumb so QA can
+  confirm health from the console alone.
+
+- **`apps/web/components/scenario3d/GlbDebugBadge.tsx`** — surfaces
+  the live decision log + `forceGlb` state in the production debug
+  badge. Reasons render in the badge so QA can read them without
+  opening DevTools.
+
+- **`apps/web/components/scenario3d/playerFigureDecisionLog.test.ts`**
+  — 12 new tests locking the contract: log records one entry per
+  call in build order; gate-on-cache-warm pick is `glb`; gate-on
+  cache-cold falls through with the `glb-cache-cold` reason carried
+  on the downstream pick; force-glb returns the magenta marker on
+  failure and the real GLB on success; `summarisePlayerFigureDecisions`
+  folds duplicates for the badge.
+
+### How to use the new debug surfaces in prod
+
+- `/train?glbDebug=1` — mounts the badge over the canvas with the
+  `figures: <pick:reason …>` row. If you see
+  `figures: glb:gate-on-cache-warm ×8` the renderer is healthy. If
+  you see `figures: premium:glb-threw ×8` you have a per-figure
+  build exception — read the `console.error` payload for the
+  exact thrown message.
+- `/train?forceGlb=1` — hard-fails to a magenta marker for any
+  figure the GLB builder cannot produce, isolating renderer-side
+  bugs from loader-side bugs in one click. Combine with
+  `?glbDebug=1` to see the marker AND the diagnostic readout.
+- Browser console — `[CourtIQ GLB ERROR]` fires once per scene
+  build when the gate is on, the cache is warm, and any figure
+  fell back. Sentry breadcrumbs capture the line for offline
+  analysis.
 
 ## P3.3C — what was *still* broken after P3.3B
 

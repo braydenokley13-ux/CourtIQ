@@ -13,6 +13,9 @@ import { ScenarioScene3D } from './ScenarioScene3D'
 import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
 import { SceneMotionProvider } from './SceneMotionContext'
 import {
+  _getPlayerFigureDecisionLog,
+  _resetPlayerFigureDecisionLog,
+  _setForceGlbAthletePreview,
   buildBasketballGroup,
   CameraController,
   disposeGroup,
@@ -261,8 +264,31 @@ export function Scenario3DCanvas({
   // client-only post-hydration flag so the SSR markup and the first
   // client render agree (no hydration warning).
   const [glbDebugEnabled, setGlbDebugEnabled] = useState(false)
+  // P3.3F — `?forceGlb=1` URL param. When set the figure builder
+  // (a) skips the skinned/premium/Phase-F fallback chain and
+  // (b) returns a bright magenta marker for any figure the GLB
+  // builder cannot produce, so the failure is impossible to miss.
+  // Same hydration-safe pattern as the debug badge — set inside an
+  // effect so the SSR markup never depends on `window.location`.
+  // Bumping `glbCacheReadyTick` after the flag flips makes the
+  // scene-build effect re-run with the new policy on the next tick.
+  const [forceGlb, setForceGlb] = useState(false)
   useEffect(() => {
     setGlbDebugEnabled(isGlbDebugBadgeEnabled())
+    if (typeof window === 'undefined') return
+    let force = false
+    try {
+      force = new URLSearchParams(window.location.search).get('forceGlb') === '1'
+    } catch {
+      // Malformed URL — treat as off.
+    }
+    setForceGlb(force)
+    _setForceGlbAthletePreview(force)
+    return () => {
+      // Clear the override on unmount so a hot-reload during dev
+      // doesn't leave the next mount stuck on force-glb behaviour.
+      _setForceGlbAthletePreview(false)
+    }
   }, [])
   const [emergencyMode, setEmergencyMode] = useState(false)
   const [orbitMode, setOrbitMode] = useState(false)
@@ -781,6 +807,10 @@ export function Scenario3DCanvas({
       // Build geometry imperatively for non-debug, non-emergency, simple-mode
       // scenes — that's the production path we're trying to fix.
       if (!emergencyMode && !debugMode && simpleMode) {
+        // P3.3F — clear per-figure decisions so the hard-error check
+        // below only sees decisions from THIS scene-build, not any
+        // earlier mount or scene swap.
+        _resetPlayerFigureDecisionLog()
         let result: ReturnType<typeof buildBasketballGroup>
         try {
           result = buildBasketballGroup(visibleScene)
@@ -982,6 +1012,47 @@ export function Scenario3DCanvas({
             tier: qualityRef.current.tier,
             dust: dustMotesRef.current !== null,
           })
+        }
+
+        // P3.3F — hard assertion. When the GLB gate is on AND the
+        // loader cache has resolved with a populated entry (i.e.
+        // `glbCacheReadyTick > 0`, the loader bumped it from `then`),
+        // every figure decision must be `glb`. If any figure ended up
+        // procedural / skinned / premium / force-glb-marker, log a
+        // single grep-able `[CourtIQ GLB ERROR]` line so the operator
+        // can see the actual reason without reproducing locally. The
+        // check runs *after* the scene is mounted and the controllers
+        // are wired so it never blocks rendering.
+        try {
+          const gateOn = isGlbAthletePreviewActive()
+          const cacheReady = glbCacheReadyTick > 0
+          const decisions = _getPlayerFigureDecisionLog()
+          if (gateOn && cacheReady && decisions.length > 0) {
+            const offenders = decisions.filter((d) => d.pick !== 'glb')
+            if (offenders.length > 0) {
+              // eslint-disable-next-line no-console
+              console.error(
+                '[CourtIQ GLB ERROR] Renderer selected procedural despite GLB ready',
+                {
+                  totalFigures: decisions.length,
+                  glbFigures: decisions.length - offenders.length,
+                  offenders,
+                  forceGlb,
+                  sceneId: visibleScene.id,
+                },
+              )
+            } else {
+              // Helpful "we're good" breadcrumb so QA can confirm
+              // the path is healthy from the console alone.
+              // eslint-disable-next-line no-console
+              console.info('[CourtIQ GLB] all figures took GLB path', {
+                figures: decisions.length,
+                sceneId: visibleScene.id,
+              })
+            }
+          }
+        } catch {
+          // Diagnostic must never throw and break rendering.
         }
       }
     }
