@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import {
+  _getPlayerFigureDecisionLog,
+  _isForceGlbAthletePreview,
   isGlbAthletePreviewActive,
   isImportedBackCutClipActive,
   isImportedCloseoutClipActive,
+  type PlayerFigureDecision,
 } from './imperativeScene'
 import {
   GLB_ATHLETE_ASSET_URL,
@@ -118,6 +121,26 @@ export function isGlbDebugBadgeEnabled(): boolean {
   return w['__COURTIQ_GLB_DEBUG__'] === true
 }
 
+/**
+ * Compact `pick:reason` summary across the per-figure decision log.
+ * Folds duplicate decisions so 8 procedural figures with the same
+ * `glb-cache-cold` reason show up as `procedural:glb-cache-cold ×8`,
+ * not eight separate rows. Pure for testability.
+ */
+export function summarisePlayerFigureDecisions(
+  log: readonly PlayerFigureDecision[],
+): string {
+  if (log.length === 0) return 'no figures yet'
+  const counts = new Map<string, number>()
+  for (const d of log) {
+    const key = `${d.pick}:${d.reason}`
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  return Array.from(counts.entries())
+    .map(([k, n]) => (n === 1 ? k : `${k} ×${n}`))
+    .join(' · ')
+}
+
 export function GlbDebugBadge() {
   const [state, setState] = useState<BadgeState>(() => ({
     env: {
@@ -129,6 +152,10 @@ export function GlbDebugBadge() {
     probes: Object.fromEntries(ASSET_URLS.map((u) => [u, null])),
     loader: 'pending',
   }))
+  const [decisionsSummary, setDecisionsSummary] = useState<string>(
+    'no figures yet',
+  )
+  const [forceGlb, setForceGlb] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -169,8 +196,25 @@ export function GlbDebugBadge() {
         setState((prev) => ({ ...prev, loader: 'error' }))
       })
 
+    // Poll the figure-decision log every 500ms so a scene swap or
+    // cold-cache rebuild surfaces in the badge without a parent
+    // re-render. Cheap: the badge only mounts behind the
+    // `?glbDebug=1` / window-global gate, so production users
+    // without the gate never run this interval.
+    setForceGlb(_isForceGlbAthletePreview())
+    setDecisionsSummary(
+      summarisePlayerFigureDecisions(_getPlayerFigureDecisionLog()),
+    )
+    const decisionPoll = window.setInterval(() => {
+      setForceGlb(_isForceGlbAthletePreview())
+      setDecisionsSummary(
+        summarisePlayerFigureDecisions(_getPlayerFigureDecisionLog()),
+      )
+    }, 500)
+
     return () => {
       cancelled = true
+      window.clearInterval(decisionPoll)
     }
   }, [])
 
@@ -202,6 +246,22 @@ export function GlbDebugBadge() {
           {pick}
         </span>{' '}
         <span style={{ opacity: 0.7 }}>({reason})</span>
+      </div>
+      <div>
+        <span style={{ color: '#9cf' }}>figures</span>{' '}
+        <span
+          style={{
+            color: decisionsSummary.startsWith('glb:') ? '#7fdca0' : '#f5a05a',
+          }}
+        >
+          {decisionsSummary}
+        </span>
+        {forceGlb ? (
+          <>
+            {' · '}
+            <span style={{ color: '#ff79c6', fontWeight: 700 }}>forceGlb=on</span>
+          </>
+        ) : null}
       </div>
       <div>
         <span style={{ color: '#9cf' }}>probes</span>{' '}

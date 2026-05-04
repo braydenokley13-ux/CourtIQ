@@ -1110,6 +1110,49 @@ export function _resetGlbAthleteCache(): void {
 }
 
 /**
+ * P3.3F — last failure reason for `buildGlbAthletePreview`. Updated
+ * on every call (including success), so callers can read it
+ * synchronously after the figure builder returns to find out *why*
+ * a `null` result happened (`cache-cold` vs the figure-construction
+ * try/catch on line 1280 swallowing a real exception).
+ *
+ * Without this hook the `buildPlayerFigure` fallback chain silently
+ * reverts to the procedural Phase F figure on any failure, so a
+ * production user sees procedural with no console signal for *why*.
+ * Surfacing the reason lets `Scenario3DCanvas` emit a hard
+ * `[CourtIQ GLB ERROR]` line when the gate is on, the cache is
+ * populated, and procedural was picked anyway.
+ *
+ * Module-scope rather than per-call return-value because the
+ * existing public signature of `buildGlbAthletePreview` (returns
+ * `THREE.Group | null`) is consumed by determinism / e2e tests we
+ * do not want to churn. The failure tracker is an out-of-band
+ * diagnostic only — production code paths still branch on the
+ * return value.
+ */
+export type GlbBuildFailureKind =
+  | 'success'
+  | 'cache-cold'
+  | 'threw'
+  | 'not-browser'
+
+export interface GlbBuildFailure {
+  kind: GlbBuildFailureKind
+  /** Stringified error message when `kind === 'threw'`. */
+  error?: string
+}
+
+let _lastGlbBuildFailure: GlbBuildFailure = { kind: 'cache-cold' }
+
+export function _getLastGlbBuildFailure(): GlbBuildFailure {
+  return _lastGlbBuildFailure
+}
+
+export function _resetLastGlbBuildFailureForTest(): void {
+  _lastGlbBuildFailure = { kind: 'cache-cold' }
+}
+
+/**
  * P0-LOCK-2 — test-only cache injector. Bypasses the GLTFLoader so
  * Vitest can exercise the actual GLB athlete construction path
  * (clone, bone-map audit, foot-to-floor offset, mixer wiring) on a
@@ -1184,6 +1227,10 @@ export function buildGlbAthletePreview(
 ): THREE.Group | null {
   try {
     if (!cache) {
+      _lastGlbBuildFailure =
+        typeof window === 'undefined'
+          ? { kind: 'not-browser' }
+          : { kind: 'cache-cold' }
       if (typeof window !== 'undefined') void loadGlbAthleteAsset()
       return null
     }
@@ -1276,8 +1323,13 @@ export function buildGlbAthletePreview(
       },
     } satisfies GlbAthleteHandle
 
+    _lastGlbBuildFailure = { kind: 'success' }
     return figure
-  } catch {
+  } catch (err) {
+    _lastGlbBuildFailure = {
+      kind: 'threw',
+      error: err instanceof Error ? err.message : String(err),
+    }
     return null
   }
 }

@@ -3827,6 +3827,128 @@ export function isImportedBackCutClipActive(): boolean {
  * so any unexpected error reverts to the next available path. The
  * Phase F figure is the guaranteed last resort.
  */
+/**
+ * P3.3F — per-figure decision log + `?forceGlb=1` debug surface.
+ *
+ * Background: in P3.3A → P3.3C the env-var gate, asset middleware
+ * matcher, static `process.env.LITERAL` reads, and the cold-cache
+ * rebuild-trigger (`glbCacheReadyTick`) all landed and verified
+ * green via `/dev/glb-debug` in production — env flags inlined,
+ * runtime gates true, asset HEAD probes 200, GLTFLoader cache
+ * populated. *Despite all of that*, prod still rendered procedural
+ * figures on `/train`. Case E: GLB loaded but the renderer kept
+ * picking procedural.
+ *
+ * Root surface: `buildPlayerFigure` had two `try { ... } catch {}`
+ * blocks that swallowed any GLB-path failure with no console
+ * signal. So even when the gate was on and the cache was warm, a
+ * single throw inside `cloneSkinned` / `_runBoneMapAuditOnce` /
+ * `applyMultiRegionMaterialsToCloned` (or `buildGlbAthletePreview`
+ * returning `null` because the cached `cache` symbol was a
+ * different module instance than the one the loader populated)
+ * would silently revert every figure to the Phase F procedural
+ * fallback for the lifetime of the canvas mount.
+ *
+ * Fix:
+ *   - record each figure's decision (`pick` + `reason` + optional
+ *     stringified error) into a module-scope log
+ *   - expose `_getPlayerFigureDecisionLog()` so
+ *     `Scenario3DCanvas` can emit a hard `[CourtIQ GLB ERROR]`
+ *     line when the gate is on, the loader cache is warm, AND any
+ *     figure decision was procedural
+ *   - support a `_setForceGlbAthletePreview(true)` debug override
+ *     (wired to `?forceGlb=1` on the URL) that:
+ *       * skips the skinned/premium/Phase-F fallback chain
+ *       * returns a bright magenta marker figure so the canvas
+ *         does NOT crash but the failure is impossible to miss
+ *       * records the same decision in the log so the operator
+ *         badge / console error summarise the reason
+ *
+ * Per-figure decision is appended in the order
+ * `buildBasketballGroup` walks `scene.players`, so the log can be
+ * keyed back to the player ids in `Scenario3DCanvas`.
+ */
+export type PlayerFigurePick =
+  | 'glb'
+  | 'skinned'
+  | 'premium'
+  | 'procedural'
+  | 'force-glb-marker'
+
+export interface PlayerFigureDecision {
+  pick: PlayerFigurePick
+  /** One-token machine-readable reason. Stable across releases so
+   *  log greps stay valid: `gate-on-cache-warm`, `gate-off`,
+   *  `glb-cache-cold`, `glb-threw`, `glb-not-browser`,
+   *  `skinned-flag-on`, `premium-flag-on`, `procedural-default`. */
+  reason: string
+  /** Stringified error message when the GLB / skinned / premium path
+   *  threw. Carries the actual exception text so the operator does
+   *  not have to reproduce the failure with breakpoints. */
+  error?: string
+}
+
+let _figureDecisionLog: PlayerFigureDecision[] = []
+let _forceGlbAthletePreview = false
+
+/** P3.3F — clear the decision log. Called by `Scenario3DCanvas`
+ *  before every scene-build so a navigation away does not stack
+ *  stale decisions onto the next scene's hard-error check. */
+export function _resetPlayerFigureDecisionLog(): void {
+  _figureDecisionLog = []
+}
+
+/** P3.3F — read the decision log in the order figures were built. */
+export function _getPlayerFigureDecisionLog(): readonly PlayerFigureDecision[] {
+  return _figureDecisionLog
+}
+
+/** P3.3F — flip the force-glb override. Wired by `Scenario3DCanvas`
+ *  to `?forceGlb=1`. The override:
+ *    - bypasses the skinned/premium/procedural fallback chain
+ *    - returns a bright magenta marker for any figure the GLB
+ *      builder cannot produce, so the failure is visually
+ *      unambiguous (production users without the URL param never
+ *      see the marker).
+ *  Deliberately a runtime flag (not env-var) so an operator can
+ *  toggle it from a single URL without redeploying. The marker
+ *  figure size is intentional — same player footprint as the
+ *  procedural figure so layout / camera framing is unchanged. */
+export function _setForceGlbAthletePreview(force: boolean): void {
+  _forceGlbAthletePreview = force
+}
+
+export function _isForceGlbAthletePreview(): boolean {
+  return _forceGlbAthletePreview
+}
+
+/**
+ * P3.3F — magenta debug marker rendered when `?forceGlb=1` is on
+ * AND the GLB builder could not produce a figure (cache cold,
+ * threw, or no-skin). Sized + positioned to occupy the same player
+ * footprint as the procedural figure so the camera framing /
+ * collision logic in `MotionController` is unaffected; the
+ * unmistakable color makes the failure visible in a single glance.
+ */
+function _buildForceGlbFailureMarker(): THREE.Group {
+  const figure = new THREE.Group()
+  figure.name = 'glb-force-glb-failure-marker'
+  // Cube ~3.5 ft tall, ~1.6 ft wide — same vertical centroid as the
+  // procedural Phase F figure so the marker reads as "this slot
+  // was meant to be a player".
+  const geom = new THREE.BoxGeometry(1.6, 3.5, 1.0)
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xff00ff,
+    toneMapped: false,
+    transparent: false,
+    side: THREE.DoubleSide,
+  })
+  const mesh = new THREE.Mesh(geom, mat)
+  mesh.position.y = 1.75
+  figure.add(mesh)
+  return figure
+}
+
 export function buildPlayerFigure(
   teamColor: string,
   trimColor: string,
@@ -3835,9 +3957,19 @@ export function buildPlayerFigure(
   jerseyNumber: string,
   stance: PlayerStance,
 ): THREE.Group {
-  if (isGlbAthletePreviewActive()) {
+  const gateOn = isGlbAthletePreviewActive() || _forceGlbAthletePreview
+  // GLB-attempt failure carried into the rest of the fallback chain
+  // so the FINAL recorded decision can blame the actual upstream
+  // reason ("glb-cache-cold", "glb-threw") instead of the
+  // unrelated "premium-flag-on" / "gate-off" downstream defaults.
+  // Stays `null` when GLB was never attempted (gate off).
+  let glbFailureReason: string | null = null
+  let glbFailureError: string | undefined
+  if (gateOn) {
+    let glb: THREE.Group | null = null
+    let glbThrew: unknown = null
     try {
-      const glb = buildGlbAthleteFigure(
+      glb = buildGlbAthleteFigure(
         teamColor,
         trimColor,
         isUser,
@@ -3845,12 +3977,44 @@ export function buildPlayerFigure(
         jerseyNumber,
         stance,
       )
-      if (glb) return glb
-    } catch {
-      // Phase O-ASSET fallback — GLB preview path failed (asset
-      // missing, fetch blocked, parse failure, or anything thrown);
-      // continue to the rest of the chain so the scene keeps
-      // rendering.
+    } catch (err) {
+      glbThrew = err
+    }
+    if (glb) {
+      _figureDecisionLog.push({
+        pick: 'glb',
+        reason: 'gate-on-cache-warm',
+      })
+      return glb
+    }
+    // GLB attempted but did not return a figure. Surface the actual
+    // reason from the in-builder failure tracker so the operator
+    // sees `cache-cold` / `threw` / `not-browser` instead of an
+    // opaque silent fallback.
+    const failure = _getLastGlbBuildFailure()
+    glbFailureReason =
+      glbThrew != null
+        ? 'glb-threw'
+        : failure.kind === 'threw'
+          ? 'glb-threw'
+          : failure.kind === 'cache-cold'
+            ? 'glb-cache-cold'
+            : failure.kind === 'not-browser'
+              ? 'glb-not-browser'
+              : 'glb-returned-null'
+    glbFailureError =
+      glbThrew instanceof Error
+        ? glbThrew.message
+        : glbThrew != null
+          ? String(glbThrew)
+          : failure.error
+    if (_forceGlbAthletePreview) {
+      _figureDecisionLog.push({
+        pick: 'force-glb-marker',
+        reason: glbFailureReason,
+        error: glbFailureError,
+      })
+      return _buildForceGlbFailureMarker()
     }
   }
   if (USE_SKINNED_ATHLETE_PREVIEW) {
@@ -3863,7 +4027,14 @@ export function buildPlayerFigure(
         jerseyNumber,
         stance,
       )
-      if (skinned) return skinned
+      if (skinned) {
+        _figureDecisionLog.push({
+          pick: 'skinned',
+          reason: glbFailureReason ?? 'skinned-flag-on',
+          error: glbFailureError,
+        })
+        return skinned
+      }
     } catch {
       // Phase M fallback — skinned/animated preview path failed;
       // continue to the procedural paths so the scene keeps
@@ -3872,7 +4043,7 @@ export function buildPlayerFigure(
   }
   if (USE_PREMIUM_ATHLETE) {
     try {
-      return buildPremiumAthleteFigure(
+      const premium = buildPremiumAthleteFigure(
         teamColor,
         trimColor,
         isUser,
@@ -3880,11 +4051,22 @@ export function buildPlayerFigure(
         jerseyNumber,
         stance,
       )
+      _figureDecisionLog.push({
+        pick: 'premium',
+        reason: glbFailureReason ?? 'premium-flag-on',
+        error: glbFailureError,
+      })
+      return premium
     } catch {
       // Phase J fallback — premium path failed, render the
       // Phase F figure so the scene never crashes.
     }
   }
+  _figureDecisionLog.push({
+    pick: 'procedural',
+    reason: glbFailureReason ?? 'gate-off',
+    error: glbFailureError,
+  })
   return buildAthleteFigure(teamColor, trimColor, isUser, hasBall, jerseyNumber, stance)
 }
 
@@ -3930,6 +4112,7 @@ function buildSkinnedAthleteFigure(
 // the GLB asset cache is empty (cold load), the runtime is not a
 // browser, or anything throws — caller falls through.
 import {
+  _getLastGlbBuildFailure,
   buildGlbAthletePreview,
   setGlbAthleteAnimation,
   updateGlbAthletePose,
