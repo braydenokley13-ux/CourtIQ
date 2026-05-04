@@ -191,6 +191,17 @@ function TrainPageInner() {
   const searchParams = useSearchParams()
   const conceptParam = searchParams.get('concept')
   const scenarioParam = searchParams.get('scenario')
+  // PTH-1: support pinned scenario lists for Pathway-driven sessions.
+  // CSV in the URL ("BDW-01,BDW-02,..."); when present, /train forwards
+  // it to /api/session/start, which validates against LIVE scenarios
+  // and returns them in order.
+  const scenarioIdsParamRaw = searchParams.get('scenarioIds')
+  const scenarioIdsParam = scenarioIdsParamRaw
+    ? scenarioIdsParamRaw
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0)
+    : null
   const [userId, setUserId] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [scenarios, setScenarios] = useState<SessionScenario[]>([])
@@ -250,13 +261,22 @@ function TrainPageInner() {
 
       setUserId(user.id)
       try {
+        // Pinned-list (scenarioIds) wins over the singular scenario
+        // pin and over the concept filter — Pathways pages always pass
+        // a concrete ordered set, and the API matches that ordering.
+        const requestedSize = scenarioIdsParam
+          ? scenarioIdsParam.length
+          : scenarioParam
+            ? 1
+            : 5
         const res = await fetch('/api/session/start', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            n: scenarioParam ? 1 : 5,
+            n: requestedSize,
             concept: conceptParam ?? undefined,
             scenarioId: scenarioParam ?? undefined,
+            scenarioIds: scenarioIdsParam ?? undefined,
           }),
         })
         const body = await res.json().catch(() => ({})) as {
@@ -283,7 +303,10 @@ function TrainPageInner() {
         setLoading(false)
       }
     })()
-  }, [router, conceptParam, scenarioParam])
+    // scenarioIdsParamRaw is the raw CSV string from the URL — using
+    // it as the effect dep keeps the array reference stable across
+    // renders (otherwise we'd reload the session on every render).
+  }, [router, conceptParam, scenarioParam, scenarioIdsParamRaw])
 
   // Settle delay between the freeze beat firing and the timer starting
   // ticking — gives the kid ~700ms to register the question before the
