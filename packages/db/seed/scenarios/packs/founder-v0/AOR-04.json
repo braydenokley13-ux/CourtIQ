@@ -10,10 +10,10 @@
     "sub_concepts": ["x_out_closeout", "shot_off_catch"],
     "difficulty": 1,
     "user_role": "weak_wing_shooter",
-    "game_context": "4-on-4 half-court shell. The strong-side wing drives baseline. The defense rotates: x4 tags the drive, your defender (x3) x-outs all the way to the corner. The drive kicks the ball back across the floor to you on the weak wing — your defender is two passes away.",
-    "possession_setup": "You are the weak-side wing. The strong wing drove baseline. Your defender (x3) x-outed to cover the corner. The strong wing finds you with the cross-court kickout. As the ball arrives, x3 has to closeout from the corner — the longest possible closeout.",
-    "decision_moment": "The ball arrives at your hands. x3 is just leaving the corner — at least 16 ft from your wing, hands not yet up.",
-    "visible_cue": "x3 is in the strong-side corner area, sprinting toward your wing with hands at his sides. You have a clean catch and a clean sightline at the rim.",
+    "game_context": "4-on-4 half-court shell. The strong-side wing drives baseline. The defense rotates: x4 tags the drive, your defender (x3) x-outs to the corner to take the corner shooter. The drive kicks the ball back cross-court to you on the weak wing — your defender just finished the x-out and is stopped in the corner with bad momentum.",
+    "possession_setup": "You are the weak-side wing. The strong wing drove baseline. Your defender (x3) x-outed to cover the corner shooter. The strong wing finds you with the cross-court kickout. As the ball arrives, x3 is stopped in the corner with his weight going the wrong way — he has to reverse direction to closeout to you.",
+    "decision_moment": "The ball arrives at your hands. x3 is in the corner with his hips and chest still facing the corner shooter; his back foot is planted to reverse direction, hands not yet up.",
+    "visible_cue": "x3's chest is facing the corner, not you. His back foot is planted from the x-out. His hands are at his sides — the closeout has not started yet. You have a clean catch and a clean sightline at the rim.",
     "court_state": {
       "offense": [
         { "id": "wing", "x": 410, "y": 60, "role": "ball_handler_strong_drive", "hasBall": true },
@@ -61,25 +61,25 @@
         "order": 4
       }
     ],
-    "best_read": "Catch in shooting pocket, dip the ball, and rise. The x-out closeout cannot beat a one-motion catch-and-shoot. x4 is at the rim, x_slot can't leave the strong side — no second contest exists.",
+    "best_read": "Catch in shooting pocket, dip the ball, and rise. The x-out closeout starts from a stopped defender whose weight is going the wrong way — he cannot get hands up before the shot leaves. x4 is at the rim, x_slot can't leave the strong side — no second contest exists.",
     "acceptable_reads": [
-      "Rip and drive if x3's last step flies past — produces a layup or kickout, but loses the open shot."
+      "Rip and drive if x3's reversal flies past — produces a layup or kickout, but loses the open shot."
     ],
     "bad_reads": [
       "Pass back — wastes the cross-court advantage.",
       "Hold and swing — x3 closes the cushion before the next pass."
     ],
-    "common_miss_reason": "Players see a defender running at them and put the ball on the floor by reflex. The cue is the closeout's start position — when the closeout has 16+ feet to cover, the shot is the cleanest read on the floor.",
-    "why_best_read_works": "An x-out closeout is the longest possible closeout. The defender is sprinting upright with hands down — he cannot get hands up before the catch lands in shooting pocket. The shot is open by definition; any extra dribble lets him recover.",
-    "decoder_teaching_point": "When the closeout starts long, the shot is open. Catch and rise — don't dribble.",
+    "common_miss_reason": "Players see a defender running at them and put the ball on the floor by reflex. The cue is the closeout's starting momentum — when the defender just finished a sprint the other way, the shot is the cleanest read on the floor.",
+    "why_best_read_works": "An x-out closeout is the worst-momentum closeout in basketball. The defender just decelerated to plant in the corner; now he has to reverse direction. He cannot get hands up before the catch lands in shooting pocket. The shot is open by definition; any extra dribble lets him recover.",
+    "decoder_teaching_point": "When the closeout's momentum is wrong, the shot is open. Catch and rise — don't dribble.",
     "lesson_connection": "advantage-or-reset",
     "feedback": {
-      "correct": "Good read. The x-out couldn't beat the ball. You caught and shot before he could contest.",
-      "partial": "A drive can work if the closeout flies. The shot was open right now — take it.",
-      "wrong": "Look at where the closeout started. If he's 15+ feet away when the ball arrives, the shot is open."
+      "correct": "Good read. The x-out's momentum was wrong. You caught and shot before he could contest.",
+      "partial": "A drive can work if the reversal flies past. The shot was open right now — take it.",
+      "wrong": "Look at the defender's momentum. If he just sprinted to the corner and now has to come back, the shot is open."
     },
     "self_review_checklist": [
-      "Did I see x3 was at the corner when the pass left?",
+      "Did I see x3 was committed to the corner when the pass left?",
       "Did I catch in shooting pocket?",
       "Did I rise on the catch, not after a dribble?",
       "Did I follow through with a hand at the rim?"
@@ -96,7 +96,7 @@
       "unlocks": [],
       "prerequisites": ["AOR-01"]
     },
-    "explanation_md": "**Advantage or Reset — x-out variant.** When the closeout is the second rotation, it starts long. Catch in shooting pocket and rise. The closeout can't beat a one-motion catch-and-shoot. Watch where the closeout starts, not where it ends.",
+    "explanation_md": "**Advantage or Reset — x-out variant.** When the defender just sprinted the other way to x-out, his momentum is wrong. Catch in shooting pocket and rise. The closeout can't beat a one-motion catch-and-shoot. Watch the defender's momentum, not his distance.",
     "xp_reward": 12,
     "mastery_weight": 1.0,
     "render_tier": 1,

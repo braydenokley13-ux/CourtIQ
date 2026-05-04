@@ -111,14 +111,14 @@
         { "id": "o3", "team": "offense", "role": "weak_wing", "label": "3", "start": { "x": -17, "z": 9 } },
         { "id": "o4", "team": "offense", "role": "strong_corner", "label": "4", "start": { "x": 22, "z": 1 } },
         { "id": "x1", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": 8, "z": 16 } },
-        { "id": "x2", "team": "defense", "role": "denying_wing_defender_top_lock", "label": "x2", "start": { "x": 17, "z": 12 } },
+        { "id": "x2", "team": "defense", "role": "denying_wing_defender_top_lock", "label": "x2", "start": { "x": 18, "z": 10 } },
         { "id": "x3", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": -15, "z": 10 } },
         { "id": "x4", "team": "defense", "role": "low_man", "label": "x4", "start": { "x": 19, "z": 3 } }
       ],
       "ball": { "start": { "x": 8, "z": 14 }, "holderId": "pg" },
       "movements": [
         { "id": "user_set", "playerId": "user", "kind": "lift", "to": { "x": 19, "z": 9 }, "delayMs": 0, "durationMs": 500 },
-        { "id": "x2_top_lock", "playerId": "x2", "kind": "rotation", "to": { "x": 17, "z": 11 }, "delayMs": 200, "durationMs": 700 }
+        { "id": "x2_top_lock", "playerId": "x2", "kind": "rotation", "to": { "x": 17, "z": 12 }, "delayMs": 200, "durationMs": 700 }
       ],
       "freezeMarker": { "kind": "atMs", "atMs": 1400 },
       "answerDemo": [
