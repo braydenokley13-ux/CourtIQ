@@ -427,3 +427,243 @@ decoders used, example skills, difficulty, why it matters, unlock logic
   from "trainee" to "decoder."
 - **Unlock logic (later).** Unlocks after three other Pathways mastered.
 - **v1 status.** Coming soon.
+
+---
+
+## 6. V1 Pathway: Complete IQ Foundation
+
+**Slug.** `complete-iq-foundation`
+**Display title.** Complete IQ Foundation
+**Subtitle.** Build your basketball brain from the ground up.
+**Target archetype.** Cutter (with foundation in all four decoders).
+**Recommended for.** Ball Watcher (mandatory), all new users.
+**Estimated minutes.** ~45 minutes total across five chapters.
+**Difficulty.** 1–3 (all 20 founder-v0 scenarios are 1–3).
+
+**Pitch (player voice).**
+> Build your basketball brain from the ground up. Learn to read denial,
+> move when defenders look away, beat closeouts, and punish help rotations.
+
+**Pitch (parent/coach voice).**
+> Foundational five-chapter track that teaches a player to recognize four
+> universal off-ball / catch-decide cues: backdoor windows, empty-space
+> reads, advantage-vs-reset closeouts, and help-rotation skips. Built on
+> 20 universally-taught youth basketball scenarios, each authored against a
+> single best-read with feedback for every option.
+
+**Decoders covered.** BACKDOOR_WINDOW · EMPTY_SPACE_CUT · ADVANTAGE_OR_RESET ·
+SKIP_THE_ROTATION.
+
+**Scenarios used (founder-v0 pack, 20 total).**
+- BDW-01, BDW-02, BDW-03, BDW-04, BDW-05
+- ESC-01, ESC-02, ESC-03, ESC-04, ESC-05
+- AOR-01, AOR-02, AOR-03, AOR-04, AOR-05
+- SKR-01, SKR-02, SKR-03, SKR-04, SKR-05
+
+The five chapters below use the existing scenarios in the order their seed
+files are authored (difficulty-ascending per family).
+
+---
+
+### Chapter 1 — Read the Denial
+
+- **Slug.** `read-the-denial`
+- **Subtitle.** When the defender blocks the pass, the basket is open.
+- **Basketball cue.** Defender's hand or foot in the passing lane (chest
+  between ball and receiver).
+- **Decoder.** `BACKDOOR_WINDOW`
+- **Scenarios (recommended order).** BDW-01 → BDW-02 → BDW-03 → BDW-04 →
+  BDW-05.
+- **Skill nodes.**
+  1. **Learn the Cue** — decoder lesson tile linking to academy lesson
+     `backdoor-window`. Unlocks after first session start.
+  2. **First Reps** — BDW-01 + BDW-02 (difficulty 1).
+  3. **Disguised Denials** — BDW-03 + BDW-04 (difficulty 2).
+  4. **Timing Test** — BDW-05 (difficulty 3 — air-pass timing).
+  5. **Boss Challenge — Denial Reader** — all 5 BDW scenarios in random
+     order, no decoder pill, no hints.
+- **Goal (player voice).** Learn when your defender blocks the passing lane
+  and how to punish it by cutting behind.
+- **Goal (parent/coach voice).** Player will recognize a denied passing lane
+  (hand/foot in lane, chest blocking line) and counter with a back-cut to
+  the rim.
+- **Pass criteria (skill nodes).** Each non-boss node passes when its
+  scenario set has been attempted at least once and best-answer accuracy on
+  those scenarios ≥ 60%.
+- **Mastery criteria (chapter).** ≥ 4 of 5 best answers across BDW-01..05
+  *and* `Mastery(BACKDOOR_WINDOW, decoder)` rolling accuracy ≥ 0.80 with
+  ≥ 5 attempts. (Both signals already exist today.)
+- **Boss challenge.** 5 reps, all BDW, decoder pill hidden, no hint
+  micro-praise, ≥ 80% best to pass; failure shows a "rerun chapter" CTA, not
+  a punishment screen.
+- **What the player should understand by the end.** "If his hand or foot is
+  in the lane, the basket is open. Cut behind, not in front."
+- **Parent/coach summary text.**
+  > Player can recognize a denied passing lane and counters with a back-cut
+  > rather than holding the spot. Foundation read for off-ball offense.
+
+---
+
+### Chapter 2 — Move When Eyes Leave
+
+- **Slug.** `move-when-eyes-leave`
+- **Subtitle.** When the defender looks at the ball, you go.
+- **Basketball cue.** Defender's eyes / hips / shoulders rotate toward the
+  ball; nearby floor space is empty.
+- **Decoder.** `EMPTY_SPACE_CUT`
+- **Scenarios (recommended order).** ESC-01 → ESC-02 → ESC-03 → ESC-04 →
+  ESC-05.
+- **Skill nodes.**
+  1. **Learn the Cue** — decoder lesson tile (`empty-space-cut`).
+  2. **First Reps** — ESC-01 + ESC-02 (difficulty 1).
+  3. **Help-Turn Reads** — ESC-03 + ESC-04 (difficulty 2).
+  4. **Replace the Empty Spot** — ESC-05 (difficulty 3).
+  5. **Boss Challenge — Cutter** — all 5 ESC, no hints.
+- **Goal (player voice).** Learn to cut, drift, or replace when your
+  defender turns toward the ball or to help.
+- **Goal (parent/coach voice).** Player will move on the help turn instead
+  of after it, exploiting the half-second gap before the defender's body
+  follows their eyes.
+- **Pass criteria (skill nodes).** Same shape as Chapter 1.
+- **Mastery criteria (chapter).** ≥ 4 of 5 best on ESC-01..05 *and*
+  `Mastery(EMPTY_SPACE_CUT, decoder)` ≥ 0.80 / ≥ 5 attempts.
+- **Boss challenge.** 5 reps, no decoder pill, no per-cue micro-praise.
+- **What the player should understand by the end.** "When the eyes leave,
+  the feet move. Cut into the empty patch, not the wing his eyes are
+  pointing at."
+- **Parent/coach summary text.**
+  > Player anticipates help defense by reading the defender's eyes/hips
+  > and relocates *before* the rotation completes. The off-ball habit that
+  > separates effective wings from bystanders.
+
+---
+
+### Chapter 3 — Beat the Closeout
+
+- **Slug.** `beat-the-closeout`
+- **Subtitle.** Read the feet. Then choose: shoot, drive, reset.
+- **Basketball cue.** Closeout defender's feet/balance — parallel + forward
+  → drive; squared + balanced → reset; late + short → shoot; high + tilted
+  → pump-and-go; sideways recovery → attack the open hip.
+- **Decoder.** `ADVANTAGE_OR_RESET`
+- **Scenarios (recommended order).** AOR-01 → AOR-02 → AOR-03 → AOR-04 →
+  AOR-05.
+- **Skill nodes.**
+  1. **Learn the Cue** — decoder lesson tile (`advantage-or-reset`).
+  2. **Go Now** — AOR-01 (no gap, drive past flat feet).
+  3. **Reset Discipline** — AOR-02 (square stance, swing the ball).
+  4. **Shoot vs. Pump** — AOR-03 + AOR-04 (late close + high close).
+  5. **Open Hip** — AOR-05 (sideways recovery → drive open hip).
+  6. **Boss Challenge — Catch Decider** — all 5 AOR, no decoder pill.
+- **Goal (player voice).** Learn when to shoot, drive, or reset based on
+  the defender's feet and momentum.
+- **Goal (parent/coach voice).** Player will read the closeout's stance
+  before the catch and choose between shoot, drive, and reset rather than
+  defaulting to a single option.
+- **Pass criteria (skill nodes).** Same shape as Chapter 1.
+- **Mastery criteria (chapter).** ≥ 4 of 5 best on AOR-01..05 *and*
+  `Mastery(ADVANTAGE_OR_RESET, decoder)` ≥ 0.80 / ≥ 5 attempts.
+- **Boss challenge.** 5 reps, mixed AOR cues (so the player has to
+  re-identify each closeout type cold).
+- **What the player should understand by the end.** "Three answers on every
+  catch — shoot, drive, reset. The defender's feet tell me which one."
+- **Parent/coach summary text.**
+  > Player distinguishes a closeout that is an advantage from one that
+  > isn't, and selects the highest-value response on the catch (catch-and-
+  > shoot, rip-and-go, or reset/swing).
+
+---
+
+### Chapter 4 — Punish the Help
+
+- **Slug.** `punish-the-help`
+- **Subtitle.** When two defenders show up, find the one they left.
+- **Basketball cue.** Two defenders committed to the paint or the ball; a
+  weak-side defender stunting/helping in.
+- **Decoder.** `SKIP_THE_ROTATION`
+- **Scenarios (recommended order).** SKR-01 → SKR-02 → SKR-03 → SKR-04 →
+  SKR-05.
+- **Skill nodes.**
+  1. **Learn the Cue** — decoder lesson tile (`skip-the-rotation`).
+  2. **Paint Touch** — SKR-01 (paint collapse → opposite corner).
+  3. **PnR Tag Skip** — SKR-02 (drag screen, tagger leaves corner).
+  4. **Post Touch Skip** — SKR-03 (post double, weak corner).
+  5. **Dribble-At Skip** — SKR-04.
+  6. **X-Out Skip** — SKR-05 (baseline drive, X-out leaves slot).
+  7. **Boss Challenge — Rotation Reader** — all 5 SKR, mixed.
+- **Goal (player voice).** Learn to identify help defense and pass behind
+  the rotation.
+- **Goal (parent/coach voice).** Player will identify two-defender
+  commitments and pass *opposite* the rotation, prioritizing the highest-
+  recovery-cost shooter.
+- **Pass criteria (skill nodes).** Same shape as Chapter 1.
+- **Mastery criteria (chapter).** ≥ 4 of 5 best on SKR-01..05 *and*
+  `Mastery(SKIP_THE_ROTATION, decoder)` ≥ 0.80 / ≥ 5 attempts.
+- **Boss challenge.** 5 reps, decoder pill hidden, no per-cue
+  micro-praise.
+- **What the player should understand by the end.** "Look opposite the
+  help. The help came from somebody — that somebody is the answer."
+- **Parent/coach summary text.**
+  > Player recognizes help-side commitments and passes opposite the
+  > rotation rather than into traffic. The read that turns drive-and-kick
+  > into open threes.
+
+---
+
+### Chapter 5 — Real Game Mix
+
+- **Slug.** `real-game-mix`
+- **Subtitle.** Now read the play, not the decoder.
+- **Basketball cue.** All four. The player has to *identify* the cue
+  before answering — no decoder pill is shown.
+- **Decoders.** All four — BACKDOOR_WINDOW, EMPTY_SPACE_CUT,
+  ADVANTAGE_OR_RESET, SKIP_THE_ROTATION.
+- **Scenarios.** Mixed set drawn from all 20 founder-v0 scenarios.
+  Recommended pool: a 10-rep mixed-read final test, drawing 2–3 scenarios
+  per decoder, randomized order, with at least one difficulty-3 rep per
+  decoder represented.
+- **Skill nodes.**
+  1. **Mixed Reads — Warmup** — 5 randomized reps (any decoders), decoder
+     pill hidden, hints off, but feedback unchanged.
+  2. **Mixed Reads — Pressure** — 5 reps, shorter on-screen freeze, but
+     same scoring.
+  3. **Pathway Boss Challenge — All Reads** — 10-rep mixed final, ≥ 80%
+     best to pass.
+- **Goal (player voice).** Make game-like decisions without being told
+  which decoder to use.
+- **Goal (parent/coach voice).** Player will self-identify which read the
+  scenario presents (denial / empty-space / closeout / help rotation) and
+  execute the correct response without a decoder cue.
+- **Pass criteria.** Each warmup/pressure node passes at first attempt.
+  The Pathway-level boss requires 8/10 best answers in one attempt.
+- **Mastery criteria (chapter / Pathway).** All four decoder masteries at
+  ≥ 0.80 with ≥ 5 attempts each, *and* boss attempt ≥ 8/10 best.
+- **Boss challenge.** Pathway-level. This is the *capstone* — it is the
+  Mixed-Read Final Test.
+- **What the player should understand by the end.** "I can recognize the
+  read on my own — denial, empty space, closeout, help — and choose the
+  right answer without being prompted."
+- **Parent/coach summary text.**
+  > Player demonstrates cue identification and decision selection across
+  > all four foundation reads, mixed and unlabeled. This is the threshold
+  > between trainee and decoder.
+
+---
+
+### 6.X Mastery Report (Pathway-end)
+
+When the player completes all five chapters, the **Pathway Mastery Report**
+renders. v1 ships the simplest version — derived from existing data, no
+schema change.
+
+- **Header.** "You completed Complete IQ Foundation."
+- **Big metric tile.** Decoder mastery rings for all four decoders (already
+  computable from `Mastery(decoder)` rows).
+- **Best read.** Highest-accuracy decoder, named.
+- **Watch this.** Lowest-accuracy decoder, named.
+- **Parent/coach card.** Pre-written paragraph (per Pathway in config) that
+  summarizes the four reads in plain English.
+- **Next Pathway.** Recommended Pathway from the catalog
+  (default: Off-Ball Weapon if Cutter-leaning, Closeout Killer if Attacker-
+  leaning — derived from which decoder accuracy is highest).
+- **Share.** "Send to my coach" / "Send to my parent" stub.
