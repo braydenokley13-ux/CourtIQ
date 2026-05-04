@@ -187,6 +187,102 @@ describe('P3.3F — per-figure decision log', () => {
     buildPlayerFigure('#5DB4FF', '#1F5BB8', false, false, '23', 'idle')
     expect(_getPlayerFigureDecisionLog()).toHaveLength(1)
   })
+
+  it('cold → warm swap: rebuild after cache populates promotes pick from premium-with-glb-cache-cold to glb (P3.3F production scenario)', () => {
+    // Reproduces the production failure mode and its fix end-to-end:
+    //   1. Canvas mounts; scene-build effect runs while the loader
+    //      cache is still cold. `buildPlayerFigure` records
+    //      `pick=premium reason=glb-cache-cold` (premium path covers
+    //      the procedural fallback because USE_PREMIUM_ATHLETE=true).
+    //   2. `loadGlbAthleteAsset()` resolves; `glbCacheReadyTick` is
+    //      bumped; scene-build effect re-runs because the tick is in
+    //      its dep array (Scenario3DCanvas.tsx). The decision log is
+    //      reset before the rebuild.
+    //   3. The second `buildPlayerFigure` call now finds the cache
+    //      populated and records `pick=glb reason=gate-on-cache-warm`.
+    //
+    // This is the contract the production hard-error
+    // `[CourtIQ GLB ERROR] Renderer selected procedural despite GLB
+    // ready` watches in `Scenario3DCanvas`. If this test ever flips
+    // to recording two procedural decisions back-to-back the
+    // production fix has regressed.
+    process.env[GLB_ATHLETE_PREVIEW_PROD_ENV_KEY] = '1'
+
+    // Step 1 — cache cold, first build.
+    let figure = buildPlayerFigure(
+      '#3BFF9D',
+      '#0F8C4E',
+      true,
+      false,
+      '12',
+      'idle',
+    )
+    let userData = figure.userData as Record<string, unknown>
+    expect(userData[GLB_ATHLETE_USER_DATA_KEY]).toBeUndefined()
+    let log = _getPlayerFigureDecisionLog()
+    expect(log).toHaveLength(1)
+    expect(log[0]).toMatchObject({
+      pick: 'premium',
+      reason: 'glb-cache-cold',
+    })
+
+    // Step 2 — loader resolves, cache populates, scene-build effect
+    // re-runs with `glbCacheReadyTick` bumped. `Scenario3DCanvas`
+    // calls `_resetPlayerFigureDecisionLog()` immediately before
+    // `buildBasketballGroup`, so the log is empty going into the
+    // rebuild.
+    const asset = buildMockGlbAsset()
+    assertMockCoversGlbBoneMap(asset)
+    _setGlbAthleteCacheForTest(asset.scene, asset.skinnedMesh)
+    _resetPlayerFigureDecisionLog()
+
+    // Step 3 — second build, cache warm, picks GLB.
+    figure = buildPlayerFigure(
+      '#3BFF9D',
+      '#0F8C4E',
+      true,
+      false,
+      '12',
+      'idle',
+    )
+    userData = figure.userData as Record<string, unknown>
+    expect(userData[GLB_ATHLETE_USER_DATA_KEY]).toBeDefined()
+    log = _getPlayerFigureDecisionLog()
+    expect(log).toHaveLength(1)
+    expect(log[0]).toEqual({ pick: 'glb', reason: 'gate-on-cache-warm' })
+  })
+
+  it('fallback does NOT trigger when the GLB builder succeeds (no spurious downstream pick)', () => {
+    // Defense-in-depth: a refactor that accidentally returns the
+    // GLB figure AND falls through to the premium / procedural path
+    // would push two entries to the log AND mount the wrong figure.
+    // Lock both: exactly one entry, exactly the GLB figure.
+    process.env[GLB_ATHLETE_PREVIEW_PROD_ENV_KEY] = '1'
+    const asset = buildMockGlbAsset()
+    _setGlbAthleteCacheForTest(asset.scene, asset.skinnedMesh)
+
+    const figure = buildPlayerFigure(
+      '#3BFF9D',
+      '#0F8C4E',
+      true,
+      false,
+      '12',
+      'idle',
+    )
+    // GLB figure (has the GLB userData and the named clone child).
+    const userData = figure.userData as Record<string, unknown>
+    expect(userData[GLB_ATHLETE_USER_DATA_KEY]).toBeDefined()
+    expect(figure.children.some((c) => c.name === 'glb-mannequin-clone')).toBe(
+      true,
+    )
+    // Exactly one decision recorded — no spurious fall-through.
+    const log = _getPlayerFigureDecisionLog()
+    expect(log).toHaveLength(1)
+    expect(log[0]).toEqual({ pick: 'glb', reason: 'gate-on-cache-warm' })
+    // And the failure tracker reports `success` — not stale from a
+    // prior call.
+    expect(_getLastGlbBuildFailure().kind).toBe('success')
+  })
 })
 
 describe('P3.3F — `_setForceGlbAthletePreview` runtime override', () => {
