@@ -1344,3 +1344,246 @@ export interface PathwayProgressSummary {
 - `PathwayProgressSummary` is the *single object* the Pathway page
   consumes, decoupled from Prisma — derived once on the server and
   shipped to the client without leaking row shapes.
+
+---
+
+## 13. Page / Route Plan
+
+Pathways add **two routes** in v1, with one optional drill-in.
+
+### `/pathways` — the Hub
+
+- **Purpose.** Campaign-select. The first surface a player sees that
+  organizes "what am I becoming" decisions.
+- **Sections.**
+  1. Header strip with player's archetype label (v1: derived from
+     highest-accuracy decoder; falls back to "Foundation Trainee").
+  2. **Active Pathway card** — pinned top, big. For v1 this is Complete
+     IQ Foundation for everyone. Shows Pathway progress ring,
+     recommended-next chip, and a single Continue CTA.
+  3. **Recommended for you** — a single card sized like the active card.
+     v1: empty (or "Finish your foundation first" placeholder).
+  4. **Coming soon catalog** — a 2-up grid of the eight coming-soon
+     Pathways. Each card shows title, target archetype, basketball
+     problem, and a "Notify me" stub.
+  5. Footer: link back to `/home`.
+- **Components needed.**
+  - `PathwayHeroCard` (active state).
+  - `PathwayCatalogCard` (coming-soon and recommended states).
+  - Existing `Card`, `Chip`, `ProgressRing` primitives from the design
+    system.
+- **Data needed.** All Pathway configs + the player's
+  `PathwayProgressSummary` for the active Pathway.
+- **Empty states.** New user with no attempts → active Pathway shows
+  "Start here" instead of "Continue", progress = 0%, recommended next
+  = Chapter 1 / Learn the Cue.
+- **Mobile behavior.** Single column. Active Pathway card is full-width;
+  catalog cards stack 1-up under sm, 2-up at sm+.
+
+### `/pathways/[pathwaySlug]` — the Detail / Chapter Map
+
+- **Purpose.** Pathway interior. Shows the chapter map, recommended
+  next, and Mastery Report.
+- **Sections.**
+  1. Hero strip: title, subtitle, archetype chip, parent/coach summary
+     toggle (the toggle swaps the long-form copy in place).
+  2. Pathway-level progress ring + chapter dots row (5 dots for
+     Foundation, each colored by decoder).
+  3. Recommended next action card (sticky on mobile until tapped).
+  4. Chapter list, top-to-bottom in `order`. Each chapter renders:
+     - Chapter eyebrow ("CHAPTER 1") + title + cue line + state chip.
+     - Decoder Lesson Node (links to `/academy/<lesson-slug>`).
+     - Skill node row (small nodes with mastery rings).
+     - Boss Challenge node (locked/unlocked/cleared visual).
+  5. Pathway Mastery Report card — locked until pathwayMastered = true.
+  6. "Up next when you finish" teaser of the next coming-soon Pathway.
+- **Components needed.**
+  - `PathwayHero`.
+  - `ChapterRow` (the meat of the page).
+  - `SkillNodeTile` with the five states.
+  - `BossChallengeTile`.
+  - `PathwayMasteryReportCard` (locked variant + ready variant).
+- **Data needed.** The full Pathway config plus
+  `PathwayProgressSummary`.
+- **Empty states.** A coming-soon Pathway slug routes here too — render
+  the hero, the parent/coach summary, and a single "Notify me" CTA in
+  place of the chapter map.
+- **Mobile behavior.** Single column, chapter rows are stacked. Skill
+  node rows scroll horizontally if they overflow. Recommended next
+  card pins under the hero on first paint.
+
+### `/pathways/[pathwaySlug]/chapters/[chapterSlug]` — Chapter Detail (optional)
+
+- **Purpose.** Drilled-in view when a player taps a chapter title from
+  the map. v1 can defer this — tapping a chapter scrolls the map to
+  that chapter row, and the chapter row has all the same info.
+- **When to ship this route.** PTH-2 if user testing shows the chapter
+  row is too cramped on mobile. Otherwise PTH-3.
+- **Sections (when shipped).**
+  1. Chapter eyebrow + title + cue line.
+  2. Decoder Lesson summary tile (with link to Academy).
+  3. Skill node list (vertical stack on mobile).
+  4. Boss Challenge tile.
+  5. Chapter Mastery Report card.
+  6. "Back to Pathway" CTA.
+- **Mobile behavior.** Same column model as the detail page.
+
+### Route layout / shared chrome
+
+- All Pathway pages live under the existing `(app)` route group, so the
+  authenticated layout chrome (top nav, IQ/XP chips) is unchanged.
+- Pathway pages render server-side (`async` page components, like
+  `/academy`). Progress derivation happens once per request. No client
+  state caching is required for v1.
+- Cache: revalidate-on-attempt is overkill for v1; let Pathway pages
+  re-fetch fresh on every navigation.
+
+---
+
+## 14. /train Integration Plan
+
+Pathways do not modify the training loop. They drive `/train` via query
+params. The integration is intentionally narrow.
+
+### URL contract
+
+| URL | Behavior |
+| --- | --- |
+| `/train` | Today's behavior. Weighted 5-rep session. Unchanged. |
+| `/train?concept=X` | Today's behavior. Filter by concept. Unchanged. |
+| `/train?scenario=X` | Today's behavior. Single-scenario pin. Unchanged. |
+| `/train?scenarioIds=A,B,C` | **New (PTH-2).** Run a session with this exact list of scenario IDs in this order. |
+| `/train?pathway=foundation` | **New (PTH-2).** Drives the standard Pathway *resume* — server picks the recommended next chapter's recommended next skill node, hands its scenario IDs to the session. |
+| `/train?pathway=foundation&chapter=read-the-denial` | Resume in that specific chapter; server picks the next un-mastered node within it. |
+| `/train?pathway=foundation&chapter=read-the-denial&node=first-reps` | Run that specific node's `scenarioIds`. |
+| `/train?mode=boss-challenge&pathway=foundation&chapter=...` | Run the chapter's Boss config: hide decoder pill, suppress per-cue hints, score at boss multiplier. |
+| `/train?mode=mixed-reads&pathway=foundation` | Run mixed-reads from all decoders the Pathway has taught. |
+| `/train?mode=no-hint&scenarioIds=...` | Hide the decoder pill on these scenarios. |
+
+### How params flow
+
+1. Pathway page constructs the URL — never the client. The server-side
+   `getRecommendedNext` builds the URL using the Pathway config + the
+   player's progress.
+2. /train page reads `searchParams` exactly as today (it already reads
+   `concept` and `scenario`). Two new keys: `scenarioIds` (CSV) and
+   `mode`.
+3. /train calls `POST /api/session/start`, passing `{ n,
+   scenarioIds?, mode? }`.
+4. The session endpoint:
+   - If `scenarioIds` is present and all IDs are LIVE, build the bundle
+     from those IDs in order. Skip the weighted generator. (One-line
+     branch in `generateSessionBundle`; existing `scenarioId` pin is
+     analogous.)
+   - If `mode === 'boss-challenge'`, set `hide_decoder_pill = true` on
+     the response meta and tag the resulting `SessionRun` with a
+     `boss=true` JSON marker (could be in `scenario_ids` payload — no
+     schema change needed for v1).
+5. /train UI honors `meta.hide_decoder_pill` by skipping the pill render
+   and the per-cue micro-praise. Today's UI already centralizes those
+   in the same effect block.
+
+### How selected scenario IDs flow into session start
+
+- The Pathway page builds `?scenarioIds=BDW-01,BDW-02,BDW-03`.
+- `/train` page parses the param, passes it to `/api/session/start`.
+- `generateSessionBundle` receives `scenarioIds: ['BDW-01', ...]`,
+  validates that each ID exists and is LIVE, and returns them in
+  order — *no weighting, no shuffle, no fill-ins*.
+- The summary page (`/train/summary`) accepts a `pathway` and
+  `chapter` query param so it can render the right "Back to chapter"
+  CTA after the session completes.
+
+### How normal weighted training stays unchanged
+
+- If neither `scenarioIds` nor `pathway` is present, /train uses today's
+  weighted bundle. Zero behavior change. This is the entire risk-control
+  strategy: *no Pathway query params = no Pathway code path.*
+
+### How answer keys stay hidden
+
+- /train remains the single surface that talks to the API for attempts.
+- `is_correct`, `feedback_text`, `explanation_md`, `correct_choice_id`
+  are still server-only on the bundle response (per ARCHITECTURE.md
+  §5.4). Pathway plumbing never sees these — it only sees the same
+  sanitized `SessionScenario` shape today's /train sees.
+
+### How the summary page knows the pathway context
+
+- Train passes `pathway` and `chapter` to `/train/summary`.
+- Summary page renders:
+  - "You finished Chapter 1 — Read the Denial." (when chapter complete).
+  - "Up next: Beat the Closeout" CTA.
+  - "Back to Complete IQ Foundation" CTA.
+- If no Pathway context, summary keeps today's chrome unchanged.
+
+### Boss challenge shape
+
+- Boss session = pinned `scenarioIds` + `mode=boss-challenge`.
+- Decoder pill hidden client-side based on `mode` param (no server
+  flag needed for v1; the client already conditionally renders the
+  pill).
+- Pass/fail evaluated client-side from `feedback.is_correct` counts;
+  recorded in localStorage *or* in a SessionRun JSON marker. v1 stores
+  it in localStorage to avoid schema work; PTH-3 introduces a real
+  `BossChallengeAttempt` row.
+
+---
+
+## 15. MVP Scope (PTH-1)
+
+What ships in the first Pathways PR and what does not.
+
+### In scope
+
+- **`/pathways` Hub** with the active Complete IQ Foundation card and
+  eight coming-soon catalog cards.
+- **`/pathways/[pathwaySlug]` Detail** for the Foundation Pathway.
+  Renders the five-chapter map using the existing 20 founder-v0
+  scenarios.
+- **Typed Pathway config** (`apps/web/lib/pathways/`) with the full
+  catalog (one active, eight coming-soon stubs) and the typed shapes
+  from §12.
+- **Progress derivation** from existing `Attempt` and `Mastery` rows.
+  Single server-side `getPathwayProgress(userId, slug)` function used
+  by both pages.
+- **Start / Continue buttons** that route into `/train` with the
+  correct query params (no `mode=boss-challenge` yet — see PTH-3).
+- **Coming-soon cards** render archetype, problem, decoders.
+- **Basic /train query integration**: support `scenarioIds=` for
+  pinned-set sessions only. *No* `mode=` honoring in PTH-1.
+- **Home screen entry point**: a single CTA card on `/home` linking to
+  the active Pathway. Uses existing home page layout.
+- **No schema migration.**
+
+### Explicitly out of scope (later phases)
+
+- Full adaptive personalization engine.
+- Coach dashboard / parent reporting integration.
+- New scenarios, new decoders.
+- New DB tables (Pathway, PathwayChapter, SkillNode, etc.).
+- Boss challenge engine + `BossChallengeAttempt` row.
+- Mixed-Read Final Test rendering at Pathway level.
+- Archetype assignment from data.
+- Mastery Report (v1 ships a placeholder card).
+- Paid Pathway seasons / leaderboards.
+- Editable Pathway config via admin CMS.
+- Push notification stubs on coming-soon cards.
+
+### What "done" looks like for PTH-1
+
+A new user can:
+
+1. See `/pathways` from `/home` and recognize "I'm on Complete IQ
+   Foundation".
+2. Tap the active Pathway, land on `/pathways/complete-iq-foundation`,
+   see five chapters laid out with their decoder lessons and scenario
+   nodes.
+3. Tap "Continue" or any unlocked node, get routed to `/train?...` with
+   the right scenarios.
+4. Finish the session, return to the Pathway page, and see their
+   progress moved (mastery rings updated, recommended-next changed).
+5. Browse the catalog and see eight coming-soon Pathways with
+   identity copy.
+
+If those five steps work, PTH-1 is shippable.
