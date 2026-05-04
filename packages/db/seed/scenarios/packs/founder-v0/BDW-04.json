@@ -1,0 +1,177 @@
+[
+  {
+    "id": "BDW-04",
+    "version": 1,
+    "status": "LIVE",
+    "title": "Slot Reversal Backdoor",
+    "category": "OFFENSE",
+    "decoder_tag": "BACKDOOR_WINDOW",
+    "concept_tags": ["off_ball_movement", "reading_denial"],
+    "sub_concepts": ["backdoor_cut", "slot_denial"],
+    "difficulty": 2,
+    "user_role": "weak_slot_target",
+    "game_context": "4-on-4 half-court shell. The ball is at the right wing after a swing. The point is reversing through the weak slot, but your defender (x1) is denying the reversal — chest above the line, hand pressed into the passing lane.",
+    "possession_setup": "You are the weak-side slot. The wing has the ball at the top of the arc on the strong side. Your defender steps into the lane to deny the reversal pass back to you.",
+    "decision_moment": "x1's hand is in the lane and his foot is above your top foot. The strip from the elbow down to the rim is empty.",
+    "visible_cue": "x1 has hand and foot in the slot reversal lane, hips opened to the wing, head turned to the ball.",
+    "court_state": {
+      "offense": [
+        { "id": "wing", "x": 410, "y": 80, "role": "ball_handler", "hasBall": true },
+        { "id": "user", "x": 170, "y": 130, "role": "weak_slot_target", "hasBall": false },
+        { "id": "o3", "x": 80, "y": 80, "role": "weak_wing", "hasBall": false },
+        { "id": "o4", "x": 470, "y": 10, "role": "strong_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x_wing", "x": 410, "y": 100, "role": "on_ball", "hasBall": false },
+        { "id": "x1", "x": 240, "y": 100, "role": "denying_slot_defender", "hasBall": false },
+        { "id": "x3", "x": 100, "y": 100, "role": "weak_wing_defender", "hasBall": false },
+        { "id": "x4", "x": 440, "y": 30, "role": "low_man", "hasBall": false }
+      ],
+      "ball_location": { "x": 410, "y": 80 }
+    },
+    "prompt": "Your defender denied the reversal. The elbow-to-rim lane is empty.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Backdoor through the elbow to the rim.",
+        "quality": "best",
+        "feedback_text": "Best read. He stepped into the lane to deny the reversal. The elbow-to-rim strip is open — cut behind him.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "V-cut up to the top of the key for a deeper catch.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. The top reversal works, but you walked away from a clean elbow cut to the rim.",
+        "partial_feedback_text": "Top-of-the-key reversal keeps the ball moving. The cleaner read was the elbow backdoor.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Pop out hard to the weak wing.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Popping out lets x1 trail you and stays in front of the help. The cut behind him is the open one.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Stay still and call for the reversal.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. The reversal is dead — his hand is in the lane. Standing still gives a tip or a steal.",
+        "order": 4
+      }
+    ],
+    "best_read": "Plant the outside foot, drop the shoulder, and cut behind x1 through the elbow to the rim. The wing reads the cut and skips a high pass over the top before x4 can rotate up.",
+    "acceptable_reads": [
+      "V-cut up to the top of the key — keeps the swing alive but trades a layup for a longer pass."
+    ],
+    "bad_reads": [
+      "Pop out to the weak wing — denial follows; pass is contested.",
+      "Stand still — tipped or stolen reversal."
+    ],
+    "common_miss_reason": "Slot reversers default to widening the catch when denied. The elbow window opens precisely because the defender stepped up — the cut they don't try is the one that's open.",
+    "why_best_read_works": "When x1 's hand goes into the reversal lane, his weight is forward and his recovery foot is the back foot. A behind-the-back cut to the elbow has a 6–8 ft head start; x4 starts in the strong corner, so the rotation is the longest one on the floor.",
+    "decoder_teaching_point": "When the reversal is denied, the elbow behind the defender is your window. Cut there.",
+    "lesson_connection": "backdoor-window",
+    "feedback": {
+      "correct": "Good read. He stepped up; you cut behind him to the elbow and finished.",
+      "partial": "Top reversal kept the play alive. Next time, look at his hand — if it's in the lane, the elbow is open.",
+      "wrong": "Watch his hand and his weight. If he stepped into the lane to deny the reversal, the elbow behind him is open."
+    },
+    "self_review_checklist": [
+      "Did I see his hand in the reversal lane?",
+      "Did I plant my outside foot and cut behind?",
+      "Did I aim for the elbow, not the corner?",
+      "Did I show my hands above the elbow?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-04T00:00:00.000Z",
+      "notes": "Slot-reversal backdoor is universally taught. Difficulty 2 because the cut path is shorter and the help (x4) recovers faster than the corner / wing variants. Cluster fits beginner cap."
+    },
+    "source_research_basis": "Universally taught youth read; backdoor against slot-reversal denial is system-independent.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": ["BDW-01"]
+    },
+    "explanation_md": "**The Backdoor Window — slot variant.** When your defender steps into the reversal lane, his weight is forward. The elbow behind him is open. Plant your outside foot and cut to the rim. Show your hands above the elbow. Watch his hand, not your spot.",
+    "xp_reward": 12,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "slot_denial_backdoor",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        { "id": "wing", "team": "offense", "role": "ball_handler", "label": "SG", "start": { "x": 17, "z": 9 }, "hasBall": true },
+        { "id": "user", "team": "offense", "role": "weak_slot_target", "label": "You", "start": { "x": -7, "z": 14 }, "isUser": true },
+        { "id": "o3", "team": "offense", "role": "weak_wing", "label": "3", "start": { "x": -16, "z": 9 } },
+        { "id": "o4", "team": "offense", "role": "strong_corner", "label": "4", "start": { "x": 22, "z": 1 } },
+        { "id": "x_wing", "team": "defense", "role": "on_ball", "label": "xW", "start": { "x": 17, "z": 11 } },
+        { "id": "x1", "team": "defense", "role": "denying_slot_defender", "label": "x1", "start": { "x": 0, "z": 11 } },
+        { "id": "x3", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": -14, "z": 11 } },
+        { "id": "x4", "team": "defense", "role": "low_man", "label": "x4", "start": { "x": 19, "z": 3 } }
+      ],
+      "ball": { "start": { "x": 17, "z": 9 }, "holderId": "wing" },
+      "movements": [
+        { "id": "user_set", "playerId": "user", "kind": "lift", "to": { "x": -7, "z": 15 }, "delayMs": 0, "durationMs": 500 },
+        { "id": "x1_deny_slot", "playerId": "x1", "kind": "rotation", "to": { "x": -3, "z": 12 }, "delayMs": 200, "durationMs": 700 }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1400 },
+      "answerDemo": [
+        { "id": "user_jab", "playerId": "user", "kind": "jab", "to": { "x": -8, "z": 16 }, "delayMs": 0, "durationMs": 250 },
+        { "id": "user_back_cut", "playerId": "user", "kind": "back_cut", "to": { "x": -3, "z": 4 }, "delayMs": 100, "durationMs": 700 },
+        { "id": "wing_lead_pass", "playerId": "ball", "kind": "pass", "to": { "x": -2, "z": 3 }, "delayMs": 500, "durationMs": 550 },
+        { "id": "user_finish", "playerId": "user", "kind": "cut", "to": { "x": 0, "z": 0.5 }, "delayMs": 50, "durationMs": 350 }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You V-cut to the top. The reversal worked, but the layup is gone.",
+          "movements": [
+            { "id": "user_v_cut_top", "playerId": "user", "kind": "lift", "to": { "x": -2, "z": 18 }, "delayMs": 0, "durationMs": 600 },
+            { "id": "wing_top_pass", "playerId": "ball", "kind": "pass", "to": { "x": -2, "z": 18 }, "delayMs": 250, "durationMs": 500 }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You popped out. x1 trailed you and the pass was contested.",
+          "movements": [
+            { "id": "user_pop_wing", "playerId": "user", "kind": "drift", "to": { "x": -16, "z": 9 }, "delayMs": 0, "durationMs": 700 },
+            { "id": "x1_trail", "playerId": "x1", "kind": "rotation", "to": { "x": -14, "z": 10 }, "delayMs": 100, "durationMs": 650 }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You stood still. The reversal was tipped.",
+          "movements": [
+            { "id": "wing_force_reverse", "playerId": "ball", "kind": "pass", "to": { "x": -7, "z": 14 }, "delayMs": 0, "durationMs": 500 },
+            { "id": "x1_deflect", "playerId": "x1", "kind": "rotation", "to": { "x": -5, "z": 13 }, "delayMs": 100, "durationMs": 350 }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "defender_hand_in_lane", "playerId": "x1" },
+        { "kind": "defender_chest_line", "playerId": "x1" },
+        { "kind": "defender_vision_cone", "playerId": "x1", "targetId": "wing" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "open_space_region", "anchor": { "x": -3, "z": 5 }, "radiusFt": 4 },
+        { "kind": "passing_lane_blocked", "from": "wing", "to": "user" },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "user",
+          "path": [
+            { "x": -7, "z": 14 },
+            { "x": -8, "z": 16 },
+            { "x": -3, "z": 4 },
+            { "x": 0, "z": 0.5 }
+          ]
+        }
+      ]
+    }
+  }
+]

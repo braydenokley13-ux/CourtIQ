@@ -1,0 +1,167 @@
+[
+  {
+    "id": "SKR-03",
+    "version": 1,
+    "status": "LIVE",
+    "title": "Post-Entry Skip Out",
+    "category": "OFFENSE",
+    "decoder_tag": "SKIP_THE_ROTATION",
+    "concept_tags": ["passing", "reading_help", "post_play"],
+    "sub_concepts": ["skip_pass", "post_kick_out", "double_team_read"],
+    "difficulty": 2,
+    "user_role": "post_passer",
+    "game_context": "4-on-4 half-court shell. You catch the ball at the strong-side block on a post entry. The weak-side wing defender (x3) crashes down to double-team — feet committed, hands at the ball, weak wing alone.",
+    "possession_setup": "You are the post player. You just caught the ball at the strong-side block. As you read the floor, x3 from the weak wing crashes down for a double team. The weak wing is now alone.",
+    "decision_moment": "x3 has committed to the double — both feet are inside the lane line, hands at the ball, eyes on you. The weak wing has no defender within 12 ft.",
+    "visible_cue": "x3 is in the paint on you. His chest is to the ball, hands up. The weak-side wing is empty, no closeout possible from his current spot in less than two seconds.",
+    "court_state": {
+      "offense": [
+        { "id": "user", "x": 380, "y": 30, "role": "post_passer", "hasBall": true },
+        { "id": "pg", "x": 240, "y": 130, "role": "ball_handler_top", "hasBall": false },
+        { "id": "o3", "x": 70, "y": 80, "role": "weak_wing_shooter", "hasBall": false },
+        { "id": "o4", "x": 30, "y": 10, "role": "weak_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x_post", "x": 380, "y": 50, "role": "post_defender", "hasBall": false },
+        { "id": "x1", "x": 240, "y": 150, "role": "on_ball_top", "hasBall": false },
+        { "id": "x3", "x": 350, "y": 60, "role": "weak_wing_double_helper", "hasBall": false },
+        { "id": "x4", "x": 60, "y": 30, "role": "weak_corner_low_man", "hasBall": false }
+      ],
+      "ball_location": { "x": 380, "y": 30 }
+    },
+    "prompt": "The double came from the weak wing. The weak wing is empty.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Skip pass to the weak-side wing.",
+        "quality": "best",
+        "feedback_text": "Best read. The double came from the weak wing. Skip past it — your shooter is alone.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Pass back out to the point.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. The point can swing the ball, but the skip is one pass and the kickout is two — the defense gets time to recover.",
+        "partial_feedback_text": "The kickout to the point is fine. The skip across the floor is the cleaner shot — one pass beats two.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Force a hook over the double.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Two defenders contest the hook. The shot is bad when an open shooter is one pass away.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Drop pass to the weak-side corner.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. The corner is open, but x4 is the closest defender. The wing is the cleaner shot — x4 cannot leave the corner.",
+        "order": 4
+      }
+    ],
+    "best_read": "Use a chin-up pivot to clear the double, find o3 on the weak wing, and skip the ball over the top of the trap. The shot goes up before x3 can recover 22 feet across the lane.",
+    "acceptable_reads": [
+      "Pass back out to the point — keeps possession but lets the defense reset."
+    ],
+    "bad_reads": [
+      "Force the hook over the double — contested.",
+      "Drop pass to weak corner — closer recovery available than wing."
+    ],
+    "common_miss_reason": "Post players default to scoring through the double. The cue is the source of the double — once you see where it came from, the player they left is the open shooter.",
+    "why_best_read_works": "x3 came from the weak-side wing. The skip pass takes the ball back to the area he just vacated. The recovery has to cross the entire lane — the longest distance on the floor. x4 cannot leave the corner without giving up another shot.",
+    "decoder_teaching_point": "When you get doubled in the post, find the player whose defender came to double. Skip the ball back to him.",
+    "lesson_connection": "skip-the-rotation",
+    "feedback": {
+      "correct": "Good read. The double came from the weak wing; you skipped back to the wing and the shot was clean.",
+      "partial": "Kicking to the point keeps the play alive. Next time, find the player whose defender came to double — that's the open shot.",
+      "wrong": "Look at where the double came from. The shooter on that side is open. Skip the ball back to him."
+    },
+    "self_review_checklist": [
+      "Did I see the double coming?",
+      "Did I see which defender left?",
+      "Did I skip back to the player his defender left?",
+      "Did I throw the skip in one motion?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-04T00:00:00.000Z",
+      "notes": "Skip-out from post double is universally taught. Difficulty 2 because user is the passer reading double-team source. Cluster fits beginner cap."
+    },
+    "source_research_basis": "Universally taught at every level; skip-out from post double is system-independent.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": ["SKR-01"]
+    },
+    "explanation_md": "**Skip the Rotation — post-double variant.** When you get doubled in the post, look at where the double came from. The shooter whose defender just left is the open one. Skip the ball over the top of the trap to him. Watch where the help came from, not the basket.",
+    "xp_reward": 14,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "post_double_skip_out",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        { "id": "user", "team": "offense", "role": "post_passer", "label": "You", "start": { "x": 13, "z": 3 }, "isUser": true, "hasBall": true },
+        { "id": "pg", "team": "offense", "role": "ball_handler_top", "label": "PG", "start": { "x": 0, "z": 14 } },
+        { "id": "o3", "team": "offense", "role": "weak_wing_shooter", "label": "3", "start": { "x": -17, "z": 9 } },
+        { "id": "o4", "team": "offense", "role": "weak_corner", "label": "4", "start": { "x": -22, "z": 1 } },
+        { "id": "x_post", "team": "defense", "role": "post_defender", "label": "xP", "start": { "x": 13, "z": 5 } },
+        { "id": "x1", "team": "defense", "role": "on_ball_top", "label": "x1", "start": { "x": 0, "z": 16 } },
+        { "id": "x3", "team": "defense", "role": "weak_wing_double_helper", "label": "x3", "start": { "x": 11, "z": 5 } },
+        { "id": "x4", "team": "defense", "role": "weak_corner_low_man", "label": "x4", "start": { "x": -19, "z": 3 } }
+      ],
+      "ball": { "start": { "x": 13, "z": 3 }, "holderId": "user" },
+      "movements": [
+        { "id": "x3_double_crash", "playerId": "x3", "kind": "rotation", "to": { "x": 11, "z": 4 }, "delayMs": 0, "durationMs": 700 },
+        { "id": "user_chin_pivot", "playerId": "user", "kind": "jab", "to": { "x": 13, "z": 4 }, "delayMs": 200, "durationMs": 400 }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1300 },
+      "answerDemo": [
+        { "id": "user_high_pivot", "playerId": "user", "kind": "jab", "to": { "x": 13, "z": 5 }, "delayMs": 0, "durationMs": 300 },
+        { "id": "skip_over_double", "playerId": "ball", "kind": "skip_pass", "to": { "x": -17, "z": 9 }, "delayMs": 200, "durationMs": 800 },
+        { "id": "o3_catch_and_shoot", "playerId": "o3", "kind": "lift", "to": { "x": -17, "z": 9 }, "delayMs": 50, "durationMs": 300 }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You kicked back to the point. The defense recovered.",
+          "movements": [
+            { "id": "kick_to_pg", "playerId": "ball", "kind": "pass", "to": { "x": 0, "z": 14 }, "delayMs": 0, "durationMs": 600 },
+            { "id": "x3_back_to_wing", "playerId": "x3", "kind": "rotation", "to": { "x": -10, "z": 8 }, "delayMs": 100, "durationMs": 700 }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You forced the hook over the trap. It was contested.",
+          "movements": [
+            { "id": "user_force_hook", "playerId": "user", "kind": "lift", "to": { "x": 8, "z": 4 }, "delayMs": 0, "durationMs": 600 },
+            { "id": "x_post_meet_hook", "playerId": "x_post", "kind": "stop_ball", "to": { "x": 9, "z": 5 }, "delayMs": 0, "durationMs": 500 }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You passed to the corner. x4 closed out before the shot.",
+          "movements": [
+            { "id": "drop_to_corner", "playerId": "ball", "kind": "pass", "to": { "x": -22, "z": 1 }, "delayMs": 0, "durationMs": 700 },
+            { "id": "x4_close_corner", "playerId": "x4", "kind": "closeout", "to": { "x": -20, "z": 2 }, "delayMs": 200, "durationMs": 500 }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "defender_chest_line", "playerId": "x3" },
+        { "kind": "defender_hip_arrow", "playerId": "x3" },
+        { "kind": "help_pulse", "playerId": "x3", "role": "overhelp" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "passing_lane_open", "from": "user", "to": "o3" },
+        { "kind": "open_space_region", "anchor": { "x": -17, "z": 9 }, "radiusFt": 5 },
+        { "kind": "label", "anchor": { "x": -3, "z": 6 }, "text": "Skip the trap" }
+      ]
+    }
+  }
+]

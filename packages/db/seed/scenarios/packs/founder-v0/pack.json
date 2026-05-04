@@ -2,27 +2,27 @@
   "id": "pack-founder-v0",
   "slug": "founder-v0",
   "title": "Founder v0 / Decoder Foundations",
-  "description": "Pack 1. Four gold-standard decoder scenarios — backdoor window, empty-space cut, advantage-or-reset, skip-the-rotation — that establish CourtIQ's read-the-defender curriculum.",
+  "description": "Pack 1. Twenty founder scenarios across the four core decoder families — Backdoor Window, Empty-Space Cut, Skip the Rotation, Advantage or Reset — that establish CourtIQ's read-the-defender curriculum.",
   "scenarios": [
-    {
-      "id": "BDW-01",
-      "file": "BDW-01.json",
-      "prerequisites": []
-    },
-    {
-      "id": "AOR-01",
-      "file": "AOR-01.json",
-      "prerequisites": []
-    },
-    {
-      "id": "ESC-01",
-      "file": "ESC-01.json",
-      "prerequisites": []
-    },
-    {
-      "id": "SKR-01",
-      "file": "SKR-01.json",
-      "prerequisites": []
-    }
+    { "id": "BDW-01", "file": "BDW-01.json", "prerequisites": [] },
+    { "id": "BDW-02", "file": "BDW-02.json", "prerequisites": ["BDW-01"] },
+    { "id": "BDW-03", "file": "BDW-03.json", "prerequisites": ["BDW-01"] },
+    { "id": "BDW-04", "file": "BDW-04.json", "prerequisites": ["BDW-01"] },
+    { "id": "BDW-05", "file": "BDW-05.json", "prerequisites": ["BDW-01", "BDW-02"] },
+    { "id": "ESC-01", "file": "ESC-01.json", "prerequisites": [] },
+    { "id": "ESC-02", "file": "ESC-02.json", "prerequisites": ["ESC-01"] },
+    { "id": "ESC-03", "file": "ESC-03.json", "prerequisites": ["ESC-01"] },
+    { "id": "ESC-04", "file": "ESC-04.json", "prerequisites": ["ESC-01"] },
+    { "id": "ESC-05", "file": "ESC-05.json", "prerequisites": ["ESC-01"] },
+    { "id": "SKR-01", "file": "SKR-01.json", "prerequisites": [] },
+    { "id": "SKR-02", "file": "SKR-02.json", "prerequisites": ["SKR-01"] },
+    { "id": "SKR-03", "file": "SKR-03.json", "prerequisites": ["SKR-01"] },
+    { "id": "SKR-04", "file": "SKR-04.json", "prerequisites": ["SKR-01", "SKR-02"] },
+    { "id": "SKR-05", "file": "SKR-05.json", "prerequisites": ["SKR-01", "SKR-02"] },
+    { "id": "AOR-01", "file": "AOR-01.json", "prerequisites": [] },
+    { "id": "AOR-02", "file": "AOR-02.json", "prerequisites": ["AOR-01"] },
+    { "id": "AOR-03", "file": "AOR-03.json", "prerequisites": ["AOR-01"] },
+    { "id": "AOR-04", "file": "AOR-04.json", "prerequisites": ["AOR-01"] },
+    { "id": "AOR-05", "file": "AOR-05.json", "prerequisites": ["AOR-01", "AOR-02"] }
   ]
 }

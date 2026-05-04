@@ -1,0 +1,168 @@
+[
+  {
+    "id": "SKR-05",
+    "version": 1,
+    "status": "LIVE",
+    "title": "Drive-and-Skip on X-Out Recovery",
+    "category": "OFFENSE",
+    "decoder_tag": "SKIP_THE_ROTATION",
+    "concept_tags": ["passing", "reading_help", "transition_advantage"],
+    "sub_concepts": ["skip_pass", "x_out_read", "second_advantage"],
+    "difficulty": 3,
+    "user_role": "ball_handler",
+    "game_context": "4-on-4 half-court shell. You drive middle. The weak-side low-man (x4) tags. The weak wing (x3) x-outs to the corner to take the kickout. The weak wing position is now empty — the defense rotated correctly to the corner but left the wing.",
+    "possession_setup": "You are the point guard with the ball. You drive middle. The weak-side low-man (x4) rotates to tag your drive; the weak-side wing (x3) x-outs to take the corner shooter. The weak wing area is now empty.",
+    "decision_moment": "x4 has tagged in the lane; x3 has rotated all the way to the corner. The weak-side wing has no defender — both rotated to other spots.",
+    "visible_cue": "x4 is in the paint, x3 is closing on the corner. The weak wing (o3) is alone — no defender within the wing arc. The corner shooter is also covered now.",
+    "court_state": {
+      "offense": [
+        { "id": "user", "x": 250, "y": 170, "role": "ball_handler", "hasBall": true },
+        { "id": "o2", "x": 470, "y": 10, "role": "strong_corner", "hasBall": false },
+        { "id": "o3", "x": 70, "y": 80, "role": "weak_wing_filler", "hasBall": false },
+        { "id": "o4", "x": 30, "y": 10, "role": "weak_corner_shooter", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x1", "x": 250, "y": 190, "role": "on_ball", "hasBall": false },
+        { "id": "x2", "x": 440, "y": 30, "role": "strong_corner_defender", "hasBall": false },
+        { "id": "x3", "x": 60, "y": 30, "role": "weak_wing_x_out_recover", "hasBall": false },
+        { "id": "x4", "x": 200, "y": 50, "role": "weak_corner_low_man_helper", "hasBall": false }
+      ],
+      "ball_location": { "x": 250, "y": 170 }
+    },
+    "prompt": "x4 tagged. x3 x-outed to the corner. The weak wing is empty.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Skip pass to the weak-side wing.",
+        "quality": "best",
+        "feedback_text": "Best read. The defense rotated to the corner, leaving the wing empty. Skip to the wing — the cleanest closeout on the floor.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Pass to the weak-side corner.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. The corner kickout works against most rotations, but x3 has just x-outed there — the corner is the side the defense covered.",
+        "partial_feedback_text": "The corner is the spot the defense rotated to cover. The wing was the empty one — that's the cleaner read.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Force a layup through x4.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. x4 is in the lane to wall up. The shot is contested when an open shooter is one pass away.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Stop the ball and dribble out.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. You had an open shooter on the second rotation. Resetting wastes the advantage you created.",
+        "order": 4
+      }
+    ],
+    "best_read": "Stop on the dribble at the elbow, find o3 on the weak wing, and skip past x4. The shot goes up before x3 can recover from the corner — about 16 ft of court to closeout the wing.",
+    "acceptable_reads": [
+      "Pass to the weak-side corner — works against most defenses, but x3 has just x-outed there."
+    ],
+    "bad_reads": [
+      "Force a layup through x4 — contested when shooter is one pass away.",
+      "Reset the dribble — wastes the second advantage."
+    ],
+    "common_miss_reason": "Drivers see the first rotation (x4 tagging) and skip to the corner — what they were taught. The cue is the second rotation: x3's x-out to the corner is what creates the open weak wing. Reading the second rotation is the difference between an open shot and a contested one.",
+    "why_best_read_works": "The defense's x-out logic moves x3 from the weak wing to the weak corner to cover the first skip option. That leaves the weak wing empty. The skip pass to the wing has no defender in the closeout cone — x3 is at the corner and x_slot stays home on the strong side. The wing is the longest possible closeout on the floor.",
+    "decoder_teaching_point": "Read the second rotation. When the x-out covers the corner, the wing is open.",
+    "lesson_connection": "skip-the-rotation",
+    "feedback": {
+      "correct": "Good read. The x-out covered the corner; you skipped to the empty wing.",
+      "partial": "Corner kickout works most days. Today the defense rotated there — the wing was empty.",
+      "wrong": "Read the second rotation. When the x-out covers one spot, the spot the rotator left is the open one."
+    },
+    "self_review_checklist": [
+      "Did I see x4 tag?",
+      "Did I see x3 rotate to the corner?",
+      "Did I find the spot x3 left?",
+      "Did I throw the skip in one motion?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-04T00:00:00.000Z",
+      "notes": "Skip on x-out recovery is universally taught at the advanced beginner level. Difficulty 3 because the player must read two rotations, not one. Cluster fits beginner cap."
+    },
+    "source_research_basis": "Universally taught at every level; x-out skip is system-independent.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": ["SKR-01", "SKR-02"]
+    },
+    "explanation_md": "**Skip the Rotation — x-out variant.** When the defense rotates correctly to one spot, the spot the rotator left becomes open. Read the second rotation, not just the first. When x4 tags and x3 x-outs to the corner, the weak wing is empty. Skip the ball there. Watch the second rotation, not the first.",
+    "xp_reward": 16,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "x_out_skip_to_weak_wing",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        { "id": "user", "team": "offense", "role": "ball_handler", "label": "You", "start": { "x": 0, "z": 17 }, "isUser": true, "hasBall": true },
+        { "id": "o2", "team": "offense", "role": "strong_corner", "label": "2", "start": { "x": 22, "z": 1 } },
+        { "id": "o3", "team": "offense", "role": "weak_wing_filler", "label": "3", "start": { "x": -17, "z": 9 } },
+        { "id": "o4", "team": "offense", "role": "weak_corner_shooter", "label": "4", "start": { "x": -22, "z": 1 } },
+        { "id": "x1", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": 0, "z": 19 } },
+        { "id": "x2", "team": "defense", "role": "strong_corner_defender", "label": "x2", "start": { "x": 19, "z": 3 } },
+        { "id": "x3", "team": "defense", "role": "weak_wing_x_out_recover", "label": "x3", "start": { "x": -14, "z": 10 } },
+        { "id": "x4", "team": "defense", "role": "weak_corner_low_man_helper", "label": "x4", "start": { "x": -19, "z": 3 } }
+      ],
+      "ball": { "start": { "x": 0, "z": 17 }, "holderId": "user" },
+      "movements": [
+        { "id": "user_drive_middle", "playerId": "user", "kind": "drive", "to": { "x": 4, "z": 9 }, "delayMs": 0, "durationMs": 700 },
+        { "id": "x4_tag", "playerId": "x4", "kind": "rotation", "to": { "x": 2, "z": 5 }, "delayMs": 200, "durationMs": 600 },
+        { "id": "x3_x_out_to_corner", "playerId": "x3", "kind": "rotation", "to": { "x": -19, "z": 3 }, "delayMs": 350, "durationMs": 750 }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1500 },
+      "answerDemo": [
+        { "id": "user_stop_pivot", "playerId": "user", "kind": "jab", "to": { "x": 4, "z": 10 }, "delayMs": 0, "durationMs": 250 },
+        { "id": "skip_past_x_out", "playerId": "ball", "kind": "skip_pass", "to": { "x": -17, "z": 9 }, "delayMs": 200, "durationMs": 700 },
+        { "id": "o3_catch_shoot", "playerId": "o3", "kind": "lift", "to": { "x": -17, "z": 9 }, "delayMs": 50, "durationMs": 300 }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You passed to the corner. x3 closed out before the shot.",
+          "movements": [
+            { "id": "corner_pass", "playerId": "ball", "kind": "pass", "to": { "x": -22, "z": 1 }, "delayMs": 0, "durationMs": 600 },
+            { "id": "x3_close_corner", "playerId": "x3", "kind": "closeout", "to": { "x": -20, "z": 2 }, "delayMs": 200, "durationMs": 400 }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You forced the layup. x4 walled up.",
+          "movements": [
+            { "id": "user_force", "playerId": "user", "kind": "drive", "to": { "x": 2, "z": 4 }, "delayMs": 0, "durationMs": 700 },
+            { "id": "x4_wall", "playerId": "x4", "kind": "stop_ball", "to": { "x": 2, "z": 4 }, "delayMs": 0, "durationMs": 500 }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You stopped the dribble. The advantage was wasted.",
+          "movements": [
+            { "id": "user_dribble_out", "playerId": "user", "kind": "drift", "to": { "x": 0, "z": 17 }, "delayMs": 0, "durationMs": 700 },
+            { "id": "x3_recover_to_wing", "playerId": "x3", "kind": "rotation", "to": { "x": -14, "z": 10 }, "delayMs": 100, "durationMs": 700 }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "help_pulse", "playerId": "x4", "role": "overhelp" },
+        { "kind": "defender_hip_arrow", "playerId": "x3" },
+        { "kind": "label", "anchor": { "x": -17, "z": 11 }, "text": "Wing is empty" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "passing_lane_open", "from": "user", "to": "o3" },
+        { "kind": "open_space_region", "anchor": { "x": -17, "z": 9 }, "radiusFt": 5 },
+        { "kind": "timing_pulse", "anchor": { "x": -17, "z": 9 }, "durationMs": 600 }
+      ]
+    }
+  }
+]
