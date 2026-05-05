@@ -764,15 +764,23 @@ export function Scenario3DCanvas({
           // Drive the camera controller from the same parent rAF loop
           // we already trust to render. Skip when the user is manually
           // orbiting (drei OrbitControls) so the controller does not
-          // fight a human dragger. Aspect is read fresh each frame so
-          // resize is automatic.
+          // fight a human dragger.
+          //
+          // V1 stabilization — aspect is NOT pulled from
+          // `gl.domElement.clientWidth/Height` per frame any more.
+          // Sub-pixel layout fluctuations during a fullscreen
+          // transition (or while the wrapper is settling after a GLB
+          // cold-load) used to clear the controller's 0.001 aspect
+          // threshold every few frames and trigger a target recompute,
+          // producing visible camera jitter. The Phase L
+          // ResizeObserver-driven `apply()` (above) is the single
+          // source of truth for wrapper-size changes and calls
+          // `ctrl.setAspect` exactly once per real layout change. Per-
+          // frame setAspect was redundant with that path and is
+          // removed here.
           const ctrl = cameraControllerRef.current
           if (ctrl && !orbitMode &&
               (cam as THREE.PerspectiveCamera).isPerspectiveCamera) {
-            const dom = gl.domElement
-            if (dom && dom.clientHeight > 0) {
-              ctrl.setAspect(dom.clientWidth / dom.clientHeight)
-            }
             ctrl.tick(cam as THREE.PerspectiveCamera)
           } else {
             cam.updateMatrixWorld()
