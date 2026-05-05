@@ -457,3 +457,114 @@ export function challengeBucketKey(
 ): string {
   return `${chapterSlug}|${mode}|${challengeSlug}`
 }
+
+// ---------------------------------------------------------------------------
+// PTH-5: pure cleared-state lookups.
+//
+// The progress derivation in `progressService.ts` consumes these to
+// decide whether a server-persisted boss/mixed clear should promote the
+// chapter to `mastered` (and whether the capstone is cleared). Keeping
+// the rules here means the same vocabulary drives both the UI
+// decoration on the pathway detail page AND chapter/pathway mastery.
+//
+// All four helpers are pure — they only read the
+// `PathwayChallengeAttemptSummary[]` already on the progress summary,
+// not the database. That keeps the new derivation database-free for
+// unit tests and for any consumer that has already loaded a summary.
+// ---------------------------------------------------------------------------
+
+/** Lightweight summary subset that the helpers below operate on. We
+ *  use the same shape that already lives on `PathwayProgressSummary`
+ *  so the helpers compose cleanly with `derivePathwayProgress`. */
+export interface ChallengeLookupRow {
+  chapterSlug: string
+  mode: ServerChallengeMode
+  challengeSlug: string
+  passed: boolean
+  bestCount: number
+  total: number
+  attemptedAt: string
+}
+
+/** Best server-persisted boss attempt for a chapter, if any. The input
+ *  list should already be best-of-attempts (which is what
+ *  `getChallengeAttemptSummary` produces); when multiple rows match we
+ *  still apply `selectBestAttempt` so callers can pass a raw list
+ *  without thinking about it. Returns null when the chapter has no
+ *  bossChallenge configured or the user has no recorded attempts. */
+export function getChapterBossAttempt<T extends ChallengeLookupRow>(
+  chapter: PathwayChapterConfig,
+  challengeAttempts: readonly T[],
+): T | null {
+  const boss = chapter.bossChallenge
+  if (!boss) return null
+  const matches = challengeAttempts.filter(
+    (a) =>
+      a.chapterSlug === chapter.slug &&
+      a.mode === 'boss-challenge' &&
+      a.challengeSlug === boss.slug,
+  )
+  return selectBestAttempt(matches)
+}
+
+/** Did the user clear this chapter's boss server-side? */
+export function isChapterBossCleared(
+  chapter: PathwayChapterConfig,
+  challengeAttempts: readonly ChallengeLookupRow[],
+): boolean {
+  return getChapterBossAttempt(chapter, challengeAttempts)?.passed === true
+}
+
+/** A chapter is the Real Game Mix capstone when it carries no decoder
+ *  (the four decoder chapters all pin one). Centralized so the rule
+ *  doesn't drift between progress derivation and the recommendation
+ *  picker. */
+export function isCapstoneChapter(chapter: PathwayChapterConfig): boolean {
+  return chapter.decoderTag === null
+}
+
+/** Best server-persisted mixed-reads attempt for the capstone chapter.
+ *  We accept either the canonical mixed-reads node slug or the chapter
+ *  slug as the challenge identifier — PTH-3 / PTH-4 both wrote into
+ *  this space. Returns null on non-capstone chapters or when no mixed
+ *  attempt has been recorded. */
+export function getMixedCapstoneAttempt<T extends ChallengeLookupRow>(
+  chapter: PathwayChapterConfig,
+  challengeAttempts: readonly T[],
+): T | null {
+  if (!isCapstoneChapter(chapter)) return null
+  const mixedNode = chapter.skillNodes.find((n) => n.trainingMode === 'mixed-reads')
+  const acceptable = new Set<string>([chapter.slug])
+  if (mixedNode) acceptable.add(mixedNode.slug)
+  const matches = challengeAttempts.filter(
+    (a) =>
+      a.chapterSlug === chapter.slug &&
+      a.mode === 'mixed-reads' &&
+      acceptable.has(a.challengeSlug),
+  )
+  return selectBestAttempt(matches)
+}
+
+/** Did the user clear the Real Game Mix capstone server-side? */
+export function isMixedCapstoneCleared(
+  chapter: PathwayChapterConfig,
+  challengeAttempts: readonly ChallengeLookupRow[],
+): boolean {
+  return getMixedCapstoneAttempt(chapter, challengeAttempts)?.passed === true
+}
+
+/** Find the best server-persisted attempt for an arbitrary challenge
+ *  key. Used by the UI when it needs to render a specific row's score
+ *  / attemptedAt without re-walking the chapter config. */
+export function getChallengeAttemptForKey<T extends ChallengeLookupRow>(
+  challengeAttempts: readonly T[],
+  key: { chapterSlug: string; mode: ServerChallengeMode; challengeSlug: string },
+): T | null {
+  const matches = challengeAttempts.filter(
+    (a) =>
+      a.chapterSlug === key.chapterSlug &&
+      a.mode === key.mode &&
+      a.challengeSlug === key.challengeSlug,
+  )
+  return selectBestAttempt(matches)
+}

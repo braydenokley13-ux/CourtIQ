@@ -13,11 +13,18 @@ import {
   DEFAULT_BOSS_PASS_RATIO,
   DEFAULT_MIXED_PASS_RATIO,
   buildPathwayChallengeSummary,
+  getChallengeAttemptForKey,
+  getChapterBossAttempt,
+  getMixedCapstoneAttempt,
+  isCapstoneChapter,
+  isChapterBossCleared,
+  isMixedCapstoneCleared,
   isPassingChallenge,
   lookupPathwayChapter,
   passRatioFor,
   resolveChallengeConfig,
   selectBestAttempt,
+  type ChallengeLookupRow,
 } from './challengeAttemptService'
 import { getFoundationPathway } from './helpers'
 
@@ -192,5 +199,144 @@ describe('buildPathwayChallengeSummary + challengeBucketKey', () => {
         attemptedAt: '2026-05-01T00:00:00.000Z',
       },
     ])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// PTH-5 — pure cleared-state helpers consumed by progress derivation.
+// ---------------------------------------------------------------------------
+
+const passedDenialBoss = (overrides: Partial<ChallengeLookupRow> = {}): ChallengeLookupRow => ({
+  chapterSlug: 'read-the-denial',
+  mode: 'boss-challenge',
+  challengeSlug: 'denial-reader',
+  passed: true,
+  bestCount: 5,
+  total: 5,
+  attemptedAt: '2026-05-02T00:00:00.000Z',
+  ...overrides,
+})
+
+const passedMixedCapstone = (
+  overrides: Partial<ChallengeLookupRow> = {},
+): ChallengeLookupRow => ({
+  chapterSlug: 'real-game-mix',
+  mode: 'mixed-reads',
+  challengeSlug: 'mixed-warmup',
+  passed: true,
+  bestCount: 8,
+  total: 10,
+  attemptedAt: '2026-05-03T00:00:00.000Z',
+  ...overrides,
+})
+
+describe('PTH-5 cleared-state helpers — boss', () => {
+  it('returns null for a chapter without bossChallenge configured', () => {
+    const stripped = { ...DENIAL, bossChallenge: undefined }
+    expect(getChapterBossAttempt(stripped, [passedDenialBoss()])).toBeNull()
+    expect(isChapterBossCleared(stripped, [passedDenialBoss()])).toBe(false)
+  })
+
+  it('returns null when no attempts match the chapter boss slug', () => {
+    expect(
+      getChapterBossAttempt(DENIAL, [
+        passedDenialBoss({ challengeSlug: 'wrong-slug' }),
+      ]),
+    ).toBeNull()
+    expect(isChapterBossCleared(DENIAL, [])).toBe(false)
+  })
+
+  it('finds and returns the matching boss attempt', () => {
+    const found = getChapterBossAttempt(DENIAL, [passedDenialBoss()])
+    expect(found?.passed).toBe(true)
+    expect(isChapterBossCleared(DENIAL, [passedDenialBoss()])).toBe(true)
+  })
+
+  it('treats a failed boss attempt as not cleared', () => {
+    expect(
+      isChapterBossCleared(DENIAL, [passedDenialBoss({ passed: false, bestCount: 2 })]),
+    ).toBe(false)
+  })
+
+  it('uses selectBestAttempt to break duplicates (passed > bestCount > newest)', () => {
+    const best = getChapterBossAttempt(DENIAL, [
+      passedDenialBoss({ passed: false, bestCount: 5, attemptedAt: '2026-05-04' }),
+      passedDenialBoss({ passed: true, bestCount: 4, attemptedAt: '2026-05-01' }),
+    ])
+    expect(best?.passed).toBe(true)
+    expect(best?.bestCount).toBe(4)
+  })
+})
+
+describe('PTH-5 cleared-state helpers — capstone', () => {
+  it('isCapstoneChapter is true for Real Game Mix and false for decoder chapters', () => {
+    expect(isCapstoneChapter(CAPSTONE)).toBe(true)
+    expect(isCapstoneChapter(DENIAL)).toBe(false)
+  })
+
+  it('returns null on a non-capstone chapter even if attempts exist', () => {
+    expect(
+      getMixedCapstoneAttempt(DENIAL, [passedMixedCapstone()]),
+    ).toBeNull()
+    expect(
+      isMixedCapstoneCleared(DENIAL, [passedMixedCapstone()]),
+    ).toBe(false)
+  })
+
+  it('finds the mixed-reads capstone attempt by node slug', () => {
+    expect(getMixedCapstoneAttempt(CAPSTONE, [passedMixedCapstone()])?.passed).toBe(true)
+    expect(isMixedCapstoneCleared(CAPSTONE, [passedMixedCapstone()])).toBe(true)
+  })
+
+  it('also accepts the chapter slug as challengeSlug (PTH-3 fallback path)', () => {
+    expect(
+      isMixedCapstoneCleared(CAPSTONE, [
+        passedMixedCapstone({ challengeSlug: 'real-game-mix' }),
+      ]),
+    ).toBe(true)
+  })
+
+  it('rejects unrelated mixed challengeSlugs', () => {
+    expect(
+      isMixedCapstoneCleared(CAPSTONE, [
+        passedMixedCapstone({ challengeSlug: 'totally-unrelated' }),
+      ]),
+    ).toBe(false)
+  })
+
+  it('treats a failed capstone attempt as not cleared', () => {
+    expect(
+      isMixedCapstoneCleared(CAPSTONE, [
+        passedMixedCapstone({ passed: false, bestCount: 4 }),
+      ]),
+    ).toBe(false)
+  })
+})
+
+describe('getChallengeAttemptForKey', () => {
+  it('finds the best attempt by exact key', () => {
+    const found = getChallengeAttemptForKey(
+      [
+        passedDenialBoss({ passed: false, bestCount: 1 }),
+        passedDenialBoss({ passed: true, bestCount: 4 }),
+      ],
+      {
+        chapterSlug: 'read-the-denial',
+        mode: 'boss-challenge',
+        challengeSlug: 'denial-reader',
+      },
+    )
+    expect(found?.passed).toBe(true)
+    expect(found?.bestCount).toBe(4)
+  })
+
+  it('returns null when no row matches', () => {
+    expect(
+      getChallengeAttemptForKey([], {
+        chapterSlug: 'read-the-denial',
+        mode: 'boss-challenge',
+        challengeSlug: 'denial-reader',
+      }),
+    ).toBeNull()
   })
 })
