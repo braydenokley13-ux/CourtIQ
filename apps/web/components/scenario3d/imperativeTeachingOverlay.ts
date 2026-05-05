@@ -25,6 +25,7 @@
 import * as THREE from 'three'
 import type { Scene3D, SceneMovement, ScenePlayer } from '@/lib/scenario3d/scene'
 import type { OverlayPrimitive } from '@/lib/scenario3d/schema'
+import { getStageInDelayMs } from '@/lib/scenario3d/overlayLevel'
 import type { MotionMode } from './imperativeScene'
 
 const PATH_Y = 0.18
@@ -189,6 +190,11 @@ interface AnimatedFadeIn {
   /** Which authored-overlay group this fade belongs to; set by
    *  `setPhase` so only the visible phase's animations animate. */
   phase: 'pre' | 'post'
+  /** FR-5 §9.7 — per-primitive stage-in delay relative to phase
+   *  enter. Defaults to 0 for legacy callers; `setAuthoredOverlays`
+   *  patches this with `getStageInDelayMs(primitiveIndex)` so the
+   *  cluster lands like a coach pointing rather than all at once. */
+  delayMs?: number
 }
 
 /**
@@ -206,6 +212,9 @@ interface AnimatedBuildOut {
   durationMs: number
   startMs: number | null
   phase: 'pre' | 'post'
+  /** FR-5 §9.7 — per-primitive stage-in delay relative to phase
+   *  enter. See `AnimatedFadeIn.delayMs`. */
+  delayMs?: number
 }
 
 export type OverlayPhase = 'pre' | 'post' | 'hidden'
@@ -329,11 +338,34 @@ export class TeachingOverlayController {
     postAnswer: readonly OverlayPrimitive[],
   ): void {
     this.disposeAuthored()
-    for (const primitive of preAnswer) {
-      this.buildAuthoredPrimitive(this.preAnswerGroup, 'pre', primitive)
-    }
-    for (const primitive of postAnswer) {
-      this.buildAuthoredPrimitive(this.postAnswerGroup, 'post', primitive)
+    this.buildAndStageAuthoredPhase(preAnswer, this.preAnswerGroup, 'pre')
+    this.buildAndStageAuthoredPhase(postAnswer, this.postAnswerGroup, 'post')
+  }
+
+  /** FR-5 §9.7 — builds each primitive in turn and patches every
+   *  fade/build animation that primitive registered with the
+   *  cluster-wide stage-in delay. The k-th primitive's animations
+   *  all share `getStageInDelayMs(k)`, so multi-mesh primitives
+   *  (e.g. a passing-lane core + halo + arrowhead) land as a
+   *  single coordinated beat rather than three independent fades.
+   *  Pure with respect to inputs — same overlay arrays in, same
+   *  delay assignments out. */
+  private buildAndStageAuthoredPhase(
+    primitives: readonly OverlayPrimitive[],
+    target: THREE.Group,
+    phase: 'pre' | 'post',
+  ): void {
+    for (let i = 0; i < primitives.length; i += 1) {
+      const fadeStart = this.animatedFades.length
+      const buildStart = this.animatedBuilds.length
+      this.buildAuthoredPrimitive(target, phase, primitives[i]!)
+      const delay = getStageInDelayMs(i)
+      for (let j = fadeStart; j < this.animatedFades.length; j += 1) {
+        this.animatedFades[j]!.delayMs = delay
+      }
+      for (let j = buildStart; j < this.animatedBuilds.length; j += 1) {
+        this.animatedBuilds[j]!.delayMs = delay
+      }
     }
   }
 
@@ -500,8 +532,12 @@ export class TeachingOverlayController {
     for (const f of this.animatedFades) {
       if (f.phase !== this.phase) continue
       if (f.startMs === null) continue
-      const elapsed = nowMs - f.startMs
-      if (elapsed >= f.durationMs) {
+      // FR-5 §9.7 — hold opacity at 0 until the per-primitive stage-in
+      // delay has elapsed, then ramp from 0 → target over durationMs.
+      const elapsed = nowMs - f.startMs - (f.delayMs ?? 0)
+      if (elapsed < 0) {
+        f.material.opacity = 0
+      } else if (elapsed >= f.durationMs) {
         f.material.opacity = f.targetOpacity
       } else {
         const u = clamp01(elapsed / Math.max(1, f.durationMs))
@@ -511,7 +547,12 @@ export class TeachingOverlayController {
     for (const b of this.animatedBuilds) {
       if (b.phase !== this.phase) continue
       if (b.startMs === null) continue
-      const elapsed = nowMs - b.startMs
+      const elapsed = nowMs - b.startMs - (b.delayMs ?? 0)
+      if (elapsed < 0) {
+        b.tubeMaterial.opacity = 0
+        b.arrowhead.visible = false
+        continue
+      }
       const u = clamp01(elapsed / Math.max(1, b.durationMs))
       b.tubeMaterial.opacity = b.tubeTargetOpacity * easeOutCubic(u)
       // Arrowhead pops in once the path build-out completes.
