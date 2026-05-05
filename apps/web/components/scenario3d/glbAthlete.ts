@@ -1069,6 +1069,38 @@ let cache: GlbAthleteCacheEntry | null = null
 let loadInFlight: Promise<GlbAthleteCacheEntry | null> | null = null
 
 /**
+ * FR-2 Packet 5 — distinct loader outcomes.
+ *
+ * Pre-FR-2 the loader resolved with `null` for both "the GLB 404'd"
+ * and "the GLB parsed but had no SkinnedMesh" and rejected silently
+ * for "GLTFLoader threw mid-parse". Downstream the figure builder
+ * could only see `cache === null` and reported `cache-cold`, which
+ * conflated a still-loading state with a fully-failed one.
+ *
+ * The new tracker records the last resolved/rejected outcome so the
+ * builder (and the structured fallback breadcrumbs) can surface the
+ * §6.1 silent-failure reasons (`asset-missing-or-no-skin`,
+ * `loader-threw`) explicitly. Set inside the loader's callbacks so
+ * every code path that produces a `null` cache also records *why*.
+ */
+export type GlbAthleteLoadOutcome =
+  | 'pending'
+  | 'success'
+  | 'asset-missing-or-no-skin'
+  | 'loader-threw'
+
+let _lastLoadOutcome: GlbAthleteLoadOutcome = 'pending'
+
+export function getGlbAthleteLoadOutcome(): GlbAthleteLoadOutcome {
+  return _lastLoadOutcome
+}
+
+/** Test-only — reset both the cache pointer and the outcome tracker. */
+export function _resetGlbAthleteLoadOutcomeForTest(): void {
+  _lastLoadOutcome = 'pending'
+}
+
+/**
  * Kicks off (or returns the in-flight) async load of the bundled
  * mannequin GLB. Resolves with the cache entry on success, or
  * `null` if anything fails (asset missing, network blocked, parse
@@ -1077,6 +1109,11 @@ let loadInFlight: Promise<GlbAthleteCacheEntry | null> | null = null
  *
  * Exported for tests and so the renderer's mount path can warm the
  * cache before the first build call if a preload point is added later.
+ *
+ * FR-2 Packet 5 — every terminal branch updates `_lastLoadOutcome`
+ * so the renderer can distinguish the previously-silent failure
+ * modes (`asset-missing-or-no-skin`, `loader-threw`) from a still-
+ * cold cache.
  */
 export function loadGlbAthleteAsset(): Promise<GlbAthleteCacheEntry | null> {
   if (cache) return Promise.resolve(cache)
@@ -1090,16 +1127,34 @@ export function loadGlbAthleteAsset(): Promise<GlbAthleteCacheEntry | null> {
       (gltf) => {
         const skinned = findFirstSkinnedMesh(gltf.scene)
         if (!skinned) {
+          _lastLoadOutcome = 'asset-missing-or-no-skin'
           resolve(null)
           return
         }
         cache = { gltf, skinnedMesh: skinned }
+        _lastLoadOutcome = 'success'
         resolve(cache)
       },
       undefined,
-      () => resolve(null),
+      () => {
+        // GLTFLoader's `onError` fires for fetch failures (404,
+        // CORS, network blocked) AND parse failures. The plan
+        // groups both under `asset-missing-or-no-skin` because the
+        // user-visible effect is identical: the asset is not
+        // usable. `loader-threw` is reserved for the pathological
+        // case where the loader itself raises after we wrapped
+        // .catch() — see the chain below.
+        _lastLoadOutcome = 'asset-missing-or-no-skin'
+        resolve(null)
+      },
     )
-  }).catch(() => null)
+  }).catch(() => {
+    // A hard throw inside the loader callback chain would skip the
+    // `onError` branch entirely. Tracking it as `loader-threw`
+    // keeps the silent-failure surface precise.
+    _lastLoadOutcome = 'loader-threw'
+    return null
+  })
   return loadInFlight
 }
 
@@ -1107,6 +1162,11 @@ export function loadGlbAthleteAsset(): Promise<GlbAthleteCacheEntry | null> {
 export function _resetGlbAthleteCache(): void {
   cache = null
   loadInFlight = null
+  // FR-2 Packet 5 — also reset the loader-outcome tracker so a
+  // fresh test scenario does not inherit `loader-threw` /
+  // `asset-missing-or-no-skin` from a prior case and break the
+  // figure-decision log expectations downstream.
+  _lastLoadOutcome = 'pending'
 }
 
 /**

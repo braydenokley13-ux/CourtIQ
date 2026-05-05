@@ -4070,14 +4070,26 @@ export function buildPlayerFigure(
     // reason from the in-builder failure tracker so the operator
     // sees `cache-cold` / `threw` / `not-browser` instead of an
     // opaque silent fallback.
+    //
+    // FR-2 Packet 5 — when the in-builder failure says `cache-cold`,
+    // promote the reason to the actual loader-outcome state if it
+    // is already known (`asset-missing-or-no-skin`, `loader-threw`).
+    // Pre-Packet-5 these two failure modes both surfaced as
+    // `glb-cache-cold`, indistinguishable from the legitimate
+    // first-frame race that Packet 2 now defers around.
     const failure = _getLastGlbBuildFailure()
+    const loadOutcome = getGlbAthleteLoadOutcome()
     glbFailureReason =
       glbThrew != null
         ? 'glb-threw'
         : failure.kind === 'threw'
           ? 'glb-threw'
           : failure.kind === 'cache-cold'
-            ? 'glb-cache-cold'
+            ? loadOutcome === 'asset-missing-or-no-skin'
+              ? 'glb-asset-missing-or-no-skin'
+              : loadOutcome === 'loader-threw'
+                ? 'glb-loader-threw'
+                : 'glb-cache-cold'
             : failure.kind === 'not-browser'
               ? 'glb-not-browser'
               : 'glb-returned-null'
@@ -4209,6 +4221,7 @@ function buildSkinnedAthleteFigure(
 import {
   _getLastGlbBuildFailure,
   buildGlbAthletePreview,
+  getGlbAthleteLoadOutcome,
   setGlbAthleteAnimation,
   updateGlbAthletePose,
   type GlbAthleteAnimationName,
