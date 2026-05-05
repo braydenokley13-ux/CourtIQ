@@ -166,6 +166,9 @@ function SummaryContent() {
   // on the way through, but we re-record here to cover the case
   // where the user lands on summary via direct URL (e.g. shared link
   // or back-button).
+  // PTH-4: also dual-write to the server here. /train normally posts
+  // first, but covering this path means a direct link to /train/summary
+  // still promotes the result to account-level state.
   useEffect(() => {
     if (!challengeMode) return
     if (!pathwaySlug || !chapterSlug) return
@@ -188,7 +191,29 @@ function SummaryContent() {
     } catch {
       // ignore
     }
-  }, [challengeMode, pathwaySlug, chapterSlug, nodeSlug, correct, total, passRatio])
+
+    // PTH-4: server dual-write — best-effort. If this fails the
+    // localStorage write above still drives the immediate UI; the
+    // pathway detail page falls back to that signal.
+    void (async () => {
+      try {
+        await fetch('/api/pathways/challenge-attempt', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            pathwaySlug,
+            chapterSlug,
+            mode: challengeMode,
+            challengeSlug,
+            sessionRunId: params.get('sessionId'),
+            total,
+          }),
+        })
+      } catch (err) {
+        console.warn('[pathways/challenge-attempt] server write failed', err)
+      }
+    })()
+  }, [challengeMode, pathwaySlug, chapterSlug, nodeSlug, correct, total, passRatio, params])
 
   // Retry hrefs — boss replays the canonical boss scenario set;
   // mixed-reads replays the chapter's mixed scenario set.
@@ -487,20 +512,23 @@ function ChallengeHero({
 }) {
   const isBoss = mode === 'boss-challenge'
   const accent = passed ? 'brand' : 'heat'
-  const eyebrow = isBoss ? 'Boss Challenge' : 'Mixed Reads'
+  const eyebrow = isBoss ? 'Boss Challenge' : 'Final Mix'
   const title = isBoss
     ? bossTitle?.replace(/^Boss\s*[—-]\s*/, '') ?? 'Boss Challenge'
-    : chapterTitle ?? 'Mixed Reads'
+    : chapterTitle ?? 'Final Mix'
+  // PTH-5 copy: a passed mixed-reads run clears the foundation; we say
+  // it that way to celebrate the milestone rather than just labeling
+  // the rep.
   const headline = passed
     ? isBoss
       ? 'Boss cleared.'
-      : 'Mixed Reads cleared.'
+      : 'Foundation cleared.'
     : isBoss
       ? 'Not cleared yet.'
       : 'Almost. Run it back.'
   const subline = passed
     ? isBoss
-      ? 'Pathway reps unlocked. Keep the read sharp.'
+      ? 'Chapter mastered. Keep the read sharp.'
       : 'You read the play, not the decoder.'
     : isBoss
       ? 'Review the cue, then run it back.'
@@ -552,6 +580,8 @@ function ChallengeActions({
   retryHref: string | null
   pathwayHref: string
 }) {
+  // PTH-5 copy: passed primary CTA → continue pathway / next pathway;
+  // failed primary CTA → retry the challenge directly.
   const retryLabel =
     mode === 'boss-challenge'
       ? passed
@@ -559,7 +589,7 @@ function ChallengeActions({
         : 'Retry Boss'
       : passed
         ? 'Run it back'
-        : 'Retry Mixed Reads'
+        : 'Retry Final Mix'
   const continueLabel = passed ? 'Continue Pathway' : 'Review chapter'
   return (
     <div className="space-y-3 pt-2">

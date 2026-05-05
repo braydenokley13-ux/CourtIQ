@@ -40,6 +40,15 @@ function coldStartProgress(): PathwayProgressSummary {
         bestCount: 0,
         totalScenarios: n.scenarioIds.length,
       })),
+      challengeState: {
+        kind: c.bossChallenge ? 'boss' : 'none',
+        state: 'not_started',
+        bestCount: 0,
+        total: 0,
+        passed: false,
+        attemptedAt: null,
+        challengeSlug: null,
+      },
     })),
     recommendedNext: {
       chapterSlug: 'read-the-denial',
@@ -49,6 +58,7 @@ function coldStartProgress(): PathwayProgressSummary {
       reason: 'cold-start',
     },
     weakestDecoder: null,
+    challengeAttempts: [],
   }
 }
 

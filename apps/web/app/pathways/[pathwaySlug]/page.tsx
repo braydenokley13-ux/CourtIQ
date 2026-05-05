@@ -29,6 +29,7 @@ import {
 import { BossChallengeRow, MixedReadsRow } from './BossMixedRows'
 import { getPathwayProgress } from '@/lib/pathways/progressService'
 import type {
+  PathwayChallengeAttemptSummary,
   PathwayChapterConfig,
   PathwayChapterProgress,
   PathwayConfig,
@@ -321,6 +322,7 @@ function ActivePathwayView({
               chapter={chapter}
               progress={progress?.chapters[i] ?? null}
               isHighlighted={recommended?.chapterSlug === chapter.slug}
+              challengeAttempts={progress?.challengeAttempts ?? []}
             />
           ))}
         </section>
@@ -350,12 +352,18 @@ function ChapterRow({
   chapter,
   progress,
   isHighlighted,
+  challengeAttempts,
 }: {
   pathway: PathwayConfig
   pathwaySlug: string
   chapter: PathwayChapterConfig
   progress: PathwayChapterProgress | null
   isHighlighted: boolean
+  /** PTH-4: best server-persisted challenge attempts for the whole
+   *  pathway. We pick the row(s) that match this chapter when
+   *  rendering the boss/mixed CTA so a passed boss shows as cleared
+   *  on first paint, regardless of localStorage. */
+  challengeAttempts: readonly PathwayChallengeAttemptSummary[]
 }) {
   const tag = chapter.decoderTag
   const accent = tag ? getAccentColor(getDecoderAccent(tag)) : getAccentColor('heat')
@@ -384,6 +392,29 @@ function ChapterRow({
   const bossReady = nonBossAttempts > 0
   const bossHref = buildBossChallengeTrainHref(pathway, chapter)
   const mixedHref = isCapstone ? buildMixedReadsTrainHref(pathway, chapter) : null
+
+  // PTH-4: pick the matching server-persisted attempts for this chapter.
+  // We pass `serverCleared` truthy when the best attempt for that
+  // mode has `passed: true` — the BossMixedRows island then renders
+  // the cleared decoration without needing localStorage.
+  const bossServerAttempt = chapter.bossChallenge
+    ? challengeAttempts.find(
+        (a) =>
+          a.chapterSlug === chapter.slug &&
+          a.mode === 'boss-challenge' &&
+          a.challengeSlug === chapter.bossChallenge!.slug,
+      ) ?? null
+    : null
+  const mixedNodeForCapstone = chapter.skillNodes.find((n) => n.trainingMode === 'mixed-reads')
+  const mixedChallengeSlug = mixedNodeForCapstone?.slug ?? chapter.slug
+  const mixedServerAttempt = isCapstone
+    ? challengeAttempts.find(
+        (a) =>
+          a.chapterSlug === chapter.slug &&
+          a.mode === 'mixed-reads' &&
+          (a.challengeSlug === mixedChallengeSlug || a.challengeSlug === chapter.slug),
+      ) ?? null
+    : null
 
   return (
     <article
@@ -462,11 +493,12 @@ function ChapterRow({
           })}
         </div>
 
-        {/* PTH-3: Boss challenge — real launch CTA when boss config
-            exists. Locked → coming-soon style; unlocked-but-cold →
-            "Practice first recommended" tag; mastered → boss is the
-            recommended next step. Cleared decoration hydrates from
-            localStorage (client-only). */}
+        {/* PTH-3 → PTH-5: Boss challenge — real launch CTA. Cleared
+            decoration is driven by the server-persisted attempt when
+            available, with localStorage as a fallback for the in-flight
+            first paint. PTH-5 also threads the full challengeState so
+            an attempted-but-failed boss prompts "Run it back" with the
+            user's last score. */}
         {chapter.bossChallenge && bossHref ? (
           <BossChallengeRow
             pathwaySlug={pathwaySlug}
@@ -475,22 +507,25 @@ function ChapterRow({
             ready={bossReady}
             recommended={allNonBossMastered}
             disabled={state === 'locked'}
+            serverCleared={bossServerAttempt?.passed ?? false}
+            challengeState={progress?.challengeState ?? null}
           />
         ) : null}
 
-        {/* PTH-3: Mixed Reads / capstone CTA — only on the Real Game
-            Mix chapter, where decoderTag is null and the player has
-            to identify the cue without the decoder pill. */}
+        {/* PTH-3 → PTH-5: Mixed Reads / capstone CTA — only on the
+            Real Game Mix chapter, where decoderTag is null and the
+            player has to identify the cue without the decoder pill.
+            Server-cleared state and attempted-but-failed copy hydrate
+            from progress.challengeState. */}
         {isCapstone && mixedHref ? (
           <MixedReadsRow
             pathwaySlug={pathwaySlug}
             chapter={chapter}
             href={mixedHref}
             disabled={state === 'locked'}
-            challengeSlug={
-              chapter.skillNodes.find((n) => n.trainingMode === 'mixed-reads')?.slug ??
-              chapter.slug
-            }
+            challengeSlug={mixedChallengeSlug}
+            serverCleared={mixedServerAttempt?.passed ?? false}
+            challengeState={progress?.challengeState ?? null}
           />
         ) : null}
 
