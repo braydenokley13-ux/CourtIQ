@@ -2743,12 +2743,81 @@ function buildGlbIndicatorLayers(
         toneMapped: false,
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.7,
+        // FR-3 §7.2 — "never bright enough to fight the cue overlay."
+        // Pre-FR-3 the GLB user halo shipped at 0.7 alpha which read
+        // as the brightest thing on the floor at freeze. Toned to
+        // 0.55 to match the procedural halo's perceptual weight (a
+        // pair of stacked halos at 0.4 / 0.16 alpha) without losing
+        // the "this is the user" cue.
+        opacity: 0.55,
       }),
     )
     halo.rotation.x = -Math.PI / 2
     halo.position.y = GLB_FLOOR_LIFT
     userLayer.add(halo)
+
+    // FR-3 §7.2 — soft outer halo. Mirrors the procedural figure's
+    // `softHalo` so a GLB user and a procedural user produce the
+    // same falloff under the figure. Sits one floor-lift step
+    // below the inner halo so the band reads as glow rather than a
+    // second stripe.
+    const softHalo = new THREE.Mesh(
+      new THREE.RingGeometry(
+        GLB_USER_HALO_RADIUS_FT + 0.05,
+        GLB_USER_HALO_RADIUS_FT + 0.55,
+        40,
+      ),
+      new THREE.MeshBasicMaterial({
+        color: teamColor,
+        toneMapped: false,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.18,
+      }),
+    )
+    softHalo.rotation.x = -Math.PI / 2
+    softHalo.position.y = GLB_FLOOR_LIFT - 0.001
+    softHalo.name = 'glb-user-soft-halo'
+    userLayer.add(softHalo)
+
+    // FR-3 §7.2 / §7.5 — "YOU" chevron above the GLB user. The
+    // procedural figure already mounts this on `userHeadLayer`;
+    // pre-FR-3 the GLB userHead layer existed but was empty, so a
+    // GLB user lost the head cue at gameplay-camera distance.
+    // Authored in court-foot units (the inverse-scaled user-head
+    // layer matches procedural ATH coordinates) so the chevron
+    // sits ~7 ft off the floor — directly above the GLB rig's head
+    // (rig height ≈ 5.93 ft) with a small standoff for legibility.
+    const chevronY = 5.93 + 1.1
+    const chevron = new THREE.Mesh(
+      new THREE.ConeGeometry(0.42, 0.85, 16),
+      new THREE.MeshBasicMaterial({
+        color: teamColor,
+        toneMapped: false,
+      }),
+    )
+    chevron.rotation.x = Math.PI
+    chevron.position.set(0, chevronY, 0)
+    chevron.name = 'glb-user-head-chevron'
+    userHeadLayer.add(chevron)
+
+    // Subtle dark outline behind the chevron so it stays readable
+    // when the camera tilts and the chevron crosses a bright wood
+    // tone in the floor planks.
+    const chevronOutline = new THREE.Mesh(
+      new THREE.ConeGeometry(0.5, 1.0, 16),
+      new THREE.MeshBasicMaterial({
+        color: '#062118',
+        toneMapped: false,
+        transparent: true,
+        opacity: 0.7,
+      }),
+    )
+    chevronOutline.rotation.x = Math.PI
+    chevronOutline.position.set(0, chevronY, 0)
+    chevronOutline.renderOrder = -1
+    chevronOutline.name = 'glb-user-head-chevron-outline'
+    userHeadLayer.add(chevronOutline)
   }
 
   if (hasBall) {
