@@ -15,6 +15,11 @@ import {
 } from './glbAthlete'
 import type { Scene3D } from '@/lib/scenario3d/scene'
 import type { ReplayPhase } from './ScenarioReplayController'
+import {
+  pickAssistedCameraMode,
+  type AssistedCameraMode,
+  type CameraAssist,
+} from '@/lib/scenario3d/cameraPresets'
 
 /**
  * FR-1 Packet 6 — film-room teaching-state debug badge.
@@ -46,6 +51,15 @@ interface FilmRoomDebugBadgeProps {
   /** Friendly concept / decoder summary already present at the canvas
    *  layer. Falls back to scene.decoderTag when absent. */
   concept?: string
+  /** FR-4 §8.9 — currently active cameraAssist tier. Surfaced so QA
+   *  can confirm `/dev/scenario-preview` is on `'full'` while
+   *  `/train` is on `'partial'`. */
+  cameraAssist?: CameraAssist
+  /** FR-4 §8.6 — true when the dispatcher is standing aside because
+   *  the user took manual control. The badge marks the
+   *  decoder-target row with `(override)` so QA understands why
+   *  the active mode does not match the predicted preset. */
+  cameraManualOverride?: boolean
 }
 
 export function isFilmRoomDebugBadgeEnabled(): boolean {
@@ -65,6 +79,8 @@ export function FilmRoomDebugBadge({
   cameraMode,
   replayPhase,
   concept,
+  cameraAssist,
+  cameraManualOverride,
 }: FilmRoomDebugBadgeProps) {
   const [decisions, setDecisions] = useState<readonly PlayerFigureDecision[]>(
     [],
@@ -121,6 +137,16 @@ export function FilmRoomDebugBadge({
 
   const decoder = scene?.decoderTag ?? '—'
   const sceneId = scene?.id ?? '—'
+  // FR-4 Packet 7 — recompute the dispatcher's pick from the same
+  // pure inputs the canvas uses. Lets QA see what the preset *would
+  // be* even when the manual override stops the canvas from
+  // applying it.
+  const dispatcherTarget: AssistedCameraMode | null = pickAssistedCameraMode({
+    decoder: scene?.decoderTag ?? null,
+    phase: replayPhase,
+    assist: cameraAssist ?? 'partial',
+    manualOverride: false,
+  })
   const freezeAt =
     typeof scene?.freezeAtMs === 'number'
       ? `${scene.freezeAtMs}ms`
@@ -158,6 +184,19 @@ export function FilmRoomDebugBadge({
         {' · '}
         <span style={{ color: '#9cf' }}>freeze</span>{' '}
         <span style={{ opacity: 0.85 }}>{freezeAt}</span>
+      </div>
+      <div>
+        <span style={{ color: '#9cf' }}>assist</span>{' '}
+        <span style={{ color: '#fcd47a' }}>{cameraAssist ?? 'partial'}</span>
+        {' · '}
+        <span style={{ color: '#9cf' }}>preset</span>{' '}
+        <span style={{ color: '#7fdca0' }}>{dispatcherTarget ?? '—'}</span>
+        {cameraManualOverride ? (
+          <>
+            {' · '}
+            <span style={{ color: '#FF4D6D' }}>(override)</span>
+          </>
+        ) : null}
       </div>
       <div>
         <span style={{ color: '#9cf' }}>overlays</span>{' '}

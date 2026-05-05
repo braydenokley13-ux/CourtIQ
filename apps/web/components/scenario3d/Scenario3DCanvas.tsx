@@ -1756,6 +1756,8 @@ export function Scenario3DCanvas({
           cameraMode={activeCameraMode}
           replayPhase={filmRoomReplayPhase}
           concept={concept}
+          cameraAssist={cameraAssist}
+          cameraManualOverride={cameraManualOverride}
         />
       ) : null}
     </div>
