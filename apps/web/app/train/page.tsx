@@ -17,6 +17,7 @@ import { DecoderLessonPanel } from './DecoderLessonPanel'
 import { SelfReviewChecklist } from './SelfReviewChecklist'
 import { PhaseTracker, type LearnPhase } from './PhaseTracker'
 import { ChoiceCard, deriveChoiceState } from './ChoiceCard'
+import { FullscreenChoicesOverlay } from './FullscreenChoicesOverlay'
 import { FeedbackPanel } from './FeedbackPanel'
 import { WinBurst } from './WinBurst'
 import {
@@ -297,6 +298,12 @@ function TrainPageInner() {
   // top-of-page tracker and pacing logic can react. Driven by the
   // replay controller's `ReplayPhase` and the local UI state.
   const [scenePhase, setScenePhase] = useState<ReplayPhase>('idle')
+
+  // V1 UX completion — mirror Scenario3DView's fullscreen state so the
+  // page can hide its in-page choice copy while the fullscreen overlay
+  // version is showing. Avoids two competing card stacks fighting for
+  // the user's eye when the canvas occupies the entire viewport.
+  const [filmRoomFullscreen, setFilmRoomFullscreen] = useState(false)
 
   const current = scenarios[idx]
   const phase = feedback ? 'feedback' : 'prompt'
@@ -948,6 +955,29 @@ function TrainPageInner() {
               pickedChoiceId={pickedChoiceId}
               overlayLevel={filmRoomMode.overlayLevel}
               cameraAssist={filmRoomMode.cameraAssist}
+              onFullscreenChange={setFilmRoomFullscreen}
+              renderFullscreenOverlay={({ isFullscreen }) =>
+                isFullscreen ? (
+                  <FullscreenChoicesOverlay
+                    choices={orderedChoices}
+                    selected={selected}
+                    feedback={
+                      feedback
+                        ? {
+                            is_correct: feedback.is_correct,
+                            correct_choice_id: feedback.correct_choice_id,
+                          }
+                        : null
+                    }
+                    submitting={submitting}
+                    questionReady={questionReady}
+                    onSelect={(id) => void submitChoice(id)}
+                    prompt={
+                      isDecoder ? current.prompt : undefined
+                    }
+                  />
+                ) : null
+              }
               fallback={
                 <Court
                   width={360}
@@ -1002,8 +1032,13 @@ function TrainPageInner() {
         </AnimatePresence>
 
         {/* Choices — premium cards with letter pill, hover/tap states,
-            and confidence-colored states after submit. */}
-        <div className="space-y-2">
+            and confidence-colored states after submit. While the user
+            is in fullscreen the FullscreenChoicesOverlay (mounted
+            inside Scenario3DView) owns the picker so we hide this
+            in-page copy to avoid two competing stacks. The overlay
+            renders the same ChoiceCard component, so visual + state
+            contracts stay single-sourced. */}
+        <div className="space-y-2" data-suppressed-by-fullscreen={filmRoomFullscreen ? '1' : undefined} hidden={filmRoomFullscreen}>
           {questionReady
             ? orderedChoices.map((choice, index) => {
                 const letter = String.fromCharCode(65 + index)
