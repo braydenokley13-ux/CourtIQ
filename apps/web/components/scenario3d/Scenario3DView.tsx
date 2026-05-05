@@ -101,9 +101,35 @@ export function Scenario3DView(props: Scenario3DViewProps) {
   // framing). This mirrors the precedence the canvas itself applied
   // before Packet 12, so deep links keep working.
   const [cameraMode, setCameraMode] = useState<CameraMode>('auto')
+  // FR-4 Packet 6 — explicit "user has chosen a camera" flag. Flips
+  // the moment the dropdown is touched OR the URL `?camera=` carried
+  // a value. The Canvas reads this to decide whether the FR-4
+  // dispatcher should drive freeze/replay framing or stay out of the
+  // user's way (§8.6: "We do not interrupt manual control").
+  // Resets when the scene id changes — §8.6 says manual override
+  // applies to "that scene" and resumes on the next scenario.
+  const [manualCameraOverride, setManualCameraOverride] = useState(false)
   useEffect(() => {
     const urlMode = getCameraMode()
-    if (urlMode) setCameraMode(urlMode)
+    if (urlMode) {
+      setCameraMode(urlMode)
+      setManualCameraOverride(true)
+    }
+  }, [])
+  // Reset manual override on scenario swap so the dispatcher can
+  // resume on the next scene. Read scene.id from props directly to
+  // avoid duplicating the prop into local state.
+  const sceneId = props.scene?.id ?? null
+  useEffect(() => {
+    setManualCameraOverride(false)
+  }, [sceneId])
+
+  // Wrap the dropdown's onChange so picking ANY option (including
+  // 're-picking auto' as a deliberate revert) marks the camera as
+  // user-controlled for the rest of the scene.
+  const handleCameraModeChange = useCallback((next: CameraMode) => {
+    setCameraMode(next)
+    setManualCameraOverride(true)
   }, [])
 
   const [playbackRate, setPlaybackRate] = useState<PlaybackRate>(1)
@@ -224,6 +250,7 @@ export function Scenario3DView(props: Scenario3DViewProps) {
           replayMode={replayMode}
           resetCounter={compositeResetCounter}
           cameraMode={cameraMode}
+          cameraManualOverride={manualCameraOverride}
           playbackRate={playbackRate}
           paused={paused}
           showPaths={showPaths}
@@ -233,7 +260,7 @@ export function Scenario3DView(props: Scenario3DViewProps) {
           concept={props.concept}
           replayMode={replayMode}
           cameraMode={cameraMode}
-          onCameraModeChange={setCameraMode}
+          onCameraModeChange={handleCameraModeChange}
           playbackRate={playbackRate}
           onPlaybackRateChange={setPlaybackRate}
           paused={paused}

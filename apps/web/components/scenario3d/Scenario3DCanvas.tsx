@@ -132,6 +132,16 @@ interface Scenario3DCanvasProps {
    * but still earns a teaching replay.
    */
   cameraAssist?: CameraAssist
+  /**
+   * FR-4 §8.6 — explicit "user is driving the camera" flag set by
+   * `Scenario3DView` when the URL `?camera=` carried a value or the
+   * dropdown was touched. When true, the FR-4 dispatcher offers no
+   * opinion and the controller keeps the user's pick exactly as-is.
+   * Resets on scenario change so the dispatcher resumes on the next
+   * scene per §8.6 ("decoder presets stop running for that scene.
+   * They resume on the next scenario.").
+   */
+  cameraManualOverride?: boolean
 }
 
 // Mid-tone gray. While the rebuild is in flight we deliberately do NOT
@@ -210,6 +220,7 @@ export function Scenario3DCanvas({
   // and any future Pathways "Learn the Cue" mode pass `'full'` to opt
   // into decoder-aware freeze framing.
   cameraAssist = 'partial',
+  cameraManualOverride = false,
 }: Scenario3DCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   // Refs into the THREE objects R3F creates. Captured in onCreated so a
@@ -1303,20 +1314,15 @@ export function Scenario3DCanvas({
   // constant, so a phase transition produces a smooth lerp instead
   // of a cut.
   //
-  // §8.6 — manual override wins. We treat any explicit
-  // `cameraModeProp` (from URL `?camera=` or the user picking a
-  // dropdown option that isn't `auto`) as override, so the
-  // dispatcher offers no opinion and the controller keeps the user's
-  // choice. `auto` falls through so the dispatcher can drive the
-  // freeze framing — that's the default for /dev/scenario-preview
-  // and the fallback for /train.
+  // §8.6 — manual override wins. The parent (`Scenario3DView`) sets
+  // `cameraManualOverride` whenever the dropdown is touched OR the
+  // URL `?camera=` carried a value, and clears it on scenario swap
+  // so the dispatcher resumes on the next scene.
   //
   // Returns `null` from the dispatcher (e.g. `phase === 'done'`)
   // also leaves the controller alone, so the previous teaching
   // frame holds during the post-decision pause instead of snapping
   // back to broadcast.
-  const manualOverride =
-    cameraModeProp !== undefined && cameraModeProp !== 'auto'
   useEffect(() => {
     const ctrl = cameraControllerRef.current
     if (!ctrl) return
@@ -1324,14 +1330,14 @@ export function Scenario3DCanvas({
       decoder: visibleScene.decoderTag ?? null,
       phase: filmRoomReplayPhase,
       assist: cameraAssist,
-      manualOverride,
+      manualOverride: cameraManualOverride,
     })
     if (picked !== null) ctrl.setMode(picked)
   }, [
     visibleScene.decoderTag,
     filmRoomReplayPhase,
     cameraAssist,
-    manualOverride,
+    cameraManualOverride,
   ])
 
   // Push scene-data changes into the controller so follow mode (and
