@@ -24,7 +24,14 @@
 
 import { MasteryDimension } from '@prisma/client'
 import { prisma } from '@/lib/db/prisma'
-import { getChallengeAttemptSummary } from './challengeAttemptService'
+import {
+  getChallengeAttemptSummary,
+  getChapterBossAttempt,
+  getMixedCapstoneAttempt,
+  isCapstoneChapter,
+  isChapterBossCleared,
+  isMixedCapstoneCleared,
+} from './challengeAttemptService'
 import {
   buildPathwayTrainHref,
   countChapterScenarios,
@@ -34,6 +41,7 @@ import {
 import type {
   DecoderTag,
   PathwayChallengeAttemptSummary,
+  PathwayChapterChallengeState,
   PathwayChapterConfig,
   PathwayChapterProgress,
   PathwayChapterState,
@@ -156,36 +164,124 @@ function chapterDecoderStats(
   return { tags, decoderAccuracy: weighted, decoderAttempts: totalAttempts }
 }
 
+/**
+ * PTH-5: build the per-chapter challenge state surfaced on the
+ * progress summary. Pure — operates on the existing challengeAttempts
+ * list. Returns kind: 'none' for chapters that don't configure either
+ * a boss or a capstone challenge.
+ */
+function deriveChapterChallengeState(
+  chapter: PathwayChapterConfig,
+  attempts: readonly PathwayChallengeAttemptSummary[],
+): PathwayChapterChallengeState {
+  if (isCapstoneChapter(chapter)) {
+    const best = getMixedCapstoneAttempt(chapter, attempts)
+    if (!best) {
+      return {
+        kind: 'capstone',
+        state: 'not_started',
+        bestCount: 0,
+        total: 0,
+        passed: false,
+        attemptedAt: null,
+        challengeSlug: null,
+      }
+    }
+    return {
+      kind: 'capstone',
+      state: best.passed ? 'cleared' : 'attempted',
+      bestCount: best.bestCount,
+      total: best.total,
+      passed: best.passed,
+      attemptedAt: best.attemptedAt,
+      challengeSlug: best.challengeSlug,
+    }
+  }
+  if (!chapter.bossChallenge) {
+    return {
+      kind: 'none',
+      state: 'not_started',
+      bestCount: 0,
+      total: 0,
+      passed: false,
+      attemptedAt: null,
+      challengeSlug: null,
+    }
+  }
+  const best = getChapterBossAttempt(chapter, attempts)
+  if (!best) {
+    return {
+      kind: 'boss',
+      state: 'not_started',
+      bestCount: 0,
+      total: 0,
+      passed: false,
+      attemptedAt: null,
+      challengeSlug: null,
+    }
+  }
+  return {
+    kind: 'boss',
+    state: best.passed ? 'cleared' : 'attempted',
+    bestCount: best.bestCount,
+    total: best.total,
+    passed: best.passed,
+    attemptedAt: best.attemptedAt,
+    challengeSlug: best.challengeSlug,
+  }
+}
+
 function deriveChapterProgress(
   chapter: PathwayChapterConfig,
   input: PathwayProgressInput,
   /** Whether all prior chapters are mastered (sequence-unlock). */
   prevChaptersMastered: boolean,
 ): PathwayChapterProgress {
-  const isCapstone = chapter.decoderTag === null
+  const isCapstone = isCapstoneChapter(chapter)
+  const challengeAttempts = input.challengeAttempts ?? []
+  const challengeState = deriveChapterChallengeState(chapter, challengeAttempts)
 
-  // The capstone chapter (Real Game Mix) reuses scenario IDs from the
-  // four primary chapters. v1 doesn't track capstone-mode attempts, so
-  // we cannot tell the difference between "user attempted BDW-01 in
-  // chapter 1" and "user attempted BDW-01 in the capstone". To avoid
-  // the capstone ring auto-filling from incidental ch1–4 attempts:
-  //   - locked while prior chapters aren't all mastered;
-  //   - mastered when prior chapters are all mastered (we trust the
-  //     per-chapter mastery as a proxy for capstone readiness);
-  //   - all skill nodes inherit the chapter state, attemptedCount /
-  //     bestCount stay at zero.
-  // Real boss / mixed-read tracking is PTH-3.
+  // -------------------------------------------------------------------------
+  // Capstone (Real Game Mix). PTH-5 promotes server-persisted mixed-reads
+  // attempts into authoritative state for this chapter:
+  //   - cleared (passed)        → mastered, progress 1.0
+  //   - attempted (failed)      → in_progress, progress 0.5
+  //   - not_started + prior OK  → unlocked, progress 0.0
+  //   - not_started + locked    → locked, progress 0.0
+  // The capstone re-uses ch1–4 scenario IDs, so we still ignore the
+  // generic latestQualityByScenarioId signal here — only mixed-reads
+  // attempts can move the capstone ring.
+  // -------------------------------------------------------------------------
   if (isCapstone) {
     const { decoderAccuracy, decoderAttempts } = chapterDecoderStats(chapter, input)
-    const state: PathwayChapterState = prevChaptersMastered ? 'mastered' : 'locked'
-    const progress = state === 'mastered' ? 1 : 0
+    const cleared = isMixedCapstoneCleared(chapter, challengeAttempts)
+    const attempted = challengeState.state === 'attempted'
+
+    let state: PathwayChapterState
+    let progress: number
+    if (cleared) {
+      state = 'mastered'
+      progress = 1
+    } else if (attempted) {
+      // Attempted but failed — keep them on the page but show partial
+      // progress so the ring reflects effort.
+      state = prevChaptersMastered ? 'in_progress' : 'locked'
+      progress = state === 'locked' ? 0 : 0.5
+    } else if (prevChaptersMastered) {
+      state = 'unlocked'
+      progress = 0
+    } else {
+      state = 'locked'
+      progress = 0
+    }
+
     const totalScenarios = countChapterScenarios(chapter)
     return {
       slug: chapter.slug,
       state,
       progress,
-      bestCount: 0,
-      attemptedCount: 0,
+      bestCount: challengeState.passed ? challengeState.bestCount : 0,
+      attemptedCount: challengeState.state !== 'not_started' ? challengeState.bestCount : 0,
       totalScenarios,
       decoderAccuracy,
       decoderAttempts,
@@ -197,6 +293,7 @@ function deriveChapterProgress(
         bestCount: 0,
         totalScenarios: n.scenarioIds.length,
       })),
+      challengeState,
     }
   }
 
@@ -239,15 +336,45 @@ function deriveChapterProgress(
     if (attemptedCount === 0) chapterState = 'locked'
   }
 
+  // -------------------------------------------------------------------------
+  // PTH-5: server-persisted boss attempts override the node-only chapter
+  // state where they're a higher signal:
+  //   - boss cleared    → chapter is mastered (boss is a no-hint final
+  //                       check; clearing it with no decoder pill is a
+  //                       stronger signal than any node mastery).
+  //   - boss attempted  → keep at most `completed` so a chapter the
+  //                       player just *touched* the boss on isn't
+  //                       silently auto-mastered by node attempts.
+  // -------------------------------------------------------------------------
+  const bossCleared = isChapterBossCleared(chapter, challengeAttempts)
+  if (bossCleared) {
+    chapterState = 'mastered'
+  } else if (challengeState.kind === 'boss' && challengeState.state === 'attempted') {
+    if (chapterState === 'mastered') chapterState = 'completed'
+  }
+
   // Average progress across non-boss skill nodes; falls back to the
   // chapter-wide attemptedCount/totalScenarios ratio if the chapter has
   // no skill nodes (defensive).
-  const skillNodeProgressAvg =
+  const baseSkillNodeAvg =
     skillNodes.length === 0
       ? totalScenarios === 0
         ? 0
         : attemptedCount / totalScenarios
       : skillNodes.reduce((acc, n) => acc + n.progress, 0) / skillNodes.length
+
+  // PTH-5: boss-cleared chapters fill the ring; chapters with all
+  // non-boss nodes complete-but-boss-not-cleared get a soft 0.8 floor
+  // so the player can see the gap that the boss CTA fills. Otherwise
+  // we keep the node-based average.
+  const allNodesComplete =
+    skillNodes.length > 0 &&
+    skillNodes.every((n) => n.state === 'completed' || n.state === 'mastered')
+  const skillNodeProgressAvg = bossCleared
+    ? 1
+    : allNodesComplete && !bossCleared
+      ? Math.max(0.8, baseSkillNodeAvg)
+      : baseSkillNodeAvg
 
   const { decoderAccuracy, decoderAttempts } = chapterDecoderStats(chapter, input)
 
@@ -261,6 +388,7 @@ function deriveChapterProgress(
     decoderAccuracy,
     decoderAttempts,
     skillNodes,
+    challengeState,
   }
 }
 

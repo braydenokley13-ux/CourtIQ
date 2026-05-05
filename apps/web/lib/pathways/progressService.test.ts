@@ -145,7 +145,47 @@ describe('derivePathwayProgress — single chapter mastered', () => {
 })
 
 describe('derivePathwayProgress — full Foundation mastery', () => {
-  it('reports pathwayMastered=true and recommendedNext=null when every scenario has best', () => {
+  it('reports pathwayMastered=true and recommendedNext=null when every scenario has best AND the capstone is cleared', () => {
+    // PTH-5: full pathway mastery now requires the capstone clear too.
+    // Without the mixed-reads attempt, the capstone stays at 0.5 / 1.0
+    // depending on attempt state. This is the spec from PTH-5: the
+    // capstone is the threshold between trainee and decoder.
+    const allBest = {
+      ...bestForFamily('BACKDOOR_WINDOW'),
+      ...bestForFamily('EMPTY_SPACE_CUT'),
+      ...bestForFamily('ADVANTAGE_OR_RESET'),
+      ...bestForFamily('SKIP_THE_ROTATION'),
+    }
+    const masteryAll: Partial<Record<DecoderTag, DecoderMasteryStat>> = {}
+    for (const tag of ALL_DECODERS) {
+      masteryAll[tag] = { attempts: 6, rollingAccuracy: 0.95 }
+    }
+
+    const summary = derivePathwayProgress(FOUNDATION, {
+      ...makeInput(allBest, masteryAll),
+      challengeAttempts: [
+        {
+          chapterSlug: 'real-game-mix',
+          mode: 'mixed-reads',
+          challengeSlug: 'mixed-warmup',
+          passed: true,
+          bestCount: 9,
+          total: 10,
+          attemptedAt: '2026-05-04T00:00:00.000Z',
+        },
+      ],
+    })
+    expect(summary.pathwayProgress).toBe(1)
+    expect(summary.pathwayMastered).toBe(true)
+    expect(summary.recommendedNext).toBeNull()
+    expect(summary.chapters.every((c) => c.state === 'mastered')).toBe(true)
+  })
+
+  it('without the capstone clear, all-best on ch1–4 leaves the capstone unlocked (not mastered)', () => {
+    // This is the inverse of the prior test: the capstone is no
+    // longer auto-mastered just because prior chapters are mastered.
+    // PTH-5 promotes mixed-reads attempts into the only signal that
+    // can clear the capstone.
     const allBest = {
       ...bestForFamily('BACKDOOR_WINDOW'),
       ...bestForFamily('EMPTY_SPACE_CUT'),
@@ -158,10 +198,12 @@ describe('derivePathwayProgress — full Foundation mastery', () => {
     }
 
     const summary = derivePathwayProgress(FOUNDATION, makeInput(allBest, masteryAll))
-    expect(summary.pathwayProgress).toBe(1)
-    expect(summary.pathwayMastered).toBe(true)
-    expect(summary.recommendedNext).toBeNull()
-    expect(summary.chapters.every((c) => c.state === 'mastered')).toBe(true)
+    expect(summary.pathwayMastered).toBe(false)
+    const capstone = summary.chapters[4]!
+    expect(capstone.state).toBe('unlocked')
+    expect(capstone.progress).toBe(0)
+    expect(capstone.challengeState.kind).toBe('capstone')
+    expect(capstone.challengeState.state).toBe('not_started')
   })
 })
 

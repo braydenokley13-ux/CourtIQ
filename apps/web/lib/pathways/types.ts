@@ -171,6 +171,41 @@ export interface PathwaySkillNodeProgress {
   totalScenarios: number
 }
 
+/**
+ * PTH-5: per-chapter snapshot of the server-persisted boss / mixed
+ * challenge state. Surfaces the result the UI needs to render boss
+ * "Cleared / Run it back / Boss Challenge" copy AND the summary
+ * scoring without re-walking `challengeAttempts`.
+ *
+ *  - `kind: 'boss'`     — normal decoder chapter; tracks the boss.
+ *  - `kind: 'capstone'` — Real Game Mix; tracks the mixed-reads run.
+ *  - `kind: 'none'`     — chapter has no challenge configured.
+ *
+ * `state` is a small enum the UI can branch on directly:
+ *  - 'not_started' — no server attempt recorded yet.
+ *  - 'attempted'   — at least one server attempt, latest best is fail.
+ *  - 'cleared'     — best server attempt has `passed === true`.
+ */
+export type ChapterChallengeKind = 'boss' | 'capstone' | 'none'
+export type ChapterChallengeState = 'not_started' | 'attempted' | 'cleared'
+
+export interface PathwayChapterChallengeState {
+  kind: ChapterChallengeKind
+  state: ChapterChallengeState
+  /** Best server bestCount on this challenge (fail or pass). 0 when
+   *  no attempts. */
+  bestCount: number
+  /** Total reps the challenge was scored against. 0 when no attempts. */
+  total: number
+  /** True when the best attempt is a server-passed clear. */
+  passed: boolean
+  /** ISO timestamp of the best attempt; null when no attempts. */
+  attemptedAt: string | null
+  /** challengeSlug of the matched attempt — useful for UI deep links
+   *  back into the same challenge. Null when no attempts. */
+  challengeSlug: string | null
+}
+
 export interface PathwayChapterProgress {
   slug: string
   state: PathwayChapterState
@@ -182,6 +217,11 @@ export interface PathwayChapterProgress {
   decoderAccuracy: number | null
   decoderAttempts: number
   skillNodes: PathwaySkillNodeProgress[]
+  /** PTH-5: server-persisted challenge state for this chapter (boss
+   *  for normal chapters, mixed-reads for the capstone). Always
+   *  present so the UI can branch on `state` without an undefined
+   *  guard; `kind: 'none'` for chapters that don't configure either. */
+  challengeState: PathwayChapterChallengeState
 }
 
 export interface PathwayRecommendedNext {
