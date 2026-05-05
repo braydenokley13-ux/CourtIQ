@@ -17,7 +17,10 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-const TRAIN_PAGE = readFileSync(join(__dirname, 'page.tsx'), 'utf-8')
+const TRAIN_PAGE = readFileSync(
+  join(__dirname, '..', '..', 'app', 'train', 'page.tsx'),
+  'utf-8',
+)
 
 describe('FR-7 — /train forwards filmRoomMode to Scenario3DView', () => {
   it('imports the mapping helper from the renderer policy seam', () => {
