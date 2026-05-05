@@ -131,37 +131,114 @@ export function getArchetypeLabel(archetype: string): string {
 }
 
 export interface BuildTrainHrefInput {
-  /** Scenario IDs to pin (CSV in the URL). When empty, returns plain `/train`. */
+  /** Scenario IDs to pin (CSV in the URL). When non-empty, the
+   *  resulting session is exactly these scenarios in order. */
   scenarioIds?: readonly string[] | null
+  /** Pathway slug for context. When set, surfaces the Pathway strip
+   *  on /train and threads context through to /train/summary. */
+  pathwaySlug?: string | null
+  /** Chapter slug for context. Requires `pathwaySlug` to be set. */
+  chapterSlug?: string | null
+  /** Skill-node slug for context. Requires `chapterSlug` to be set.
+   *  The server-side context resolver uses this to pick the exact
+   *  scenarioIds when none are provided in the URL. */
+  nodeSlug?: string | null
 }
 
 /**
  * Build a `/train?...` URL for a Pathway-driven session.
  *
- * v1 only honors `scenarioIds=` (a comma-separated list). PTH-2 will
- * add `pathway=`, `chapter=`, `mode=` params here without changing the
- * call sites.
+ * Supported shapes:
+ *   /train
+ *   /train?scenarioIds=A,B,C
+ *   /train?pathway=foo
+ *   /train?pathway=foo&chapter=bar
+ *   /train?pathway=foo&chapter=bar&node=baz
+ *   /train?pathway=foo&chapter=bar&scenarioIds=A,B
+ *
+ * When `scenarioIds` are present they always win at the API level —
+ * the pathway/chapter/node params are *context*, not selection. This
+ * keeps the session reproducible if the pathway config later moves
+ * scenarios between nodes.
  */
 export function buildPathwayTrainHref(input: BuildTrainHrefInput = {}): string {
-  const ids = (input.scenarioIds ?? []).filter((id) => id.length > 0)
-  if (ids.length === 0) return '/train'
   const params = new URLSearchParams()
-  params.set('scenarioIds', ids.join(','))
-  return `/train?${params.toString()}`
+  if (input.pathwaySlug) params.set('pathway', input.pathwaySlug)
+  if (input.chapterSlug) params.set('chapter', input.chapterSlug)
+  if (input.nodeSlug) params.set('node', input.nodeSlug)
+  const ids = (input.scenarioIds ?? []).filter((id) => id.length > 0)
+  if (ids.length > 0) params.set('scenarioIds', ids.join(','))
+  const qs = params.toString()
+  return qs.length === 0 ? '/train' : `/train?${qs}`
 }
 
-/** Convenience: build a /train href for a specific skill node. */
-export function buildSkillNodeTrainHref(node: SkillNodeConfig): string {
-  return buildPathwayTrainHref({ scenarioIds: node.scenarioIds })
+/**
+ * Build a `/train/summary?...` URL preserving Pathway context. Used
+ * by /train when the session completes so the summary page can render
+ * the Pathway-aware CTAs.
+ */
+export interface BuildSummaryHrefInput {
+  sessionId?: string | null
+  pathwaySlug?: string | null
+  chapterSlug?: string | null
+  nodeSlug?: string | null
+  /** Optional concept tag, preserved for the existing Academy
+   *  "Try next" suggestion logic. */
+  concept?: string | null
 }
 
-/** Convenience: build a /train href for a chapter (uses the first
- * un-mastered skill node's scenarios; fallback to the whole chapter
- * scenario list). */
-export function buildChapterTrainHref(chapter: PathwayChapterConfig): string {
+export function buildPathwaySummaryHref(
+  base: '/train/summary',
+  input: BuildSummaryHrefInput,
+): string {
+  const params = new URLSearchParams()
+  if (input.sessionId) params.set('sessionId', input.sessionId)
+  if (input.concept) params.set('concept', input.concept)
+  if (input.pathwaySlug) params.set('pathway', input.pathwaySlug)
+  if (input.chapterSlug) params.set('chapter', input.chapterSlug)
+  if (input.nodeSlug) params.set('node', input.nodeSlug)
+  const qs = params.toString()
+  return qs.length === 0 ? base : `${base}?${qs}`
+}
+
+/** Build the canonical `/pathways/<slug>` href so components don't
+ * concatenate strings inline. */
+export function buildPathwayDetailHref(pathwaySlug: string): string {
+  return `/pathways/${encodeURIComponent(pathwaySlug)}`
+}
+
+/** Convenience: build a /train href for a specific skill node, with
+ * the pathway + chapter + node context threaded through. */
+export function buildSkillNodeTrainHref(
+  node: SkillNodeConfig,
+  context?: { pathwaySlug?: string; chapterSlug?: string },
+): string {
+  return buildPathwayTrainHref({
+    scenarioIds: node.scenarioIds,
+    pathwaySlug: context?.pathwaySlug ?? null,
+    chapterSlug: context?.chapterSlug ?? null,
+    nodeSlug: node.slug,
+  })
+}
+
+/** Convenience: build a /train href for a chapter. Picks the chapter's
+ * first skill node by order; pathway/chapter context is always
+ * threaded through so the summary page can route the user back. */
+export function buildChapterTrainHref(
+  chapter: PathwayChapterConfig,
+  context?: { pathwaySlug?: string },
+): string {
   const firstNode = chapter.skillNodes[0]
-  if (firstNode) return buildSkillNodeTrainHref(firstNode)
-  return '/train'
+  if (firstNode) {
+    return buildSkillNodeTrainHref(firstNode, {
+      pathwaySlug: context?.pathwaySlug,
+      chapterSlug: chapter.slug,
+    })
+  }
+  return buildPathwayTrainHref({
+    pathwaySlug: context?.pathwaySlug ?? null,
+    chapterSlug: chapter.slug,
+  })
 }
 
 /** Sum of unique scenario IDs across all skill nodes in a chapter. */

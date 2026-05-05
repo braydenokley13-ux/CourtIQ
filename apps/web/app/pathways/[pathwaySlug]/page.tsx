@@ -313,6 +313,7 @@ function ActivePathwayView({
           {pathway.chapters.map((chapter, i) => (
             <ChapterRow
               key={chapter.slug}
+              pathwaySlug={pathway.slug}
               chapter={chapter}
               progress={progress?.chapters[i] ?? null}
               isHighlighted={recommended?.chapterSlug === chapter.slug}
@@ -340,10 +341,12 @@ function ActivePathwayView({
 }
 
 function ChapterRow({
+  pathwaySlug,
   chapter,
   progress,
   isHighlighted,
 }: {
+  pathwaySlug: string
   chapter: PathwayChapterConfig
   progress: PathwayChapterProgress | null
   isHighlighted: boolean
@@ -424,6 +427,8 @@ function ChapterRow({
             return (
               <SkillNodeTile
                 key={node.slug}
+                pathwaySlug={pathwaySlug}
+                chapterSlug={chapter.slug}
                 node={node}
                 state={nodeProgress?.state ?? 'locked'}
                 bestCount={nodeProgress?.bestCount ?? 0}
@@ -452,7 +457,7 @@ function ChapterRow({
         {/* Chapter-level CTA — built from the first un-mastered skill
             node so the player drops straight into the right reps. */}
         {state !== 'locked' ? (
-          <ChapterCta chapter={chapter} progress={progress} />
+          <ChapterCta pathwaySlug={pathwaySlug} chapter={chapter} progress={progress} />
         ) : (
           <p className="rounded-xl border border-hairline-2 bg-bg-2 p-3 text-[11px] uppercase tracking-[1.5px] text-text-mute">
             Unlocks once the previous chapter is mastered.
@@ -473,11 +478,15 @@ function ChapterRow({
 }
 
 function SkillNodeTile({
+  pathwaySlug,
+  chapterSlug,
   node,
   state,
   bestCount,
   attemptedCount,
 }: {
+  pathwaySlug: string
+  chapterSlug: string
   node: SkillNodeConfig
   state: SkillNodeState
   bestCount: number
@@ -530,7 +539,7 @@ function SkillNodeTile({
   if (isLocked) return tile
   return (
     <Link
-      href={buildSkillNodeTrainHref(node)}
+      href={buildSkillNodeTrainHref(node, { pathwaySlug, chapterSlug })}
       className="block transition-transform active:scale-[0.99]"
     >
       {tile}
@@ -539,9 +548,11 @@ function SkillNodeTile({
 }
 
 function ChapterCta({
+  pathwaySlug,
   chapter,
   progress,
 }: {
+  pathwaySlug: string
   chapter: PathwayChapterConfig
   progress: PathwayChapterProgress | null
 }) {
@@ -565,7 +576,7 @@ function ChapterCta({
 
   return (
     <Link
-      href={buildSkillNodeTrainHref(target)}
+      href={buildSkillNodeTrainHref(target, { pathwaySlug, chapterSlug: chapter.slug })}
       className="flex items-center justify-center gap-2 rounded-xl bg-brand py-2.5 font-display text-[13px] font-bold uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm transition-transform active:scale-[0.99]"
     >
       {verb}

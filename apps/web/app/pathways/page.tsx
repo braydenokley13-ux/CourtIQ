@@ -74,7 +74,12 @@ export default async function PathwaysHubPage() {
               recommendedLabel={progress?.recommendedNext?.label ?? 'Start your foundation'}
               recommendedHref={
                 progress?.recommendedNext?.trainHref ??
-                buildPathwayTrainHref({ scenarioIds: pathway.chapters[0]?.skillNodes[0]?.scenarioIds ?? [] })
+                buildPathwayTrainHref({
+                  scenarioIds: pathway.chapters[0]?.skillNodes[0]?.scenarioIds ?? [],
+                  pathwaySlug: pathway.slug,
+                  chapterSlug: pathway.chapters[0]?.slug ?? null,
+                  nodeSlug: pathway.chapters[0]?.skillNodes[0]?.slug ?? null,
+                })
               }
               detailHref={`/pathways/${pathway.slug}`}
             />

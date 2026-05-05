@@ -296,7 +296,12 @@ function pickRecommendedNext(
       return {
         chapterSlug: next.chapter.slug,
         skillNodeSlug: next.node.slug,
-        trainHref: buildPathwayTrainHref({ scenarioIds: next.node.scenarioIds }),
+        trainHref: buildPathwayTrainHref({
+          scenarioIds: next.node.scenarioIds,
+          pathwaySlug: pathway.slug,
+          chapterSlug: next.chapter.slug,
+          nodeSlug: next.node.slug,
+        }),
         label: labelFor(next.chapter, next.node, 'Continue'),
         reason: 'resume',
       }
@@ -319,7 +324,12 @@ function pickRecommendedNext(
       return {
         chapterSlug: next.chapter.slug,
         skillNodeSlug: next.node.slug,
-        trainHref: buildPathwayTrainHref({ scenarioIds: next.node.scenarioIds }),
+        trainHref: buildPathwayTrainHref({
+          scenarioIds: next.node.scenarioIds,
+          pathwaySlug: pathway.slug,
+          chapterSlug: next.chapter.slug,
+          nodeSlug: next.node.slug,
+        }),
         label: labelFor(next.chapter, next.node, isColdStart ? 'Start' : 'Continue'),
         reason: isColdStart ? 'cold-start' : 'sequence',
       }
@@ -343,7 +353,12 @@ function pickRecommendedNext(
         return {
           chapterSlug: next.chapter.slug,
           skillNodeSlug: next.node.slug,
-          trainHref: buildPathwayTrainHref({ scenarioIds: next.node.scenarioIds }),
+          trainHref: buildPathwayTrainHref({
+          scenarioIds: next.node.scenarioIds,
+          pathwaySlug: pathway.slug,
+          chapterSlug: next.chapter.slug,
+          nodeSlug: next.node.slug,
+        }),
           label: `Shore up ${target.chapter.title}`,
           reason: 'weakness',
         }
