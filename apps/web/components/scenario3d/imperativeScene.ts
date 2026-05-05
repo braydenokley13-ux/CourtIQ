@@ -755,14 +755,20 @@ export function computeCameraTarget(
       return replayTarget(nudgeFor(scene))
     case 'follow':
       return followTarget(scene) ?? broadcastTarget(nudgeFor(scene))
-    case 'teaching-angle':
-      return teachingAngleTarget(scene, aspect) ?? broadcastTarget(nudgeFor(scene))
-    case 'player-read-angle':
-      return playerReadAngleTarget(scene, aspect) ?? broadcastTarget(nudgeFor(scene))
-    case 'help-defense-angle':
-      return helpDefenseAngleTarget(scene, aspect) ?? broadcastTarget(nudgeFor(scene))
+    case 'teaching-angle': {
+      const t = teachingAngleTarget(scene, aspect) ?? broadcastTarget(nudgeFor(scene))
+      return applyAspectAdjustment(t, mode, aspect)
+    }
+    case 'player-read-angle': {
+      const t = playerReadAngleTarget(scene, aspect) ?? broadcastTarget(nudgeFor(scene))
+      return applyAspectAdjustment(t, mode, aspect)
+    }
+    case 'help-defense-angle': {
+      const t = helpDefenseAngleTarget(scene, aspect) ?? broadcastTarget(nudgeFor(scene))
+      return applyAspectAdjustment(t, mode, aspect)
+    }
     case 'top-down-coach-board':
-      return topDownCoachBoardTarget(scene, aspect)
+      return applyAspectAdjustment(topDownCoachBoardTarget(scene, aspect), mode, aspect)
     case 'auto':
     default:
       return computeAutoTarget(scene, aspect, baseFov)
@@ -879,6 +885,112 @@ function followTarget(scene: Scene3D): CameraTarget | null {
     fov: 46,
     near: 0.5,
     far: 400,
+  }
+}
+
+// =====================================================================
+// FR-4 §8.7 — mobile-safe aspect adjustment.
+// =====================================================================
+//
+// Inlined (instead of imported from `cameraPresets.ts`) to avoid a
+// module cycle: `cameraPresets.ts` already type-imports `CameraMode`
+// from this file, so a function import in the other direction would
+// trigger the loader's circular-dep warning.
+//
+// The semantics mirror `cameraPresets.aspectAdjustmentForCanvas`
+// 1-to-1 — see that file's docstring for the §8.7 policy. The
+// duplication is small and the test suite asserts both helpers
+// agree (see `cameraPresets.test.ts`).
+function _aspectDeltasForCamera(
+  aspect: number,
+  mode: CameraMode,
+): { distanceScale: number; pitchDeltaDeg: number; fovDeltaDeg: number } {
+  if (!Number.isFinite(aspect) || aspect <= 0) {
+    return { distanceScale: 1, pitchDeltaDeg: 0, fovDeltaDeg: 0 }
+  }
+  if (mode === 'top-down-coach-board') {
+    if (aspect < 0.7) return { distanceScale: 1, pitchDeltaDeg: 0, fovDeltaDeg: 6 }
+    return { distanceScale: 1, pitchDeltaDeg: 0, fovDeltaDeg: 0 }
+  }
+  if (aspect < 0.7) {
+    return { distanceScale: 0.9, pitchDeltaDeg: -5, fovDeltaDeg: 0 }
+  }
+  if (aspect < 1.5) {
+    return { distanceScale: 0.95, pitchDeltaDeg: 0, fovDeltaDeg: 0 }
+  }
+  return { distanceScale: 1, pitchDeltaDeg: 0, fovDeltaDeg: 0 }
+}
+
+/**
+ * Applies the §8.7 mobile-safe deltas on top of a base camera
+ * target. Distance scale dollies the camera toward the look-at;
+ * pitch delta rotates the camera vertically around the look-at
+ * (negative tightens the angle so portrait phones do not show wasted
+ * sky on `help-defense-angle`); FOV delta widens or tightens the
+ * lens additively.
+ *
+ * Pure: the input target is cloned before modification so callers
+ * can keep a reference to the canonical desktop placement.
+ */
+function applyAspectAdjustment(
+  target: CameraTarget,
+  mode: CameraMode,
+  aspect: number,
+): CameraTarget {
+  const deltas = _aspectDeltasForCamera(aspect, mode)
+  if (
+    deltas.distanceScale === 1 &&
+    deltas.pitchDeltaDeg === 0 &&
+    deltas.fovDeltaDeg === 0
+  ) {
+    return target
+  }
+  // Compose a new target rather than mutating the input. The caller
+  // path (`computeCameraTarget` → `CameraController.recomputeTarget`)
+  // copies the position and lookAt anyway, but a pure return makes
+  // the helper safe to use in tests and elsewhere.
+  const lookAt = target.lookAt.clone()
+  let position = target.position.clone()
+
+  // 1. Pitch delta: rotate position around lookAt around the
+  //    horizontal axis perpendicular to the (position → lookAt) ray.
+  if (deltas.pitchDeltaDeg !== 0) {
+    const offset = position.clone().sub(lookAt)
+    const horizontal = Math.hypot(offset.x, offset.z)
+    if (horizontal > 0.001) {
+      // Current pitch (from horizontal). Atan2 — y is the rise,
+      // horizontal is the run. Adding the delta tilts toward the
+      // floor (negative delta → tighter pitch, less sky).
+      const currentPitch = Math.atan2(offset.y, horizontal)
+      const nextPitch = currentPitch + (deltas.pitchDeltaDeg * Math.PI) / 180
+      const radius = offset.length()
+      const newY = Math.sin(nextPitch) * radius
+      const newH = Math.cos(nextPitch) * radius
+      const horizScale = horizontal > 0 ? newH / horizontal : 1
+      position = new THREE.Vector3(
+        lookAt.x + offset.x * horizScale,
+        lookAt.y + newY,
+        lookAt.z + offset.z * horizScale,
+      )
+    }
+  }
+
+  // 2. Distance scale: dolly along the (lookAt → position) ray.
+  if (deltas.distanceScale !== 1) {
+    const offset = position.clone().sub(lookAt)
+    offset.multiplyScalar(deltas.distanceScale)
+    position = lookAt.clone().add(offset)
+  }
+
+  // 3. FOV delta.
+  const fov = Math.max(10, Math.min(120, target.fov + deltas.fovDeltaDeg))
+
+  return {
+    position,
+    lookAt,
+    fov,
+    near: target.near,
+    far: target.far,
   }
 }
 
