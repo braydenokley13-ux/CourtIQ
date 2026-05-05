@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
 import { PlayerMarker3D } from './PlayerMarker3D'
@@ -14,6 +14,12 @@ import {
 import { TeachingOverlayController, type OverlayPhase } from './imperativeTeachingOverlay'
 import { useReducedMotion } from '@/lib/scenario3d/useReducedMotion'
 import type { Scene3D } from '@/lib/scenario3d/scene'
+import {
+  applyOverlayLevel,
+  DEFAULT_OVERLAY_LEVEL,
+  isOverlaySuppressed,
+  type OverlayLevel,
+} from '@/lib/scenario3d/overlayLevel'
 
 interface ScenarioScene3DProps {
   scene: Scene3D
@@ -34,6 +40,13 @@ interface ScenarioScene3DProps {
    * the answer leg for best-read choices).
    */
   pickedChoiceId?: string | null
+  /**
+   * FR-5 §9.2 — Pathways-driven overlay intensity. Forwarded to
+   * `AuthoredOverlayBridge` which projects the scene's overlay arrays
+   * through `applyOverlayLevel` before mounting them. Default
+   * `'beginner'` mounts the full cluster — pre-FR-5 behavior.
+   */
+  overlayLevel?: OverlayLevel
 }
 
 const PLAYER_HEIGHT = 0
@@ -63,6 +76,7 @@ export function ScenarioScene3D({
   onPhase,
   showPaths,
   pickedChoiceId,
+  overlayLevel = DEFAULT_OVERLAY_LEVEL,
 }: ScenarioScene3DProps) {
   const playerRefs = useRef<Map<string, THREE.Group>>(new Map())
   const ballRef = useRef<THREE.Group | null>(null)
@@ -121,8 +135,14 @@ export function ScenarioScene3D({
 
       {/* Phase H — authored pre/post overlay bridge. Mounts a heuristic-free
           TeachingOverlayController inside the JSX scene tree so decoder
-          scenarios on the full path get layered post-answer reveals. */}
-      <AuthoredOverlayBridge scene={scene} replayPhase={replayPhase} />
+          scenarios on the full path get layered post-answer reveals.
+          FR-5 — `overlayLevel` controls how much of the authored cluster
+          actually mounts. */}
+      <AuthoredOverlayBridge
+        scene={scene}
+        replayPhase={replayPhase}
+        overlayLevel={overlayLevel}
+      />
 
       {showPaths && activeMovements.length > 0
         ? activeMovements.map((m) => {
@@ -207,13 +227,29 @@ export function ScenarioScene3D({
 function AuthoredOverlayBridge({
   scene,
   replayPhase,
+  overlayLevel,
 }: {
   scene: Scene3D
   replayPhase: ReplayPhase
+  overlayLevel: OverlayLevel
 }) {
   const root = useThree((s) => s.scene as unknown as THREE.Group)
   const ctrlRef = useRef<TeachingOverlayController | null>(null)
   const reduced = useReducedMotion()
+
+  // FR-5 — project the scene's authored overlay arrays through the
+  // level filter on every (scene.id × overlayLevel) change. The filter
+  // is pure so the result memo lets the rebuild effect below depend
+  // on the filtered shape rather than re-invoking the filter inline.
+  const filtered = useMemo(
+    () =>
+      applyOverlayLevel({
+        preAnswer: scene.preAnswerOverlays,
+        postAnswer: scene.postAnswerOverlays,
+        level: overlayLevel,
+      }),
+    [scene.id, overlayLevel, scene.preAnswerOverlays, scene.postAnswerOverlays],
+  )
 
   useEffect(() => {
     if (!root) return
@@ -221,16 +257,20 @@ function AuthoredOverlayBridge({
       reduced,
       heuristic: false,
     })
-    ctrl.setAuthoredOverlays(scene.preAnswerOverlays, scene.postAnswerOverlays)
-    ctrl.setVisible(true)
+    ctrl.setAuthoredOverlays(filtered.preAnswer, filtered.postAnswer)
+    // FR-5 — suppressed levels (Boss / 'none') keep the controller
+    // mounted so phase callbacks still no-op cleanly, but with the
+    // overlay group hidden so nothing renders.
+    ctrl.setVisible(!isOverlaySuppressed(overlayLevel))
     ctrlRef.current = ctrl
     return () => {
       ctrl.dispose()
       ctrlRef.current = null
     }
-    // Rebuild only on scene swap; phase changes flow through setPhase below.
+    // Rebuild only on scene swap or filter result swap; phase changes
+    // flow through setPhase below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scene.id])
+  }, [scene.id, filtered, overlayLevel])
 
   useEffect(() => {
     const ctrl = ctrlRef.current
