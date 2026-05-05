@@ -195,6 +195,25 @@ export interface PathwayRecommendedNext {
   reason: 'cold-start' | 'resume' | 'sequence' | 'weakness' | 'capstone'
 }
 
+/**
+ * PTH-4: server-persisted boss / mixed-reads challenge result, surfaced
+ * on the progress summary so the UI can render "Cleared" tags from
+ * authoritative state (with localStorage as a fallback).
+ *
+ * `mode` mirrors `ServerChallengeMode` in `challengeAttemptService.ts`;
+ * we keep the union local to avoid pulling that module into the type
+ * surface that client components import.
+ */
+export interface PathwayChallengeAttemptSummary {
+  chapterSlug: string
+  mode: 'boss-challenge' | 'mixed-reads'
+  challengeSlug: string
+  passed: boolean
+  bestCount: number
+  total: number
+  attemptedAt: string
+}
+
 export interface PathwayProgressSummary {
   slug: string
   /** 0..1 — average chapter progress. */
@@ -203,4 +222,8 @@ export interface PathwayProgressSummary {
   chapters: PathwayChapterProgress[]
   recommendedNext: PathwayRecommendedNext | null
   weakestDecoder: DecoderTag | null
+  /** PTH-4: best server-persisted boss / mixed-reads attempt per
+   *  challenge for this user. Empty when the user has no recorded
+   *  challenge attempts yet. */
+  challengeAttempts: PathwayChallengeAttemptSummary[]
 }

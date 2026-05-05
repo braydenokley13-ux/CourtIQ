@@ -24,6 +24,7 @@
 
 import { MasteryDimension } from '@prisma/client'
 import { prisma } from '@/lib/db/prisma'
+import { getChallengeAttemptSummary } from './challengeAttemptService'
 import {
   buildPathwayTrainHref,
   countChapterScenarios,
@@ -32,6 +33,7 @@ import {
 } from './helpers'
 import type {
   DecoderTag,
+  PathwayChallengeAttemptSummary,
   PathwayChapterConfig,
   PathwayChapterProgress,
   PathwayChapterState,
@@ -58,6 +60,10 @@ export interface PathwayProgressInput {
   /** Decoder mastery rows keyed by decoder tag. Missing entries imply
    *  zero attempts. */
   decoderMasteryByTag: Map<DecoderTag, DecoderMasteryStat>
+  /** PTH-4: best server-persisted boss / mixed-reads attempt per
+   *  challenge for this user. Optional so existing callers (and the
+   *  pure unit tests) keep working without it. */
+  challengeAttempts?: readonly PathwayChallengeAttemptSummary[]
 }
 
 const ZERO_DECODER: DecoderMasteryStat = { attempts: 0, rollingAccuracy: 0 }
@@ -415,6 +421,7 @@ export function derivePathwayProgress(
     chapters,
     recommendedNext: pickRecommendedNext(pathway, chapters),
     weakestDecoder: pickWeakestDecoder(pathway, input),
+    challengeAttempts: input.challengeAttempts ? [...input.challengeAttempts] : [],
   }
 }
 
@@ -443,7 +450,11 @@ export async function getPathwayProgress(
 
   const scenarioIds = getAllScenarioIdsForPathway(pathway)
 
-  const [attempts, masteries] = await Promise.all([
+  // PTH-4: load best-of challenge attempts in parallel with the
+  // existing attempt + mastery fan-in. Defensive try/catch so a slow
+  // or down challenge table never breaks the existing progress
+  // surface — the UI just falls back to localStorage cleared state.
+  const [attempts, masteries, challengeAttempts] = await Promise.all([
     scenarioIds.length === 0
       ? Promise.resolve([] as Awaited<ReturnType<typeof prisma.attempt.findMany>>)
       : prisma.attempt.findMany({
@@ -458,6 +469,10 @@ export async function getPathwayProgress(
         concept_id: { in: pathway.decoderTags },
       },
       select: { concept_id: true, attempts_count: true, rolling_accuracy: true },
+    }),
+    getChallengeAttemptSummary(userId, pathway.slug).catch((err) => {
+      console.warn('[pathways/progress] challenge attempts read failed', err)
+      return [] as PathwayChallengeAttemptSummary[]
     }),
   ])
 
@@ -496,6 +511,7 @@ export async function getPathwayProgress(
   return derivePathwayProgress(pathway, {
     latestQualityByScenarioId,
     decoderMasteryByTag,
+    challengeAttempts,
   })
 }
 

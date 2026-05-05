@@ -49,6 +49,7 @@ function coldStartProgress(): PathwayProgressSummary {
       reason: 'cold-start',
     },
     weakestDecoder: null,
+    challengeAttempts: [],
   }
 }
 
