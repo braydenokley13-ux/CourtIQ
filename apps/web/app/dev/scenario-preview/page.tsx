@@ -149,8 +149,27 @@ export default async function ScenarioPreviewPage({
     QA_MATRIX_IDS.map(async (id) => ({ id, record: await readScenario(id) })),
   )
 
+  // FR-2 Packet 1 — emit a `<link rel="preload">` for the bundled
+  // mannequin GLB on the QA route so the browser starts the asset
+  // fetch alongside the document. Mirrors `app/train/layout.tsx` so
+  // every founder-v0 scenario rendered through this surface gets the
+  // same cold-cache mitigation that ships in `/train`. Gated on the
+  // canonical env var so a build with the GLB flag off never adds
+  // the 1.4 MB preload.
+  const glbPreloadEnabled =
+    process.env.NEXT_PUBLIC_USE_GLB_ATHLETE_PREVIEW === '1'
+
   return (
     <Suspense>
+      {glbPreloadEnabled ? (
+        <link
+          rel="preload"
+          href="/athlete/mannequin.glb"
+          as="fetch"
+          type="model/gltf-binary"
+          crossOrigin="anonymous"
+        />
+      ) : null}
       <ScenarioPreviewClient
         initialScenarioId={initialId}
         scenarios={scenarios.flatMap((s) =>

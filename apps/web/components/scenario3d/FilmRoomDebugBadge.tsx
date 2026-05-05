@@ -9,8 +9,17 @@ import {
   type PlayerFigureDecision,
 } from './imperativeScene'
 import { summarisePlayerFigureDecisions } from './GlbDebugBadge'
+import {
+  getGlbStaticPoseFallbackStats,
+  type GlbStaticPoseFallbackStats,
+} from './glbAthlete'
 import type { Scene3D } from '@/lib/scenario3d/scene'
 import type { ReplayPhase } from './ScenarioReplayController'
+import {
+  pickAssistedCameraMode,
+  type AssistedCameraMode,
+  type CameraAssist,
+} from '@/lib/scenario3d/cameraPresets'
 
 /**
  * FR-1 Packet 6 — film-room teaching-state debug badge.
@@ -42,6 +51,15 @@ interface FilmRoomDebugBadgeProps {
   /** Friendly concept / decoder summary already present at the canvas
    *  layer. Falls back to scene.decoderTag when absent. */
   concept?: string
+  /** FR-4 §8.9 — currently active cameraAssist tier. Surfaced so QA
+   *  can confirm `/dev/scenario-preview` is on `'full'` while
+   *  `/train` is on `'partial'`. */
+  cameraAssist?: CameraAssist
+  /** FR-4 §8.6 — true when the dispatcher is standing aside because
+   *  the user took manual control. The badge marks the
+   *  decoder-target row with `(override)` so QA understands why
+   *  the active mode does not match the predicted preset. */
+  cameraManualOverride?: boolean
 }
 
 export function isFilmRoomDebugBadgeEnabled(): boolean {
@@ -61,6 +79,8 @@ export function FilmRoomDebugBadge({
   cameraMode,
   replayPhase,
   concept,
+  cameraAssist,
+  cameraManualOverride,
 }: FilmRoomDebugBadgeProps) {
   const [decisions, setDecisions] = useState<readonly PlayerFigureDecision[]>(
     [],
@@ -69,6 +89,15 @@ export function FilmRoomDebugBadge({
     glb: false,
     closeout: false,
     backCut: false,
+  })
+  // FR-2 Packet 3 — surface "GLB + static pose" fallback counts so
+  // QA can see when the renderer is teaching with a still athlete
+  // because the resolver-picked clip was missing.
+  const [staticPose, setStaticPose] = useState<GlbStaticPoseFallbackStats>({
+    total: 0,
+    toIdleReady: 0,
+    toBindPose: 0,
+    lastMissingClip: null,
   })
 
   // Poll the figure-decision log + gate booleans every 500 ms, matching
@@ -83,6 +112,7 @@ export function FilmRoomDebugBadge({
         closeout: isImportedCloseoutClipActive(),
         backCut: isImportedBackCutClipActive(),
       })
+      setStaticPose({ ...getGlbStaticPoseFallbackStats() })
     }
     tick()
     const id = window.setInterval(tick, 500)
@@ -96,9 +126,27 @@ export function FilmRoomDebugBadge({
   const proceduralCount = decisions.filter((d) => d.pick === 'procedural')
     .length
   const glbCount = decisions.filter((d) => d.pick === 'glb').length
+  // FR-3 Packet 7 — surface the resolved key defender so QA can
+  // confirm the §7.3 heat-ring landed on the right figure without
+  // squinting at the floor cue. The figure-decision log carries
+  // `isKeyDefender` per push (FR-3 Packet 7 also stamps the
+  // procedural / premium / GLB / skinned / force-glb-marker rows
+  // with the same flag) so the badge does not need to re-run the
+  // closest-defender heuristic itself.
+  const keyDefender = decisions.find((d) => d.isKeyDefender === true) ?? null
 
   const decoder = scene?.decoderTag ?? '—'
   const sceneId = scene?.id ?? '—'
+  // FR-4 Packet 7 — recompute the dispatcher's pick from the same
+  // pure inputs the canvas uses. Lets QA see what the preset *would
+  // be* even when the manual override stops the canvas from
+  // applying it.
+  const dispatcherTarget: AssistedCameraMode | null = pickAssistedCameraMode({
+    decoder: scene?.decoderTag ?? null,
+    phase: replayPhase,
+    assist: cameraAssist ?? 'partial',
+    manualOverride: false,
+  })
   const freezeAt =
     typeof scene?.freezeAtMs === 'number'
       ? `${scene.freezeAtMs}ms`
@@ -138,6 +186,19 @@ export function FilmRoomDebugBadge({
         <span style={{ opacity: 0.85 }}>{freezeAt}</span>
       </div>
       <div>
+        <span style={{ color: '#9cf' }}>assist</span>{' '}
+        <span style={{ color: '#fcd47a' }}>{cameraAssist ?? 'partial'}</span>
+        {' · '}
+        <span style={{ color: '#9cf' }}>preset</span>{' '}
+        <span style={{ color: '#7fdca0' }}>{dispatcherTarget ?? '—'}</span>
+        {cameraManualOverride ? (
+          <>
+            {' · '}
+            <span style={{ color: '#FF4D6D' }}>(override)</span>
+          </>
+        ) : null}
+      </div>
+      <div>
         <span style={{ color: '#9cf' }}>overlays</span>{' '}
         <span>
           {preCount} pre · {postCount} post
@@ -156,6 +217,36 @@ export function FilmRoomDebugBadge({
         <span style={{ color: '#9cf' }}>render</span>{' '}
         <span style={{ opacity: 0.85 }}>{summary}</span>
       </div>
+      <div>
+        <span style={{ color: '#9cf' }}>keyDefender</span>{' '}
+        {keyDefender ? (
+          <span style={{ color: '#FF4D6D' }}>
+            {keyDefender.playerId ?? '<unknown>'}
+            {' · '}
+            <span style={{ opacity: 0.7 }}>{keyDefender.pick}</span>
+          </span>
+        ) : (
+          <span style={{ opacity: 0.6 }}>none</span>
+        )}
+      </div>
+      {staticPose.total > 0 ? (
+        <div>
+          <span style={{ color: '#9cf' }}>staticPose</span>{' '}
+          <span style={{ color: '#f5a05a' }}>
+            {staticPose.total} (idle ×{staticPose.toIdleReady}
+            {' / '}bind ×{staticPose.toBindPose})
+          </span>
+          {staticPose.lastMissingClip ? (
+            <>
+              {' · '}
+              <span style={{ color: '#9cf' }}>missing</span>{' '}
+              <span style={{ opacity: 0.85 }}>
+                {staticPose.lastMissingClip}
+              </span>
+            </>
+          ) : null}
+        </div>
+      ) : null}
       <div>
         <span style={{ color: '#9cf' }}>gates</span>{' '}
         <span style={{ color: gates.glb ? '#7fdca0' : '#f5a05a' }}>

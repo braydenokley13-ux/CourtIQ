@@ -69,7 +69,35 @@ export const GLB_ATHLETE_ASSET_URL = '/athlete/mannequin.glb'
  * ~5.93 ft after this scale, matching the procedural figure within
  * 0.02 ft.
  */
+/**
+ * FR-3 §7.8 — m → ft uniform scale applied to the cloned GLB rig.
+ *
+ * The bundled Quaternius mannequin is authored in meters; multiplying
+ * by `1/0.3048` lifts it into court feet so it shares a coordinate
+ * system with the procedural figure and the court geometry.
+ */
 const GLB_M_TO_FT_SCALE = 1 / 0.3048
+
+/**
+ * FR-3 §7.8 — expected GLB rig standing height in court feet.
+ *
+ * The Quaternius UAL2 mannequin asset measures ≈ 1.808 m floor-to-
+ * crown; after `GLB_M_TO_FT_SCALE` the scaled rig stands ≈ 5.93 ft.
+ * Locked against `ATH_TOTAL_HEIGHT_FT` (5.95 ft) from
+ * `imperativeScene.ts` to a ±0.05 ft tolerance by
+ * `playerScaleContract.test.ts`. Pin this constant; do not let it
+ * drift independently of the procedural figure height.
+ */
+export const GLB_TARGET_HEIGHT_FT = 5.93
+
+/**
+ * FR-3 §7.8 — maximum acceptable gap between the GLB rig and the
+ * procedural figure standing heights. Pre-FR-3 the planning doc
+ * already targeted ±0.05 ft; making the budget a named constant
+ * lets the contract test fail fast if a future packet drifts either
+ * height without acknowledging the policy.
+ */
+export const PLAYER_HEIGHT_DELTA_BUDGET_FT = 0.05
 
 interface GlbIndicatorLayers {
   base: THREE.Group
@@ -1069,6 +1097,49 @@ let cache: GlbAthleteCacheEntry | null = null
 let loadInFlight: Promise<GlbAthleteCacheEntry | null> | null = null
 
 /**
+ * FR-2 Packet 5 — distinct loader outcomes.
+ *
+ * Pre-FR-2 the loader resolved with `null` for both "the GLB 404'd"
+ * and "the GLB parsed but had no SkinnedMesh" and rejected silently
+ * for "GLTFLoader threw mid-parse". Downstream the figure builder
+ * could only see `cache === null` and reported `cache-cold`, which
+ * conflated a still-loading state with a fully-failed one.
+ *
+ * The new tracker records the last resolved/rejected outcome so the
+ * builder (and the structured fallback breadcrumbs) can surface the
+ * §6.1 silent-failure reasons (`asset-missing-or-no-skin`,
+ * `loader-threw`) explicitly. Set inside the loader's callbacks so
+ * every code path that produces a `null` cache also records *why*.
+ */
+export type GlbAthleteLoadOutcome =
+  | 'pending'
+  | 'success'
+  | 'asset-missing-or-no-skin'
+  | 'loader-threw'
+
+let _lastLoadOutcome: GlbAthleteLoadOutcome = 'pending'
+
+export function getGlbAthleteLoadOutcome(): GlbAthleteLoadOutcome {
+  return _lastLoadOutcome
+}
+
+/** Test-only — reset both the cache pointer and the outcome tracker. */
+export function _resetGlbAthleteLoadOutcomeForTest(): void {
+  _lastLoadOutcome = 'pending'
+}
+
+/**
+ * Test-only — directly set the loader-outcome tracker so unit tests
+ * can exercise the §6.5 silent-failure surface without driving the
+ * real GLTFLoader (which jsdom cannot satisfy synchronously).
+ */
+export function _setGlbAthleteLoadOutcomeForTest(
+  outcome: GlbAthleteLoadOutcome,
+): void {
+  _lastLoadOutcome = outcome
+}
+
+/**
  * Kicks off (or returns the in-flight) async load of the bundled
  * mannequin GLB. Resolves with the cache entry on success, or
  * `null` if anything fails (asset missing, network blocked, parse
@@ -1077,6 +1148,11 @@ let loadInFlight: Promise<GlbAthleteCacheEntry | null> | null = null
  *
  * Exported for tests and so the renderer's mount path can warm the
  * cache before the first build call if a preload point is added later.
+ *
+ * FR-2 Packet 5 — every terminal branch updates `_lastLoadOutcome`
+ * so the renderer can distinguish the previously-silent failure
+ * modes (`asset-missing-or-no-skin`, `loader-threw`) from a still-
+ * cold cache.
  */
 export function loadGlbAthleteAsset(): Promise<GlbAthleteCacheEntry | null> {
   if (cache) return Promise.resolve(cache)
@@ -1090,16 +1166,34 @@ export function loadGlbAthleteAsset(): Promise<GlbAthleteCacheEntry | null> {
       (gltf) => {
         const skinned = findFirstSkinnedMesh(gltf.scene)
         if (!skinned) {
+          _lastLoadOutcome = 'asset-missing-or-no-skin'
           resolve(null)
           return
         }
         cache = { gltf, skinnedMesh: skinned }
+        _lastLoadOutcome = 'success'
         resolve(cache)
       },
       undefined,
-      () => resolve(null),
+      () => {
+        // GLTFLoader's `onError` fires for fetch failures (404,
+        // CORS, network blocked) AND parse failures. The plan
+        // groups both under `asset-missing-or-no-skin` because the
+        // user-visible effect is identical: the asset is not
+        // usable. `loader-threw` is reserved for the pathological
+        // case where the loader itself raises after we wrapped
+        // .catch() — see the chain below.
+        _lastLoadOutcome = 'asset-missing-or-no-skin'
+        resolve(null)
+      },
     )
-  }).catch(() => null)
+  }).catch(() => {
+    // A hard throw inside the loader callback chain would skip the
+    // `onError` branch entirely. Tracking it as `loader-threw`
+    // keeps the silent-failure surface precise.
+    _lastLoadOutcome = 'loader-threw'
+    return null
+  })
   return loadInFlight
 }
 
@@ -1107,6 +1201,27 @@ export function loadGlbAthleteAsset(): Promise<GlbAthleteCacheEntry | null> {
 export function _resetGlbAthleteCache(): void {
   cache = null
   loadInFlight = null
+  // FR-2 Packet 5 — also reset the loader-outcome tracker so a
+  // fresh test scenario does not inherit `loader-threw` /
+  // `asset-missing-or-no-skin` from a prior case and break the
+  // figure-decision log expectations downstream.
+  _lastLoadOutcome = 'pending'
+}
+
+/**
+ * FR-2 Packet 2 — synchronous probe for the GLTFLoader cache state.
+ *
+ * Returns `true` when `loadGlbAthleteAsset()` has resolved with a
+ * populated cache entry, `false` otherwise (cold, in-flight, or
+ * resolved with `null`). Exported so the canvas's imperative
+ * scene-build effect can decide whether to render the very first
+ * scene immediately or defer until the load settles — see the
+ * "remove procedural-first frame" logic in `Scenario3DCanvas.tsx`.
+ *
+ * Pure read of module-private state. No side effects, no fetches.
+ */
+export function isGlbAthleteCacheReady(): boolean {
+  return cache !== null
 }
 
 /**
@@ -1214,8 +1329,43 @@ export interface BuildGlbAthletePreviewOptions {
    * up the real clip once the cache is warm.
    */
   attachImportedBackCutClip?: boolean
+  /**
+   * FR-3 §7.3 — when true the GLB indicator layer renders an
+   * additional `--heat`-colored ring on the floor so the cue
+   * defender is identifiable inside 0.5 s without a label. Default
+   * `false` preserves the pre-FR-3 visual exactly for offense and
+   * non-key defenders. The flag never affects mesh tinting on the
+   * body itself; the heat cue lives entirely on the indicator
+   * layer the planning doc places between the shadow and the
+   * figure (§7.7 z-order).
+   */
+  isKeyDefender?: boolean
 }
 
+/**
+ * FR-3 §7.10 — known GLB bind-pose limitation (documented, not fixed).
+ *
+ * The Quaternius UAL2 mannequin's bind pose is a near-A-pose rest
+ * position, not a basketball stance. Hand-authored clip deltas
+ * (`idle_ready`, `cut_sprint`, `defense_slide`, `defensive_deny`)
+ * therefore have to ride on top of an off-axis rest to deliver a
+ * "ready" silhouette — and the plan §5.6 calls out that authoring
+ * a "basketball ready" rest delta is the v2 GLB step the renderer
+ * eventually wants.
+ *
+ * FR-3 deliberately does NOT modify the bind pose. The brief
+ * authorizes only safe procedural / readability work (no bind-pose
+ * deltas, no new GLB assets, no animation system changes) and the
+ * planning doc earmarks the bind-pose fix for FR-8 alongside the
+ * premium athlete pack. The §7.2 / §7.3 / §7.7 cues land via the
+ * indicator layer (rings, shadow, chevron, halo) — those are the
+ * FR-3-safe surfaces that materially raise readability without
+ * risking the existing animation system.
+ *
+ * Procedural figures already ship a basketball-ready pose lookup
+ * (see `applyIdlePose` / `applyDefensivePose` / `applyDenialPose`
+ * in `imperativeScene.ts`); no FR-3 change is required there.
+ */
 export function buildGlbAthletePreview(
   teamColor: string,
   _trimColor: string,
@@ -1248,8 +1398,33 @@ export function buildGlbAthletePreview(
 
     applyMultiRegionMaterialsToCloned(cloned, teamColor)
 
-    const indicatorLayers = buildGlbIndicatorLayers(figure, teamColor, isUser, hasBall)
+    const indicatorLayers = buildGlbIndicatorLayers(
+      figure,
+      teamColor,
+      isUser,
+      hasBall,
+      options?.isKeyDefender === true,
+    )
     ;(figure.userData as Record<string, unknown>).indicatorLayers = indicatorLayers
+
+    // FR-3 Packet 3 — grounding shadow disc.
+    //
+    // §7.7 of the planning doc requires every figure to render a
+    // soft circular shadow under its feet so the eye reads the
+    // figure as standing on the court instead of floating. Pre-FR-3
+    // the procedural builder shipped a `CircleGeometry` shadow but
+    // the GLB path skipped it — figures rendered through
+    // `buildGlbAthletePreview` had no contact shadow at all,
+    // breaking the §7.11 "GLB and procedural figures feel like the
+    // same visual system" goal.
+    //
+    // The shadow is mounted under an inverse-scaled group (same
+    // trick the indicator layers use) so its radius is authored in
+    // court-foot units and matches the procedural shadow byte-for-
+    // byte. `renderOrder = -1` keeps the §7.7 z-order
+    // (court → shadow → ring → figure → ball → overlays).
+    const groundingShadowLayer = buildGlbGroundingShadowLayer()
+    figure.add(groundingShadowLayer)
 
     const mixer = new THREE.AnimationMixer(cloned)
     const clips = getCachedGlbClips()
@@ -2497,15 +2672,68 @@ function applyMultiRegionMaterialsToCloned(
 }
 
 const GLB_FLOOR_LIFT = 0.05
+// FR-3 §7.7 — grounding shadow constants.
+//
+// Mirror the procedural shadow disc so the two render paths produce
+// the same visual weight under the figure. The radius (1.75 ft) is
+// `PLAYER_RADIUS (1.2) + 0.55` from imperativeScene.ts; opacity 0.42
+// and color `#05070A` match the procedural `CONTACT_SHADOW_COLOR`.
+// Constants live here (not imported) so the GLB module avoids the
+// `imperativeScene` cycle for visual constants.
+const GLB_GROUNDING_SHADOW_RADIUS_FT = 1.75
+const GLB_GROUNDING_SHADOW_COLOR = '#05070A'
+const GLB_GROUNDING_SHADOW_OPACITY = 0.42
+const GLB_GROUNDING_SHADOW_Y = 0.02
+
+/**
+ * FR-3 Packet 3 — soft circular contact shadow for the GLB figure.
+ *
+ * Mounted under an inverse-scaled group so the radius is authored
+ * in court-foot units (matches the procedural shadow primitive in
+ * `imperativeScene.ts` exactly). `renderOrder = -1` keeps the
+ * §7.7 z-order: the shadow draws beneath the team-color base ring
+ * and the figure mesh.
+ */
+function buildGlbGroundingShadowLayer(): THREE.Group {
+  const inverseScale = 1 / GLB_M_TO_FT_SCALE
+  const layer = new THREE.Group()
+  layer.name = 'glb-grounding-shadow-layer'
+  layer.scale.setScalar(inverseScale)
+  const disc = new THREE.Mesh(
+    new THREE.CircleGeometry(GLB_GROUNDING_SHADOW_RADIUS_FT, 24),
+    new THREE.MeshBasicMaterial({
+      color: GLB_GROUNDING_SHADOW_COLOR,
+      toneMapped: false,
+      transparent: true,
+      opacity: GLB_GROUNDING_SHADOW_OPACITY,
+      depthWrite: false,
+    }),
+  )
+  disc.rotation.x = -Math.PI / 2
+  disc.position.y = GLB_GROUNDING_SHADOW_Y
+  disc.renderOrder = -1
+  disc.name = 'glb-grounding-shadow-disc'
+  layer.add(disc)
+  return layer
+}
+
 const GLB_BASE_RING_RADIUS_FT = 0.95
 const GLB_USER_HALO_RADIUS_FT = 1.45
 const GLB_POSSESSION_RING_RADIUS_FT = 1.1
+// FR-3 §7.1 — `--heat` token mirror. Kept private to the GLB
+// module so the imperativeScene module can carry the same token in
+// its own constant without a cross-file import; both files agree on
+// the hex literal because the planning doc names a single canonical
+// brand color.
+const GLB_HEAT_RING_COLOR = '#FF4D6D'
+const GLB_HEAT_RING_RADIUS_FT = 1.18
 
 function buildGlbIndicatorLayers(
   parent: THREE.Group,
   teamColor: string,
   isUser: boolean,
   hasBall: boolean,
+  isKeyDefender: boolean,
 ): GlbIndicatorLayers {
   // The figure root is uniformly scaled by GLB_M_TO_FT_SCALE so the
   // mannequin lands at court height. Indicator layers live OUTSIDE
@@ -2567,12 +2795,81 @@ function buildGlbIndicatorLayers(
         toneMapped: false,
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.7,
+        // FR-3 §7.2 — "never bright enough to fight the cue overlay."
+        // Pre-FR-3 the GLB user halo shipped at 0.7 alpha which read
+        // as the brightest thing on the floor at freeze. Toned to
+        // 0.55 to match the procedural halo's perceptual weight (a
+        // pair of stacked halos at 0.4 / 0.16 alpha) without losing
+        // the "this is the user" cue.
+        opacity: 0.55,
       }),
     )
     halo.rotation.x = -Math.PI / 2
     halo.position.y = GLB_FLOOR_LIFT
     userLayer.add(halo)
+
+    // FR-3 §7.2 — soft outer halo. Mirrors the procedural figure's
+    // `softHalo` so a GLB user and a procedural user produce the
+    // same falloff under the figure. Sits one floor-lift step
+    // below the inner halo so the band reads as glow rather than a
+    // second stripe.
+    const softHalo = new THREE.Mesh(
+      new THREE.RingGeometry(
+        GLB_USER_HALO_RADIUS_FT + 0.05,
+        GLB_USER_HALO_RADIUS_FT + 0.55,
+        40,
+      ),
+      new THREE.MeshBasicMaterial({
+        color: teamColor,
+        toneMapped: false,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.18,
+      }),
+    )
+    softHalo.rotation.x = -Math.PI / 2
+    softHalo.position.y = GLB_FLOOR_LIFT - 0.001
+    softHalo.name = 'glb-user-soft-halo'
+    userLayer.add(softHalo)
+
+    // FR-3 §7.2 / §7.5 — "YOU" chevron above the GLB user. The
+    // procedural figure already mounts this on `userHeadLayer`;
+    // pre-FR-3 the GLB userHead layer existed but was empty, so a
+    // GLB user lost the head cue at gameplay-camera distance.
+    // Authored in court-foot units (the inverse-scaled user-head
+    // layer matches procedural ATH coordinates) so the chevron
+    // sits ~7 ft off the floor — directly above the GLB rig's head
+    // (rig height ≈ 5.93 ft) with a small standoff for legibility.
+    const chevronY = 5.93 + 1.1
+    const chevron = new THREE.Mesh(
+      new THREE.ConeGeometry(0.42, 0.85, 16),
+      new THREE.MeshBasicMaterial({
+        color: teamColor,
+        toneMapped: false,
+      }),
+    )
+    chevron.rotation.x = Math.PI
+    chevron.position.set(0, chevronY, 0)
+    chevron.name = 'glb-user-head-chevron'
+    userHeadLayer.add(chevron)
+
+    // Subtle dark outline behind the chevron so it stays readable
+    // when the camera tilts and the chevron crosses a bright wood
+    // tone in the floor planks.
+    const chevronOutline = new THREE.Mesh(
+      new THREE.ConeGeometry(0.5, 1.0, 16),
+      new THREE.MeshBasicMaterial({
+        color: '#062118',
+        toneMapped: false,
+        transparent: true,
+        opacity: 0.7,
+      }),
+    )
+    chevronOutline.rotation.x = Math.PI
+    chevronOutline.position.set(0, chevronY, 0)
+    chevronOutline.renderOrder = -1
+    chevronOutline.name = 'glb-user-head-chevron-outline'
+    userHeadLayer.add(chevronOutline)
   }
 
   if (hasBall) {
@@ -2593,6 +2890,38 @@ function buildGlbIndicatorLayers(
     possessionRing.rotation.x = -Math.PI / 2
     possessionRing.position.y = GLB_FLOOR_LIFT
     possessionLayer.add(possessionRing)
+  }
+
+  if (isKeyDefender && !isUser) {
+    // FR-3 §7.3 — heat-red cue ring for the scene's key defender.
+    // Sits on the same floor lift as the team-color base ring but
+    // with a slightly larger outer radius so the §7.1 `--heat`
+    // band reads as a halo *around* the team identity ring rather
+    // than replacing it. Only mounted when the figure is a
+    // defender (a user-side heat ring would invert the visual
+    // hierarchy described in §7.2 / §7.3).
+    const heatRing = new THREE.Mesh(
+      new THREE.RingGeometry(
+        GLB_HEAT_RING_RADIUS_FT - 0.085,
+        GLB_HEAT_RING_RADIUS_FT,
+        40,
+      ),
+      new THREE.MeshBasicMaterial({
+        color: GLB_HEAT_RING_COLOR,
+        toneMapped: false,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.78,
+      }),
+    )
+    heatRing.rotation.x = -Math.PI / 2
+    // Sit a hair above the base ring so the heat band stays
+    // visible when the camera tilts. Still well below the figure
+    // and the ball, matching §7.7 z-order: court → shadow → ring
+    // → figure → ball → overlays.
+    heatRing.position.y = GLB_FLOOR_LIFT + 0.002
+    heatRing.name = 'glb-key-defender-heat-ring'
+    baseLayer.add(heatRing)
   }
 
   return {
@@ -2773,8 +3102,67 @@ function _assertMixerAdvanceOnce(handle: GlbAthleteHandle): void {
   }
 }
 
-/** Switch the active clip with a small cross-fade. No-op for non-GLB
- *  figures and when the requested clip is already at full weight. */
+/**
+ * FR-2 Packet 3 — GLB-static-pose fallback telemetry.
+ *
+ * Counts the per-clip-switch fallback transitions reached by
+ * `setGlbAthleteAnimation` when the resolver-picked clip is missing
+ * from the figure's mixer. `idle_ready` is the preferred fallback
+ * pose; bind pose is the last resort. Surfaced through the existing
+ * figure-decision badge / Film-Room debug badge so QA can see when
+ * the renderer is teaching with a still athlete instead of the
+ * matching motion clip — the "GLB + static pose" path in §6.1 of
+ * the planning doc.
+ */
+export interface GlbStaticPoseFallbackStats {
+  /** Total `setGlbAthleteAnimation` calls that hit the fallback. */
+  total: number
+  /** How many of those fell back to `idle_ready`. */
+  toIdleReady: number
+  /** How many had no `idle_ready` either and held bind pose. */
+  toBindPose: number
+  /** The most recent missing clip name, if any. */
+  lastMissingClip: GlbAthleteAnimationName | null
+}
+
+let _glbStaticPoseStats: GlbStaticPoseFallbackStats = {
+  total: 0,
+  toIdleReady: 0,
+  toBindPose: 0,
+  lastMissingClip: null,
+}
+
+export function getGlbStaticPoseFallbackStats(): GlbStaticPoseFallbackStats {
+  return _glbStaticPoseStats
+}
+
+/** Test-only — clear the static-pose fallback counter. */
+export function _resetGlbStaticPoseFallbackStatsForTest(): void {
+  _glbStaticPoseStats = {
+    total: 0,
+    toIdleReady: 0,
+    toBindPose: 0,
+    lastMissingClip: null,
+  }
+}
+
+/**
+ * Switch the active clip with a small cross-fade. No-op for non-GLB
+ * figures and when the requested clip is already at full weight.
+ *
+ * FR-2 Packet 3 — when the requested clip is missing from this
+ * figure's mixer, fall back through the §6.1 hierarchy:
+ *   (1) requested clip → (2) `idle_ready` → (3) bind pose.
+ *
+ * Pre-FR-2 a missing clip silently no-op'd, leaving the figure on
+ * whatever clip last ran. That looked like an animation glitch
+ * (e.g. defender keeps sprinting after closeout cleared the moving
+ * flag) and gave QA no signal that the underlying clip was
+ * unavailable. The new fallback always lands on a defined pose
+ * (idle_ready, with bind-pose as the absolute last resort) and
+ * records the transition in `_glbStaticPoseStats` so the debug
+ * badges can show "GLB + static pose ×N" at a glance.
+ */
 export function setGlbAthleteAnimation(
   figure: THREE.Object3D,
   name: GlbAthleteAnimationName,
@@ -2783,7 +3171,45 @@ export function setGlbAthleteAnimation(
   const handle = getGlbAthleteHandle(figure)
   if (!handle) return
   const next = handle.actions[name]
-  if (!next) return
+  if (!next) {
+    // FR-2 Packet 3 — clip missing → static-pose fallback chain.
+    _glbStaticPoseStats = {
+      total: _glbStaticPoseStats.total + 1,
+      toIdleReady: _glbStaticPoseStats.toIdleReady,
+      toBindPose: _glbStaticPoseStats.toBindPose,
+      lastMissingClip: name,
+    }
+    const idle = handle.actions['idle_ready']
+    if (idle) {
+      _glbStaticPoseStats = {
+        ..._glbStaticPoseStats,
+        toIdleReady: _glbStaticPoseStats.toIdleReady + 1,
+      }
+      // Mirror the cross-fade behaviour of the happy path so the
+      // pose transition is not visually jarring.
+      if (idle.isRunning() && idle.getEffectiveWeight() > 0.95) return
+      const fade = options?.fadeSeconds ?? 0.15
+      for (const [otherName, action] of Object.entries(handle.actions)) {
+        if (otherName === 'idle_ready') continue
+        if (action.isRunning()) action.fadeOut(fade)
+      }
+      idle.reset()
+      idle.fadeIn(fade)
+      idle.play()
+      return
+    }
+    // No idle_ready either — hold bind pose. Stop everything that
+    // is still running so the figure freezes deterministically
+    // instead of looping on stale tracks.
+    _glbStaticPoseStats = {
+      ..._glbStaticPoseStats,
+      toBindPose: _glbStaticPoseStats.toBindPose + 1,
+    }
+    for (const action of Object.values(handle.actions)) {
+      if (action.isRunning()) action.stop()
+    }
+    return
+  }
   if (next.isRunning() && next.getEffectiveWeight() > 0.95) return
   const fade = options?.fadeSeconds ?? 0.15
   for (const [otherName, action] of Object.entries(handle.actions)) {
