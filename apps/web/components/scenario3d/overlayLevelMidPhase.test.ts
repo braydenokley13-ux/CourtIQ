@@ -309,7 +309,7 @@ describe('FR-7 — overlay primitive contents survive rebuild at the same level'
   it('rebuild with empty pre cluster keeps post group intact mid-replay', () => {
     const scene: Scene3D = {
       ...buildScene(),
-      preAnswerOverlays: [] as readonly OverlayPrimitive[],
+      preAnswerOverlays: [] as OverlayPrimitive[],
     }
     const { ctrl } = buildBridgeController(scene, 'beginner', 'post')
     const post = getSubGroup(ctrl, 'authored-post-answer-overlays')
