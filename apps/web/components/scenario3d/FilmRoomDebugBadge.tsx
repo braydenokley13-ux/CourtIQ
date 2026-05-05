@@ -178,7 +178,7 @@ export function FilmRoomDebugBadge({
     : { preAnswer: [], postAnswer: [], droppedPre: 0, droppedPost: 0, level: effectiveLevel }
   const suppressed = isOverlaySuppressed(effectiveLevel)
   const phaseStaged: number =
-    replayPhase === 'frozen'
+    replayPhase === 'frozen' || replayPhase === 'cueRepaint'
       ? filtered.preAnswer.length
       : replayPhase === 'consequence' || replayPhase === 'replaying' || replayPhase === 'done'
         ? filtered.postAnswer.length
@@ -206,7 +206,12 @@ export function FilmRoomDebugBadge({
         <span style={{ color: '#9cf' }}>phase</span>{' '}
         <span
           style={{
-            color: replayPhase === 'frozen' ? '#7fdca0' : '#ddd',
+            color:
+              replayPhase === 'frozen'
+                ? '#7fdca0'
+                : replayPhase === 'cueRepaint'
+                  ? '#FFB070'
+                  : '#ddd',
           }}
         >
           {replayPhase}

@@ -275,8 +275,12 @@ function AuthoredOverlayBridge({
   useEffect(() => {
     const ctrl = ctrlRef.current
     if (!ctrl) return
+    // FR-6 — `cueRepaint` is the brief window between consequence
+    // end / best-read pick and the start of answer-leg motion. We
+    // re-paint the pre-answer cluster so the cue lands one more
+    // time before the read plays.
     const overlayPhase: OverlayPhase =
-      replayPhase === 'frozen'
+      replayPhase === 'frozen' || replayPhase === 'cueRepaint'
         ? 'pre'
         : replayPhase === 'consequence' ||
             replayPhase === 'replaying' ||

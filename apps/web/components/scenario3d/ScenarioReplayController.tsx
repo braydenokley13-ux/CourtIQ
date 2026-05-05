@@ -12,6 +12,11 @@ import {
   type Timeline,
 } from '@/lib/scenario3d/timeline'
 import type { CourtPoint } from '@/lib/scenario3d/coords'
+import {
+  CUE_REPAINT_HOLD_CORRECT_MS,
+  CUE_REPAINT_HOLD_WRONG_MS,
+  PRE_CONSEQUENCE_DELAY_MS,
+} from '@/lib/scenario3d/replayTeachingTimeline'
 
 export type ReplayMode = 'static' | 'intro' | 'answer'
 
@@ -22,6 +27,12 @@ export type ReplayMode = 'static' | 'intro' | 'answer'
  * `imperativeScene.ts` extends the same enum with `setup | frozen |
  * consequence | replaying` for decoder scenes. Callers that switch on
  * this type should treat the legacy three as a subset.
+ *
+ * FR-6 — adds `cueRepaint`: the brief window after a consequence
+ * leg ends (or a best-read pick fires) during which the renderer
+ * holds motion and repaints the pre-answer cue cluster before the
+ * answer-leg motion begins. The bridge maps it to overlay phase
+ * `'pre'` so the cue lands one more time before the read plays.
  */
 export type ReplayPhase =
   | 'idle'
@@ -29,6 +40,7 @@ export type ReplayPhase =
   | 'playing'
   | 'frozen'
   | 'consequence'
+  | 'cueRepaint'
   | 'replaying'
   | 'done'
 
@@ -77,6 +89,8 @@ interface ScenarioReplayControllerProps {
   pickedChoiceId?: string | null
 }
 
+/** Default pre-roll for the *first* leg (intro / direct answer). The
+ *  consequence and answer legs use the FR-6 cadence below instead. */
 const PRE_DELAY_MS = 250
 const EMPTY_TIMELINE: Timeline = { totalMs: 0, movements: [], byPlayer: new Map() }
 
@@ -104,6 +118,13 @@ export function ScenarioReplayController({
   const timelineRef = useRef<Timeline>(EMPTY_TIMELINE)
 
   const startedAtRef = useRef<number | null>(null)
+  /** FR-6 — per-leg pre-delay. Defaults to PRE_DELAY_MS; the consequence
+   *  / answer leg entry helpers override this to the §10.2 cadence. */
+  const preDelayMsRef = useRef<number>(PRE_DELAY_MS)
+  /** FR-6 — when the answer leg is entered via the cue-repaint hold, we
+   *  record the entry path so the next-frame transition emits the
+   *  correct phase ('replaying') only once motion actually starts. */
+  const cueRepaintActiveRef = useRef<boolean>(false)
   const phaseRef = useRef<ReplayPhase>('idle')
   const lastFiredCaptionRef = useRef<string>('')
   const firedMovementsRef = useRef<Set<string>>(new Set())
@@ -148,6 +169,8 @@ export function ScenarioReplayController({
     movementsRef.current = initialMovements
     timelineRef.current = initialTimeline
     startedAtRef.current = null
+    preDelayMsRef.current = PRE_DELAY_MS
+    cueRepaintActiveRef.current = false
     phaseRef.current = 'idle'
     lastFiredCaptionRef.current = ''
     firedMovementsRef.current.clear()
@@ -185,6 +208,10 @@ export function ScenarioReplayController({
         startOverrides: snapshotRef.current ?? undefined,
       })
       startedAtRef.current = null
+      // FR-6 §10.2 — the wrong-choice tile flashes for ~80 ms before
+      // the consequence leg starts moving.
+      preDelayMsRef.current = PRE_CONSEQUENCE_DELAY_MS
+      cueRepaintActiveRef.current = false
       lastFiredCaptionRef.current = ''
       firedMovementsRef.current.clear()
       phaseRef.current = 'consequence'
@@ -202,7 +229,9 @@ export function ScenarioReplayController({
           authoredChoiceIds: scene.wrongDemos.map((d) => d.choiceId),
         })
       }
-      enterReplayLegFromSnapshot()
+      // FR-6 — best-read path holds the cue cluster for ~600 ms
+      // before motion (§10.2 correct-path beat).
+      enterReplayLegFromSnapshot('correct')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickedChoiceId, scene])
@@ -229,9 +258,15 @@ export function ScenarioReplayController({
     }
 
     if (startedAtRef.current === null) {
-      startedAtRef.current = nowMs + PRE_DELAY_MS
-      const enterPhase: ReplayPhase = phaseForLeg(legRef.current)
-      if (phaseRef.current !== enterPhase) {
+      startedAtRef.current = nowMs + preDelayMsRef.current
+      // FR-6 — the consequence/answer entry helpers above set
+      // `phaseRef.current` directly (and may emit 'cueRepaint' for
+      // the answer leg). Don't clobber that — only emit the
+      // phase-for-leg fallback when nothing more specific has
+      // been set. This preserves pre-FR-6 behaviour for the intro
+      // leg and the legacy 'answer' mode.
+      if (phaseRef.current === 'idle') {
+        const enterPhase: ReplayPhase = phaseForLeg(legRef.current)
         phaseRef.current = enterPhase
         onPhase?.(enterPhase)
       }
@@ -304,9 +339,25 @@ export function ScenarioReplayController({
     ) {
       // Consequence finished — snap to the freeze snapshot and play the
       // answer demo. The answer leg always honors snapshot overrides for
-      // idle players, matching Section 5.5.
-      enterReplayLegFromSnapshot()
+      // idle players, matching Section 5.5. FR-6: hold the cue
+      // cluster on screen for the wrong-path repaint window before
+      // motion begins.
+      enterReplayLegFromSnapshot('wrong')
       return
+    }
+
+    // FR-6 — once the answer leg's pre-delay window elapses, motion
+    // has started; flip cueRepaint → replaying so the bridge can
+    // swap pre-overlays out for post-overlays.
+    if (
+      legRef.current === 'answer' &&
+      cueRepaintActiveRef.current &&
+      elapsed >= 0 &&
+      phaseRef.current === 'cueRepaint'
+    ) {
+      cueRepaintActiveRef.current = false
+      phaseRef.current = 'replaying'
+      onPhase?.('replaying')
     }
 
     if (
@@ -323,6 +374,8 @@ export function ScenarioReplayController({
 
   function restartCurrentLeg() {
     startedAtRef.current = null
+    preDelayMsRef.current = PRE_DELAY_MS
+    cueRepaintActiveRef.current = false
     phaseRef.current = 'idle'
     lastFiredCaptionRef.current = ''
     firedMovementsRef.current.clear()
@@ -330,7 +383,20 @@ export function ScenarioReplayController({
     // re-anchors `startedAt` and re-emits the leg's entry phase.
   }
 
-  function enterReplayLegFromSnapshot() {
+  /** Enters the answer leg from the freeze snapshot.
+   *
+   *  FR-6 — when called with an explicit path, holds the world for
+   *  the §10.2 cue-repaint window and emits the new `'cueRepaint'`
+   *  phase first so the AuthoredOverlayBridge re-mounts the
+   *  pre-answer cluster before motion begins. The transition to
+   *  `'replaying'` happens exactly when motion starts (elapsed=0)
+   *  inside `useFrame`.
+   *
+   *  Called without a path (e.g. "Show me again") preserves the
+   *  pre-FR-6 contract: emits `'replaying'` immediately and uses
+   *  the default 250 ms pre-delay.
+   */
+  function enterReplayLegFromSnapshot(path?: 'wrong' | 'correct') {
     const snapshot = snapshotRef.current
     legRef.current = 'answer'
     movementsRef.current = scene.answerDemo
@@ -340,8 +406,23 @@ export function ScenarioReplayController({
     startedAtRef.current = null
     lastFiredCaptionRef.current = ''
     firedMovementsRef.current.clear()
-    phaseRef.current = 'replaying'
-    onPhase?.('replaying')
+
+    if (path === 'wrong') {
+      preDelayMsRef.current = CUE_REPAINT_HOLD_WRONG_MS
+      cueRepaintActiveRef.current = true
+      phaseRef.current = 'cueRepaint'
+      onPhase?.('cueRepaint')
+    } else if (path === 'correct') {
+      preDelayMsRef.current = CUE_REPAINT_HOLD_CORRECT_MS
+      cueRepaintActiveRef.current = true
+      phaseRef.current = 'cueRepaint'
+      onPhase?.('cueRepaint')
+    } else {
+      preDelayMsRef.current = PRE_DELAY_MS
+      cueRepaintActiveRef.current = false
+      phaseRef.current = 'replaying'
+      onPhase?.('replaying')
+    }
   }
 
   return null
