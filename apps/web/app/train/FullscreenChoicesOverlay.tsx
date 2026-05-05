@@ -68,17 +68,20 @@ export function FullscreenChoicesOverlay({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
       data-fullscreen-choices="1"
-      className="rounded-2xl border border-white/10 bg-bg-0/85 p-3 shadow-[0_18px_48px_-20px_rgba(0,0,0,0.75)] backdrop-blur-md"
+      className="rounded-2xl border border-white/10 bg-bg-0/85 p-2 shadow-[0_18px_48px_-20px_rgba(0,0,0,0.75)] backdrop-blur-md sm:p-3"
     >
       {prompt ? (
-        <p className="mb-2 text-center text-[12px] font-semibold uppercase tracking-[0.12em] text-text-dim">
+        <p className="mb-1.5 line-clamp-2 px-1 text-center text-[11px] font-semibold uppercase tracking-[0.1em] text-text-dim sm:mb-2 sm:text-[12px] sm:tracking-[0.12em]">
           {prompt}
         </p>
       ) : null}
       <div
         role="group"
         aria-label="Choices"
-        className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4"
+        // 1 column on the smallest landscape phones (≤ 640px), 2
+        // columns on small landscape, 4 columns on tablet+ so the
+        // cards stay readable at every breakpoint.
+        className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 sm:gap-2 lg:grid-cols-4"
       >
         {choices.map((choice, index) => {
           const letter = String.fromCharCode(65 + index)

@@ -329,14 +329,22 @@ export function Scenario3DView(props: Scenario3DViewProps) {
             inside the browser's fullscreen viewport. We only call the
             render-prop while `isFullscreen` is true so the page-level
             (non-fullscreen) layout keeps owning the in-page copy. The
-            slot sits below the canvas and above PremiumOverlay's
-            transport pill — bottom-anchored, pointer-events-auto so
-            it's interactive, with a tall safe gap so the controls
-            don't crowd it. */}
+            slot sits at the bottom of the fullscreen target above
+            PremiumOverlay's transport pill — bottom-anchored,
+            pointer-events-auto, with `pb` chosen so the overlay
+            never overlaps the pill (38px inset + ~52px pill +
+            ~22px gap = ~112px on tall viewports). On short viewports
+            (mobile landscape ≤ 480px), we tighten the gap so the
+            overlay does not crowd more than ~40% of the screen
+            height. The `safe-area-inset-bottom` env() guards iOS
+            home-indicator overlap. */}
         {props.renderFullscreenOverlay && isFullscreen ? (
           <div
             data-fullscreen-interaction-overlay="1"
-            className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center px-4 pb-[112px]"
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center px-3 sm:px-4"
+            style={{
+              paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 96px)',
+            }}
           >
             <div className="pointer-events-auto w-full max-w-[1100px]">
               {props.renderFullscreenOverlay({ isFullscreen })}
