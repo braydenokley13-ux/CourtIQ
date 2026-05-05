@@ -16,6 +16,8 @@ import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ProgressRing } from '@/components/ui'
 import {
+  buildBossChallengeTrainHref,
+  buildMixedReadsTrainHref,
   buildSkillNodeTrainHref,
   countChapterScenarios,
   getAccentColor,
@@ -313,6 +315,7 @@ function ActivePathwayView({
           {pathway.chapters.map((chapter, i) => (
             <ChapterRow
               key={chapter.slug}
+              pathway={pathway}
               pathwaySlug={pathway.slug}
               chapter={chapter}
               progress={progress?.chapters[i] ?? null}
@@ -341,11 +344,13 @@ function ActivePathwayView({
 }
 
 function ChapterRow({
+  pathway,
   pathwaySlug,
   chapter,
   progress,
   isHighlighted,
 }: {
+  pathway: PathwayConfig
   pathwaySlug: string
   chapter: PathwayChapterConfig
   progress: PathwayChapterProgress | null
@@ -360,6 +365,24 @@ function ChapterRow({
   const isCapstone = chapter.decoderTag === null
   const decoderAccPct =
     progress?.decoderAccuracy != null ? Math.round(progress.decoderAccuracy * 100) : null
+
+  // PTH-3: a boss is "ready" once any non-boss skill node has been
+  // attempted. We keep the gate simple — strict "all nodes mastered"
+  // would block early experimentation, and the warning copy ("Practice
+  // first recommended") still nudges the right behavior.
+  const nonBossAttempts = progress?.skillNodes.reduce(
+    (acc, n) => acc + (n.attemptedCount > 0 ? 1 : 0),
+    0,
+  ) ?? 0
+  const allNonBossMastered =
+    chapter.skillNodes.length > 0 &&
+    chapter.skillNodes.every((n) => {
+      const np = progress?.skillNodes.find((p) => p.slug === n.slug)
+      return np?.state === 'mastered'
+    })
+  const bossReady = nonBossAttempts > 0
+  const bossHref = buildBossChallengeTrainHref(pathway, chapter)
+  const mixedHref = isCapstone ? buildMixedReadsTrainHref(pathway, chapter) : null
 
   return (
     <article
@@ -438,20 +461,25 @@ function ChapterRow({
           })}
         </div>
 
-        {/* Boss challenge — visible only as a teaser in v1; the actual
-            boss-mode UI lands in PTH-3. */}
-        {chapter.bossChallenge ? (
-          <div className="rounded-xl border border-heat/30 bg-heat/5 p-3">
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] font-bold uppercase tracking-[1.5px] text-heat">
-                Boss · {chapter.bossChallenge.title.replace(/^Boss\s*[—-]\s*/, '')}
-              </p>
-              <span className="rounded-full border border-heat/40 bg-bg-2 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[1px] text-text-mute">
-                Coming soon
-              </span>
-            </div>
-            <p className="mt-1 text-[12px] text-text-dim">{chapter.bossChallenge.subtitle}</p>
-          </div>
+        {/* PTH-3: Boss challenge — real launch CTA when boss config
+            exists. Locked → coming-soon style; unlocked-but-cold →
+            "Practice first recommended" tag; mastered → boss is the
+            recommended next step. */}
+        {chapter.bossChallenge && bossHref ? (
+          <BossChallengeRow
+            chapter={chapter}
+            href={bossHref}
+            ready={bossReady}
+            recommended={allNonBossMastered}
+            disabled={state === 'locked'}
+          />
+        ) : null}
+
+        {/* PTH-3: Mixed Reads / capstone CTA — only on the Real Game
+            Mix chapter, where decoderTag is null and the player has
+            to identify the cue without the decoder pill. */}
+        {isCapstone && mixedHref ? (
+          <MixedReadsRow chapter={chapter} href={mixedHref} disabled={state === 'locked'} />
         ) : null}
 
         {/* Chapter-level CTA — built from the first un-mastered skill
@@ -544,6 +572,97 @@ function SkillNodeTile({
     >
       {tile}
     </Link>
+  )
+}
+
+function BossChallengeRow({
+  chapter,
+  href,
+  ready,
+  recommended,
+  disabled,
+}: {
+  chapter: PathwayChapterConfig
+  href: string
+  ready: boolean
+  recommended: boolean
+  disabled: boolean
+}) {
+  const boss = chapter.bossChallenge!
+  const cleanTitle = boss.title.replace(/^Boss\s*[—-]\s*/, '')
+  const ctaLabel = recommended ? 'Run the Boss' : ready ? 'Try the Boss' : 'Try the Boss anyway'
+  const tone = recommended
+    ? 'border-heat/60 bg-heat/15 text-heat shadow-heat'
+    : 'border-heat/40 bg-heat/5 text-heat'
+  const subline = recommended
+    ? 'Chapter mastered. Lock it in.'
+    : ready
+      ? boss.subtitle
+      : 'Practice first recommended.'
+  return (
+    <div className={`space-y-2 rounded-xl border p-3 ${tone}`}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] font-bold uppercase tracking-[1.5px]">
+          Boss · {cleanTitle}
+        </p>
+        <span className="rounded-full border border-heat/40 bg-bg-2 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[1px] text-text-mute">
+          {boss.scenarioIds.length} reps · no hints
+        </span>
+      </div>
+      <p className="text-[12px] text-text-dim">{subline}</p>
+      {disabled ? (
+        <p className="rounded-lg border border-hairline-2 bg-bg-2 px-3 py-2 text-center text-[10px] uppercase tracking-[1.5px] text-text-mute">
+          Unlocks once the chapter starts
+        </p>
+      ) : (
+        <Link
+          href={href}
+          className="flex items-center justify-center gap-2 rounded-lg bg-heat/90 py-2.5 text-center font-display text-[12px] font-bold uppercase tracking-[1px] text-bg-0 transition-transform active:scale-[0.99]"
+        >
+          {ctaLabel}
+          <span aria-hidden>→</span>
+        </Link>
+      )}
+    </div>
+  )
+}
+
+function MixedReadsRow({
+  chapter,
+  href,
+  disabled,
+}: {
+  chapter: PathwayChapterConfig
+  href: string
+  disabled: boolean
+}) {
+  return (
+    <div className="space-y-2 rounded-xl border border-iq/40 bg-iq/5 p-3 text-iq">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] font-bold uppercase tracking-[1.5px]">
+          Mixed Reads · {chapter.title}
+        </p>
+        <span className="rounded-full border border-iq/40 bg-bg-2 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[1px] text-text-mute">
+          No decoder pill
+        </span>
+      </div>
+      <p className="text-[12px] text-text-dim">
+        Read the play, not the decoder. {countChapterScenarios(chapter)} reps.
+      </p>
+      {disabled ? (
+        <p className="rounded-lg border border-hairline-2 bg-bg-2 px-3 py-2 text-center text-[10px] uppercase tracking-[1.5px] text-text-mute">
+          Unlocks after Chapter 4
+        </p>
+      ) : (
+        <Link
+          href={href}
+          className="flex items-center justify-center gap-2 rounded-lg bg-iq/90 py-2.5 text-center font-display text-[12px] font-bold uppercase tracking-[1px] text-bg-0 transition-transform active:scale-[0.99]"
+        >
+          Run Mixed Reads
+          <span aria-hidden>→</span>
+        </Link>
+      )}
+    </div>
   )
 }
 
