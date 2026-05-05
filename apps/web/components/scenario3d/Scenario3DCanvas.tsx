@@ -1772,6 +1772,7 @@ export function Scenario3DCanvas({
           concept={concept}
           cameraAssist={cameraAssist}
           cameraManualOverride={cameraManualOverride}
+          overlayLevel={overlayLevel}
         />
       ) : null}
     </div>

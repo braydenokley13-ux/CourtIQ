@@ -20,6 +20,11 @@ import {
   type AssistedCameraMode,
   type CameraAssist,
 } from '@/lib/scenario3d/cameraPresets'
+import {
+  applyOverlayLevel,
+  isOverlaySuppressed,
+  type OverlayLevel,
+} from '@/lib/scenario3d/overlayLevel'
 
 /**
  * FR-1 Packet 6 — film-room teaching-state debug badge.
@@ -60,6 +65,9 @@ interface FilmRoomDebugBadgeProps {
    *  decoder-target row with `(override)` so QA understands why
    *  the active mode does not match the predicted preset. */
   cameraManualOverride?: boolean
+  /** FR-5 §9.2 — currently active overlayLevel. Surfaced so QA can
+   *  see which Pathways mode the renderer is reading. */
+  overlayLevel?: OverlayLevel
 }
 
 export function isFilmRoomDebugBadgeEnabled(): boolean {
@@ -81,6 +89,7 @@ export function FilmRoomDebugBadge({
   concept,
   cameraAssist,
   cameraManualOverride,
+  overlayLevel,
 }: FilmRoomDebugBadgeProps) {
   const [decisions, setDecisions] = useState<readonly PlayerFigureDecision[]>(
     [],
@@ -154,6 +163,27 @@ export function FilmRoomDebugBadge({
   const preCount = scene?.preAnswerOverlays?.length ?? 0
   const postCount = scene?.postAnswerOverlays?.length ?? 0
 
+  // FR-5 — re-derive what the renderer is actually mounting under the
+  // active level so the badge surfaces post-filter counts (and any
+  // primitives the filter dropped). This mirrors the projection
+  // `AuthoredOverlayBridge` runs at mount time; it never mutates the
+  // scene.
+  const effectiveLevel: OverlayLevel = overlayLevel ?? 'beginner'
+  const filtered = scene
+    ? applyOverlayLevel({
+        preAnswer: scene.preAnswerOverlays ?? [],
+        postAnswer: scene.postAnswerOverlays ?? [],
+        level: effectiveLevel,
+      })
+    : { preAnswer: [], postAnswer: [], droppedPre: 0, droppedPost: 0, level: effectiveLevel }
+  const suppressed = isOverlaySuppressed(effectiveLevel)
+  const phaseStaged: number =
+    replayPhase === 'frozen'
+      ? filtered.preAnswer.length
+      : replayPhase === 'consequence' || replayPhase === 'replaying' || replayPhase === 'done'
+        ? filtered.postAnswer.length
+        : 0
+
   // Top-right placement so it does not collide with the bottom-left
   // GlbDebugBadge — both can be on at the same time.
   return (
@@ -212,6 +242,34 @@ export function FilmRoomDebugBadge({
         >
           glb ×{glbCount} · procedural ×{proceduralCount}
         </span>
+      </div>
+      {/* FR-5 §9.2 — adaptive overlay state. Distinct row so QA can
+          see authored counts, the active level, the post-filter
+          counts, dropped primitives, and whether the renderer is
+          actually staging anything for the current phase. */}
+      <div>
+        <span style={{ color: '#9cf' }}>level</span>{' '}
+        <span style={{ color: suppressed ? '#FF4D6D' : '#fcd47a' }}>
+          {effectiveLevel}
+          {suppressed ? ' (suppressed)' : ''}
+        </span>
+        {' · '}
+        <span style={{ color: '#9cf' }}>active</span>{' '}
+        <span style={{ color: '#7fdca0' }}>
+          {filtered.preAnswer.length} pre · {filtered.postAnswer.length} post
+        </span>
+        {' · '}
+        <span style={{ color: '#9cf' }}>staged</span>{' '}
+        <span style={{ opacity: 0.85 }}>{phaseStaged}</span>
+        {filtered.droppedPre + filtered.droppedPost > 0 ? (
+          <>
+            {' · '}
+            <span style={{ color: '#9cf' }}>dropped</span>{' '}
+            <span style={{ color: '#f5a05a' }}>
+              {filtered.droppedPre + filtered.droppedPost}
+            </span>
+          </>
+        ) : null}
       </div>
       <div>
         <span style={{ color: '#9cf' }}>render</span>{' '}
