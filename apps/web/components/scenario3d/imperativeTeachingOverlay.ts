@@ -260,6 +260,17 @@ export class TeachingOverlayController {
   private feedbackMarksGroup: THREE.Group
   private focusMarks: Map<string, FocusMarkHandle> = new Map()
   private feedbackMarks: Map<string, FeedbackMarkHandle> = new Map()
+  // FR-6 — end-of-rep teaching label. Lives outside the pre/post
+  // sub-groups so it survives setPhase() flips; the bridge mounts
+  // it on `done` and clears it on scene swap or restart.
+  private teachingLabelGroup: THREE.Group
+  private teachingLabel: {
+    sprite: THREE.Sprite
+    material: THREE.SpriteMaterial
+    fadeStartMs: number | null
+    fadeDurationMs: number
+    targetOpacity: number
+  } | null = null
 
   constructor(
     scene: Scene3D,
@@ -307,6 +318,13 @@ export class TeachingOverlayController {
     this.feedbackMarksGroup.name = 'feedback-marks-layer'
     this.group.add(this.focusMarksGroup)
     this.group.add(this.feedbackMarksGroup)
+
+    // FR-6 — teaching-label layer. Mounted alongside the marks so a
+    // setPhase('hidden') still leaves the label visible at the end
+    // of a rep.
+    this.teachingLabelGroup = new THREE.Group()
+    this.teachingLabelGroup.name = 'teaching-label-layer'
+    this.group.add(this.teachingLabelGroup)
 
     if (buildHeuristic) {
       const movements = resolveMovements(scene, mode)
@@ -388,6 +406,70 @@ export class TeachingOverlayController {
 
   getPhase(): OverlayPhase {
     return this.phase
+  }
+
+  // ----- FR-6: end-of-rep teaching label API ---------------------
+  //
+  // The label is a single chip ("Read the denial.") that lands at
+  // the end of the answer leg. It lives in its own sub-group so a
+  // `setPhase('hidden')` does not clear it; the bridge mounts on
+  // `done` and clears on scene swap / restart.
+
+  /**
+   * FR-6 — mounts a single teaching-label sprite at `anchor` and
+   * fades its opacity from 0 → `targetOpacity` over `fadeDurationMs`
+   * starting on the next `tick(nowMs)` call. Subsequent calls with
+   * the same text + anchor are a no-op (the existing label keeps
+   * fading); a different text or anchor disposes the existing
+   * sprite and mounts a fresh one.
+   */
+  setTeachingLabel(spec: {
+    text: string
+    anchor: { x: number; z: number }
+    fadeDurationMs: number
+    targetOpacity?: number
+  }): void {
+    const targetOpacity = spec.targetOpacity ?? 1
+    const existing = this.teachingLabel
+    if (existing) {
+      const sprite = existing.sprite
+      const samePos =
+        sprite.position.x === spec.anchor.x && sprite.position.z === spec.anchor.z
+      const sameText = sprite.userData.text === spec.text
+      if (samePos && sameText) return
+      this.clearTeachingLabel()
+    }
+    const sprite = this.buildLabelSprite(spec.text)
+    sprite.position.set(spec.anchor.x, 1.6, spec.anchor.z)
+    sprite.userData.text = spec.text
+    const mat = sprite.material as THREE.SpriteMaterial
+    mat.transparent = true
+    mat.opacity = 0
+    this.teachingLabelGroup.add(sprite)
+    this.teachingLabel = {
+      sprite,
+      material: mat,
+      fadeStartMs: null,
+      fadeDurationMs: Math.max(1, spec.fadeDurationMs),
+      targetOpacity,
+    }
+  }
+
+  /** FR-6 — disposes the active teaching label. Safe to call when
+   *  no label is mounted. */
+  clearTeachingLabel(): void {
+    const existing = this.teachingLabel
+    if (!existing) return
+    this.teachingLabelGroup.remove(existing.sprite)
+    const tex = existing.material.map
+    if (tex && typeof tex.dispose === 'function') tex.dispose()
+    if (typeof existing.material.dispose === 'function') existing.material.dispose()
+    this.teachingLabel = null
+  }
+
+  /** FR-6 — returns true while a teaching label is mounted. */
+  hasTeachingLabel(): boolean {
+    return this.teachingLabel !== null
   }
 
   // ----- Phase 3: focus / feedback marks API ----------------------
@@ -587,6 +669,22 @@ export class TeachingOverlayController {
         m.material.opacity = m.baseOpacity * pulse
       }
     }
+
+    // FR-6 — teaching label fade-in. One-shot ramp from 0 → target
+    // over `fadeDurationMs`; opacity stays pinned at target after.
+    const tl = this.teachingLabel
+    if (tl) {
+      if (tl.fadeStartMs === null) {
+        tl.fadeStartMs = nowMs
+      }
+      const elapsed = nowMs - tl.fadeStartMs
+      if (elapsed >= tl.fadeDurationMs) {
+        tl.material.opacity = tl.targetOpacity
+      } else {
+        const u = clamp01(elapsed / Math.max(1, tl.fadeDurationMs))
+        tl.material.opacity = tl.targetOpacity * easeOutCubic(u)
+      }
+    }
   }
 
   /** Removes the overlay group from its parent and frees every GPU
@@ -620,6 +718,8 @@ export class TeachingOverlayController {
     for (const id of Array.from(this.feedbackMarks.keys())) {
       this.removeFeedbackMark(id)
     }
+    // FR-6 — drop the teaching label and free its texture+material.
+    this.clearTeachingLabel()
   }
 
   /** Phase E — clears the authored-overlay sub-groups and frees any

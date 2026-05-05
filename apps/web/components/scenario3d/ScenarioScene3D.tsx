@@ -20,6 +20,10 @@ import {
   isOverlaySuppressed,
   type OverlayLevel,
 } from '@/lib/scenario3d/overlayLevel'
+import {
+  TEACHING_LABEL_FADE_IN_MS,
+  getDecoderTeachingLabel,
+} from '@/lib/scenario3d/replayTeachingTimeline'
 
 interface ScenarioScene3DProps {
   scene: Scene3D
@@ -288,11 +292,57 @@ function AuthoredOverlayBridge({
           ? 'post'
           : 'hidden'
     ctrl.setPhase(overlayPhase)
-  }, [replayPhase])
+
+    // FR-6 — end-of-rep teaching label. Mounts on `done` and
+    // anchors above the cue role's player position; clears on
+    // scene swap (the rebuild effect's cleanup also disposes via
+    // `ctrl.dispose()`, so this is defense in depth) or whenever
+    // the user re-enters the rep (idle / setup / playing).
+    if (replayPhase === 'done' && scene.decoderTag) {
+      const label = getDecoderTeachingLabel(scene.decoderTag)
+      const anchorPlayer = pickTeachingLabelAnchor(scene, label.anchorRole)
+      if (anchorPlayer) {
+        ctrl.setTeachingLabel({
+          text: label.text,
+          anchor: { x: anchorPlayer.x, z: anchorPlayer.z },
+          fadeDurationMs: TEACHING_LABEL_FADE_IN_MS,
+          targetOpacity: 1,
+        })
+      }
+    } else if (replayPhase === 'idle' || replayPhase === 'setup' || replayPhase === 'playing') {
+      // The user is re-entering the rep — drop any stale label so
+      // the next rep doesn't show last rep's chip.
+      if (ctrl.hasTeachingLabel()) ctrl.clearTeachingLabel()
+    }
+  }, [replayPhase, scene])
 
   useFrame((state) => {
     ctrlRef.current?.tick(state.clock.getElapsedTime() * 1000)
   })
 
+  return null
+}
+
+/**
+ * FR-6 — picks a court point above which the end-of-rep teaching
+ * label should hover. The plan's §9.4 anchor rule is "above the
+ * cue", and across all four founder families the cue's payoff
+ * lands on the user's figure (cutter / receiver / open shooter /
+ * skip target). We anchor at the user's starting position so the
+ * label is deterministic regardless of where the answer leg
+ * deposits the user — and it stays inside the freeze framing the
+ * cueRepaint phase already centred on the user.
+ *
+ * Returns null when the scene has no user player (legacy /
+ * synthetic scenes); the bridge no-ops in that case.
+ */
+function pickTeachingLabelAnchor(
+  scene: Scene3D,
+  _role: 'cutter' | 'receiver' | 'open_player' | 'helper_defender' | 'closeout_defender' | 'deny_defender',
+): { x: number; z: number } | null {
+  const user = scene.players.find((p) => p.isUser)
+  if (user) return { x: user.start.x, z: user.start.z }
+  const firstOffense = scene.players.find((p) => p.team === 'offense')
+  if (firstOffense) return { x: firstOffense.start.x, z: firstOffense.start.z }
   return null
 }
