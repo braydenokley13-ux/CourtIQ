@@ -433,14 +433,26 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
           ? 'defensive'
           : 'idle'
 
-    const playerGroup = buildPlayerFigure(
-      teamColor,
-      trimColor,
-      p.isUser ?? false,
-      p.id === initialHolderId,
-      jerseyNumber,
-      stance,
-    )
+    // FR-2 Packet 4 — register the per-player build context so the
+    // figure-decision log push inside `buildPlayerFigure` can stamp
+    // `{ scenarioId, playerId }` onto every recorded decision (and
+    // emit the structured `[CourtIQ GLB fallback]` breadcrumb on
+    // non-GLB picks). Cleared in a `finally` so an exception in the
+    // builder never leaks context onto the next player.
+    _setPlayerFigureBuildContext({ scenarioId: scene.id, playerId: p.id })
+    let playerGroup: THREE.Group
+    try {
+      playerGroup = buildPlayerFigure(
+        teamColor,
+        trimColor,
+        p.isUser ?? false,
+        p.id === initialHolderId,
+        jerseyNumber,
+        stance,
+      )
+    } finally {
+      _setPlayerFigureBuildContext(null)
+    }
     playerGroup.position.set(p.start.x, PLAYER_LIFT, p.start.z)
     playerGroup.rotation.y = computePlayerYaw(p.team, p.start.x, p.start.z)
     root.add(playerGroup)
@@ -3887,10 +3899,72 @@ export interface PlayerFigureDecision {
    *  threw. Carries the actual exception text so the operator does
    *  not have to reproduce the failure with breakpoints. */
   error?: string
+  /** FR-2 Packet 4 — owning scenario id at the time of the build,
+   *  if `buildBasketballGroup` was invoked with scene context. Lets
+   *  the dev surface map every recorded fallback back to the
+   *  scenario the user was looking at. Optional so legacy callers
+   *  (preset previews, isolated unit tests) still work without
+   *  retrofit. */
+  scenarioId?: string
+  /** FR-2 Packet 4 — owning player id from the scene definition. */
+  playerId?: string
 }
 
 let _figureDecisionLog: PlayerFigureDecision[] = []
 let _forceGlbAthletePreview = false
+
+/**
+ * FR-2 Packet 4 — module-scope build context register.
+ *
+ * `buildPlayerFigure` was authored with a fixed signature that the
+ * §3.3F regression tests pin in place; we cannot widen it without
+ * churning every test. Instead, `buildBasketballGroup` writes the
+ * current scene + per-player context to this slot before each
+ * `buildPlayerFigure` call (and clears it after) so the decision-log
+ * push captures `{ scenarioId, playerId }` as well as the existing
+ * `{ pick, reason }` payload.
+ *
+ * Stays empty when callers (premium previews, isolated tests,
+ * `buildAthleteFigure` direct invocations) skip the registration —
+ * the decision log degrades gracefully to its pre-Packet-4 shape.
+ */
+interface PlayerFigureBuildContext {
+  scenarioId: string
+  playerId: string
+}
+let _currentFigureBuildContext: PlayerFigureBuildContext | null = null
+
+export function _setPlayerFigureBuildContext(
+  ctx: PlayerFigureBuildContext | null,
+): void {
+  _currentFigureBuildContext = ctx
+}
+
+/**
+ * FR-2 Packet 4 — emits a single structured `[CourtIQ GLB fallback]`
+ * console line every time a non-`glb` decision lands in the log.
+ * Payload matches the §6.5 spec verbatim — `{ scenarioId, playerId,
+ * pickedPath, reason }` — so logs are grep-able and forwardable to
+ * Sentry breadcrumbs / PostHog without further parsing.
+ *
+ * Keeping the emit at the log-push site (rather than at each
+ * fallback branch above) guarantees the breadcrumb fires once per
+ * decision, in the order figures were built, with the actual final
+ * `pick` recorded — so a subsequent path swap (skinned → premium →
+ * procedural) does not produce duplicate noise.
+ */
+function _emitFallbackBreadcrumb(decision: PlayerFigureDecision): void {
+  if (decision.pick === 'glb') return
+  if (typeof console === 'undefined') return
+  // eslint-disable-next-line no-console
+  console.info('[CourtIQ GLB fallback]', {
+    scenarioId: decision.scenarioId ?? null,
+    playerId: decision.playerId ?? null,
+    pickedPath: decision.pick,
+    reason: decision.reason,
+    error: decision.error ?? null,
+  })
+}
 
 /** P3.3F — clear the decision log. Called by `Scenario3DCanvas`
  *  before every scene-build so a navigation away does not stack
@@ -3982,10 +4056,14 @@ export function buildPlayerFigure(
       glbThrew = err
     }
     if (glb) {
-      _figureDecisionLog.push({
+      const decision: PlayerFigureDecision = {
         pick: 'glb',
         reason: 'gate-on-cache-warm',
-      })
+        scenarioId: _currentFigureBuildContext?.scenarioId,
+        playerId: _currentFigureBuildContext?.playerId,
+      }
+      _figureDecisionLog.push(decision)
+      // GLB success — no fallback breadcrumb required.
       return glb
     }
     // GLB attempted but did not return a figure. Surface the actual
@@ -4010,11 +4088,15 @@ export function buildPlayerFigure(
           ? String(glbThrew)
           : failure.error
     if (_forceGlbAthletePreview) {
-      _figureDecisionLog.push({
+      const decision: PlayerFigureDecision = {
         pick: 'force-glb-marker',
         reason: glbFailureReason,
         error: glbFailureError,
-      })
+        scenarioId: _currentFigureBuildContext?.scenarioId,
+        playerId: _currentFigureBuildContext?.playerId,
+      }
+      _figureDecisionLog.push(decision)
+      _emitFallbackBreadcrumb(decision)
       return _buildForceGlbFailureMarker()
     }
   }
@@ -4029,11 +4111,15 @@ export function buildPlayerFigure(
         stance,
       )
       if (skinned) {
-        _figureDecisionLog.push({
+        const decision: PlayerFigureDecision = {
           pick: 'skinned',
           reason: glbFailureReason ?? 'skinned-flag-on',
           error: glbFailureError,
-        })
+          scenarioId: _currentFigureBuildContext?.scenarioId,
+          playerId: _currentFigureBuildContext?.playerId,
+        }
+        _figureDecisionLog.push(decision)
+        _emitFallbackBreadcrumb(decision)
         return skinned
       }
     } catch {
@@ -4052,22 +4138,30 @@ export function buildPlayerFigure(
         jerseyNumber,
         stance,
       )
-      _figureDecisionLog.push({
+      const decision: PlayerFigureDecision = {
         pick: 'premium',
         reason: glbFailureReason ?? 'premium-flag-on',
         error: glbFailureError,
-      })
+        scenarioId: _currentFigureBuildContext?.scenarioId,
+        playerId: _currentFigureBuildContext?.playerId,
+      }
+      _figureDecisionLog.push(decision)
+      _emitFallbackBreadcrumb(decision)
       return premium
     } catch {
       // Phase J fallback — premium path failed, render the
       // Phase F figure so the scene never crashes.
     }
   }
-  _figureDecisionLog.push({
+  const decision: PlayerFigureDecision = {
     pick: 'procedural',
     reason: glbFailureReason ?? 'gate-off',
     error: glbFailureError,
-  })
+    scenarioId: _currentFigureBuildContext?.scenarioId,
+    playerId: _currentFigureBuildContext?.playerId,
+  }
+  _figureDecisionLog.push(decision)
+  _emitFallbackBreadcrumb(decision)
   return buildAthleteFigure(teamColor, trimColor, isUser, hasBall, jerseyNumber, stance)
 }
 
