@@ -30,6 +30,7 @@
 
 import * as THREE from 'three'
 import type { PlayerStance } from './imperativeScene'
+import { GLB_ATHLETE_MATERIAL_PARAMS } from '@/lib/scenario3d/glbAthleteAudit'
 
 /**
  * Indicator layer handles attached to a skinned figure. Same
@@ -926,10 +927,16 @@ function buildSkinnedHumanoid(teamColor: string): {
   // modern three (r155+). The material does not need a `skinning`
   // flag — the shader chunks are injected when the mesh binds to a
   // skeleton.
+  // FR-8 Packet 6 — procedural parity with the GLB path. Material
+  // params come from the canonical audit table so the procedural
+  // skinned figure renders against the same cloth-style response
+  // the multi-region GLB tinter uses (roughness 0.72, metalness
+  // 0.02). This closes the §7.6 "GLB and procedural feel like the
+  // same visual system" goal at the material layer.
   const material = new THREE.MeshStandardMaterial({
     color: teamColor,
-    roughness: 0.7,
-    metalness: 0.05,
+    roughness: GLB_ATHLETE_MATERIAL_PARAMS.bodyRoughness,
+    metalness: GLB_ATHLETE_MATERIAL_PARAMS.bodyMetalness,
   })
 
   const skinnedMesh = new THREE.SkinnedMesh(merged, material)
