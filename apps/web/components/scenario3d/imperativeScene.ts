@@ -4480,7 +4480,17 @@ export function _resetIntentDebugLogGuard(): void {
 // actual playing athlete on TV. Triangle counts are unchanged
 // (lathe / cylinder segment counts are constant), so the Phase J
 // 2400-tri ceiling is preserved.
-const ATH_TOTAL_HEIGHT = 5.95
+/**
+ * FR-3 §7.8 — procedural figure standing height in court feet.
+ *
+ * Locked against `GLB_TARGET_HEIGHT_FT` from `glbAthlete.ts` to a
+ * ±0.05 ft tolerance by `playerScaleContract.test.ts`. Drift larger
+ * than that breaks the §7.11 "GLB and procedural figures feel like
+ * the same visual system" goal because a procedural-rendered scene
+ * and a GLB-rendered scene would frame the same camera differently.
+ */
+export const ATH_TOTAL_HEIGHT_FT = 5.95
+const ATH_TOTAL_HEIGHT = ATH_TOTAL_HEIGHT_FT
 const ATH_FOOT_HEIGHT = 0.18
 const ATH_FOOT_LENGTH = 1.12
 const ATH_FOOT_WIDTH = 0.54

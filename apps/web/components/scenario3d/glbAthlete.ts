@@ -69,7 +69,35 @@ export const GLB_ATHLETE_ASSET_URL = '/athlete/mannequin.glb'
  * ~5.93 ft after this scale, matching the procedural figure within
  * 0.02 ft.
  */
+/**
+ * FR-3 §7.8 — m → ft uniform scale applied to the cloned GLB rig.
+ *
+ * The bundled Quaternius mannequin is authored in meters; multiplying
+ * by `1/0.3048` lifts it into court feet so it shares a coordinate
+ * system with the procedural figure and the court geometry.
+ */
 const GLB_M_TO_FT_SCALE = 1 / 0.3048
+
+/**
+ * FR-3 §7.8 — expected GLB rig standing height in court feet.
+ *
+ * The Quaternius UAL2 mannequin asset measures ≈ 1.808 m floor-to-
+ * crown; after `GLB_M_TO_FT_SCALE` the scaled rig stands ≈ 5.93 ft.
+ * Locked against `ATH_TOTAL_HEIGHT_FT` (5.95 ft) from
+ * `imperativeScene.ts` to a ±0.05 ft tolerance by
+ * `playerScaleContract.test.ts`. Pin this constant; do not let it
+ * drift independently of the procedural figure height.
+ */
+export const GLB_TARGET_HEIGHT_FT = 5.93
+
+/**
+ * FR-3 §7.8 — maximum acceptable gap between the GLB rig and the
+ * procedural figure standing heights. Pre-FR-3 the planning doc
+ * already targeted ±0.05 ft; making the budget a named constant
+ * lets the contract test fail fast if a future packet drifts either
+ * height without acknowledging the policy.
+ */
+export const PLAYER_HEIGHT_DELTA_BUDGET_FT = 0.05
 
 interface GlbIndicatorLayers {
   base: THREE.Group
