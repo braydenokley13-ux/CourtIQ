@@ -50,6 +50,10 @@ import {
 import { buildDustMotes, type DustMotes } from '@/lib/scenario3d/atmosphere'
 import { loadGlbAthleteAsset, preloadImportedCloseoutClip } from './glbAthlete'
 import { GlbDebugBadge, isGlbDebugBadgeEnabled } from './GlbDebugBadge'
+import {
+  FilmRoomDebugBadge,
+  isFilmRoomDebugBadgeEnabled,
+} from './FilmRoomDebugBadge'
 
 interface Scenario3DCanvasProps {
   /** Mounted as the WebGL fallback when WebGL is unavailable. */
@@ -264,6 +268,17 @@ export function Scenario3DCanvas({
   // client-only post-hydration flag so the SSR markup and the first
   // client render agree (no hydration warning).
   const [glbDebugEnabled, setGlbDebugEnabled] = useState(false)
+  // FR-1 Packet 6 — film-room teaching-state badge. Mounts only under
+  // `?debugFilmRoom=1` or `window.__COURTIQ_FILM_ROOM_DEBUG__`. Same
+  // hydration-safe gate as the GLB badge above.
+  const [filmRoomDebugEnabled, setFilmRoomDebugEnabled] = useState(false)
+  // FR-1 Packet 6 — local mirror of the replay phase so the
+  // FilmRoomDebugBadge surfaces it without subscribing to the
+  // controller. We layer it on top of the parent's onPhase callback —
+  // the parent still receives every transition.
+  const [filmRoomReplayPhase, setFilmRoomReplayPhase] = useState<ReplayPhase>(
+    'idle',
+  )
   // P3.3F — `?forceGlb=1` URL param. When set the figure builder
   // (a) skips the skinned/premium/Phase-F fallback chain and
   // (b) returns a bright magenta marker for any figure the GLB
@@ -275,6 +290,7 @@ export function Scenario3DCanvas({
   const [forceGlb, setForceGlb] = useState(false)
   useEffect(() => {
     setGlbDebugEnabled(isGlbDebugBadgeEnabled())
+    setFilmRoomDebugEnabled(isFilmRoomDebugBadgeEnabled())
     if (typeof window === 'undefined') return
     let force = false
     try {
@@ -896,7 +912,9 @@ export function Scenario3DCanvas({
             const unsubscribe = machine.subscribe(({ state }) => {
               // ReplayState matches ReplayPhase 1:1 for the values the
               // train flow cares about; cast and forward.
-              phaseListener?.(state as ReplayState as ReplayPhase)
+              const next = state as ReplayState as ReplayPhase
+              setFilmRoomReplayPhase(next)
+              phaseListener?.(next)
               // Phase B / B1 — re-apply React-owned playback flags after
               // every state transition. `setMovements` (called by
               // `startConsequence` / `startReplay`) clears `pausedAtT`,
@@ -1485,7 +1503,10 @@ export function Scenario3DCanvas({
               mode={replayMode}
               resetCounter={resetCounter}
               onCaption={onCaption}
-              onPhase={onPhase}
+              onPhase={(p) => {
+                setFilmRoomReplayPhase(p)
+                onPhase?.(p)
+              }}
               showPaths={showPaths}
               pickedChoiceId={pickedChoiceId}
             />
@@ -1528,6 +1549,18 @@ export function Scenario3DCanvas({
           was set from the console; otherwise stays unmounted so prod
           users never load the asset probes. */}
       {glbDebugEnabled ? <GlbDebugBadge /> : null}
+      {/* FR-1 Packet 6 — film-room teaching-state badge. Mounts only
+          when `?debugFilmRoom=1` or `window.__COURTIQ_FILM_ROOM_DEBUG__`
+          is set. Production users without either flag never render
+          this component; no asset probes, no behaviour changes. */}
+      {filmRoomDebugEnabled ? (
+        <FilmRoomDebugBadge
+          scene={scene}
+          cameraMode={activeCameraMode}
+          replayPhase={filmRoomReplayPhase}
+          concept={concept}
+        />
+      ) : null}
     </div>
   )
 }
