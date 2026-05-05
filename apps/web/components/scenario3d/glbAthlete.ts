@@ -1355,6 +1355,25 @@ export function buildGlbAthletePreview(
     )
     ;(figure.userData as Record<string, unknown>).indicatorLayers = indicatorLayers
 
+    // FR-3 Packet 3 — grounding shadow disc.
+    //
+    // §7.7 of the planning doc requires every figure to render a
+    // soft circular shadow under its feet so the eye reads the
+    // figure as standing on the court instead of floating. Pre-FR-3
+    // the procedural builder shipped a `CircleGeometry` shadow but
+    // the GLB path skipped it — figures rendered through
+    // `buildGlbAthletePreview` had no contact shadow at all,
+    // breaking the §7.11 "GLB and procedural figures feel like the
+    // same visual system" goal.
+    //
+    // The shadow is mounted under an inverse-scaled group (same
+    // trick the indicator layers use) so its radius is authored in
+    // court-foot units and matches the procedural shadow byte-for-
+    // byte. `renderOrder = -1` keeps the §7.7 z-order
+    // (court → shadow → ring → figure → ball → overlays).
+    const groundingShadowLayer = buildGlbGroundingShadowLayer()
+    figure.add(groundingShadowLayer)
+
     const mixer = new THREE.AnimationMixer(cloned)
     const clips = getCachedGlbClips()
     const actions: Record<string, THREE.AnimationAction> = {}
@@ -2601,6 +2620,51 @@ function applyMultiRegionMaterialsToCloned(
 }
 
 const GLB_FLOOR_LIFT = 0.05
+// FR-3 §7.7 — grounding shadow constants.
+//
+// Mirror the procedural shadow disc so the two render paths produce
+// the same visual weight under the figure. The radius (1.75 ft) is
+// `PLAYER_RADIUS (1.2) + 0.55` from imperativeScene.ts; opacity 0.42
+// and color `#05070A` match the procedural `CONTACT_SHADOW_COLOR`.
+// Constants live here (not imported) so the GLB module avoids the
+// `imperativeScene` cycle for visual constants.
+const GLB_GROUNDING_SHADOW_RADIUS_FT = 1.75
+const GLB_GROUNDING_SHADOW_COLOR = '#05070A'
+const GLB_GROUNDING_SHADOW_OPACITY = 0.42
+const GLB_GROUNDING_SHADOW_Y = 0.02
+
+/**
+ * FR-3 Packet 3 — soft circular contact shadow for the GLB figure.
+ *
+ * Mounted under an inverse-scaled group so the radius is authored
+ * in court-foot units (matches the procedural shadow primitive in
+ * `imperativeScene.ts` exactly). `renderOrder = -1` keeps the
+ * §7.7 z-order: the shadow draws beneath the team-color base ring
+ * and the figure mesh.
+ */
+function buildGlbGroundingShadowLayer(): THREE.Group {
+  const inverseScale = 1 / GLB_M_TO_FT_SCALE
+  const layer = new THREE.Group()
+  layer.name = 'glb-grounding-shadow-layer'
+  layer.scale.setScalar(inverseScale)
+  const disc = new THREE.Mesh(
+    new THREE.CircleGeometry(GLB_GROUNDING_SHADOW_RADIUS_FT, 24),
+    new THREE.MeshBasicMaterial({
+      color: GLB_GROUNDING_SHADOW_COLOR,
+      toneMapped: false,
+      transparent: true,
+      opacity: GLB_GROUNDING_SHADOW_OPACITY,
+      depthWrite: false,
+    }),
+  )
+  disc.rotation.x = -Math.PI / 2
+  disc.position.y = GLB_GROUNDING_SHADOW_Y
+  disc.renderOrder = -1
+  disc.name = 'glb-grounding-shadow-disc'
+  layer.add(disc)
+  return layer
+}
+
 const GLB_BASE_RING_RADIUS_FT = 0.95
 const GLB_USER_HALO_RADIUS_FT = 1.45
 const GLB_POSSESSION_RING_RADIUS_FT = 1.1
