@@ -125,18 +125,28 @@ export function pickAssistedCameraMode(
     case 'playing':
       return 'broadcast'
 
-    case 'frozen':
-    case 'cueRepaint': {
+    case 'frozen': {
       // §8.9 — partial assist keeps broadcast through freeze; only
-      // full assist composes the teaching frame.  FR-6 — cueRepaint
-      // is the brief window between consequence end and answer-leg
-      // motion; it lives at the freeze framing so the cue lands
-      // again before the read.
+      // full assist composes the teaching frame.
       if (assist === 'partial') return 'broadcast'
       return freezePresetForDecoder(decoder)
     }
 
     case 'consequence':
+      return replayPresetForDecoder(decoder, assist)
+
+    case 'cueRepaint':
+      // V1 stabilization — `cueRepaint` is the short hold between
+      // consequence end (or best-read pick) and the answer-leg
+      // motion. Returning `null` (hold the previous mode) prevents
+      // a frozen → consequence → cueRepaint → replaying camera
+      // bounce on the wrong-pick path: the controller stays on
+      // the consequence/replay framing instead of snapping back to
+      // the freeze preset and then forward again. Best-read picks
+      // come straight from `frozen`, so the hold also keeps the
+      // freeze framing while the cue cluster repaints.
+      return null
+
     case 'replaying':
       return replayPresetForDecoder(decoder, assist)
 
