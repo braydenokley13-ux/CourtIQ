@@ -58,6 +58,10 @@ import {
   FilmRoomDebugBadge,
   isFilmRoomDebugBadgeEnabled,
 } from './FilmRoomDebugBadge'
+import {
+  pickAssistedCameraMode,
+  type CameraAssist,
+} from '@/lib/scenario3d/cameraPresets'
 
 interface Scenario3DCanvasProps {
   /** Mounted as the WebGL fallback when WebGL is unavailable. */
@@ -117,6 +121,17 @@ interface Scenario3DCanvasProps {
    * by the imperative simple-mode tree.
    */
   pickedChoiceId?: string | null
+  /**
+   * FR-4 §8.9 — how much the renderer should help with the freeze
+   * camera. The Pathways layer chooses; the renderer just respects
+   * the prop. `'none'` disables decoder-aware framing entirely
+   * (broadcast everywhere); `'partial'` keeps broadcast through
+   * freeze but composes a teaching replay; `'full'` composes both
+   * the freeze and the replay frame. Default `'partial'` so the
+   * existing /train flow keeps the pre-FR-4 framing through freeze
+   * but still earns a teaching replay.
+   */
+  cameraAssist?: CameraAssist
 }
 
 // Mid-tone gray. While the rebuild is in flight we deliberately do NOT
@@ -189,6 +204,12 @@ export function Scenario3DCanvas({
   onQualityChange,
   forceFullPath,
   pickedChoiceId,
+  // FR-4 Packet 4 — `partial` matches the pre-FR-4 broadcast-through-
+  // freeze behaviour while still allowing a teaching replay, so the
+  // default keeps existing /train sessions stable. /dev/scenario-preview
+  // and any future Pathways "Learn the Cue" mode pass `'full'` to opt
+  // into decoder-aware freeze framing.
+  cameraAssist = 'partial',
 }: Scenario3DCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   // Refs into the THREE objects R3F creates. Captured in onCreated so a
@@ -1273,6 +1294,45 @@ export function Scenario3DCanvas({
     const ctrl = cameraControllerRef.current
     if (ctrl) ctrl.setMode(activeCameraMode)
   }, [activeCameraMode])
+
+  // FR-4 Packet 4 — decoder + phase + assist dispatcher.
+  //
+  // On every (phase, decoder, assist) change, ask the policy layer
+  // for the preset it wants and push it into the controller. The
+  // controller eases between targets via its existing 180 ms time
+  // constant, so a phase transition produces a smooth lerp instead
+  // of a cut.
+  //
+  // §8.6 — manual override wins. We treat any explicit
+  // `cameraModeProp` (from URL `?camera=` or the user picking a
+  // dropdown option that isn't `auto`) as override, so the
+  // dispatcher offers no opinion and the controller keeps the user's
+  // choice. `auto` falls through so the dispatcher can drive the
+  // freeze framing — that's the default for /dev/scenario-preview
+  // and the fallback for /train.
+  //
+  // Returns `null` from the dispatcher (e.g. `phase === 'done'`)
+  // also leaves the controller alone, so the previous teaching
+  // frame holds during the post-decision pause instead of snapping
+  // back to broadcast.
+  const manualOverride =
+    cameraModeProp !== undefined && cameraModeProp !== 'auto'
+  useEffect(() => {
+    const ctrl = cameraControllerRef.current
+    if (!ctrl) return
+    const picked = pickAssistedCameraMode({
+      decoder: visibleScene.decoderTag ?? null,
+      phase: filmRoomReplayPhase,
+      assist: cameraAssist,
+      manualOverride,
+    })
+    if (picked !== null) ctrl.setMode(picked)
+  }, [
+    visibleScene.decoderTag,
+    filmRoomReplayPhase,
+    cameraAssist,
+    manualOverride,
+  ])
 
   // Push scene-data changes into the controller so follow mode (and
   // auto-fit) update when the scenario swaps players or ball-holder.

@@ -10,6 +10,7 @@ import { getCameraMode } from '@/lib/scenario3d/feature'
 import type { QualityMode } from '@/lib/scenario3d/quality'
 import { PremiumOverlay, type PlaybackRate } from './PremiumOverlay'
 import { loadGlbAthleteAsset } from './glbAthlete'
+import type { CameraAssist } from '@/lib/scenario3d/cameraPresets'
 
 // FR-2 Packet 1 — module-level GLB asset preload.
 //
@@ -65,6 +66,15 @@ interface Scenario3DViewProps {
    * (or short-circuits to the answer leg for best-read choices).
    */
   pickedChoiceId?: string | null
+  /**
+   * FR-4 §8.9 — how aggressively the renderer should help with the
+   * freeze framing. Forwarded to `Scenario3DCanvas` so the decoder-
+   * aware dispatcher can pick the right preset per replay phase.
+   * The Pathways layer chooses; the renderer just respects the prop.
+   * Default `'partial'` keeps the pre-FR-4 broadcast-through-freeze
+   * behaviour for /train while still earning a teaching replay.
+   */
+  cameraAssist?: CameraAssist
 }
 
 /**

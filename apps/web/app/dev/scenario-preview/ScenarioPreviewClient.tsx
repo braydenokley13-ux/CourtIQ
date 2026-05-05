@@ -364,6 +364,11 @@ export function ScenarioPreviewClient({
                 onCaption={setActiveCaption}
                 forceFullPath
                 height={720}
+                /* FR-4 §8.9 — QA route always opts into the strongest
+                 *  decoder-aware framing so the freeze frame teaches
+                 *  the read; production /train inherits the partial
+                 *  default. */
+                cameraAssist="full"
               />
             ) : (
               <div
