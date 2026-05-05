@@ -115,6 +115,46 @@ export function isAutoFitCamera(): boolean {
 }
 
 /**
+ * FR-1 — true when the page is loaded with `?debugFilmRoom=1` OR when
+ * `window.__COURTIQ_FILM_ROOM_DEBUG__` has been set to `true` from
+ * DevTools. Mirrors the gate shape used by `?glbDebug=1` so a single
+ * debug session can layer both badges. The badge mounted by this gate
+ * surfaces the *teaching* state (decoder, camera preset, overlay
+ * level, render-path summary, replay phase) rather than the asset
+ * gating state already covered by `GlbDebugBadge`.
+ */
+export function isDebugFilmRoom(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('debugFilmRoom') === '1') return true
+  } catch {
+    // ignore — malformed URL is treated as "off"
+  }
+  const w = window as unknown as Record<string, unknown>
+  return w['__COURTIQ_FILM_ROOM_DEBUG__'] === true
+}
+
+/**
+ * FR-1 — reads the `?scenario=` query param when the URL points at a
+ * dev / preview surface. Returns the raw string when present and
+ * shaped like a founder-v0 id (e.g. `BDW-02`); returns `null`
+ * otherwise. Server-side returns `null` so callers can treat the
+ * absence as "no override".
+ */
+export function getScenarioParam(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = new URLSearchParams(window.location.search).get('scenario')
+    if (typeof raw !== 'string' || raw.length === 0) return null
+    if (!/^[A-Z]{2,5}-\d{2,3}$/.test(raw)) return null
+    return raw
+  } catch {
+    return null
+  }
+}
+
+/**
  * Reads the `?camera=` query param and returns it as a CameraMode if it
  * matches one of the supported presets, otherwise null. Used by the
  * Scenario3DCanvas to opt into broadcast/tactical/follow/replay framing

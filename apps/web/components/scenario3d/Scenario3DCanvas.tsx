@@ -52,6 +52,7 @@ import {
   GLB_ATHLETE_ASSET_URL,
   GLB_IMPORTED_BACK_CUT_CLIP_URL,
   GLB_IMPORTED_CLOSEOUT_CLIP_URL,
+  isGlbAthleteCacheReady,
   loadGlbAthleteAsset,
   preloadImportedCloseoutClip,
 } from './glbAthlete'
@@ -61,6 +62,18 @@ import {
   isForceGlbUrlActive,
   isGlbDebugBadgeEnabled,
 } from './GlbDebugBadge'
+import {
+  FilmRoomDebugBadge,
+  isFilmRoomDebugBadgeEnabled,
+} from './FilmRoomDebugBadge'
+import {
+  pickAssistedCameraMode,
+  type CameraAssist,
+} from '@/lib/scenario3d/cameraPresets'
+import {
+  DEFAULT_OVERLAY_LEVEL,
+  type OverlayLevel,
+} from '@/lib/scenario3d/overlayLevel'
 
 interface Scenario3DCanvasProps {
   /** Mounted as the WebGL fallback when WebGL is unavailable. */
@@ -120,6 +133,35 @@ interface Scenario3DCanvasProps {
    * by the imperative simple-mode tree.
    */
   pickedChoiceId?: string | null
+  /**
+   * FR-4 §8.9 — how much the renderer should help with the freeze
+   * camera. The Pathways layer chooses; the renderer just respects
+   * the prop. `'none'` disables decoder-aware framing entirely
+   * (broadcast everywhere); `'partial'` keeps broadcast through
+   * freeze but composes a teaching replay; `'full'` composes both
+   * the freeze and the replay frame. Default `'partial'` so the
+   * existing /train flow keeps the pre-FR-4 framing through freeze
+   * but still earns a teaching replay.
+   */
+  cameraAssist?: CameraAssist
+  /**
+   * FR-4 §8.6 — explicit "user is driving the camera" flag set by
+   * `Scenario3DView` when the URL `?camera=` carried a value or the
+   * dropdown was touched. When true, the FR-4 dispatcher offers no
+   * opinion and the controller keeps the user's pick exactly as-is.
+   * Resets on scenario change so the dispatcher resumes on the next
+   * scene per §8.6 ("decoder presets stop running for that scene.
+   * They resume on the next scenario.").
+   */
+  cameraManualOverride?: boolean
+  /**
+   * FR-5 §9.2 — Pathways-driven overlay intensity. Forwarded into
+   * the JSX `AuthoredOverlayBridge` (full path only) which projects
+   * the scene's authored overlay arrays through `applyOverlayLevel`
+   * before mounting them. Defaults to `'beginner'` so legacy callers
+   * keep mounting the full cluster.
+   */
+  overlayLevel?: OverlayLevel
 }
 
 // Mid-tone gray. While the rebuild is in flight we deliberately do NOT
@@ -192,6 +234,14 @@ export function Scenario3DCanvas({
   onQualityChange,
   forceFullPath,
   pickedChoiceId,
+  // FR-4 Packet 4 — `partial` matches the pre-FR-4 broadcast-through-
+  // freeze behaviour while still allowing a teaching replay, so the
+  // default keeps existing /train sessions stable. /dev/scenario-preview
+  // and any future Pathways "Learn the Cue" mode pass `'full'` to opt
+  // into decoder-aware freeze framing.
+  cameraAssist = 'partial',
+  cameraManualOverride = false,
+  overlayLevel = DEFAULT_OVERLAY_LEVEL,
 }: Scenario3DCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   // Refs into the THREE objects R3F creates. Captured in onCreated so a
@@ -275,6 +325,17 @@ export function Scenario3DCanvas({
   // client-only post-hydration flag so the SSR markup and the first
   // client render agree (no hydration warning).
   const [glbDebugEnabled, setGlbDebugEnabled] = useState(false)
+  // FR-1 Packet 6 — film-room teaching-state badge. Mounts only under
+  // `?debugFilmRoom=1` or `window.__COURTIQ_FILM_ROOM_DEBUG__`. Same
+  // hydration-safe gate as the GLB badge above.
+  const [filmRoomDebugEnabled, setFilmRoomDebugEnabled] = useState(false)
+  // FR-1 Packet 6 — local mirror of the replay phase so the
+  // FilmRoomDebugBadge surfaces it without subscribing to the
+  // controller. We layer it on top of the parent's onPhase callback —
+  // the parent still receives every transition.
+  const [filmRoomReplayPhase, setFilmRoomReplayPhase] = useState<ReplayPhase>(
+    'idle',
+  )
   // P3.3F — `?forceGlb=1` URL param. When set the figure builder
   // (a) skips the skinned/premium/Phase-F fallback chain and
   // (b) returns a bright magenta marker for any figure the GLB
@@ -286,6 +347,7 @@ export function Scenario3DCanvas({
   const [forceGlb, setForceGlb] = useState(false)
   useEffect(() => {
     setGlbDebugEnabled(isGlbDebugBadgeEnabled())
+    setFilmRoomDebugEnabled(isFilmRoomDebugBadgeEnabled())
     if (typeof window === 'undefined') return
     let force = false
     try {
@@ -299,13 +361,11 @@ export function Scenario3DCanvas({
       glbDebugLog('forceGlb=1 detected — diagnostic override active', {
         url: GLB_ATHLETE_ASSET_URL,
       })
-      // The asset-load trigger lives in the resize/setup effect below,
-      // gated on `isGlbAthletePreviewActive() || isForceGlbUrlActive()`.
-      // We do NOT also kick the load here, because that would
-      // double-bump `glbCacheReadyTick` on resolve and rebuild the
-      // scene twice on first mount — the loader itself is idempotent
-      // but the React render storm is wasteful. Putting the load in
-      // ONE place keeps the cold→warm rebuild deterministic.
+      void loadGlbAthleteAsset()
+        .then(() => {
+          setGlbCacheReadyTick((n) => n + 1)
+        })
+        .catch(() => setGlbCacheReadyTick((n) => n + 1))
     }
     return () => {
       // Clear the override on unmount so a hot-reload during dev
@@ -599,33 +659,59 @@ export function Scenario3DCanvas({
       },
     })
 
-    if (glbActive || forceGlbFromUrl) {
+    const GLB_LOAD_DEFER_TIMEOUT_MS = 1500
+    if (glbActive) {
       glbDebugLog('kicking athlete GLB load', {
         url: GLB_ATHLETE_ASSET_URL,
-        reason: glbActive ? 'env-gate' : 'forceGlb-url',
+        reason: 'env-gate',
       })
+      let settled = false
+      const settle = () => {
+        if (settled || cancelled) return
+        settled = true
+        setGlbCacheReadyTick((n) => n + 1)
+      }
+      const timeoutId = window.setTimeout(() => {
+        if (!settled) {
+          // eslint-disable-next-line no-console
+          console.warn('[CourtIQ GLB] load defer timeout — proceeding without cache', {
+            timeoutMs: GLB_LOAD_DEFER_TIMEOUT_MS,
+          })
+          settle()
+        }
+      }, GLB_LOAD_DEFER_TIMEOUT_MS)
       void loadGlbAthleteAsset()
         .then((result) => {
-          if (cancelled) return
+          if (cancelled) {
+            window.clearTimeout(timeoutId)
+            return
+          }
           applyAfterTransition()
           glbDebugLog('athlete GLB load resolved', {
             ok: result != null,
             url: GLB_ATHLETE_ASSET_URL,
           })
-          // P3.3B — flip the cache-ready tick so the scene-build
-          // effect re-runs and replaces the cold-cache procedural
-          // fallback with the loaded GLB mannequin. Only fires when
-          // the load actually produced a cache entry; a `null`
-          // result (asset missing, parse failure, network blocked)
-          // leaves the procedural figure in place exactly as before.
-          if (result) setGlbCacheReadyTick((n) => n + 1)
+          window.clearTimeout(timeoutId)
+          if (!result) {
+            // eslint-disable-next-line no-console
+            console.warn('[CourtIQ GLB] loader resolved without a cache entry', {
+              reason: 'asset-missing-or-no-skin',
+            })
+          }
+          settle()
         })
         .catch((err) => {
+          window.clearTimeout(timeoutId)
           glbDebugLog('athlete GLB load threw', {
             error: err instanceof Error ? err.message : String(err),
             url: GLB_ATHLETE_ASSET_URL,
           })
-          /* swallowed — apply still runs from the observer */
+          // eslint-disable-next-line no-console
+          console.warn('[CourtIQ GLB] loader threw', {
+            reason: 'loader-threw',
+            error: err instanceof Error ? err.message : String(err),
+          })
+          settle()
         })
       if (isImportedCloseoutClipActive()) {
         glbDebugLog('kicking imported closeout clip preload', {
@@ -871,6 +957,45 @@ export function Scenario3DCanvas({
         return
       }
 
+      // FR-2 Packet 2 — defer the very first scene mount when the GLB
+      // gate is on AND the loader cache is still cold AND the load
+      // promise has not yet bumped `glbCacheReadyTick` (or fired the
+      // safety timeout in the load effect above). This removes the
+      // cold-cache "procedural-first frame, GLB-on-the-second-frame"
+      // flicker that was the §6.7 product-trust issue: the same user
+      // saw a different visual the first time vs. on later loads.
+      //
+      // Behavior:
+      //   - GLB gate off → never wait, render whatever the fallback
+      //     chain picks (procedural / 2D), exactly as before.
+      //   - GLB gate on, cache already warm → render immediately
+      //     with GLB figures.
+      //   - GLB gate on, cache cold, first build (`tick === 0`) →
+      //     hold off and re-poll on the next rAF tick.
+      //   - GLB gate on, cache cold, the load resolved (`tick > 0`)
+      //     → proceed with the renderer's fallback chain. The load
+      //     promise OR the safety timeout in the load effect bumps
+      //     the tick, so we cannot wait forever.
+      //   - Subsequent scene swaps (visibleScene change) → tick is
+      //     already > 0 from the initial mount, so this branch is a
+      //     no-op and the scene mounts on the same frame.
+      //
+      // Force-glb (`?forceGlb=1`) follows the same wait policy here;
+      // FR-2 Packet 6 layers the magenta-proxy guarantee on top once
+      // the wait is over.
+      const glbGateOn = isGlbAthletePreviewActive() || forceGlb
+      if (
+        !emergencyMode &&
+        !debugMode &&
+        simpleMode &&
+        glbGateOn &&
+        !isGlbAthleteCacheReady() &&
+        glbCacheReadyTick === 0
+      ) {
+        pollId = window.requestAnimationFrame(tryMount)
+        return
+      }
+
       // Build geometry imperatively for non-debug, non-emergency, simple-mode
       // scenes — that's the production path we're trying to fix.
       if (!emergencyMode && !debugMode && simpleMode) {
@@ -963,7 +1088,9 @@ export function Scenario3DCanvas({
             const unsubscribe = machine.subscribe(({ state }) => {
               // ReplayState matches ReplayPhase 1:1 for the values the
               // train flow cares about; cast and forward.
-              phaseListener?.(state as ReplayState as ReplayPhase)
+              const next = state as ReplayState as ReplayPhase
+              setFilmRoomReplayPhase(next)
+              phaseListener?.(next)
               // Phase B / B1 — re-apply React-owned playback flags after
               // every state transition. `setMovements` (called by
               // `startConsequence` / `startReplay`) clears `pausedAtT`,
@@ -1252,6 +1379,40 @@ export function Scenario3DCanvas({
     const ctrl = cameraControllerRef.current
     if (ctrl) ctrl.setMode(activeCameraMode)
   }, [activeCameraMode])
+
+  // FR-4 Packet 4 — decoder + phase + assist dispatcher.
+  //
+  // On every (phase, decoder, assist) change, ask the policy layer
+  // for the preset it wants and push it into the controller. The
+  // controller eases between targets via its existing 180 ms time
+  // constant, so a phase transition produces a smooth lerp instead
+  // of a cut.
+  //
+  // §8.6 — manual override wins. The parent (`Scenario3DView`) sets
+  // `cameraManualOverride` whenever the dropdown is touched OR the
+  // URL `?camera=` carried a value, and clears it on scenario swap
+  // so the dispatcher resumes on the next scene.
+  //
+  // Returns `null` from the dispatcher (e.g. `phase === 'done'`)
+  // also leaves the controller alone, so the previous teaching
+  // frame holds during the post-decision pause instead of snapping
+  // back to broadcast.
+  useEffect(() => {
+    const ctrl = cameraControllerRef.current
+    if (!ctrl) return
+    const picked = pickAssistedCameraMode({
+      decoder: visibleScene.decoderTag ?? null,
+      phase: filmRoomReplayPhase,
+      assist: cameraAssist,
+      manualOverride: cameraManualOverride,
+    })
+    if (picked !== null) ctrl.setMode(picked)
+  }, [
+    visibleScene.decoderTag,
+    filmRoomReplayPhase,
+    cameraAssist,
+    cameraManualOverride,
+  ])
 
   // Push scene-data changes into the controller so follow mode (and
   // auto-fit) update when the scenario swaps players or ball-holder.
@@ -1599,9 +1760,13 @@ export function Scenario3DCanvas({
               mode={replayMode}
               resetCounter={resetCounter}
               onCaption={onCaption}
-              onPhase={onPhase}
+              onPhase={(p) => {
+                setFilmRoomReplayPhase(p)
+                onPhase?.(p)
+              }}
               showPaths={showPaths}
               pickedChoiceId={pickedChoiceId}
+              overlayLevel={overlayLevel}
             />
             <Suspense fallback={null}>{children}</Suspense>
             <SceneDebug3D scene={visibleScene} />
@@ -1637,11 +1802,40 @@ export function Scenario3DCanvas({
           emergency render
         </div>
       ) : null}
+      {/* FR-2 Packet 6 — `?forceGlb=1` waiting hint. Mounts only when
+          the developer flag is on AND the imperative scene-build effect
+          is still deferred behind the cold-cache load (tick === 0).
+          Disappears the instant the load settles. Production users
+          never see this overlay because the URL flag is dev-only. */}
+      {forceGlb && glbCacheReadyTick === 0 ? (
+        <div
+          data-force-glb-waiting="1"
+          className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full bg-fuchsia-500/85 px-3 py-1 text-[11px] font-semibold uppercase tracking-[1.5px] text-white shadow-lg"
+          style={{ zIndex: 50 }}
+        >
+          forceGlb waiting for asset…
+        </div>
+      ) : null}
       {/* P3.3C — production-route GLB debug badge. Mounts only when
           `?glbDebug=1` is on the URL or `window.__COURTIQ_GLB_DEBUG__`
           was set from the console; otherwise stays unmounted so prod
           users never load the asset probes. */}
       {glbDebugEnabled ? <GlbDebugBadge /> : null}
+      {/* FR-1 Packet 6 — film-room teaching-state badge. Mounts only
+          when `?debugFilmRoom=1` or `window.__COURTIQ_FILM_ROOM_DEBUG__`
+          is set. Production users without either flag never render
+          this component; no asset probes, no behaviour changes. */}
+      {filmRoomDebugEnabled ? (
+        <FilmRoomDebugBadge
+          scene={scene}
+          cameraMode={activeCameraMode}
+          replayPhase={filmRoomReplayPhase}
+          concept={concept}
+          cameraAssist={cameraAssist}
+          cameraManualOverride={cameraManualOverride}
+          overlayLevel={overlayLevel}
+        />
+      ) : null}
     </div>
   )
 }
