@@ -32,6 +32,7 @@ import {
   getCameraMode,
   hasWebGL,
   isAutoFitCamera,
+  isCameraShakeEnabled,
   isDebug3D,
   isEmergencyScene,
   isOrbitDebug,
@@ -292,6 +293,16 @@ export function Scenario3DCanvas({
     duration: number
     startedAt: number
   } | null>(null)
+  // V1 UX completion — pass-arrival shake gate. Read once from the
+  // URL flag in an effect (so SSR markup never branches on
+  // `window.location`) and stored in a ref so the parent rAF loop can
+  // consult it without re-rendering on every frame. Default false
+  // means production users get no shake; `?shake=1` opts in for dev
+  // verification.
+  const shakeEnabledRef = useRef<boolean>(false)
+  useEffect(() => {
+    shakeEnabledRef.current = isCameraShakeEnabled()
+  }, [])
   // P3.3B — bumped once when the asynchronous GLB athlete cold-load
   // completes, so the scene-build effect re-runs and swaps the
   // procedural cold-cache fallback for the loaded GLB mannequin.
@@ -805,17 +816,26 @@ export function Scenario3DCanvas({
           const overlay = teachingOverlayRef.current
           if (overlay) overlay.tick(nowMs)
 
-          // Polish pass — sub-pixel camera shake on pass arrival.
-          // Trigger only when the controller drove the camera this
-          // frame (skip when the user is orbiting). The offset is
-          // applied AFTER ctrl.tick so the next frame's controller
-          // write naturally overwrites it, producing a brief decay
-          // without any controller modification.
+          // V1 UX completion — pass-arrival camera shake is OFF by
+          // default in production. The pre-V1 effect applied a damped
+          // sine offset (~0.45 ft / 220 ms) to the camera position
+          // every time `motion.consumePassArrival()` fired, but the
+          // offset stacked on top of the controller's eased lerp
+          // toward the camera target and read as jitter during
+          // replay legs that contained passes. We still consume the
+          // arrival flag every frame so the motion controller's
+          // internal counter doesn't backfill, and we still honour
+          // `?shake=1` for dev / motion-design verification — at a
+          // significantly reduced amplitude (0.18 ft, ~60% lower).
+          // Skipped when the user is orbiting or running on the low
+          // quality tier so we never fight a manual dragger or
+          // burn frames on devices the FPS guard already throttled.
           if (motion && motion.consumePassArrival() &&
+              shakeEnabledRef.current &&
               ctrl && !orbitMode &&
               qualityRef.current.tier !== 'low') {
             shakeRef.current = {
-              amplitude: 0.45,
+              amplitude: 0.18,
               duration: 220,
               startedAt: nowMs,
             }
