@@ -9,6 +9,8 @@ import type { CourtState } from '@/components/court'
 import { Scenario3DView } from '@/components/scenario3d/Scenario3DView'
 import { useScenarioSceneData } from '@/lib/scenario3d/useScenarioSceneData'
 import type { ReplayPhase } from '@/components/scenario3d/ScenarioReplayController'
+import { pickFilmRoomMode } from '@/lib/scenario3d/filmRoomMode'
+import type { PathwayTrainingMode } from '@/lib/pathways/types'
 import { createClient } from '@/lib/supabase/client'
 import { friendlyError } from '@/lib/errors'
 import { DecoderLessonPanel } from './DecoderLessonPanel'
@@ -312,6 +314,27 @@ function TrainPageInner() {
     pathwayContext?.trainingMode === 'mixed-reads'
   const suppressCueHints = pathwayContext?.suppressCueHints === true || isChallengeMode
   const decoderLabel = !hideDecoderPill && decoderTag ? DECODER_LABELS[decoderTag] : null
+  // FR-7 — translate the Pathway training mode into the renderer-level
+  // overlayLevel + cameraAssist pair. Memoised on the trainingMode
+  // identity so every scenario swap inside the same chapter reuses
+  // the same object reference (the canvas's effects depend on these
+  // by value, but a stable reference avoids unnecessary controller
+  // rebuilds during pathway-internal navigations). When no Pathway
+  // is driving the session (`pathwayContext == null`), the helper
+  // returns `FILM_ROOM_DEFAULT`, which matches the canvas's own
+  // prop defaults — so the legacy /train flow is unchanged.
+  const filmRoomMode = useMemo(
+    () =>
+      pickFilmRoomMode(
+        // The API responds with `trainingMode: string | null`; the
+        // helper itself is forward-compat (unknown strings fall back
+        // to the default), so a runtime guard isn't strictly needed —
+        // but a cast through the canonical union keeps the call site
+        // honest about what it expects.
+        (pathwayContext?.trainingMode ?? null) as PathwayTrainingMode | null,
+      ),
+    [pathwayContext?.trainingMode],
+  )
   // Phase H — decoder scenarios stay on `mode='intro'` for the full
   // session; the JSX `ScenarioReplayController` drives the freeze →
   // (consequence →) replaying → done legs internally off `pickedChoiceId`
@@ -923,6 +946,8 @@ function TrainPageInner() {
               onPhase={isDecoder ? onScenePhase : undefined}
               forceFullPath={isDecoder}
               pickedChoiceId={pickedChoiceId}
+              overlayLevel={filmRoomMode.overlayLevel}
+              cameraAssist={filmRoomMode.cameraAssist}
               fallback={
                 <Court
                   width={360}

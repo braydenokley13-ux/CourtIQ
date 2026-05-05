@@ -46,6 +46,14 @@ import {
   stripRootMotionTracks,
   _setImportedClipCacheForTest,
 } from './importedClipLoader'
+import {
+  GLB_ATHLETE_MATERIAL_PARAMS,
+  GLB_ATHLETE_REGION_PALETTE,
+} from '@/lib/scenario3d/glbAthleteAudit'
+import {
+  BASKETBALL_READY_REST_DELTA,
+  type AthleticPoseBoneKey,
+} from '@/lib/scenario3d/glbAthleticPose'
 
 /**
  * Marker stored on the figure root userData so callers and tests
@@ -268,92 +276,68 @@ function buildGlbIdleReadyClip(): THREE.AnimationClip {
       ]),
     ),
   )
-  // Keep the mannequin out of its broad rest silhouette. Arms stay
-  // near the ribs with soft elbows so idle players read as ready,
-  // not parked in an asset bind pose.
-  tracks.push(
-    new THREE.QuaternionKeyframeTrack(
-      `${GLB_BONE_MAP.leftUpperArm}.quaternion`,
-      [0, duration],
-      flattenGlbQuats([
-        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 2.3, 0, 0.02),
-        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 2.3, 0, 0.02),
-      ]),
-    ),
-  )
-  tracks.push(
-    new THREE.QuaternionKeyframeTrack(
-      `${GLB_BONE_MAP.rightUpperArm}.quaternion`,
-      [0, duration],
-      flattenGlbQuats([
-        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 2.3, 0, -0.02),
-        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 2.3, 0, -0.02),
-      ]),
-    ),
-  )
-  tracks.push(
-    new THREE.QuaternionKeyframeTrack(
-      `${GLB_BONE_MAP.leftForeArm}.quaternion`,
-      [0, duration],
-      flattenGlbQuats([
-        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.42, 0),
-        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.42, 0),
-      ]),
-    ),
-  )
-  tracks.push(
-    new THREE.QuaternionKeyframeTrack(
-      `${GLB_BONE_MAP.rightForeArm}.quaternion`,
-      [0, duration],
-      flattenGlbQuats([
-        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.42, 0),
-        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.42, 0),
-      ]),
-    ),
-  )
-  // Knees softened (slight thigh forward).
-  tracks.push(
-    new THREE.QuaternionKeyframeTrack(
-      `${GLB_BONE_MAP.leftThigh}.quaternion`,
-      [0, duration],
-      flattenGlbQuats([
-        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.14, 0, 0),
-        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.14, 0, 0),
-      ]),
-    ),
-  )
-  tracks.push(
-    new THREE.QuaternionKeyframeTrack(
-      `${GLB_BONE_MAP.rightThigh}.quaternion`,
-      [0, duration],
-      flattenGlbQuats([
-        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.14, 0, 0),
-        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.14, 0, 0),
-      ]),
-    ),
-  )
-  tracks.push(
-    new THREE.QuaternionKeyframeTrack(
-      `${GLB_BONE_MAP.leftShin}.quaternion`,
-      [0, duration],
-      flattenGlbQuats([
-        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, 0.08, 0, 0),
-        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, 0.08, 0, 0),
-      ]),
-    ),
-  )
-  tracks.push(
-    new THREE.QuaternionKeyframeTrack(
-      `${GLB_BONE_MAP.rightShin}.quaternion`,
-      [0, duration],
-      flattenGlbQuats([
-        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, 0.08, 0, 0),
-        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, 0.08, 0, 0),
-      ]),
-    ),
-  )
+
+  // FR-8 Packet 3 — knees + ready arms come from the canonical
+  // basketball-ready rest delta. Pre-FR-8 the offsets (-0.14 thigh,
+  // 0.08 shin, 2.3/0.02 upperarm, -0.42 forearm) were inlined here
+  // and nowhere else. Pulling them into the shared module means the
+  // procedural fallback (Packet 6) and the missing-clip idle hold
+  // (Packet 5 ladder tier 2) read the same numbers, so a clip drop
+  // never regresses the stance.
+  appendBasketballReadyHoldTracks(tracks, duration)
 
   return new THREE.AnimationClip('idle_ready', duration, tracks)
+}
+
+/**
+ * FR-8 Packet 3 — appends a flat 2-keyframe hold for every bone the
+ * basketball-ready rest delta touches, anchored at bind + delta.
+ *
+ * Used by the idle clip and (Packet 5) by the missing-clip idle
+ * fallback so the figure holds the same athletic stance regardless
+ * of which clip the resolver picked.
+ */
+function appendBasketballReadyHoldTracks(
+  tracks: THREE.KeyframeTrack[],
+  duration: number,
+): void {
+  const times: ReadonlyArray<number> = [0, duration]
+  const armBuilder = (
+    boneKey: AthleticPoseBoneKey,
+    boneName: string,
+  ): THREE.KeyframeTrack => {
+    const d = BASKETBALL_READY_REST_DELTA[boneKey]
+    return new THREE.QuaternionKeyframeTrack(
+      `${boneName}.quaternion`,
+      [...times],
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(boneName, d.x, d.y, d.z),
+        glbArmBindRelativeQuat(boneName, d.x, d.y, d.z),
+      ]),
+    )
+  }
+  const lowerBuilder = (
+    boneKey: AthleticPoseBoneKey,
+    boneName: string,
+  ): THREE.KeyframeTrack => {
+    const d = BASKETBALL_READY_REST_DELTA[boneKey]
+    return new THREE.QuaternionKeyframeTrack(
+      `${boneName}.quaternion`,
+      [...times],
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(boneName, d.x, d.y, d.z),
+        glbLowerBodyBindRelativeQuat(boneName, d.x, d.y, d.z),
+      ]),
+    )
+  }
+  tracks.push(armBuilder('leftUpperArm', GLB_BONE_MAP.leftUpperArm))
+  tracks.push(armBuilder('rightUpperArm', GLB_BONE_MAP.rightUpperArm))
+  tracks.push(armBuilder('leftForeArm', GLB_BONE_MAP.leftForeArm))
+  tracks.push(armBuilder('rightForeArm', GLB_BONE_MAP.rightForeArm))
+  tracks.push(lowerBuilder('leftThigh', GLB_BONE_MAP.leftThigh))
+  tracks.push(lowerBuilder('rightThigh', GLB_BONE_MAP.rightThigh))
+  tracks.push(lowerBuilder('leftShin', GLB_BONE_MAP.leftShin))
+  tracks.push(lowerBuilder('rightShin', GLB_BONE_MAP.rightShin))
 }
 
 /**
@@ -2440,12 +2424,15 @@ function findFirstSkinnedMesh(root: THREE.Object3D): THREE.SkinnedMesh | null {
  * vertices to compute regions. The cloned geometry is disposed by
  * the existing `disposeGroup` traversal when the figure is torn down.
  */
-const GLB_REGION_COLOR = {
-  shorts: '#3a3d44',
-  skin: '#caa68a',
-  shoes: '#16181c',
-  hair: '#1a1c20',
-} as const
+/**
+ * FR-8 Packet 2 — region palette + material params now sourced from
+ * the canonical audit module so the procedural fallback can pick up
+ * the same values without duplicating constants. Pre-FR-8 the local
+ * `GLB_REGION_COLOR` literal was the only source of truth; the audit
+ * file (`lib/scenario3d/glbAthleteAudit.ts`) re-exports it as
+ * `GLB_ATHLETE_REGION_PALETTE` so the procedural path can match.
+ */
+const GLB_REGION_COLOR = GLB_ATHLETE_REGION_PALETTE
 
 type GlbRegion = 'jersey' | 'shorts' | 'skin' | 'shoes' | 'hair'
 
@@ -2565,10 +2552,13 @@ function applyMultiRegionMaterialsToCloned(
     }
 
     if (isJointsOverlay) {
+      // FR-8 Packet 2 — joint overlay tints to skin so the studs
+      // disappear into the silhouette. Material params come from the
+      // canonical audit table.
       const swap = new THREE.MeshStandardMaterial({
         color: skinCol.clone(),
-        roughness: 0.7,
-        metalness: 0.0,
+        roughness: GLB_ATHLETE_MATERIAL_PARAMS.jointsRoughness,
+        metalness: GLB_ATHLETE_MATERIAL_PARAMS.jointsMetalness,
       })
       disposeOld(baseMat)
       ;(sm.isSkinnedMesh ? sm : mesh).material = swap
@@ -2577,10 +2567,12 @@ function applyMultiRegionMaterialsToCloned(
 
     if (!sm.isSkinnedMesh || !sm.skeleton) {
       // Plain mesh — fall back to a flat team-colour material.
+      // FR-8 Packet 2 — softer cloth-style response so a bright
+      // jersey reads as fabric rather than vinyl.
       const swap = new THREE.MeshStandardMaterial({
         color: teamCol.clone(),
-        roughness: 0.55,
-        metalness: 0.05,
+        roughness: GLB_ATHLETE_MATERIAL_PARAMS.bodyRoughness,
+        metalness: GLB_ATHLETE_MATERIAL_PARAMS.bodyMetalness,
       })
       disposeOld(baseMat)
       mesh.material = swap
@@ -2598,10 +2590,12 @@ function applyMultiRegionMaterialsToCloned(
       | THREE.BufferAttribute
       | undefined
     if (!skinIdxAttr || !skinWeightAttr || !posAttr) {
+      // FR-8 Packet 2 — flat team-colour fallback uses the audited
+      // cloth-style material params.
       const swap = new THREE.MeshStandardMaterial({
         color: teamCol.clone(),
-        roughness: 0.55,
-        metalness: 0.05,
+        roughness: GLB_ATHLETE_MATERIAL_PARAMS.bodyRoughness,
+        metalness: GLB_ATHLETE_MATERIAL_PARAMS.bodyMetalness,
       })
       disposeOld(baseMat)
       sm.material = swap
@@ -2660,11 +2654,15 @@ function applyMultiRegionMaterialsToCloned(
     )
     sm.geometry = clonedGeom
 
+    // FR-8 Packet 2 — multi-region tinted material. The vertex
+    // colours carry the per-region palette; the material params come
+    // from the audit table so any tweak is localised in one place
+    // and the procedural fallback can mirror the same look.
     const swap = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       vertexColors: true,
-      roughness: 0.6,
-      metalness: 0.05,
+      roughness: GLB_ATHLETE_MATERIAL_PARAMS.bodyRoughness,
+      metalness: GLB_ATHLETE_MATERIAL_PARAMS.bodyMetalness,
     })
     disposeOld(baseMat)
     sm.material = swap

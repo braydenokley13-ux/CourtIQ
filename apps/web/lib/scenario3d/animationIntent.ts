@@ -492,3 +492,77 @@ export function resolveGlbClipForIntent(
       return 'idle_ready'
   }
 }
+
+// ---------------------------------------------------------------------------
+// FR-8 Packet 4 — Intent motion classification + per-intent clip ladders
+// ---------------------------------------------------------------------------
+
+/**
+ * Motion class for an animation intent.
+ *
+ *   - 'stationary'      — the player is rooted (catch, shot ready,
+ *                          reset hold, idle, defensive denial, jab/rip
+ *                          off the catch).
+ *   - 'moving-offense'  — the player is moving as offense (cuts, drives,
+ *                          pass follow-through with travel).
+ *   - 'moving-defense'  — the player is moving as defense (slides,
+ *                          help turns, closeouts, recovers).
+ *
+ * Used by the FR-8 Packet 5 fallback ladder so a stationary intent
+ * never falls back to a sprint clip and a moving intent never holds
+ * a static pose. Pure data — no runtime motion check.
+ */
+export type IntentMotionClass =
+  | 'stationary'
+  | 'moving-offense'
+  | 'moving-defense'
+
+const INTENT_MOTION_CLASS: Readonly<Record<AnimationIntent, IntentMotionClass>> =
+  Object.freeze({
+    IDLE_READY: 'stationary',
+    RECEIVE_READY: 'stationary',
+    SHOT_READY: 'stationary',
+    RESET_HOLD: 'stationary',
+    JAB_OR_RIP: 'stationary',
+    DEFENSIVE_DENY: 'stationary',
+    BACK_CUT: 'moving-offense',
+    EMPTY_SPACE_CUT: 'moving-offense',
+    PASS_FOLLOWTHROUGH: 'moving-offense',
+    CLOSEOUT: 'moving-defense',
+    SLIDE_RECOVER: 'moving-defense',
+    DEFENSIVE_HELP_TURN: 'moving-defense',
+  })
+
+/**
+ * Classifies an intent as stationary / moving-offense / moving-defense.
+ * Pure: same intent → same class.
+ */
+export function getIntentMotionClass(
+  intent: AnimationIntent,
+): IntentMotionClass {
+  return INTENT_MOTION_CLASS[intent]
+}
+
+/**
+ * FR-8 Packet 4 — best stationary fallback clip for an intent.
+ *
+ * When the player is rooted (or the renderer wants a freeze-friendly
+ * pose), every intent maps to one of two stationary clips:
+ *   - `defensive_deny` — for the denial intent.
+ *   - `receive_ready`  — for every other intent (the audited
+ *                          basketball-ready pose with arms close to
+ *                          the ribs and slight knee bend).
+ *
+ * No imported-clip flag dependency: stationary fallbacks rely on
+ * the always-mounted bespoke clip set so the ladder cannot fail.
+ */
+export function getStationaryFallbackClip(
+  intent: AnimationIntent,
+): GlbClipName {
+  if (intent === 'DEFENSIVE_DENY') return 'defensive_deny'
+  // Every other stationary intent (idle/receive/shot/reset/jab) +
+  // any moving intent forced to its stationary fallback resolves
+  // to the dedicated `receive_ready` athletic-ready pose so the
+  // figure never collapses to mannequin bind.
+  return 'receive_ready'
+}
