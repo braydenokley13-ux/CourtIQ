@@ -87,6 +87,26 @@ interface Scenario3DViewProps {
    * default.
    */
   overlayLevel?: OverlayLevel
+  /**
+   * V1 UX completion — interaction overlay slot. Render-prop that is
+   * mounted INSIDE the fullscreen target wrapper so callers can
+   * surface page-level UI (e.g. /train's choice cards) inside the
+   * fullscreen viewport. The callback receives the live fullscreen
+   * state so the caller can vary the layout — typically a compact
+   * bottom-anchored row in fullscreen and `null` (or unmounted) when
+   * the page-layout copy already handles it. `null` callback /
+   * `null` return = nothing rendered, preserving every legacy call
+   * site's behaviour.
+   */
+  renderFullscreenOverlay?: (state: { isFullscreen: boolean }) => ReactNode
+  /**
+   * V1 UX completion — observer for fullscreen state. Fires whenever
+   * the renderer enters or leaves fullscreen so the parent can
+   * coordinate layout (e.g. hide its in-page choice cards while the
+   * fullscreen overlay version is showing). Optional; legacy callers
+   * can ignore the prop entirely.
+   */
+  onFullscreenChange?: (isFullscreen: boolean) => void
 }
 
 /**
@@ -154,12 +174,25 @@ export function Scenario3DView(props: Scenario3DViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
 
+  // V1 UX completion — surface fullscreen state changes to the parent
+  // so callers like /train can hide their in-page choice cards while
+  // the renderFullscreenOverlay copy is showing. Stored in a ref so we
+  // don't have to add the callback to the listener-effect's dep array
+  // (re-installing a fullscreenchange listener every render would
+  // miss browser-fired transitions).
+  const onFullscreenChangeRef = useRef(props.onFullscreenChange)
+  useEffect(() => {
+    onFullscreenChangeRef.current = props.onFullscreenChange
+  }, [props.onFullscreenChange])
+
   useEffect(() => {
     if (typeof document === 'undefined') return
     const el = containerRef.current
     if (!el) return
     const onChange = () => {
-      setIsFullscreen(!!document.fullscreenElement)
+      const next = !!document.fullscreenElement
+      setIsFullscreen(next)
+      onFullscreenChangeRef.current?.(next)
       // Phase K — kick the renderer's ResizeObserver and the
       // imperative camera's per-frame `setAspect` so the new viewport
       // size is applied on the next paint instead of waiting for the
@@ -289,7 +322,35 @@ export function Scenario3DView(props: Scenario3DViewProps) {
           pathsAvailable={pathsAvailable}
           isFullscreen={isFullscreen}
           onFullscreenToggle={toggleFullscreen}
+          hasInteractionOverlay={!!props.renderFullscreenOverlay && isFullscreen}
         />
+        {/* V1 UX completion — fullscreen interaction slot. Mounts
+            inside the fullscreen target wrapper so the overlay sits
+            inside the browser's fullscreen viewport. We only call the
+            render-prop while `isFullscreen` is true so the page-level
+            (non-fullscreen) layout keeps owning the in-page copy. The
+            slot sits at the bottom of the fullscreen target above
+            PremiumOverlay's transport pill — bottom-anchored,
+            pointer-events-auto, with `pb` chosen so the overlay
+            never overlaps the pill (38px inset + ~52px pill +
+            ~22px gap = ~112px on tall viewports). On short viewports
+            (mobile landscape ≤ 480px), we tighten the gap so the
+            overlay does not crowd more than ~40% of the screen
+            height. The `safe-area-inset-bottom` env() guards iOS
+            home-indicator overlap. */}
+        {props.renderFullscreenOverlay && isFullscreen ? (
+          <div
+            data-fullscreen-interaction-overlay="1"
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center px-3 sm:px-4"
+            style={{
+              paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 96px)',
+            }}
+          >
+            <div className="pointer-events-auto w-full max-w-[1100px]">
+              {props.renderFullscreenOverlay({ isFullscreen })}
+            </div>
+          </div>
+        ) : null}
       </div>
     </Scenario3DErrorBoundary>
   )

@@ -92,6 +92,37 @@ export function FilmRoomDebugBadge({
   cameraManualOverride,
   overlayLevel,
 }: FilmRoomDebugBadgeProps) {
+  // V1 UX completion — the badge previously hard-anchored to
+  // top-right which collided with PremiumOverlay's camera selector +
+  // paths toggle cluster (also top-right). Default the badge to a
+  // collapsed pill at bottom-right so it sits cleanly above the
+  // GlbDebugBadge (bottom-left) without crossing the camera-selector
+  // zone. Operators can expand to the full readout via the click
+  // header. Persist the expand state in `sessionStorage` so a refresh
+  // mid-debug doesn't snap the badge closed mid-task.
+  const [expanded, setExpanded] = useState<boolean>(false)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const saved = window.sessionStorage.getItem(
+        'courtiq.filmRoomDebugBadge.expanded',
+      )
+      if (saved === '1') setExpanded(true)
+    } catch {
+      // sessionStorage may be unavailable in private mode — ignore.
+    }
+  }, [])
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      window.sessionStorage.setItem(
+        'courtiq.filmRoomDebugBadge.expanded',
+        expanded ? '1' : '0',
+      )
+    } catch {
+      // ignore
+    }
+  }, [expanded])
   const [decisions, setDecisions] = useState<readonly PlayerFigureDecision[]>(
     [],
   )
@@ -201,15 +232,62 @@ export function FilmRoomDebugBadge({
     ? getDecoderTeachingLabel(scene.decoderTag).text
     : null
 
-  // Top-right placement so it does not collide with the bottom-left
-  // GlbDebugBadge — both can be on at the same time.
+  // V1 UX completion — placement.
+  //
+  // Pre-V1 the badge anchored top-right which collided with
+  // PremiumOverlay's camera selector + paths toggle + fullscreen
+  // button cluster (also top-right). Bottom-right keeps it clear of
+  // the GlbDebugBadge (bottom-left) AND the camera cluster (top-right)
+  // AND the transport pill (bottom-center). In its collapsed default
+  // state the badge is a small "FR" pill so the operator can see at
+  // a glance that the flag is on without reading every metric; click
+  // to expand for the full readout.
   return (
     <div
       data-film-room-debug-badge="1"
-      className="pointer-events-none absolute right-2 top-2 max-w-[60%] rounded-md bg-black/80 px-2 py-1 font-mono text-[10px] leading-snug text-white shadow-lg"
+      data-expanded={expanded ? '1' : '0'}
+      className="pointer-events-auto absolute bottom-2 right-2 max-w-[44%] rounded-md bg-black/85 font-mono text-[10px] leading-snug text-white shadow-lg"
       style={{ zIndex: 50 }}
     >
-      <div>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        aria-label={expanded ? 'Collapse film-room debug badge' : 'Expand film-room debug badge'}
+        className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left hover:bg-white/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/40"
+      >
+        <span
+          aria-hidden
+          style={{
+            color: expanded ? '#7fdca0' : '#fcd47a',
+          }}
+        >
+          {expanded ? '▾' : '▸'}
+        </span>
+        <span style={{ color: '#9cf' }}>FR-DEBUG</span>{' '}
+        <span style={{ color: '#7fdca0' }}>{sceneId}</span>
+        {' · '}
+        <span
+          style={{
+            color:
+              replayPhase === 'frozen'
+                ? '#7fdca0'
+                : replayPhase === 'cueRepaint'
+                  ? '#FFB070'
+                  : '#ddd',
+          }}
+        >
+          {replayPhase}
+        </span>
+      </button>
+      {expanded ? null : null}
+      <div hidden={!expanded} className="px-2 pb-1">
+        {/*
+          The full readout block below stays unchanged when expanded
+          so all FR-1..FR-6 metrics still surface — only the wrapper
+          is responsible for the collapse / expand state.
+        */}
+        <div>
         <span style={{ color: '#9cf' }}>scene</span>{' '}
         <span style={{ color: '#7fdca0' }}>{sceneId}</span>
         {' · '}
@@ -379,6 +457,7 @@ export function FilmRoomDebugBadge({
             <span style={{ opacity: 0.7 }}>{concept}</span>
           </>
         ) : null}
+        </div>
       </div>
     </div>
   )

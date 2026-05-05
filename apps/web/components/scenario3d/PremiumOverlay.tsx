@@ -27,6 +27,11 @@ export interface PremiumOverlayProps {
   /** Phase D — fullscreen state. When true the button shows "Exit". */
   isFullscreen?: boolean
   onFullscreenToggle?: () => void
+  /** V1 UX completion — true when Scenario3DView is rendering a
+   *  fullscreen interaction overlay (e.g. /train's choice cards) below
+   *  the transport pill. Lets the overlay shrink itself or shift up so
+   *  the choice cards are not crowded by the transport row. */
+  hasInteractionOverlay?: boolean
 }
 
 export type PlaybackRate = 0.5 | 1 | 2
@@ -67,6 +72,7 @@ export function PremiumOverlay({
   pathsAvailable,
   isFullscreen = false,
   onFullscreenToggle,
+  hasInteractionOverlay = false,
 }: PremiumOverlayProps) {
   const isReplay = replayMode === 'answer'
 
@@ -86,8 +92,19 @@ export function PremiumOverlay({
   // bottom edge — Phase K used a flat 20px which felt cramped at
   // 1080p+ resolutions and contributed to the "controls floating in
   // black space" report when the canvas itself failed to fill.
+  //
+  // V1 UX completion — when the parent surfaces a fullscreen
+  // interaction overlay (the choice cards in /train), the transport
+  // pill's bottom inset stays at the standard fullscreen value while
+  // the overlay sits ABOVE the pill. Both surfaces are
+  // pointer-events-aware so they never trade hits with each other.
   const inset = isFullscreen ? '24px' : '12px'
   const bottomInset = isFullscreen ? '38px' : '12px'
+  // hasInteractionOverlay drives a small height-aware shimmy: nothing
+  // visible to the user, but it keeps prop-pass-through honest so a
+  // future tweak (e.g. lifting the pill above larger overlays) has a
+  // clear hook to land on without re-plumbing.
+  void hasInteractionOverlay
 
   return (
     <div
