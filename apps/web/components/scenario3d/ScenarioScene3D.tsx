@@ -239,6 +239,14 @@ function AuthoredOverlayBridge({
 }) {
   const root = useThree((s) => s.scene as unknown as THREE.Group)
   const ctrlRef = useRef<TeachingOverlayController | null>(null)
+  // FR-7 — bumped every time we install a new controller so the
+  // phase-sync effect below re-runs and reapplies the current
+  // `replayPhase` against the freshly built controller. Without
+  // this, changing `overlayLevel` mid-phase (QA dropdown, Pathways
+  // mode swap) rebuilds the controller but leaves it parked at
+  // its default `'hidden'` phase, which silently hides every
+  // authored overlay until the next phase transition.
+  const [ctrlEpoch, setCtrlEpoch] = useState(0)
   const reduced = useReducedMotion()
 
   // FR-5 — project the scene's authored overlay arrays through the
@@ -267,6 +275,12 @@ function AuthoredOverlayBridge({
     // overlay group hidden so nothing renders.
     ctrl.setVisible(!isOverlaySuppressed(overlayLevel))
     ctrlRef.current = ctrl
+    // FR-7 — trigger the phase-sync effect to reapply the current
+    // replayPhase against the new controller. The phase-sync effect
+    // is the single source of truth for overlay phase + teaching
+    // label state, so we bump an epoch counter rather than
+    // duplicating that logic inline here.
+    setCtrlEpoch((e) => e + 1)
     return () => {
       ctrl.dispose()
       ctrlRef.current = null
@@ -314,7 +328,10 @@ function AuthoredOverlayBridge({
       // the next rep doesn't show last rep's chip.
       if (ctrl.hasTeachingLabel()) ctrl.clearTeachingLabel()
     }
-  }, [replayPhase, scene])
+    // ctrlEpoch is intentionally in the dep list — it bumps when
+    // the rebuild effect installs a new controller so we reapply
+    // the current phase without waiting for `replayPhase` to change.
+  }, [replayPhase, scene, ctrlEpoch])
 
   useFrame((state) => {
     ctrlRef.current?.tick(state.clock.getElapsedTime() * 1000)
