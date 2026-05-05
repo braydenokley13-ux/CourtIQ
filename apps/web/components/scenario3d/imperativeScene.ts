@@ -87,6 +87,12 @@ const USER_TRIM = '#0F8C4E'
 // with any of the team colors. Used on the floor under whichever
 // player held the ball when the scene was built.
 const POSSESSION_RING_COLOR = '#FFCB44'
+// FR-3 §7.1 — heat red for the key defender ring. Mirrors the
+// `--heat` token in `apps/web/app/globals.css` so the floor cue
+// reads as the same brand "danger" used elsewhere in the UI.
+// Applied as a ring swap on the procedural path and as an overlay
+// ring on the GLB indicator layer; never used on the body itself.
+const HEAT_RING_COLOR = '#FF4D6D'
 // Soft contact shadow beneath every player. Pure dark, semi-transparent
 // so it reads as grounding rather than a paint dot.
 const CONTACT_SHADOW_COLOR = '#05070A'
@@ -439,7 +445,19 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
     // emit the structured `[CourtIQ GLB fallback]` breadcrumb on
     // non-GLB picks). Cleared in a `finally` so an exception in the
     // builder never leaks context onto the next player.
-    _setPlayerFigureBuildContext({ scenarioId: scene.id, playerId: p.id })
+    //
+    // FR-3 §7.3 — also propagate the cue-defender flag so the
+    // figure builder can swap the standard team-color ring for the
+    // §7.1 `--heat` cue when this is the closest defender to the
+    // user. `denyDefenderId` is computed once above using the same
+    // closest-to-user heuristic the planning doc names as the
+    // §7.1 fallback when no decoder preset is available.
+    const isKeyDefender = p.team === 'defense' && p.id === denyDefenderId
+    _setPlayerFigureBuildContext({
+      scenarioId: scene.id,
+      playerId: p.id,
+      isKeyDefender,
+    })
     let playerGroup: THREE.Group
     try {
       playerGroup = buildPlayerFigure(
@@ -3931,6 +3949,15 @@ let _forceGlbAthletePreview = false
 interface PlayerFigureBuildContext {
   scenarioId: string
   playerId: string
+  /**
+   * FR-3 §7.3 — when true this player is the cue defender for the
+   * scene, so the figure builder can swap the standard team-color
+   * ring for the §7.1 heat-red `--heat` cue. Optional so callers
+   * that have not resolved a key defender (premium previews,
+   * isolated unit tests, scenes without defenders) keep their
+   * existing visual exactly.
+   */
+  isKeyDefender?: boolean
 }
 let _currentFigureBuildContext: PlayerFigureBuildContext | null = null
 
@@ -3938,6 +3965,21 @@ export function _setPlayerFigureBuildContext(
   ctx: PlayerFigureBuildContext | null,
 ): void {
   _currentFigureBuildContext = ctx
+}
+
+/**
+ * FR-3 — read-only accessor for the per-figure build context. Used
+ * by the procedural / GLB figure builders to layer the §7 visual-
+ * language cues (key-defender ring, future grounding shadow, future
+ * silhouette tweaks) onto the existing primitives without changing
+ * the locked `buildPlayerFigure` signature.
+ *
+ * Returns `null` when the caller did not register a context — the
+ * builders honor the legacy default visual in that case so isolated
+ * tests keep their prior contracts.
+ */
+export function _getCurrentPlayerFigureBuildContext(): Readonly<PlayerFigureBuildContext> | null {
+  return _currentFigureBuildContext
 }
 
 /**
@@ -4235,6 +4277,12 @@ function buildGlbAthleteFigure(
   jerseyNumber: string,
   stance: PlayerStance,
 ): THREE.Group | null {
+  // FR-3 §7.3 — read the per-figure build context registered by
+  // `buildBasketballGroup` so the GLB indicator layer knows whether
+  // to mount the key-defender heat ring. Defaults to `false` when
+  // no context is registered (isolated tests, premium previews) so
+  // the GLB visual is byte-identical to its pre-FR-3 shape.
+  const buildCtx = _getCurrentPlayerFigureBuildContext()
   return buildGlbAthletePreview(
     teamColor,
     trimColor,
@@ -4253,6 +4301,7 @@ function buildGlbAthleteFigure(
       // non-flagged build never picks `back_cut`; flag-off behaviour
       // is byte-identical to pre-P2.2 (BACK_CUT intent → `cut_sprint`).
       attachImportedBackCutClip: isImportedBackCutClipActive(),
+      isKeyDefender: buildCtx?.isKeyDefender === true,
     },
   )
 }
@@ -4944,16 +4993,38 @@ function buildAthleteFigure(
 
   const ringInner = PLAYER_RADIUS + 0.2
   const ringOuter = isUser ? PLAYER_RADIUS + 0.7 : PLAYER_RADIUS + 0.55
+  // FR-3 §7.3 — key defender swap. When the per-figure build context
+  // marks this player as the cue defender, paint the base ring with
+  // the §7.1 `--heat` token instead of the team color so the user
+  // can identify the read defender within 0.5 s without a label.
+  // Other defenders keep their team color but at a slightly cooler
+  // opacity so the heat ring carries the contrast (§7.11 — contrast
+  // from color temperature, not outlines).
+  const buildCtx = _getCurrentPlayerFigureBuildContext()
+  const isKeyDefender = buildCtx?.isKeyDefender === true
+  const ringColor = isKeyDefender ? HEAT_RING_COLOR : teamColor
+  const ringOpacity = isUser
+    ? 1
+    : isKeyDefender
+      ? 0.95
+      : buildCtx?.isKeyDefender === false &&
+          // Cooler "other defender" — applied only when the context
+          // is registered AND this is a non-key defender. Heuristic
+          // inferred from teamColor matching the DEFENSE_COLOR
+          // constant; offense keeps its full team-color opacity.
+          teamColor.toUpperCase() === DEFENSE_COLOR
+        ? 0.65
+        : 0.85
   // Ring segments are kept intentionally low because these indicators
   // are always viewed from the gameplay camera, not inspected up close.
   const ring = new THREE.Mesh(
     new THREE.RingGeometry(ringInner, ringOuter, 28),
     new THREE.MeshBasicMaterial({
-      color: teamColor,
+      color: ringColor,
       toneMapped: false,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: isUser ? 1 : 0.85,
+      opacity: ringOpacity,
     }),
   )
   ring.rotation.x = -Math.PI / 2

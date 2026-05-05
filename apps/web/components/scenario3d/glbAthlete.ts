@@ -1301,6 +1301,17 @@ export interface BuildGlbAthletePreviewOptions {
    * up the real clip once the cache is warm.
    */
   attachImportedBackCutClip?: boolean
+  /**
+   * FR-3 §7.3 — when true the GLB indicator layer renders an
+   * additional `--heat`-colored ring on the floor so the cue
+   * defender is identifiable inside 0.5 s without a label. Default
+   * `false` preserves the pre-FR-3 visual exactly for offense and
+   * non-key defenders. The flag never affects mesh tinting on the
+   * body itself; the heat cue lives entirely on the indicator
+   * layer the planning doc places between the shadow and the
+   * figure (§7.7 z-order).
+   */
+  isKeyDefender?: boolean
 }
 
 export function buildGlbAthletePreview(
@@ -1335,7 +1346,13 @@ export function buildGlbAthletePreview(
 
     applyMultiRegionMaterialsToCloned(cloned, teamColor)
 
-    const indicatorLayers = buildGlbIndicatorLayers(figure, teamColor, isUser, hasBall)
+    const indicatorLayers = buildGlbIndicatorLayers(
+      figure,
+      teamColor,
+      isUser,
+      hasBall,
+      options?.isKeyDefender === true,
+    )
     ;(figure.userData as Record<string, unknown>).indicatorLayers = indicatorLayers
 
     const mixer = new THREE.AnimationMixer(cloned)
@@ -2587,12 +2604,20 @@ const GLB_FLOOR_LIFT = 0.05
 const GLB_BASE_RING_RADIUS_FT = 0.95
 const GLB_USER_HALO_RADIUS_FT = 1.45
 const GLB_POSSESSION_RING_RADIUS_FT = 1.1
+// FR-3 §7.1 — `--heat` token mirror. Kept private to the GLB
+// module so the imperativeScene module can carry the same token in
+// its own constant without a cross-file import; both files agree on
+// the hex literal because the planning doc names a single canonical
+// brand color.
+const GLB_HEAT_RING_COLOR = '#FF4D6D'
+const GLB_HEAT_RING_RADIUS_FT = 1.18
 
 function buildGlbIndicatorLayers(
   parent: THREE.Group,
   teamColor: string,
   isUser: boolean,
   hasBall: boolean,
+  isKeyDefender: boolean,
 ): GlbIndicatorLayers {
   // The figure root is uniformly scaled by GLB_M_TO_FT_SCALE so the
   // mannequin lands at court height. Indicator layers live OUTSIDE
@@ -2680,6 +2705,38 @@ function buildGlbIndicatorLayers(
     possessionRing.rotation.x = -Math.PI / 2
     possessionRing.position.y = GLB_FLOOR_LIFT
     possessionLayer.add(possessionRing)
+  }
+
+  if (isKeyDefender && !isUser) {
+    // FR-3 §7.3 — heat-red cue ring for the scene's key defender.
+    // Sits on the same floor lift as the team-color base ring but
+    // with a slightly larger outer radius so the §7.1 `--heat`
+    // band reads as a halo *around* the team identity ring rather
+    // than replacing it. Only mounted when the figure is a
+    // defender (a user-side heat ring would invert the visual
+    // hierarchy described in §7.2 / §7.3).
+    const heatRing = new THREE.Mesh(
+      new THREE.RingGeometry(
+        GLB_HEAT_RING_RADIUS_FT - 0.085,
+        GLB_HEAT_RING_RADIUS_FT,
+        40,
+      ),
+      new THREE.MeshBasicMaterial({
+        color: GLB_HEAT_RING_COLOR,
+        toneMapped: false,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.78,
+      }),
+    )
+    heatRing.rotation.x = -Math.PI / 2
+    // Sit a hair above the base ring so the heat band stays
+    // visible when the camera tilts. Still well below the figure
+    // and the ball, matching §7.7 z-order: court → shadow → ring
+    // → figure → ball → overlays.
+    heatRing.position.y = GLB_FLOOR_LIFT + 0.002
+    heatRing.name = 'glb-key-defender-heat-ring'
+    baseLayer.add(heatRing)
   }
 
   return {
