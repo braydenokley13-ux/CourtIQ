@@ -304,6 +304,27 @@ export function Scenario3DCanvas({
     }
     setForceGlb(force)
     _setForceGlbAthletePreview(force)
+    // FR-2 Packet 6 — when the developer flips `?forceGlb=1` the
+    // env-flag-gated load effect below may have skipped the GLB
+    // fetch entirely (env off → no preload → cache stays cold).
+    // Without this kick the deferred mount in the imperative
+    // scene-build effect would wait forever for a load that never
+    // started. Firing the load here fires it once, regardless of
+    // env flag. The `loadGlbAthleteAsset` cache + in-flight guards
+    // make repeat calls cheap; the env-gated effect's separate
+    // call is still allowed to continue.
+    if (force) {
+      void loadGlbAthleteAsset()
+        .then(() => {
+          // Bump the cache-ready tick so the imperative scene-build
+          // effect re-evaluates whether to mount or keep waiting.
+          // Mirrors the env-gated load effect's settle behaviour so
+          // forceGlb traffic gets the same Packet-2 wait-then-render
+          // contract.
+          setGlbCacheReadyTick((n) => n + 1)
+        })
+        .catch(() => setGlbCacheReadyTick((n) => n + 1))
+    }
     return () => {
       // Clear the override on unmount so a hot-reload during dev
       // doesn't leave the next mount stuck on force-glb behaviour.
@@ -1638,6 +1659,20 @@ export function Scenario3DCanvas({
       {emergencyMode ? (
         <div className="pointer-events-none absolute right-2 top-2 rounded-full bg-yellow-400/25 px-2 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-yellow-300">
           emergency render
+        </div>
+      ) : null}
+      {/* FR-2 Packet 6 — `?forceGlb=1` waiting hint. Mounts only when
+          the developer flag is on AND the imperative scene-build effect
+          is still deferred behind the cold-cache load (tick === 0).
+          Disappears the instant the load settles. Production users
+          never see this overlay because the URL flag is dev-only. */}
+      {forceGlb && glbCacheReadyTick === 0 ? (
+        <div
+          data-force-glb-waiting="1"
+          className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full bg-fuchsia-500/85 px-3 py-1 text-[11px] font-semibold uppercase tracking-[1.5px] text-white shadow-lg"
+          style={{ zIndex: 50 }}
+        >
+          forceGlb waiting for asset…
         </div>
       ) : null}
       {/* P3.3C — production-route GLB debug badge. Mounts only when
