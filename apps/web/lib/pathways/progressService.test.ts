@@ -126,14 +126,27 @@ describe('derivePathwayProgress — partial progress', () => {
 })
 
 describe('derivePathwayProgress — single chapter mastered', () => {
-  it('moves the recommendation to the next chapter once chapter 1 is mastered', () => {
-    const summary = derivePathwayProgress(
-      FOUNDATION,
-      makeInput(
+  it('moves the recommendation to the next chapter once chapter 1 boss is cleared', () => {
+    // PTH-5: a chapter is only mastered when its boss is cleared
+    // server-side. With ch1's boss recorded as passed, the chapter is
+    // mastered, ch2 is sequence-unlocked, and the rec lands inside ch2.
+    const summary = derivePathwayProgress(FOUNDATION, {
+      ...makeInput(
         { ...bestForFamily('BACKDOOR_WINDOW') },
         { BACKDOOR_WINDOW: { attempts: 5, rollingAccuracy: 1.0 } },
       ),
-    )
+      challengeAttempts: [
+        {
+          chapterSlug: 'read-the-denial',
+          mode: 'boss-challenge',
+          challengeSlug: 'denial-reader',
+          passed: true,
+          bestCount: 4,
+          total: 5,
+          attemptedAt: '2026-05-01T00:00:00.000Z',
+        },
+      ],
+    })
 
     expect(summary.chapters[0]!.state).toBe('mastered')
     // Sequence-unlock: chapter 2 should now be unlocked.
@@ -145,11 +158,11 @@ describe('derivePathwayProgress — single chapter mastered', () => {
 })
 
 describe('derivePathwayProgress — full Foundation mastery', () => {
-  it('reports pathwayMastered=true and recommendedNext=null when every scenario has best AND the capstone is cleared', () => {
-    // PTH-5: full pathway mastery now requires the capstone clear too.
-    // Without the mixed-reads attempt, the capstone stays at 0.5 / 1.0
-    // depending on attempt state. This is the spec from PTH-5: the
-    // capstone is the threshold between trainee and decoder.
+  it('reports pathwayMastered=true and recommendedNext=null when every scenario has best AND every boss + the capstone are cleared', () => {
+    // PTH-5: full pathway mastery now requires every chapter boss to
+    // be cleared server-side AND the capstone to be cleared. Node-level
+    // best alone isn't enough — that's the whole point of the boss as
+    // a no-hint final check.
     const allBest = {
       ...bestForFamily('BACKDOOR_WINDOW'),
       ...bestForFamily('EMPTY_SPACE_CUT'),
@@ -164,6 +177,42 @@ describe('derivePathwayProgress — full Foundation mastery', () => {
     const summary = derivePathwayProgress(FOUNDATION, {
       ...makeInput(allBest, masteryAll),
       challengeAttempts: [
+        {
+          chapterSlug: 'read-the-denial',
+          mode: 'boss-challenge',
+          challengeSlug: 'denial-reader',
+          passed: true,
+          bestCount: 5,
+          total: 5,
+          attemptedAt: '2026-05-01T00:00:00.000Z',
+        },
+        {
+          chapterSlug: 'move-when-eyes-leave',
+          mode: 'boss-challenge',
+          challengeSlug: 'cutter',
+          passed: true,
+          bestCount: 5,
+          total: 5,
+          attemptedAt: '2026-05-02T00:00:00.000Z',
+        },
+        {
+          chapterSlug: 'beat-the-closeout',
+          mode: 'boss-challenge',
+          challengeSlug: 'catch-decider',
+          passed: true,
+          bestCount: 5,
+          total: 5,
+          attemptedAt: '2026-05-03T00:00:00.000Z',
+        },
+        {
+          chapterSlug: 'punish-the-help',
+          mode: 'boss-challenge',
+          challengeSlug: 'rotation-reader',
+          passed: true,
+          bestCount: 5,
+          total: 5,
+          attemptedAt: '2026-05-03T12:00:00.000Z',
+        },
         {
           chapterSlug: 'real-game-mix',
           mode: 'mixed-reads',

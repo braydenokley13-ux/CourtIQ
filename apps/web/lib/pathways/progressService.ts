@@ -33,6 +33,8 @@ import {
   isMixedCapstoneCleared,
 } from './challengeAttemptService'
 import {
+  buildBossChallengeTrainHref,
+  buildMixedReadsTrainHref,
   buildPathwayTrainHref,
   countChapterScenarios,
   getAllScenarioIdsForPathway,
@@ -417,13 +419,111 @@ function pickRecommendedNext(
   const labelFor = (chapter: PathwayChapterConfig, node: SkillNodeConfig, verb: string) =>
     `${verb} ${chapter.title}${node.kind === 'learn-cue' ? ' — Learn the Cue' : ''}`
 
-  // Priority 1: Resume — lowest-order in-progress chapter. Linear
-  // pacing matches how youth players actually move through curriculum;
-  // jumping ahead to a higher chapter would feel disorienting even if
-  // the higher chapter has more recent attempts.
+  // PTH-5 helpers ----------------------------------------------------------
+  // The recommendation engine now reasons over chapter.challengeState in
+  // addition to the underlying skill-node progress. The priority order:
+  //
+  //   1) Retry a *failed* boss in a chapter that's otherwise complete —
+  //      we want the player to land on the boss they just missed.
+  //   2) Retry a *failed* mixed-reads capstone — same logic but for the
+  //      Real Game Mix.
+  //   3) Resume an in-progress chapter (existing behavior).
+  //   4) If a chapter has all non-boss nodes done but the boss isn't
+  //      cleared yet → recommend the boss.
+  //   5) If chapters 1–4 are mastered and the capstone hasn't been
+  //      cleared → recommend the mixed-reads capstone.
+  //   6) Sequence forward to the next non-mastered chapter (existing).
+  //   7) Weakness shoring (existing).
+  // -----------------------------------------------------------------------
+
+  const buildBossRec = (
+    chapter: PathwayChapterConfig,
+    _progress: PathwayChapterProgress,
+    label: string,
+    reason: PathwayRecommendedNext['reason'],
+  ): PathwayRecommendedNext | null => {
+    const href = buildBossChallengeTrainHref(pathway, chapter)
+    if (!href || !chapter.bossChallenge) return null
+    // The boss isn't a real skill node, so we anchor `skillNodeSlug` to
+    // the boss slug (matches how summary links are built).
+    return {
+      chapterSlug: chapter.slug,
+      skillNodeSlug: chapter.bossChallenge.slug,
+      trainHref: href,
+      label,
+      reason,
+    }
+  }
+
+  const buildCapstoneRec = (
+    chapter: PathwayChapterConfig,
+    label: string,
+    reason: PathwayRecommendedNext['reason'],
+  ): PathwayRecommendedNext | null => {
+    const href = buildMixedReadsTrainHref(pathway, chapter)
+    if (!href) return null
+    const targetNode =
+      chapter.skillNodes.find((n) => n.trainingMode === 'mixed-reads') ??
+      chapter.skillNodes[0] ??
+      null
+    return {
+      chapterSlug: chapter.slug,
+      skillNodeSlug: targetNode?.slug ?? chapter.slug,
+      trainHref: href,
+      label,
+      reason,
+    }
+  }
+
+  const allNonBossNodesClear = (progress: PathwayChapterProgress): boolean =>
+    progress.skillNodes.length > 0 &&
+    progress.skillNodes.every((n) => n.state === 'completed' || n.state === 'mastered')
+
+  // Priority 1: Retry a failed boss in a chapter that's otherwise complete.
+  for (let i = 0; i < pathway.chapters.length; i += 1) {
+    const chapter = pathway.chapters[i]!
+    const progress = chapters[i]!
+    if (progress.state === 'locked') continue
+    if (progress.challengeState.kind !== 'boss') continue
+    if (progress.challengeState.state !== 'attempted') continue
+    if (!allNonBossNodesClear(progress)) continue
+    const rec = buildBossRec(chapter, progress, `Run it back: ${chapter.title} Boss`, 'sequence')
+    if (rec) return rec
+  }
+
+  // Priority 2: Retry a failed mixed-reads capstone.
+  for (let i = 0; i < pathway.chapters.length; i += 1) {
+    const chapter = pathway.chapters[i]!
+    const progress = chapters[i]!
+    if (progress.challengeState.kind !== 'capstone') continue
+    if (progress.challengeState.state !== 'attempted') continue
+    const rec = buildCapstoneRec(chapter, 'Retry Mixed Reads', 'capstone')
+    if (rec) return rec
+  }
+
+  // Priority 3: Resume — lowest-order in-progress chapter. Linear
+  // pacing matches how youth players actually move through curriculum.
+  // PTH-5 only counts a chapter as in_progress for resume purposes when
+  // it has node-level work pending (boss-only "in progress" rolls into
+  // priority 4 below).
   const inProgress = pathway.chapters
     .map((c, i) => ({ chapter: c, progress: chapters[i]! }))
-    .find((row) => row.progress.state === 'in_progress')
+    .find((row) => {
+      if (row.progress.state !== 'in_progress') return false
+      // Capstone resume goes through the capstone branch.
+      if (row.progress.challengeState.kind === 'capstone') return false
+      // If the boss has been attempted but every non-boss node is
+      // already mastered, the priority-4 boss CTA handles it.
+      if (
+        row.progress.challengeState.state === 'attempted' &&
+        allNonBossNodesClear(row.progress)
+      ) {
+        return false
+      }
+      return row.progress.skillNodes.some(
+        (n) => n.state !== 'mastered' && n.state !== 'locked',
+      )
+    })
   if (inProgress) {
     const next = findFirstUnmasteredNode(inProgress.chapter, inProgress.progress)
     if (next) {
@@ -442,16 +542,54 @@ function pickRecommendedNext(
     }
   }
 
-  // Priority 2: Sequence — first non-mastered, non-locked chapter.
+  // Priority 4: Boss is up — non-boss nodes are clear, boss not cleared yet.
+  for (let i = 0; i < pathway.chapters.length; i += 1) {
+    const chapter = pathway.chapters[i]!
+    const progress = chapters[i]!
+    if (progress.state === 'locked') continue
+    if (progress.challengeState.kind !== 'boss') continue
+    if (progress.challengeState.state === 'cleared') continue
+    if (!allNonBossNodesClear(progress)) continue
+    const rec = buildBossRec(chapter, progress, `Run the Boss: ${chapter.title}`, 'sequence')
+    if (rec) return rec
+  }
+
+  // Priority 5: Capstone is up — chapters 1–4 mastered, capstone not cleared.
+  const decoderChapters = pathway.chapters.filter((c) => !isCapstoneChapter(c))
+  const decoderChaptersMastered =
+    decoderChapters.length > 0 &&
+    decoderChapters.every((c) => {
+      const p = chapters.find((row) => row.slug === c.slug)
+      return p?.state === 'mastered'
+    })
+  if (decoderChaptersMastered) {
+    for (let i = 0; i < pathway.chapters.length; i += 1) {
+      const chapter = pathway.chapters[i]!
+      const progress = chapters[i]!
+      if (progress.challengeState.kind !== 'capstone') continue
+      if (progress.challengeState.state === 'cleared') continue
+      const rec = buildCapstoneRec(chapter, 'Final Mix: Real Game Mix', 'capstone')
+      if (rec) return rec
+    }
+  }
+
+  // Priority 6: Sequence — first non-mastered, non-locked chapter.
   // The "cold-start" reason only fires when the *entire* pathway has
   // never been touched; once the player has any history, advancing to
   // a fresh chapter is `sequence`, not `cold-start`.
-  const pathwayHasAnyAttempts = chapters.some((c) => c.attemptedCount > 0)
+  const pathwayHasAnyAttempts =
+    chapters.some((c) => c.attemptedCount > 0) ||
+    chapters.some((c) => c.challengeState.state !== 'not_started')
   for (let i = 0; i < pathway.chapters.length; i += 1) {
     const chapter = pathway.chapters[i]!
     const progress = chapters[i]!
     if (progress.state === 'mastered') continue
     if (progress.state === 'locked') continue
+    // Capstone with no skill-node CTA is handled by the capstone branch
+    // above; if we got here it's because chapters 1–4 aren't all
+    // mastered, so don't fall through to a node-level rec on the
+    // capstone (its "skill nodes" reuse decoder scenarios).
+    if (isCapstoneChapter(chapter)) continue
     const next = findFirstUnmasteredNode(chapter, progress)
     if (next) {
       const isColdStart = !pathwayHasAnyAttempts
@@ -470,7 +608,7 @@ function pickRecommendedNext(
     }
   }
 
-  // Priority 3: Weakness — every chapter mastered except one with low
+  // Priority 7: Weakness — every chapter mastered except one with low
   // decoder accuracy. We surface that chapter's first un-mastered node.
   const unmastered = chapters
     .map((c, i) => ({ chapter: pathway.chapters[i]!, progress: c }))
@@ -488,11 +626,11 @@ function pickRecommendedNext(
           chapterSlug: next.chapter.slug,
           skillNodeSlug: next.node.slug,
           trainHref: buildPathwayTrainHref({
-          scenarioIds: next.node.scenarioIds,
-          pathwaySlug: pathway.slug,
-          chapterSlug: next.chapter.slug,
-          nodeSlug: next.node.slug,
-        }),
+            scenarioIds: next.node.scenarioIds,
+            pathwaySlug: pathway.slug,
+            chapterSlug: next.chapter.slug,
+            nodeSlug: next.node.slug,
+          }),
           label: `Shore up ${target.chapter.title}`,
           reason: 'weakness',
         }
