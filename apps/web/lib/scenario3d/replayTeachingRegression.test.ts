@@ -77,33 +77,41 @@ describe('FR-6 × FR-4 — cameraAssist semantics on cueRepaint', () => {
     'SKIP_THE_ROTATION',
   ]
 
-  it('cueRepaint resolves to the same preset as frozen for full assist', () => {
+  it('cueRepaint holds the previous preset (returns null) so the camera does not bounce', () => {
+    // V1 stabilization — pre-V1 the dispatcher resolved cueRepaint to
+    // the freeze preset, which produced a frozen → consequence →
+    // cueRepaint → replaying camera bounce on the wrong-pick path
+    // (consequence → replay preset, then snap back to freeze, then
+    // forward to replay preset again). The dispatcher now holds the
+    // previous mode for cueRepaint so the controller eases through
+    // the transition without oscillating.
+    //
+    // Note: `'none'` assist short-circuits to `'broadcast'` before
+    // reaching the phase table (boss-mode contract), so cueRepaint
+    // resolves to broadcast there — that's still stable across
+    // every phase, so no bounce.
     for (const decoder of decoders) {
-      const cue = pickAssistedCameraMode({
-        decoder,
-        phase: 'cueRepaint',
-        assist: 'full',
-        manualOverride: false,
-      })
-      const frozen = pickAssistedCameraMode({
-        decoder,
-        phase: 'frozen',
-        assist: 'full',
-        manualOverride: false,
-      })
-      expect(cue).toBe(frozen)
+      for (const assist of ['full', 'partial'] as const) {
+        const cue = pickAssistedCameraMode({
+          decoder,
+          phase: 'cueRepaint',
+          assist,
+          manualOverride: false,
+        })
+        expect(cue, `${decoder}/${assist}`).toBeNull()
+      }
     }
   })
 
-  it('cueRepaint resolves to broadcast under partial assist (matches frozen)', () => {
+  it('boss assist (none) still returns broadcast for cueRepaint (no bounce because every phase is broadcast)', () => {
     for (const decoder of decoders) {
       const cue = pickAssistedCameraMode({
         decoder,
         phase: 'cueRepaint',
-        assist: 'partial',
+        assist: 'none',
         manualOverride: false,
       })
-      expect(cue).toBe('broadcast')
+      expect(cue, decoder).toBe('broadcast')
     }
   })
 
@@ -117,16 +125,6 @@ describe('FR-6 × FR-4 — cameraAssist semantics on cueRepaint', () => {
       })
       expect(cue).toBeNull()
     }
-  })
-
-  it('boss assist (none) returns broadcast for cueRepaint', () => {
-    const cue = pickAssistedCameraMode({
-      decoder: 'BACKDOOR_WINDOW',
-      phase: 'cueRepaint',
-      assist: 'none',
-      manualOverride: false,
-    })
-    expect(cue).toBe('broadcast')
   })
 })
 

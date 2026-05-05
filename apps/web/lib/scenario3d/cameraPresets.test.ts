@@ -322,3 +322,177 @@ describe('FR-4 §8.7 — aspectAdjustmentForCanvas', () => {
     }
   })
 })
+
+// =====================================================================
+// V1 stabilization — camera target stability invariants.
+//
+// The film-room V1 readiness pass surfaced two visible camera-shake
+// patterns that the dispatcher was responsible for producing. These
+// tests pin the corrected contracts so a future packet cannot
+// reintroduce the regressions:
+//
+//   1. cueRepaint hold — pre-V1, cueRepaint returned the freeze
+//      preset so the wrong-pick path went freeze → consequence
+//      → cueRepaint → replaying through three different presets
+//      (back-and-forth between freeze and replay framings).
+//
+//   2. Same (decoder, phase, assist, manualOverride) tuple always
+//      returns the same preset, so a re-render that happens to flush
+//      the dispatcher useEffect twice never produces a different
+//      target.
+// =====================================================================
+
+describe('V1 stabilization — camera target stability', () => {
+  it('cueRepaint never produces a third preset between consequence and replaying', () => {
+    // For every (decoder, assist) combination, walk the wrong-pick
+    // sequence frozen → consequence → cueRepaint → replaying and
+    // confirm the cueRepaint step does NOT yield a preset different
+    // from the consequence preset. Returning `null` (hold) is the
+    // correct answer; returning the consequence preset would also
+    // be acceptable. Returning the freeze preset (the pre-V1 bug)
+    // is what we forbid.
+    for (const decoder of ALL_DECODERS) {
+      for (const assist of ['full', 'partial'] as const) {
+        const consequence = pickAssistedCameraMode({
+          decoder,
+          phase: 'consequence',
+          assist,
+          manualOverride: false,
+        })
+        const cueRepaint = pickAssistedCameraMode({
+          decoder,
+          phase: 'cueRepaint',
+          assist,
+          manualOverride: false,
+        })
+        const replaying = pickAssistedCameraMode({
+          decoder,
+          phase: 'replaying',
+          assist,
+          manualOverride: false,
+        })
+        // Holding (null) or matching consequence/replaying are both
+        // acceptable; the forbidden pattern is "different from both
+        // consequence and replaying" — that's the bounce.
+        const isHold = cueRepaint === null
+        const matchesNeighbour =
+          cueRepaint === consequence || cueRepaint === replaying
+        expect(
+          isHold || matchesNeighbour,
+          `${decoder}/${assist}: cue=${cueRepaint} consequence=${consequence} replaying=${replaying}`,
+        ).toBe(true)
+      }
+    }
+  })
+
+  it('repeated calls with the same input produce the same preset (referentially stable)', () => {
+    // A re-render that re-invokes the dispatcher with the SAME deps
+    // must not produce a different mode. This pins the assertion
+    // that pickAssistedCameraMode is pure / referentially stable so
+    // the canvas's setMode useEffect stays a no-op when nothing
+    // truly changed.
+    for (const decoder of ALL_DECODERS) {
+      for (const phase of [
+        'idle',
+        'setup',
+        'playing',
+        'frozen',
+        'consequence',
+        'cueRepaint',
+        'replaying',
+        'done',
+      ] as const) {
+        for (const assist of ['full', 'partial', 'none'] as const) {
+          for (const manualOverride of [false, true]) {
+            const a = pickAssistedCameraMode({
+              decoder,
+              phase,
+              assist,
+              manualOverride,
+            })
+            const b = pickAssistedCameraMode({
+              decoder,
+              phase,
+              assist,
+              manualOverride,
+            })
+            expect(b, `${decoder}/${phase}/${assist}/${manualOverride}`).toBe(a)
+          }
+        }
+      }
+    }
+  })
+
+  it('best-read path (frozen → cueRepaint → replaying) does not snap to a third preset', () => {
+    // When the user picks a best-read choice the state machine
+    // skips `consequence` and goes straight from `frozen` to
+    // `cueRepaint` (held by ScenarioReplayController) to
+    // `replaying`. Pre-V1 the dispatcher returned the freeze preset
+    // for cueRepaint, which matched frozen but then snapped to the
+    // replay preset on the next phase. With the V1 fix cueRepaint
+    // returns null so the controller holds the freeze framing
+    // through the cue repaint window and eases to the replay preset
+    // exactly once on the `replaying` transition.
+    for (const decoder of ALL_DECODERS) {
+      const frozen = pickAssistedCameraMode({
+        decoder,
+        phase: 'frozen',
+        assist: 'full',
+        manualOverride: false,
+      })
+      const cueRepaint = pickAssistedCameraMode({
+        decoder,
+        phase: 'cueRepaint',
+        assist: 'full',
+        manualOverride: false,
+      })
+      const replaying = pickAssistedCameraMode({
+        decoder,
+        phase: 'replaying',
+        assist: 'full',
+        manualOverride: false,
+      })
+      // cueRepaint must hold OR match a neighbour; it must not
+      // introduce a third preset.
+      const isHold = cueRepaint === null
+      const matchesNeighbour = cueRepaint === frozen || cueRepaint === replaying
+      expect(
+        isHold || matchesNeighbour,
+        `${decoder}: frozen=${frozen} cueRepaint=${cueRepaint} replaying=${replaying}`,
+      ).toBe(true)
+    }
+  })
+
+  it('manual override prevents any phase transition from churning the preset', () => {
+    // §8.6 — once the user touches the camera dropdown for a scene
+    // the dispatcher must stop emitting opinions for the rest of
+    // that scene, so a phase transition cannot tug the camera away
+    // from the user's choice. Pinned across every (decoder, phase,
+    // assist) combo so a future tweak that adds a new phase or
+    // assist tier cannot accidentally break the override contract.
+    for (const decoder of ALL_DECODERS) {
+      for (const phase of [
+        'idle',
+        'setup',
+        'playing',
+        'frozen',
+        'consequence',
+        'cueRepaint',
+        'replaying',
+        'done',
+      ] as const) {
+        for (const assist of ['full', 'partial', 'none'] as const) {
+          expect(
+            pickAssistedCameraMode({
+              decoder,
+              phase,
+              assist,
+              manualOverride: true,
+            }),
+            `${decoder}/${phase}/${assist}`,
+          ).toBeNull()
+        }
+      }
+    }
+  })
+})
