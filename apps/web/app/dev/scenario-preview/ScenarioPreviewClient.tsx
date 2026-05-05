@@ -31,6 +31,7 @@ import {
   applyOverlayLevel,
   type OverlayLevel,
 } from '@/lib/scenario3d/overlayLevel'
+import { getDecoderTeachingLabel } from '@/lib/scenario3d/replayTeachingTimeline'
 
 export interface PreviewScenario {
   id: string
@@ -637,6 +638,17 @@ function RenderMetadataPanel({
     postAnswer: scene?.postAnswerOverlays ?? [],
     level: overlayLevel,
   })
+  // FR-6 — derive replay-teaching state for the metadata panel.
+  const replayLeg =
+    replayPhase === 'consequence'
+      ? 'consequence'
+      : replayPhase === 'cueRepaint' || replayPhase === 'replaying'
+        ? 'best-read'
+        : '—'
+  const cueRepaintActive = replayPhase === 'cueRepaint'
+  const teachingLabelActive = replayPhase === 'done'
+  const teachingLabelText =
+    scene?.decoderTag != null ? getDecoderTeachingLabel(scene.decoderTag).text : null
   return (
     <Panel title="Render Metadata">
       <Field label="Replay phase" value={replayPhase} mono />
@@ -696,6 +708,32 @@ function RenderMetadataPanel({
           dim
         />
       ) : null}
+      {/* FR-6 — replay teaching state. Lets QA see at a glance which
+          leg is active, whether the cue cluster is being repainted,
+          and the per-decoder teaching label that lands at done. */}
+      <Field
+        label="Replay leg"
+        value={replayLeg}
+        mono
+      />
+      <Field
+        label="Cue repaint"
+        value={cueRepaintActive ? 'on' : 'off'}
+        mono
+        dim={!cueRepaintActive}
+      />
+      <Field
+        label="Teaching label"
+        value={
+          teachingLabelText
+            ? teachingLabelActive
+              ? teachingLabelText
+              : `→ ${teachingLabelText}`
+            : '—'
+        }
+        mono
+        dim={!teachingLabelActive}
+      />
       <Field
         label="GLB gates"
         value={[

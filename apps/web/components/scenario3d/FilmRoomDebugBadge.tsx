@@ -25,6 +25,7 @@ import {
   isOverlaySuppressed,
   type OverlayLevel,
 } from '@/lib/scenario3d/overlayLevel'
+import { getDecoderTeachingLabel } from '@/lib/scenario3d/replayTeachingTimeline'
 
 /**
  * FR-1 Packet 6 — film-room teaching-state debug badge.
@@ -184,6 +185,22 @@ export function FilmRoomDebugBadge({
         ? filtered.postAnswer.length
         : 0
 
+  // FR-6 — replay teaching state. Three derived bits the badge surfaces
+  // so QA can see at a glance which leg is active, whether the cue
+  // cluster is being repainted, and which teaching label will land
+  // when the rep ends.
+  const replayLeg: 'consequence' | 'best-read' | null =
+    replayPhase === 'consequence'
+      ? 'consequence'
+      : replayPhase === 'cueRepaint' || replayPhase === 'replaying'
+        ? 'best-read'
+        : null
+  const cueRepaintActive = replayPhase === 'cueRepaint'
+  const teachingLabelActive = replayPhase === 'done'
+  const teachingLabelText = scene?.decoderTag
+    ? getDecoderTeachingLabel(scene.decoderTag).text
+    : null
+
   // Top-right placement so it does not collide with the bottom-left
   // GlbDebugBadge — both can be on at the same time.
   return (
@@ -275,6 +292,38 @@ export function FilmRoomDebugBadge({
             </span>
           </>
         ) : null}
+      </div>
+      {/* FR-6 — replay teaching state. Surfaces the active leg,
+          the cueRepaint window, and the per-decoder teaching label
+          that lands at done. */}
+      <div>
+        <span style={{ color: '#9cf' }}>leg</span>{' '}
+        <span
+          style={{
+            color:
+              replayLeg === 'consequence'
+                ? '#FF4D6D'
+                : replayLeg === 'best-read'
+                  ? '#7fdca0'
+                  : '#888',
+          }}
+        >
+          {replayLeg ?? '—'}
+        </span>
+        {' · '}
+        <span style={{ color: '#9cf' }}>cueRepaint</span>{' '}
+        <span style={{ color: cueRepaintActive ? '#FFB070' : '#888' }}>
+          {cueRepaintActive ? 'on' : 'off'}
+        </span>
+        {' · '}
+        <span style={{ color: '#9cf' }}>label</span>{' '}
+        <span style={{ color: teachingLabelActive ? '#fcd47a' : '#888' }}>
+          {teachingLabelActive
+            ? teachingLabelText ?? 'on'
+            : teachingLabelText
+              ? `→ ${teachingLabelText}`
+              : '—'}
+        </span>
       </div>
       <div>
         <span style={{ color: '#9cf' }}>render</span>{' '}
