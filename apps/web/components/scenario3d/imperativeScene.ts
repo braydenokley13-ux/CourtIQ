@@ -596,8 +596,24 @@ export function fitCameraToScene(
 
 // ---------- camera modes ----------
 
-/** All supported camera mode presets, plus "auto" for fit-to-scene. */
-export type CameraMode = 'auto' | 'broadcast' | 'tactical' | 'follow' | 'replay'
+/** All supported camera mode presets, plus "auto" for fit-to-scene.
+ *
+ *  FR-4 §8.2 — extended with the four named teaching presets the
+ *  decoder-aware dispatcher (`lib/scenario3d/cameraPresets.ts`)
+ *  emits. Legacy modes (`auto`, `broadcast`, `tactical`, `follow`,
+ *  `replay`) are retained byte-for-byte so existing `?camera=` URLs
+ *  and the user-facing dropdown keep working unchanged.
+ */
+export type CameraMode =
+  | 'auto'
+  | 'broadcast'
+  | 'tactical'
+  | 'follow'
+  | 'replay'
+  | 'teaching-angle'
+  | 'player-read-angle'
+  | 'help-defense-angle'
+  | 'top-down-coach-board'
 
 /** Static set of every selectable camera mode (used for prop validation). */
 export const CAMERA_MODES: readonly CameraMode[] = [
@@ -606,6 +622,10 @@ export const CAMERA_MODES: readonly CameraMode[] = [
   'tactical',
   'follow',
   'replay',
+  'teaching-angle',
+  'player-read-angle',
+  'help-defense-angle',
+  'top-down-coach-board',
 ] as const
 
 /**
@@ -735,6 +755,14 @@ export function computeCameraTarget(
       return replayTarget(nudgeFor(scene))
     case 'follow':
       return followTarget(scene) ?? broadcastTarget(nudgeFor(scene))
+    case 'teaching-angle':
+      return teachingAngleTarget(scene, aspect) ?? broadcastTarget(nudgeFor(scene))
+    case 'player-read-angle':
+      return playerReadAngleTarget(scene, aspect) ?? broadcastTarget(nudgeFor(scene))
+    case 'help-defense-angle':
+      return helpDefenseAngleTarget(scene, aspect) ?? broadcastTarget(nudgeFor(scene))
+    case 'top-down-coach-board':
+      return topDownCoachBoardTarget(scene, aspect)
     case 'auto':
     default:
       return computeAutoTarget(scene, aspect, baseFov)
@@ -849,6 +877,257 @@ function followTarget(scene: Scene3D): CameraTarget | null {
     // defender hip / shoulder angles when the ball-handler runs
     // past a defender at close range.
     fov: 46,
+    near: 0.5,
+    far: 400,
+  }
+}
+
+// =====================================================================
+// FR-4 — Decoder-aware teaching camera placements (§8.2 / §8.3 / §8.7)
+// =====================================================================
+//
+// These four placements are the renderer-side counterpart to the
+// `cameraPresets.ts` policy layer. The dispatcher decides *which*
+// preset to ask for; the helpers below compute *where* the camera
+// sits and where it looks for that preset given the scene geometry.
+//
+// Common conventions:
+//   - All return `CameraTarget` with feet-units `position` / `lookAt`,
+//     matching the existing broadcast / tactical / replay helpers.
+//   - All read the user's start position and the closest defender as
+//     "the cue defender," mirroring the FR-3 §7.3 heuristic so the
+//     camera and the heat-ring agree on which figure is the read.
+//   - Aspect-aware adjustments (§8.7) live on the policy side
+//     (`aspectAdjustmentForCanvas`) and are applied by the canvas at
+//     `setMode` time. The placement itself is aspect-independent so
+//     the helpers stay pure data and re-targetable in tests.
+
+interface CueAnchors {
+  user: THREE.Vector3
+  keyDefender: THREE.Vector3 | null
+  ball: THREE.Vector3
+}
+
+/** Pull the FR-3 cue triple — user position, closest defender to the
+ *  user, and the ball — out of the scene. Mirrors the heuristic in
+ *  `buildBasketballGroup` so the camera frames whichever defender the
+ *  heat-ring also marked. */
+function resolveCueAnchors(scene: Scene3D): CueAnchors | null {
+  const user = scene.players.find((p) => p.isUser)
+  if (
+    !user ||
+    !Number.isFinite(user.start.x) ||
+    !Number.isFinite(user.start.z)
+  ) {
+    return null
+  }
+  const userVec = new THREE.Vector3(user.start.x, 0, user.start.z)
+
+  let keyDefender: THREE.Vector3 | null = null
+  let bestDist = Infinity
+  for (const dp of scene.players) {
+    if (dp.team !== 'defense') continue
+    if (!Number.isFinite(dp.start.x) || !Number.isFinite(dp.start.z)) continue
+    const dx = dp.start.x - userVec.x
+    const dz = dp.start.z - userVec.z
+    const d = Math.hypot(dx, dz)
+    if (d < bestDist) {
+      bestDist = d
+      keyDefender = new THREE.Vector3(dp.start.x, 0, dp.start.z)
+    }
+  }
+
+  // Ball: prefer the holder's position, otherwise the static ball coord.
+  let ballVec = new THREE.Vector3(scene.ball.start.x, 0, scene.ball.start.z)
+  const holder = scene.ball.holderId
+    ? scene.players.find((p) => p.id === scene.ball.holderId)
+    : scene.players.find((p) => p.hasBall)
+  if (holder && Number.isFinite(holder.start.x) && Number.isFinite(holder.start.z)) {
+    ballVec = new THREE.Vector3(holder.start.x, 0, holder.start.z)
+  }
+
+  return { user: userVec, keyDefender, ball: ballVec }
+}
+
+/**
+ * §8.2 / §8.3 — Teaching Angle.
+ *
+ * Composed pitch-down framing around the user + key defender. The
+ * camera sits in front of the user (rim-side) at ~24° pitch so body
+ * cues read above the heads of the figures (shoulder, hip, hand, foot)
+ * and the open-space patch sits in the lower 2/3 of the frame.
+ *
+ * Aspect parameter is reserved for future per-aspect placement; for
+ * now the policy-layer `aspectAdjustmentForCanvas` carries the mobile
+ * tweaks and the placement here stays canonical.
+ */
+function teachingAngleTarget(
+  scene: Scene3D,
+  _aspect: number,
+): CameraTarget | null {
+  const a = resolveCueAnchors(scene)
+  if (!a) return null
+
+  // Anchor the look-at at the midpoint of user + key defender; bias
+  // toward the cue area so body language sits centre-frame.
+  const lookAt = a.keyDefender
+    ? new THREE.Vector3(
+        (a.user.x + a.keyDefender.x) * 0.5,
+        4,
+        (a.user.z + a.keyDefender.z) * 0.5,
+      )
+    : new THREE.Vector3(a.user.x, 4, a.user.z)
+
+  // Camera sits between the user and the rim, biased rim-side, so the
+  // user's back / shoulder is in frame and the defender's body cue is
+  // visible past them. Distance scales with how far the cue sits from
+  // mid-court so wing reads do not crowd, paint reads do not pull
+  // back too far.
+  const cueDistFromRim = Math.max(8, lookAt.z)
+  const distance = 18 + cueDistFromRim * 0.35
+  const pitchDeg = 24
+  const pitch = (pitchDeg * Math.PI) / 180
+  // Side-of-court bias: if the user is on the right wing, the camera
+  // pulls slightly left so we frame ACROSS them rather than over their
+  // strong shoulder. Mirrors a TV camera that rides the weak side of
+  // the play.
+  const sideBias = Math.sign(a.user.x) * -2
+  const position = new THREE.Vector3(
+    lookAt.x + sideBias,
+    Math.max(7, Math.sin(pitch) * distance + 3),
+    lookAt.z + Math.cos(pitch) * distance,
+  )
+
+  return {
+    position,
+    lookAt,
+    fov: 38,
+    near: 0.5,
+    far: 400,
+  }
+}
+
+/**
+ * §8.2 / §8.3 — Player Read Angle.
+ *
+ * Over-the-shoulder of the user, looking past them at the key defender
+ * and the ball. The camera sits behind the user along the
+ * (user → keyDefender) axis so the user's back is in frame and the
+ * defender / passing lane sit on the far side. Used in BDW / ESC /
+ * AOR replay legs where the user's read is what matters.
+ */
+function playerReadAngleTarget(
+  scene: Scene3D,
+  _aspect: number,
+): CameraTarget | null {
+  const a = resolveCueAnchors(scene)
+  if (!a) return null
+
+  // Direction from key defender (or ball) back through the user. The
+  // camera sits a few feet behind the user along that axis.
+  const target = a.keyDefender ?? a.ball
+  let dirX = a.user.x - target.x
+  let dirZ = a.user.z - target.z
+  const len = Math.hypot(dirX, dirZ)
+  if (len < 0.001) {
+    // Degenerate — user and target overlap. Fall back to a back-of-
+    // court trail so the camera still produces a sensible frame.
+    dirX = 0
+    dirZ = 1
+  } else {
+    dirX /= len
+    dirZ /= len
+  }
+
+  const trail = 8
+  const position = new THREE.Vector3(
+    a.user.x + dirX * trail,
+    7,
+    a.user.z + dirZ * trail,
+  )
+  // Look at a point just past the user toward the defender so the
+  // read lives in the middle 1/3 of the frame.
+  const lookAhead = 6
+  const lookAt = new THREE.Vector3(
+    a.user.x - dirX * lookAhead,
+    4,
+    a.user.z - dirZ * lookAhead,
+  )
+
+  return {
+    position,
+    lookAt,
+    fov: 42,
+    near: 0.5,
+    far: 400,
+  }
+}
+
+/**
+ * §8.2 / §8.3 — Help Defense Angle.
+ *
+ * Side-on framing with the weak side toward camera. Used by SKR
+ * scenarios so the over-helper and the abandoned weak-side shooter
+ * live in the same shot. The camera rides the side of the court
+ * opposite the ball-handler so the help rotation reads as motion
+ * AWAY from the camera and the weak-side shooter reads as the
+ * left-most or right-most figure in frame.
+ */
+function helpDefenseAngleTarget(
+  scene: Scene3D,
+  _aspect: number,
+): CameraTarget | null {
+  const a = resolveCueAnchors(scene)
+  if (!a) return null
+
+  // Ride the side of the court opposite the ball. If the ball is
+  // strong-side right (positive x), we ride the right sideline so
+  // the rotation toward the ball reads across-frame.
+  const ballSide = Math.sign(a.ball.x) || 1
+  const position = new THREE.Vector3(
+    ballSide * 32,
+    13,
+    Math.max(8, a.ball.z + 4),
+  )
+  // Look at a point between the ball and the user so both the over-
+  // helper (near the ball) and the weak-side shooter (near the user)
+  // sit inside the frame.
+  const lookAt = new THREE.Vector3(
+    (a.ball.x + a.user.x) * 0.5,
+    3,
+    (a.ball.z + a.user.z) * 0.5,
+  )
+
+  return {
+    position,
+    lookAt,
+    fov: 40,
+    near: 0.5,
+    far: 400,
+  }
+}
+
+/**
+ * §8.2 — Top-Down Coach Board.
+ *
+ * Pure top-down (90° pitch). Used in replay teaching for SKR and
+ * by future Film-Room Review. Centered on the cue area when one is
+ * resolvable, otherwise on the geometric centroid of the play.
+ */
+function topDownCoachBoardTarget(
+  scene: Scene3D,
+  _aspect: number,
+): CameraTarget {
+  const a = resolveCueAnchors(scene)
+  // Centroid of user + ball when resolvable; otherwise the canonical
+  // half-court centre. Either way the look-at is on the floor so the
+  // top-down feels like a tactical board.
+  const centerX = a ? (a.user.x + a.ball.x) * 0.5 : 0
+  const centerZ = a ? (a.user.z + a.ball.z) * 0.5 : 18
+  return {
+    position: new THREE.Vector3(centerX, 60, centerZ),
+    lookAt: new THREE.Vector3(centerX, 0, centerZ),
+    fov: 38,
     near: 0.5,
     far: 400,
   }
