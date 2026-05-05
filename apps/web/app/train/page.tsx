@@ -624,6 +624,34 @@ function TrainPageInner() {
         // localStorage may be disabled — summary page falls back to
         // computing pass/fail from the URL correct/total params.
       }
+
+      // PTH-4: dual-write to the server so a cleared boss survives
+      // refresh / login on another device. Best-effort — a failure
+      // here never breaks the user flow because localStorage above
+      // already persisted the result for the current session.
+      void (async () => {
+        try {
+          await fetch('/api/pathways/challenge-attempt', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              pathwaySlug: pathwayContext.pathwaySlug,
+              chapterSlug: pathwayContext.chapterSlug,
+              mode,
+              challengeSlug,
+              sessionRunId: sessionId,
+              scenarioIds:
+                pathwayContext.challengeScenarioIds ?? pathwayContext.scenarioIds ?? [],
+              total: totalCount,
+            }),
+          })
+        } catch (err) {
+          // Soft-fail: localStorage already covers the immediate UI
+          // and the user is about to navigate to /train/summary,
+          // which can recompute pass/fail from URL params.
+          console.warn('[pathways/challenge-attempt] server write failed', err)
+        }
+      })()
     }
 
     try {

@@ -166,6 +166,9 @@ function SummaryContent() {
   // on the way through, but we re-record here to cover the case
   // where the user lands on summary via direct URL (e.g. shared link
   // or back-button).
+  // PTH-4: also dual-write to the server here. /train normally posts
+  // first, but covering this path means a direct link to /train/summary
+  // still promotes the result to account-level state.
   useEffect(() => {
     if (!challengeMode) return
     if (!pathwaySlug || !chapterSlug) return
@@ -188,7 +191,29 @@ function SummaryContent() {
     } catch {
       // ignore
     }
-  }, [challengeMode, pathwaySlug, chapterSlug, nodeSlug, correct, total, passRatio])
+
+    // PTH-4: server dual-write — best-effort. If this fails the
+    // localStorage write above still drives the immediate UI; the
+    // pathway detail page falls back to that signal.
+    void (async () => {
+      try {
+        await fetch('/api/pathways/challenge-attempt', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            pathwaySlug,
+            chapterSlug,
+            mode: challengeMode,
+            challengeSlug,
+            sessionRunId: params.get('sessionId'),
+            total,
+          }),
+        })
+      } catch (err) {
+        console.warn('[pathways/challenge-attempt] server write failed', err)
+      }
+    })()
+  }, [challengeMode, pathwaySlug, chapterSlug, nodeSlug, correct, total, passRatio, params])
 
   // Retry hrefs — boss replays the canonical boss scenario set;
   // mixed-reads replays the chapter's mixed scenario set.
