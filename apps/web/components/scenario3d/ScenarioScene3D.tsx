@@ -248,7 +248,7 @@ function AuthoredOverlayBridge({
         postAnswer: scene.postAnswerOverlays,
         level: overlayLevel,
       }),
-    [scene.id, overlayLevel, scene.preAnswerOverlays, scene.postAnswerOverlays],
+    [overlayLevel, scene.preAnswerOverlays, scene.postAnswerOverlays],
   )
 
   useEffect(() => {
