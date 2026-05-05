@@ -46,6 +46,10 @@ import {
   stripRootMotionTracks,
   _setImportedClipCacheForTest,
 } from './importedClipLoader'
+import {
+  GLB_ATHLETE_MATERIAL_PARAMS,
+  GLB_ATHLETE_REGION_PALETTE,
+} from '@/lib/scenario3d/glbAthleteAudit'
 
 /**
  * Marker stored on the figure root userData so callers and tests
@@ -2440,12 +2444,15 @@ function findFirstSkinnedMesh(root: THREE.Object3D): THREE.SkinnedMesh | null {
  * vertices to compute regions. The cloned geometry is disposed by
  * the existing `disposeGroup` traversal when the figure is torn down.
  */
-const GLB_REGION_COLOR = {
-  shorts: '#3a3d44',
-  skin: '#caa68a',
-  shoes: '#16181c',
-  hair: '#1a1c20',
-} as const
+/**
+ * FR-8 Packet 2 — region palette + material params now sourced from
+ * the canonical audit module so the procedural fallback can pick up
+ * the same values without duplicating constants. Pre-FR-8 the local
+ * `GLB_REGION_COLOR` literal was the only source of truth; the audit
+ * file (`lib/scenario3d/glbAthleteAudit.ts`) re-exports it as
+ * `GLB_ATHLETE_REGION_PALETTE` so the procedural path can match.
+ */
+const GLB_REGION_COLOR = GLB_ATHLETE_REGION_PALETTE
 
 type GlbRegion = 'jersey' | 'shorts' | 'skin' | 'shoes' | 'hair'
 
@@ -2565,10 +2572,13 @@ function applyMultiRegionMaterialsToCloned(
     }
 
     if (isJointsOverlay) {
+      // FR-8 Packet 2 — joint overlay tints to skin so the studs
+      // disappear into the silhouette. Material params come from the
+      // canonical audit table.
       const swap = new THREE.MeshStandardMaterial({
         color: skinCol.clone(),
-        roughness: 0.7,
-        metalness: 0.0,
+        roughness: GLB_ATHLETE_MATERIAL_PARAMS.jointsRoughness,
+        metalness: GLB_ATHLETE_MATERIAL_PARAMS.jointsMetalness,
       })
       disposeOld(baseMat)
       ;(sm.isSkinnedMesh ? sm : mesh).material = swap
@@ -2577,10 +2587,12 @@ function applyMultiRegionMaterialsToCloned(
 
     if (!sm.isSkinnedMesh || !sm.skeleton) {
       // Plain mesh — fall back to a flat team-colour material.
+      // FR-8 Packet 2 — softer cloth-style response so a bright
+      // jersey reads as fabric rather than vinyl.
       const swap = new THREE.MeshStandardMaterial({
         color: teamCol.clone(),
-        roughness: 0.55,
-        metalness: 0.05,
+        roughness: GLB_ATHLETE_MATERIAL_PARAMS.bodyRoughness,
+        metalness: GLB_ATHLETE_MATERIAL_PARAMS.bodyMetalness,
       })
       disposeOld(baseMat)
       mesh.material = swap
@@ -2598,10 +2610,12 @@ function applyMultiRegionMaterialsToCloned(
       | THREE.BufferAttribute
       | undefined
     if (!skinIdxAttr || !skinWeightAttr || !posAttr) {
+      // FR-8 Packet 2 — flat team-colour fallback uses the audited
+      // cloth-style material params.
       const swap = new THREE.MeshStandardMaterial({
         color: teamCol.clone(),
-        roughness: 0.55,
-        metalness: 0.05,
+        roughness: GLB_ATHLETE_MATERIAL_PARAMS.bodyRoughness,
+        metalness: GLB_ATHLETE_MATERIAL_PARAMS.bodyMetalness,
       })
       disposeOld(baseMat)
       sm.material = swap
@@ -2660,11 +2674,15 @@ function applyMultiRegionMaterialsToCloned(
     )
     sm.geometry = clonedGeom
 
+    // FR-8 Packet 2 — multi-region tinted material. The vertex
+    // colours carry the per-region palette; the material params come
+    // from the audit table so any tweak is localised in one place
+    // and the procedural fallback can mirror the same look.
     const swap = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       vertexColors: true,
-      roughness: 0.6,
-      metalness: 0.05,
+      roughness: GLB_ATHLETE_MATERIAL_PARAMS.bodyRoughness,
+      metalness: GLB_ATHLETE_MATERIAL_PARAMS.bodyMetalness,
     })
     disposeOld(baseMat)
     sm.material = swap
