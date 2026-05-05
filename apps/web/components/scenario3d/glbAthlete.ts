@@ -1101,6 +1101,17 @@ export function _resetGlbAthleteLoadOutcomeForTest(): void {
 }
 
 /**
+ * Test-only — directly set the loader-outcome tracker so unit tests
+ * can exercise the §6.5 silent-failure surface without driving the
+ * real GLTFLoader (which jsdom cannot satisfy synchronously).
+ */
+export function _setGlbAthleteLoadOutcomeForTest(
+  outcome: GlbAthleteLoadOutcome,
+): void {
+  _lastLoadOutcome = outcome
+}
+
+/**
  * Kicks off (or returns the in-flight) async load of the bundled
  * mannequin GLB. Resolves with the cache entry on success, or
  * `null` if anything fails (asset missing, network blocked, parse
