@@ -48,7 +48,11 @@ import {
   type QualityTier,
 } from '@/lib/scenario3d/quality'
 import { buildDustMotes, type DustMotes } from '@/lib/scenario3d/atmosphere'
-import { loadGlbAthleteAsset, preloadImportedCloseoutClip } from './glbAthlete'
+import {
+  isGlbAthleteCacheReady,
+  loadGlbAthleteAsset,
+  preloadImportedCloseoutClip,
+} from './glbAthlete'
 import { GlbDebugBadge, isGlbDebugBadgeEnabled } from './GlbDebugBadge'
 import {
   FilmRoomDebugBadge,
@@ -570,21 +574,74 @@ export function Scenario3DCanvas({
       // and rethrows; the gate decision must not depend on it.
     }
 
+    // FR-2 Packet 2 — safety timeout. The imperative scene-build
+    // effect defers its first mount when the gate is on and the
+    // cache is cold so the very first scenario never renders
+    // procedural-then-GLB. The effect waits for `glbCacheReadyTick`
+    // to bump from zero. We always bump on load resolution (success
+    // OR failure) and add a hard timeout below so a stalled fetch
+    // can never trap the user behind a black canvas — after the
+    // timeout fires we stop waiting and let the renderer pick the
+    // best available fallback path (GLB-static-pose / procedural)
+    // exactly as it does today.
+    const GLB_LOAD_DEFER_TIMEOUT_MS = 1500
     if (glbActive) {
+      let settled = false
+      const settle = () => {
+        if (settled || cancelled) return
+        settled = true
+        // FR-2 Packet 2 — bump on EITHER outcome (warm cache or
+        // failure). Pre-FR-2 this only fired on success, which left
+        // the deferred mount path waiting forever when the asset
+        // was unreachable. Bumping on failure tells the scene-build
+        // effect "the load is decided — proceed with whatever
+        // fallback path the figure builder picks."
+        setGlbCacheReadyTick((n) => n + 1)
+      }
+      const timeoutId = window.setTimeout(() => {
+        if (!settled) {
+          // eslint-disable-next-line no-console
+          console.warn('[CourtIQ GLB] load defer timeout — proceeding without cache', {
+            timeoutMs: GLB_LOAD_DEFER_TIMEOUT_MS,
+          })
+          settle()
+        }
+      }, GLB_LOAD_DEFER_TIMEOUT_MS)
       void loadGlbAthleteAsset()
         .then((result) => {
-          if (cancelled) return
+          if (cancelled) {
+            window.clearTimeout(timeoutId)
+            return
+          }
           applyAfterTransition()
-          // P3.3B — flip the cache-ready tick so the scene-build
-          // effect re-runs and replaces the cold-cache procedural
-          // fallback with the loaded GLB mannequin. Only fires when
-          // the load actually produced a cache entry; a `null`
-          // result (asset missing, parse failure, network blocked)
-          // leaves the procedural figure in place exactly as before.
-          if (result) setGlbCacheReadyTick((n) => n + 1)
+          window.clearTimeout(timeoutId)
+          if (!result) {
+            // FR-2 Packet 5 — surface the silent-failure transitions
+            // (`asset-missing-or-no-skin`, `loader-threw`) into the
+            // structured breadcrumb log so dev/QA never sees a quiet
+            // procedural fallback again. We only know "no cache" at
+            // this layer — the figure-decision log captures the
+            // per-figure reason on the next rebuild.
+            // eslint-disable-next-line no-console
+            console.warn('[CourtIQ GLB] loader resolved without a cache entry', {
+              reason: 'asset-missing-or-no-skin',
+            })
+          }
+          settle()
         })
-        .catch(() => {
-          /* swallowed — apply still runs from the observer */
+        .catch((err) => {
+          window.clearTimeout(timeoutId)
+          // FR-2 Packet 5 — explicit `loader-threw` surface. The
+          // promise was created with `.catch(() => null)` inside
+          // `loadGlbAthleteAsset` so this branch only fires on a
+          // truly unexpected throw. We still settle so the deferred
+          // mount path proceeds.
+          // eslint-disable-next-line no-console
+          console.warn('[CourtIQ GLB] loader threw', {
+            reason: 'loader-threw',
+            error: err instanceof Error ? err.message : String(err),
+          })
+          settle()
         })
       if (isImportedCloseoutClipActive()) {
         void preloadImportedCloseoutClip()
@@ -816,6 +873,45 @@ export function Scenario3DCanvas({
       const threeScene = threeSceneRef.current
       const cam = threeCameraRef.current
       if (!threeScene || !cam) {
+        pollId = window.requestAnimationFrame(tryMount)
+        return
+      }
+
+      // FR-2 Packet 2 — defer the very first scene mount when the GLB
+      // gate is on AND the loader cache is still cold AND the load
+      // promise has not yet bumped `glbCacheReadyTick` (or fired the
+      // safety timeout in the load effect above). This removes the
+      // cold-cache "procedural-first frame, GLB-on-the-second-frame"
+      // flicker that was the §6.7 product-trust issue: the same user
+      // saw a different visual the first time vs. on later loads.
+      //
+      // Behavior:
+      //   - GLB gate off → never wait, render whatever the fallback
+      //     chain picks (procedural / 2D), exactly as before.
+      //   - GLB gate on, cache already warm → render immediately
+      //     with GLB figures.
+      //   - GLB gate on, cache cold, first build (`tick === 0`) →
+      //     hold off and re-poll on the next rAF tick.
+      //   - GLB gate on, cache cold, the load resolved (`tick > 0`)
+      //     → proceed with the renderer's fallback chain. The load
+      //     promise OR the safety timeout in the load effect bumps
+      //     the tick, so we cannot wait forever.
+      //   - Subsequent scene swaps (visibleScene change) → tick is
+      //     already > 0 from the initial mount, so this branch is a
+      //     no-op and the scene mounts on the same frame.
+      //
+      // Force-glb (`?forceGlb=1`) follows the same wait policy here;
+      // FR-2 Packet 6 layers the magenta-proxy guarantee on top once
+      // the wait is over.
+      const glbGateOn = isGlbAthletePreviewActive() || forceGlb
+      if (
+        !emergencyMode &&
+        !debugMode &&
+        simpleMode &&
+        glbGateOn &&
+        !isGlbAthleteCacheReady() &&
+        glbCacheReadyTick === 0
+      ) {
         pollId = window.requestAnimationFrame(tryMount)
         return
       }

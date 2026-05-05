@@ -1110,6 +1110,22 @@ export function _resetGlbAthleteCache(): void {
 }
 
 /**
+ * FR-2 Packet 2 — synchronous probe for the GLTFLoader cache state.
+ *
+ * Returns `true` when `loadGlbAthleteAsset()` has resolved with a
+ * populated cache entry, `false` otherwise (cold, in-flight, or
+ * resolved with `null`). Exported so the canvas's imperative
+ * scene-build effect can decide whether to render the very first
+ * scene immediately or defer until the load settles — see the
+ * "remove procedural-first frame" logic in `Scenario3DCanvas.tsx`.
+ *
+ * Pure read of module-private state. No side effects, no fetches.
+ */
+export function isGlbAthleteCacheReady(): boolean {
+  return cache !== null
+}
+
+/**
  * P3.3F — last failure reason for `buildGlbAthletePreview`. Updated
  * on every call (including success), so callers can read it
  * synchronously after the figure builder returns to find out *why*
