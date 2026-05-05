@@ -26,6 +26,12 @@ import { summarisePlayerFigureDecisions } from '@/components/scenario3d/GlbDebug
 import type { ReplayPhase } from '@/components/scenario3d/ScenarioReplayController'
 import type { CourtState } from '@/components/court'
 import type { DecoderTag } from '@/lib/scenario3d/schema'
+import type { Scene3D } from '@/lib/scenario3d/scene'
+import {
+  applyOverlayLevel,
+  type OverlayLevel,
+} from '@/lib/scenario3d/overlayLevel'
+import { getDecoderTeachingLabel } from '@/lib/scenario3d/replayTeachingTimeline'
 
 export interface PreviewScenario {
   id: string
@@ -98,6 +104,11 @@ export function ScenarioPreviewClient({
   const [selectedId, setSelectedId] = useState(initialScenarioId)
   const [resetCounter, setResetCounter] = useState(0)
   const [replayPhase, setReplayPhase] = useState<ReplayPhase>('idle')
+  // FR-5 — QA route defaults to `'review'` so the freeze frame mounts
+  // every authored primitive across all 20 founder-v0 scenarios.
+  // QA can flip the dropdown to inspect each Pathways tier in turn
+  // without leaving the page.
+  const [overlayLevel, setOverlayLevel] = useState<OverlayLevel>('review')
   const [activeCaption, setActiveCaption] = useState<string | undefined>()
   const [decisionLog, setDecisionLog] = useState<readonly PlayerFigureDecision[]>(
     [],
@@ -327,6 +338,9 @@ export function ScenarioPreviewClient({
             postAnswerOverlayCount={scene?.postAnswerOverlays?.length ?? 0}
             decoder={selected?.decoder_tag ?? null}
             glbGate={glbGate}
+            overlayLevel={overlayLevel}
+            onOverlayLevelChange={setOverlayLevel}
+            scene={scene ?? null}
           />
           <QaChecklistPanel
             failedItems={failedItems}
@@ -369,6 +383,12 @@ export function ScenarioPreviewClient({
                  *  the read; production /train inherits the partial
                  *  default. */
                 cameraAssist="full"
+                /* FR-5 §9.2 — QA route exposes the full level
+                 *  spectrum via the dropdown above. Default is
+                 *  `'review'` (max teaching support); flipping to
+                 *  `'none'` validates Boss Challenge zero-overlay
+                 *  rendering. */
+                overlayLevel={overlayLevel}
               />
             ) : (
               <div
@@ -594,6 +614,9 @@ function RenderMetadataPanel({
   postAnswerOverlayCount,
   decoder,
   glbGate,
+  overlayLevel,
+  onOverlayLevelChange,
+  scene,
 }: {
   decisions: readonly PlayerFigureDecision[]
   renderSummary: string
@@ -606,7 +629,26 @@ function RenderMetadataPanel({
   postAnswerOverlayCount: number
   decoder: string | null
   glbGate: { glb: boolean; closeout: boolean; backCut: boolean }
+  overlayLevel: OverlayLevel
+  onOverlayLevelChange: (next: OverlayLevel) => void
+  scene: Scene3D | null
 }) {
+  const filtered = applyOverlayLevel({
+    preAnswer: scene?.preAnswerOverlays ?? [],
+    postAnswer: scene?.postAnswerOverlays ?? [],
+    level: overlayLevel,
+  })
+  // FR-6 — derive replay-teaching state for the metadata panel.
+  const replayLeg =
+    replayPhase === 'consequence'
+      ? 'consequence'
+      : replayPhase === 'cueRepaint' || replayPhase === 'replaying'
+        ? 'best-read'
+        : '—'
+  const cueRepaintActive = replayPhase === 'cueRepaint'
+  const teachingLabelActive = replayPhase === 'done'
+  const teachingLabelText =
+    scene?.decoderTag != null ? getDecoderTeachingLabel(scene.decoderTag).text : null
   return (
     <Panel title="Render Metadata">
       <Field label="Replay phase" value={replayPhase} mono />
@@ -626,6 +668,71 @@ function RenderMetadataPanel({
         label="Pre / post overlays"
         value={`${preAnswerOverlayCount} pre · ${postAnswerOverlayCount} post`}
         mono
+      />
+      {/* FR-5 §9.2 — overlayLevel dropdown so QA can flip between
+          Pathways modes without leaving the page. The active counts
+          and dropped counts below show the helper's projection of
+          the scene's authored arrays under the selected level. */}
+      <FieldRow label="Overlay level">
+        <select
+          value={overlayLevel}
+          onChange={(e) => onOverlayLevelChange(e.target.value as OverlayLevel)}
+          style={{
+            background: '#101622',
+            color: '#E7ECF3',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 6,
+            padding: '2px 6px',
+            fontFamily:
+              'ui-monospace, SFMono-Regular, Menlo, monospace',
+            fontSize: 12,
+          }}
+        >
+          <option value="beginner">beginner (3 / 3)</option>
+          <option value="intermediate">intermediate (2 / 2)</option>
+          <option value="advanced">advanced (1 / 1)</option>
+          <option value="none">none — Boss (0 / 0)</option>
+          <option value="review">review — Film Room (∞)</option>
+        </select>
+      </FieldRow>
+      <Field
+        label="Active overlays"
+        value={`${filtered.preAnswer.length} pre · ${filtered.postAnswer.length} post`}
+        mono
+      />
+      {filtered.droppedPre + filtered.droppedPost > 0 ? (
+        <Field
+          label="Dropped"
+          value={`${filtered.droppedPre} pre · ${filtered.droppedPost} post`}
+          mono
+          dim
+        />
+      ) : null}
+      {/* FR-6 — replay teaching state. Lets QA see at a glance which
+          leg is active, whether the cue cluster is being repainted,
+          and the per-decoder teaching label that lands at done. */}
+      <Field
+        label="Replay leg"
+        value={replayLeg}
+        mono
+      />
+      <Field
+        label="Cue repaint"
+        value={cueRepaintActive ? 'on' : 'off'}
+        mono
+        dim={!cueRepaintActive}
+      />
+      <Field
+        label="Teaching label"
+        value={
+          teachingLabelText
+            ? teachingLabelActive
+              ? teachingLabelText
+              : `→ ${teachingLabelText}`
+            : '—'
+        }
+        mono
+        dim={!teachingLabelActive}
       />
       <Field
         label="GLB gates"
@@ -941,6 +1048,29 @@ function Field({
 function Empty({ children }: { children: ReactNode }) {
   return (
     <div style={{ fontSize: 12, opacity: 0.6 }}>{children}</div>
+  )
+}
+
+/**
+ * Same uppercase label as `Field` but the value slot is a `children`
+ * region so callers can drop in a `<select>` / button / etc. Used by
+ * the FR-5 overlay-level dropdown.
+ */
+function FieldRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div style={{ marginBottom: 6 }}>
+      <div
+        style={{
+          fontSize: 10,
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+          opacity: 0.55,
+        }}
+      >
+        {label}
+      </div>
+      <div style={{ fontSize: 12 }}>{children}</div>
+    </div>
   )
 }
 

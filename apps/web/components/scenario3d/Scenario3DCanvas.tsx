@@ -62,6 +62,10 @@ import {
   pickAssistedCameraMode,
   type CameraAssist,
 } from '@/lib/scenario3d/cameraPresets'
+import {
+  DEFAULT_OVERLAY_LEVEL,
+  type OverlayLevel,
+} from '@/lib/scenario3d/overlayLevel'
 
 interface Scenario3DCanvasProps {
   /** Mounted as the WebGL fallback when WebGL is unavailable. */
@@ -142,6 +146,14 @@ interface Scenario3DCanvasProps {
    * They resume on the next scenario.").
    */
   cameraManualOverride?: boolean
+  /**
+   * FR-5 §9.2 — Pathways-driven overlay intensity. Forwarded into
+   * the JSX `AuthoredOverlayBridge` (full path only) which projects
+   * the scene's authored overlay arrays through `applyOverlayLevel`
+   * before mounting them. Defaults to `'beginner'` so legacy callers
+   * keep mounting the full cluster.
+   */
+  overlayLevel?: OverlayLevel
 }
 
 // Mid-tone gray. While the rebuild is in flight we deliberately do NOT
@@ -221,6 +233,7 @@ export function Scenario3DCanvas({
   // into decoder-aware freeze framing.
   cameraAssist = 'partial',
   cameraManualOverride = false,
+  overlayLevel = DEFAULT_OVERLAY_LEVEL,
 }: Scenario3DCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   // Refs into the THREE objects R3F creates. Captured in onCreated so a
@@ -1692,6 +1705,7 @@ export function Scenario3DCanvas({
               }}
               showPaths={showPaths}
               pickedChoiceId={pickedChoiceId}
+              overlayLevel={overlayLevel}
             />
             <Suspense fallback={null}>{children}</Suspense>
             <SceneDebug3D scene={visibleScene} />
@@ -1758,6 +1772,7 @@ export function Scenario3DCanvas({
           concept={concept}
           cameraAssist={cameraAssist}
           cameraManualOverride={cameraManualOverride}
+          overlayLevel={overlayLevel}
         />
       ) : null}
     </div>

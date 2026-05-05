@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
 import { PlayerMarker3D } from './PlayerMarker3D'
@@ -14,6 +14,16 @@ import {
 import { TeachingOverlayController, type OverlayPhase } from './imperativeTeachingOverlay'
 import { useReducedMotion } from '@/lib/scenario3d/useReducedMotion'
 import type { Scene3D } from '@/lib/scenario3d/scene'
+import {
+  applyOverlayLevel,
+  DEFAULT_OVERLAY_LEVEL,
+  isOverlaySuppressed,
+  type OverlayLevel,
+} from '@/lib/scenario3d/overlayLevel'
+import {
+  TEACHING_LABEL_FADE_IN_MS,
+  getDecoderTeachingLabel,
+} from '@/lib/scenario3d/replayTeachingTimeline'
 
 interface ScenarioScene3DProps {
   scene: Scene3D
@@ -34,6 +44,13 @@ interface ScenarioScene3DProps {
    * the answer leg for best-read choices).
    */
   pickedChoiceId?: string | null
+  /**
+   * FR-5 §9.2 — Pathways-driven overlay intensity. Forwarded to
+   * `AuthoredOverlayBridge` which projects the scene's overlay arrays
+   * through `applyOverlayLevel` before mounting them. Default
+   * `'beginner'` mounts the full cluster — pre-FR-5 behavior.
+   */
+  overlayLevel?: OverlayLevel
 }
 
 const PLAYER_HEIGHT = 0
@@ -63,6 +80,7 @@ export function ScenarioScene3D({
   onPhase,
   showPaths,
   pickedChoiceId,
+  overlayLevel = DEFAULT_OVERLAY_LEVEL,
 }: ScenarioScene3DProps) {
   const playerRefs = useRef<Map<string, THREE.Group>>(new Map())
   const ballRef = useRef<THREE.Group | null>(null)
@@ -121,8 +139,14 @@ export function ScenarioScene3D({
 
       {/* Phase H — authored pre/post overlay bridge. Mounts a heuristic-free
           TeachingOverlayController inside the JSX scene tree so decoder
-          scenarios on the full path get layered post-answer reveals. */}
-      <AuthoredOverlayBridge scene={scene} replayPhase={replayPhase} />
+          scenarios on the full path get layered post-answer reveals.
+          FR-5 — `overlayLevel` controls how much of the authored cluster
+          actually mounts. */}
+      <AuthoredOverlayBridge
+        scene={scene}
+        replayPhase={replayPhase}
+        overlayLevel={overlayLevel}
+      />
 
       {showPaths && activeMovements.length > 0
         ? activeMovements.map((m) => {
@@ -207,13 +231,29 @@ export function ScenarioScene3D({
 function AuthoredOverlayBridge({
   scene,
   replayPhase,
+  overlayLevel,
 }: {
   scene: Scene3D
   replayPhase: ReplayPhase
+  overlayLevel: OverlayLevel
 }) {
   const root = useThree((s) => s.scene as unknown as THREE.Group)
   const ctrlRef = useRef<TeachingOverlayController | null>(null)
   const reduced = useReducedMotion()
+
+  // FR-5 — project the scene's authored overlay arrays through the
+  // level filter on every (scene.id × overlayLevel) change. The filter
+  // is pure so the result memo lets the rebuild effect below depend
+  // on the filtered shape rather than re-invoking the filter inline.
+  const filtered = useMemo(
+    () =>
+      applyOverlayLevel({
+        preAnswer: scene.preAnswerOverlays,
+        postAnswer: scene.postAnswerOverlays,
+        level: overlayLevel,
+      }),
+    [overlayLevel, scene.preAnswerOverlays, scene.postAnswerOverlays],
+  )
 
   useEffect(() => {
     if (!root) return
@@ -221,22 +261,30 @@ function AuthoredOverlayBridge({
       reduced,
       heuristic: false,
     })
-    ctrl.setAuthoredOverlays(scene.preAnswerOverlays, scene.postAnswerOverlays)
-    ctrl.setVisible(true)
+    ctrl.setAuthoredOverlays(filtered.preAnswer, filtered.postAnswer)
+    // FR-5 — suppressed levels (Boss / 'none') keep the controller
+    // mounted so phase callbacks still no-op cleanly, but with the
+    // overlay group hidden so nothing renders.
+    ctrl.setVisible(!isOverlaySuppressed(overlayLevel))
     ctrlRef.current = ctrl
     return () => {
       ctrl.dispose()
       ctrlRef.current = null
     }
-    // Rebuild only on scene swap; phase changes flow through setPhase below.
+    // Rebuild only on scene swap or filter result swap; phase changes
+    // flow through setPhase below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scene.id])
+  }, [scene.id, filtered, overlayLevel])
 
   useEffect(() => {
     const ctrl = ctrlRef.current
     if (!ctrl) return
+    // FR-6 — `cueRepaint` is the brief window between consequence
+    // end / best-read pick and the start of answer-leg motion. We
+    // re-paint the pre-answer cluster so the cue lands one more
+    // time before the read plays.
     const overlayPhase: OverlayPhase =
-      replayPhase === 'frozen'
+      replayPhase === 'frozen' || replayPhase === 'cueRepaint'
         ? 'pre'
         : replayPhase === 'consequence' ||
             replayPhase === 'replaying' ||
@@ -244,11 +292,57 @@ function AuthoredOverlayBridge({
           ? 'post'
           : 'hidden'
     ctrl.setPhase(overlayPhase)
-  }, [replayPhase])
+
+    // FR-6 — end-of-rep teaching label. Mounts on `done` and
+    // anchors above the cue role's player position; clears on
+    // scene swap (the rebuild effect's cleanup also disposes via
+    // `ctrl.dispose()`, so this is defense in depth) or whenever
+    // the user re-enters the rep (idle / setup / playing).
+    if (replayPhase === 'done' && scene.decoderTag) {
+      const label = getDecoderTeachingLabel(scene.decoderTag)
+      const anchorPlayer = pickTeachingLabelAnchor(scene, label.anchorRole)
+      if (anchorPlayer) {
+        ctrl.setTeachingLabel({
+          text: label.text,
+          anchor: { x: anchorPlayer.x, z: anchorPlayer.z },
+          fadeDurationMs: TEACHING_LABEL_FADE_IN_MS,
+          targetOpacity: 1,
+        })
+      }
+    } else if (replayPhase === 'idle' || replayPhase === 'setup' || replayPhase === 'playing') {
+      // The user is re-entering the rep — drop any stale label so
+      // the next rep doesn't show last rep's chip.
+      if (ctrl.hasTeachingLabel()) ctrl.clearTeachingLabel()
+    }
+  }, [replayPhase, scene])
 
   useFrame((state) => {
     ctrlRef.current?.tick(state.clock.getElapsedTime() * 1000)
   })
 
+  return null
+}
+
+/**
+ * FR-6 — picks a court point above which the end-of-rep teaching
+ * label should hover. The plan's §9.4 anchor rule is "above the
+ * cue", and across all four founder families the cue's payoff
+ * lands on the user's figure (cutter / receiver / open shooter /
+ * skip target). We anchor at the user's starting position so the
+ * label is deterministic regardless of where the answer leg
+ * deposits the user — and it stays inside the freeze framing the
+ * cueRepaint phase already centred on the user.
+ *
+ * Returns null when the scene has no user player (legacy /
+ * synthetic scenes); the bridge no-ops in that case.
+ */
+function pickTeachingLabelAnchor(
+  scene: Scene3D,
+  _role: 'cutter' | 'receiver' | 'open_player' | 'helper_defender' | 'closeout_defender' | 'deny_defender',
+): { x: number; z: number } | null {
+  const user = scene.players.find((p) => p.isUser)
+  if (user) return { x: user.start.x, z: user.start.z }
+  const firstOffense = scene.players.find((p) => p.team === 'offense')
+  if (firstOffense) return { x: firstOffense.start.x, z: firstOffense.start.z }
   return null
 }

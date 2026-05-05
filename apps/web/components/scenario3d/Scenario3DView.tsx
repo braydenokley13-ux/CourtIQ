@@ -11,6 +11,7 @@ import type { QualityMode } from '@/lib/scenario3d/quality'
 import { PremiumOverlay, type PlaybackRate } from './PremiumOverlay'
 import { loadGlbAthleteAsset } from './glbAthlete'
 import type { CameraAssist } from '@/lib/scenario3d/cameraPresets'
+import type { OverlayLevel } from '@/lib/scenario3d/overlayLevel'
 
 // FR-2 Packet 1 — module-level GLB asset preload.
 //
@@ -75,6 +76,17 @@ interface Scenario3DViewProps {
    * behaviour for /train while still earning a teaching replay.
    */
   cameraAssist?: CameraAssist
+  /**
+   * FR-5 §9.2 — how much overlay help the same scene should mount.
+   * `'beginner'` mounts the full 3-overlay cluster, `'advanced'`
+   * mounts the cue overlay only, `'none'` (Boss Challenge) mounts
+   * nothing, `'review'` (Film Room Review) mounts everything
+   * authored. Pathways chooses; the renderer just respects the
+   * prop. Default omitted so existing call sites preserve the
+   * pre-FR-5 behaviour (full cluster) via the controller-side
+   * default.
+   */
+  overlayLevel?: OverlayLevel
 }
 
 /**

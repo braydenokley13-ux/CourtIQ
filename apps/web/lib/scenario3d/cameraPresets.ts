@@ -125,9 +125,13 @@ export function pickAssistedCameraMode(
     case 'playing':
       return 'broadcast'
 
-    case 'frozen': {
+    case 'frozen':
+    case 'cueRepaint': {
       // §8.9 — partial assist keeps broadcast through freeze; only
-      // full assist composes the teaching frame.
+      // full assist composes the teaching frame.  FR-6 — cueRepaint
+      // is the brief window between consequence end and answer-leg
+      // motion; it lives at the freeze framing so the cue lands
+      // again before the read.
       if (assist === 'partial') return 'broadcast'
       return freezePresetForDecoder(decoder)
     }

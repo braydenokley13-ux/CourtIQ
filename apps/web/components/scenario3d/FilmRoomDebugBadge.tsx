@@ -20,6 +20,12 @@ import {
   type AssistedCameraMode,
   type CameraAssist,
 } from '@/lib/scenario3d/cameraPresets'
+import {
+  applyOverlayLevel,
+  isOverlaySuppressed,
+  type OverlayLevel,
+} from '@/lib/scenario3d/overlayLevel'
+import { getDecoderTeachingLabel } from '@/lib/scenario3d/replayTeachingTimeline'
 
 /**
  * FR-1 Packet 6 — film-room teaching-state debug badge.
@@ -60,6 +66,9 @@ interface FilmRoomDebugBadgeProps {
    *  decoder-target row with `(override)` so QA understands why
    *  the active mode does not match the predicted preset. */
   cameraManualOverride?: boolean
+  /** FR-5 §9.2 — currently active overlayLevel. Surfaced so QA can
+   *  see which Pathways mode the renderer is reading. */
+  overlayLevel?: OverlayLevel
 }
 
 export function isFilmRoomDebugBadgeEnabled(): boolean {
@@ -81,6 +90,7 @@ export function FilmRoomDebugBadge({
   concept,
   cameraAssist,
   cameraManualOverride,
+  overlayLevel,
 }: FilmRoomDebugBadgeProps) {
   const [decisions, setDecisions] = useState<readonly PlayerFigureDecision[]>(
     [],
@@ -154,6 +164,43 @@ export function FilmRoomDebugBadge({
   const preCount = scene?.preAnswerOverlays?.length ?? 0
   const postCount = scene?.postAnswerOverlays?.length ?? 0
 
+  // FR-5 — re-derive what the renderer is actually mounting under the
+  // active level so the badge surfaces post-filter counts (and any
+  // primitives the filter dropped). This mirrors the projection
+  // `AuthoredOverlayBridge` runs at mount time; it never mutates the
+  // scene.
+  const effectiveLevel: OverlayLevel = overlayLevel ?? 'beginner'
+  const filtered = scene
+    ? applyOverlayLevel({
+        preAnswer: scene.preAnswerOverlays ?? [],
+        postAnswer: scene.postAnswerOverlays ?? [],
+        level: effectiveLevel,
+      })
+    : { preAnswer: [], postAnswer: [], droppedPre: 0, droppedPost: 0, level: effectiveLevel }
+  const suppressed = isOverlaySuppressed(effectiveLevel)
+  const phaseStaged: number =
+    replayPhase === 'frozen' || replayPhase === 'cueRepaint'
+      ? filtered.preAnswer.length
+      : replayPhase === 'consequence' || replayPhase === 'replaying' || replayPhase === 'done'
+        ? filtered.postAnswer.length
+        : 0
+
+  // FR-6 — replay teaching state. Three derived bits the badge surfaces
+  // so QA can see at a glance which leg is active, whether the cue
+  // cluster is being repainted, and which teaching label will land
+  // when the rep ends.
+  const replayLeg: 'consequence' | 'best-read' | null =
+    replayPhase === 'consequence'
+      ? 'consequence'
+      : replayPhase === 'cueRepaint' || replayPhase === 'replaying'
+        ? 'best-read'
+        : null
+  const cueRepaintActive = replayPhase === 'cueRepaint'
+  const teachingLabelActive = replayPhase === 'done'
+  const teachingLabelText = scene?.decoderTag
+    ? getDecoderTeachingLabel(scene.decoderTag).text
+    : null
+
   // Top-right placement so it does not collide with the bottom-left
   // GlbDebugBadge — both can be on at the same time.
   return (
@@ -176,7 +223,12 @@ export function FilmRoomDebugBadge({
         <span style={{ color: '#9cf' }}>phase</span>{' '}
         <span
           style={{
-            color: replayPhase === 'frozen' ? '#7fdca0' : '#ddd',
+            color:
+              replayPhase === 'frozen'
+                ? '#7fdca0'
+                : replayPhase === 'cueRepaint'
+                  ? '#FFB070'
+                  : '#ddd',
           }}
         >
           {replayPhase}
@@ -211,6 +263,66 @@ export function FilmRoomDebugBadge({
           }}
         >
           glb ×{glbCount} · procedural ×{proceduralCount}
+        </span>
+      </div>
+      {/* FR-5 §9.2 — adaptive overlay state. Distinct row so QA can
+          see authored counts, the active level, the post-filter
+          counts, dropped primitives, and whether the renderer is
+          actually staging anything for the current phase. */}
+      <div>
+        <span style={{ color: '#9cf' }}>level</span>{' '}
+        <span style={{ color: suppressed ? '#FF4D6D' : '#fcd47a' }}>
+          {effectiveLevel}
+          {suppressed ? ' (suppressed)' : ''}
+        </span>
+        {' · '}
+        <span style={{ color: '#9cf' }}>active</span>{' '}
+        <span style={{ color: '#7fdca0' }}>
+          {filtered.preAnswer.length} pre · {filtered.postAnswer.length} post
+        </span>
+        {' · '}
+        <span style={{ color: '#9cf' }}>staged</span>{' '}
+        <span style={{ opacity: 0.85 }}>{phaseStaged}</span>
+        {filtered.droppedPre + filtered.droppedPost > 0 ? (
+          <>
+            {' · '}
+            <span style={{ color: '#9cf' }}>dropped</span>{' '}
+            <span style={{ color: '#f5a05a' }}>
+              {filtered.droppedPre + filtered.droppedPost}
+            </span>
+          </>
+        ) : null}
+      </div>
+      {/* FR-6 — replay teaching state. Surfaces the active leg,
+          the cueRepaint window, and the per-decoder teaching label
+          that lands at done. */}
+      <div>
+        <span style={{ color: '#9cf' }}>leg</span>{' '}
+        <span
+          style={{
+            color:
+              replayLeg === 'consequence'
+                ? '#FF4D6D'
+                : replayLeg === 'best-read'
+                  ? '#7fdca0'
+                  : '#888',
+          }}
+        >
+          {replayLeg ?? '—'}
+        </span>
+        {' · '}
+        <span style={{ color: '#9cf' }}>cueRepaint</span>{' '}
+        <span style={{ color: cueRepaintActive ? '#FFB070' : '#888' }}>
+          {cueRepaintActive ? 'on' : 'off'}
+        </span>
+        {' · '}
+        <span style={{ color: '#9cf' }}>label</span>{' '}
+        <span style={{ color: teachingLabelActive ? '#fcd47a' : '#888' }}>
+          {teachingLabelActive
+            ? teachingLabelText ?? 'on'
+            : teachingLabelText
+              ? `→ ${teachingLabelText}`
+              : '—'}
         </span>
       </div>
       <div>
