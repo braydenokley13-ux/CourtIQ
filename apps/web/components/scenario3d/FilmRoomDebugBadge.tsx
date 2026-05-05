@@ -9,6 +9,10 @@ import {
   type PlayerFigureDecision,
 } from './imperativeScene'
 import { summarisePlayerFigureDecisions } from './GlbDebugBadge'
+import {
+  getGlbStaticPoseFallbackStats,
+  type GlbStaticPoseFallbackStats,
+} from './glbAthlete'
 import type { Scene3D } from '@/lib/scenario3d/scene'
 import type { ReplayPhase } from './ScenarioReplayController'
 
@@ -70,6 +74,15 @@ export function FilmRoomDebugBadge({
     closeout: false,
     backCut: false,
   })
+  // FR-2 Packet 3 — surface "GLB + static pose" fallback counts so
+  // QA can see when the renderer is teaching with a still athlete
+  // because the resolver-picked clip was missing.
+  const [staticPose, setStaticPose] = useState<GlbStaticPoseFallbackStats>({
+    total: 0,
+    toIdleReady: 0,
+    toBindPose: 0,
+    lastMissingClip: null,
+  })
 
   // Poll the figure-decision log + gate booleans every 500 ms, matching
   // the GlbDebugBadge cadence. Cheap: we only mount under the flag.
@@ -83,6 +96,7 @@ export function FilmRoomDebugBadge({
         closeout: isImportedCloseoutClipActive(),
         backCut: isImportedBackCutClipActive(),
       })
+      setStaticPose({ ...getGlbStaticPoseFallbackStats() })
     }
     tick()
     const id = window.setInterval(tick, 500)
@@ -156,6 +170,24 @@ export function FilmRoomDebugBadge({
         <span style={{ color: '#9cf' }}>render</span>{' '}
         <span style={{ opacity: 0.85 }}>{summary}</span>
       </div>
+      {staticPose.total > 0 ? (
+        <div>
+          <span style={{ color: '#9cf' }}>staticPose</span>{' '}
+          <span style={{ color: '#f5a05a' }}>
+            {staticPose.total} (idle ×{staticPose.toIdleReady}
+            {' / '}bind ×{staticPose.toBindPose})
+          </span>
+          {staticPose.lastMissingClip ? (
+            <>
+              {' · '}
+              <span style={{ color: '#9cf' }}>missing</span>{' '}
+              <span style={{ opacity: 0.85 }}>
+                {staticPose.lastMissingClip}
+              </span>
+            </>
+          ) : null}
+        </div>
+      ) : null}
       <div>
         <span style={{ color: '#9cf' }}>gates</span>{' '}
         <span style={{ color: gates.glb ? '#7fdca0' : '#f5a05a' }}>

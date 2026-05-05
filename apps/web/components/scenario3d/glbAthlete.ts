@@ -2789,8 +2789,67 @@ function _assertMixerAdvanceOnce(handle: GlbAthleteHandle): void {
   }
 }
 
-/** Switch the active clip with a small cross-fade. No-op for non-GLB
- *  figures and when the requested clip is already at full weight. */
+/**
+ * FR-2 Packet 3 — GLB-static-pose fallback telemetry.
+ *
+ * Counts the per-clip-switch fallback transitions reached by
+ * `setGlbAthleteAnimation` when the resolver-picked clip is missing
+ * from the figure's mixer. `idle_ready` is the preferred fallback
+ * pose; bind pose is the last resort. Surfaced through the existing
+ * figure-decision badge / Film-Room debug badge so QA can see when
+ * the renderer is teaching with a still athlete instead of the
+ * matching motion clip — the "GLB + static pose" path in §6.1 of
+ * the planning doc.
+ */
+export interface GlbStaticPoseFallbackStats {
+  /** Total `setGlbAthleteAnimation` calls that hit the fallback. */
+  total: number
+  /** How many of those fell back to `idle_ready`. */
+  toIdleReady: number
+  /** How many had no `idle_ready` either and held bind pose. */
+  toBindPose: number
+  /** The most recent missing clip name, if any. */
+  lastMissingClip: GlbAthleteAnimationName | null
+}
+
+let _glbStaticPoseStats: GlbStaticPoseFallbackStats = {
+  total: 0,
+  toIdleReady: 0,
+  toBindPose: 0,
+  lastMissingClip: null,
+}
+
+export function getGlbStaticPoseFallbackStats(): GlbStaticPoseFallbackStats {
+  return _glbStaticPoseStats
+}
+
+/** Test-only — clear the static-pose fallback counter. */
+export function _resetGlbStaticPoseFallbackStatsForTest(): void {
+  _glbStaticPoseStats = {
+    total: 0,
+    toIdleReady: 0,
+    toBindPose: 0,
+    lastMissingClip: null,
+  }
+}
+
+/**
+ * Switch the active clip with a small cross-fade. No-op for non-GLB
+ * figures and when the requested clip is already at full weight.
+ *
+ * FR-2 Packet 3 — when the requested clip is missing from this
+ * figure's mixer, fall back through the §6.1 hierarchy:
+ *   (1) requested clip → (2) `idle_ready` → (3) bind pose.
+ *
+ * Pre-FR-2 a missing clip silently no-op'd, leaving the figure on
+ * whatever clip last ran. That looked like an animation glitch
+ * (e.g. defender keeps sprinting after closeout cleared the moving
+ * flag) and gave QA no signal that the underlying clip was
+ * unavailable. The new fallback always lands on a defined pose
+ * (idle_ready, with bind-pose as the absolute last resort) and
+ * records the transition in `_glbStaticPoseStats` so the debug
+ * badges can show "GLB + static pose ×N" at a glance.
+ */
 export function setGlbAthleteAnimation(
   figure: THREE.Object3D,
   name: GlbAthleteAnimationName,
@@ -2799,7 +2858,45 @@ export function setGlbAthleteAnimation(
   const handle = getGlbAthleteHandle(figure)
   if (!handle) return
   const next = handle.actions[name]
-  if (!next) return
+  if (!next) {
+    // FR-2 Packet 3 — clip missing → static-pose fallback chain.
+    _glbStaticPoseStats = {
+      total: _glbStaticPoseStats.total + 1,
+      toIdleReady: _glbStaticPoseStats.toIdleReady,
+      toBindPose: _glbStaticPoseStats.toBindPose,
+      lastMissingClip: name,
+    }
+    const idle = handle.actions['idle_ready']
+    if (idle) {
+      _glbStaticPoseStats = {
+        ..._glbStaticPoseStats,
+        toIdleReady: _glbStaticPoseStats.toIdleReady + 1,
+      }
+      // Mirror the cross-fade behaviour of the happy path so the
+      // pose transition is not visually jarring.
+      if (idle.isRunning() && idle.getEffectiveWeight() > 0.95) return
+      const fade = options?.fadeSeconds ?? 0.15
+      for (const [otherName, action] of Object.entries(handle.actions)) {
+        if (otherName === 'idle_ready') continue
+        if (action.isRunning()) action.fadeOut(fade)
+      }
+      idle.reset()
+      idle.fadeIn(fade)
+      idle.play()
+      return
+    }
+    // No idle_ready either — hold bind pose. Stop everything that
+    // is still running so the figure freezes deterministically
+    // instead of looping on stale tracks.
+    _glbStaticPoseStats = {
+      ..._glbStaticPoseStats,
+      toBindPose: _glbStaticPoseStats.toBindPose + 1,
+    }
+    for (const action of Object.values(handle.actions)) {
+      if (action.isRunning()) action.stop()
+    }
+    return
+  }
   if (next.isRunning() && next.getEffectiveWeight() > 0.95) return
   const fade = options?.fadeSeconds ?? 0.15
   for (const [otherName, action] of Object.entries(handle.actions)) {

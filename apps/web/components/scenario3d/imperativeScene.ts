@@ -3870,6 +3870,7 @@ export function isImportedBackCutClipActive(): boolean {
  */
 export type PlayerFigurePick =
   | 'glb'
+  | 'glb-static-pose'
   | 'skinned'
   | 'premium'
   | 'procedural'
