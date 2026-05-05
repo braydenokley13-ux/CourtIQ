@@ -24,7 +24,6 @@ import {
   getDecoderAnimationIntent,
   getIntentMotionClass,
   resolveGlbClipForIntent,
-  type AnimationIntent,
   type DecoderRole,
   type IntentClipFlags,
 } from './animationIntent'
