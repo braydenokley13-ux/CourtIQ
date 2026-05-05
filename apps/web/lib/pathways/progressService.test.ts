@@ -212,3 +212,30 @@ describe('derivePathwayProgress — recommendation priority', () => {
     expect(summary.recommendedNext!.reason).toBe('resume')
   })
 })
+
+describe('derivePathwayProgress — challenge attempts (PTH-4)', () => {
+  it('passes challengeAttempts straight through to the summary', () => {
+    const summary = derivePathwayProgress(FOUNDATION, {
+      ...makeInput(),
+      challengeAttempts: [
+        {
+          chapterSlug: 'read-the-denial',
+          mode: 'boss-challenge',
+          challengeSlug: 'denial-reader',
+          passed: true,
+          bestCount: 4,
+          total: 5,
+          attemptedAt: '2026-05-01T00:00:00.000Z',
+        },
+      ],
+    })
+    expect(summary.challengeAttempts).toHaveLength(1)
+    expect(summary.challengeAttempts[0]!.passed).toBe(true)
+    expect(summary.challengeAttempts[0]!.challengeSlug).toBe('denial-reader')
+  })
+
+  it('defaults challengeAttempts to [] when input omits the field', () => {
+    const summary = derivePathwayProgress(FOUNDATION, makeInput())
+    expect(summary.challengeAttempts).toEqual([])
+  })
+})
