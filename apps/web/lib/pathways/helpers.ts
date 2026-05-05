@@ -15,6 +15,7 @@ import type {
   PathwayAccentToken,
   PathwayChapterConfig,
   PathwayConfig,
+  PathwayTrainingMode,
   SkillNodeConfig,
 } from './types'
 import { PATHWAYS, FOUNDATION_SLUG } from './config'
@@ -143,6 +144,10 @@ export interface BuildTrainHrefInput {
    *  The server-side context resolver uses this to pick the exact
    *  scenarioIds when none are provided in the URL. */
   nodeSlug?: string | null
+  /** PTH-3: training mode hint. `boss-challenge` and `mixed-reads`
+   *  flip /train into a no-hint test view. Other values are passed
+   *  through but currently behave like normal training. */
+  mode?: PathwayTrainingMode | null
 }
 
 /**
@@ -166,6 +171,7 @@ export function buildPathwayTrainHref(input: BuildTrainHrefInput = {}): string {
   if (input.pathwaySlug) params.set('pathway', input.pathwaySlug)
   if (input.chapterSlug) params.set('chapter', input.chapterSlug)
   if (input.nodeSlug) params.set('node', input.nodeSlug)
+  if (input.mode) params.set('mode', input.mode)
   const ids = (input.scenarioIds ?? []).filter((id) => id.length > 0)
   if (ids.length > 0) params.set('scenarioIds', ids.join(','))
   const qs = params.toString()
@@ -185,6 +191,9 @@ export interface BuildSummaryHrefInput {
   /** Optional concept tag, preserved for the existing Academy
    *  "Try next" suggestion logic. */
   concept?: string | null
+  /** PTH-3: forwarded so /train/summary can render boss/mixed-aware
+   *  result copy and CTAs. */
+  mode?: PathwayTrainingMode | null
 }
 
 export function buildPathwaySummaryHref(
@@ -197,6 +206,7 @@ export function buildPathwaySummaryHref(
   if (input.pathwaySlug) params.set('pathway', input.pathwaySlug)
   if (input.chapterSlug) params.set('chapter', input.chapterSlug)
   if (input.nodeSlug) params.set('node', input.nodeSlug)
+  if (input.mode) params.set('mode', input.mode)
   const qs = params.toString()
   return qs.length === 0 ? base : `${base}?${qs}`
 }
@@ -248,4 +258,53 @@ export function countChapterScenarios(chapter: PathwayChapterConfig): number {
     for (const id of node.scenarioIds) seen.add(id)
   }
   return seen.size
+}
+
+/** Build a /train href for a chapter's boss challenge (PTH-3). Pins
+ *  the boss scenario list, threads pathway/chapter context, and sets
+ *  `mode=boss-challenge` so /train hides the decoder pill and /train
+ *  /summary renders pass/fail copy. Returns null when the chapter has
+ *  no boss configured. */
+export function buildBossChallengeTrainHref(
+  pathway: PathwayConfig,
+  chapter: PathwayChapterConfig,
+): string | null {
+  const boss = chapter.bossChallenge
+  if (!boss || boss.scenarioIds.length === 0) return null
+  return buildPathwayTrainHref({
+    pathwaySlug: pathway.slug,
+    chapterSlug: chapter.slug,
+    mode: 'boss-challenge',
+    scenarioIds: boss.scenarioIds,
+  })
+}
+
+/** Build a /train href for the mixed-reads capstone session (PTH-3).
+ *  Targets a specific node when its `trainingMode` is `mixed-reads`;
+ *  falls back to the chapter's union of scenarios when no node match
+ *  exists. Returns null when the chapter has no scenarios at all. */
+export function buildMixedReadsTrainHref(
+  pathway: PathwayConfig,
+  chapter: PathwayChapterConfig,
+  options?: { nodeSlug?: string | null },
+): string | null {
+  const targetNode = options?.nodeSlug
+    ? getSkillNodeBySlug(chapter, options.nodeSlug)
+    : chapter.skillNodes.find((n) => n.trainingMode === 'mixed-reads') ??
+      chapter.skillNodes[0] ??
+      null
+  const ids =
+    targetNode && targetNode.scenarioIds.length > 0
+      ? targetNode.scenarioIds
+      : Array.from(
+          new Set(chapter.skillNodes.flatMap((n) => n.scenarioIds)),
+        )
+  if (ids.length === 0) return null
+  return buildPathwayTrainHref({
+    pathwaySlug: pathway.slug,
+    chapterSlug: chapter.slug,
+    nodeSlug: targetNode?.slug ?? null,
+    mode: 'mixed-reads',
+    scenarioIds: ids,
+  })
 }
