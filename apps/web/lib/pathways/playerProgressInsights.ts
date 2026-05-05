@@ -273,6 +273,12 @@ function bossCounts(
   for (let i = 0; i < pathway.chapters.length; i += 1) {
     const ch = pathway.chapters[i]
     if (!ch || !ch.bossChallenge) continue
+    // Capstone chapters can carry a `bossChallenge` config alongside
+    // their mixed-reads node, but the run that counts is mixed-reads —
+    // the player sees that as "Final Mix", not "Boss". Excluding the
+    // capstone here keeps bossesCleared/Total focused on the four
+    // decoder bosses, which is what the headline summary reports.
+    if (isCapstoneChapter(ch)) continue
     total += 1
     const cs = chapters[i]?.challengeState
     if (cs?.kind === 'boss' && cs.state === 'cleared') cleared += 1
