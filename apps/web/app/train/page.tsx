@@ -17,6 +17,10 @@ import { PhaseTracker, type LearnPhase } from './PhaseTracker'
 import { ChoiceCard, deriveChoiceState } from './ChoiceCard'
 import { FeedbackPanel } from './FeedbackPanel'
 import { WinBurst } from './WinBurst'
+import {
+  recordChallengeAttempt,
+  type ChallengeMode,
+} from '@/lib/pathways/localChallengeProgress'
 
 type DecoderTag =
   | 'BACKDOOR_WINDOW'
@@ -198,7 +202,7 @@ type PathwayContext = {
   scenarioIds: string[]
   trainingMode: string | null
   returnHref: string
-  summaryParams: { pathway: string; chapter?: string; node?: string }
+  summaryParams: { pathway: string; chapter?: string; node?: string; mode?: string }
   source: string
   error:
     | 'pathway-not-found'
@@ -206,7 +210,21 @@ type PathwayContext = {
     | 'chapter-not-found'
     | 'node-not-found'
     | 'no-trainable-scenarios'
+    | 'boss-not-configured'
     | null
+  // PTH-3 challenge metadata.
+  hideDecoderPill?: boolean
+  suppressCueHints?: boolean
+  isChallenge?: boolean
+  challengeTitle?: string | null
+  passCriteria?: {
+    minBest?: number
+    minDecoderAccuracy?: number
+    minDecoderAttempts?: number
+    bossBestRatio?: number
+    bossMinAttempts?: number
+  } | null
+  challengeScenarioIds?: string[] | null
 }
 
 const PATHWAY_ERROR_COPY: Record<NonNullable<PathwayContext['error']>, string> = {
@@ -215,6 +233,8 @@ const PATHWAY_ERROR_COPY: Record<NonNullable<PathwayContext['error']>, string> =
   'chapter-not-found': "We couldn't find that chapter. Running standard training instead.",
   'node-not-found': "We couldn't find that step. Running standard training instead.",
   'no-trainable-scenarios': 'No reps available for that step yet. Running standard training instead.',
+  'boss-not-configured':
+    "Boss challenge isn't ready for that chapter yet. Running standard training instead.",
 }
 
 function TrainPageInner() {
@@ -243,6 +263,10 @@ function TrainPageInner() {
   const pathwayParam = searchParams.get('pathway')
   const chapterParam = searchParams.get('chapter')
   const nodeParam = searchParams.get('node')
+  // PTH-3: mode=boss-challenge | mode=mixed-reads switch /train into
+  // a no-hint "test" view (decoder pill hidden, lesson panel + self-
+  // review checklist suppressed, win micro-praise muted).
+  const modeParam = searchParams.get('mode')
   const [userId, setUserId] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [pathwayContext, setPathwayContext] = useState<PathwayContext | null>(null)
@@ -276,7 +300,18 @@ function TrainPageInner() {
   const phase = feedback ? 'feedback' : 'prompt'
   const decoderTag = resolveDecoderTag(current?.id, current?.decoder_tag ?? null)
   const isDecoder = !!decoderTag
-  const decoderLabel = decoderTag ? DECODER_LABELS[decoderTag] : null
+  // PTH-3: in challenge modes (boss-challenge / mixed-reads) we hide
+  // the decoder pill + label so the player has to identify the cue
+  // themselves, and we drop the lesson hand-off + self-review panels
+  // since those broadcast the answer. The renderer / scenario data
+  // are unchanged — we only suppress the *page-layer* decoder chrome.
+  const isChallengeMode = pathwayContext?.isChallenge === true
+  const hideDecoderPill =
+    pathwayContext?.hideDecoderPill === true ||
+    pathwayContext?.trainingMode === 'boss-challenge' ||
+    pathwayContext?.trainingMode === 'mixed-reads'
+  const suppressCueHints = pathwayContext?.suppressCueHints === true || isChallengeMode
+  const decoderLabel = !hideDecoderPill && decoderTag ? DECODER_LABELS[decoderTag] : null
   // Phase H — decoder scenarios stay on `mode='intro'` for the full
   // session; the JSX `ScenarioReplayController` drives the freeze →
   // (consequence →) replaying → done legs internally off `pickedChoiceId`
@@ -318,6 +353,7 @@ function TrainPageInner() {
                 ...(chapterParam ? { chapter: chapterParam } : {}),
                 ...(nodeParam ? { node: nodeParam } : {}),
                 ...(scenarioIdsParamRaw ? { scenarioIds: scenarioIdsParamRaw } : {}),
+                ...(modeParam ? { mode: modeParam } : {}),
               }).toString()}`,
             )
             if (ctxRes.ok) {
@@ -391,6 +427,7 @@ function TrainPageInner() {
     pathwayParam,
     chapterParam,
     nodeParam,
+    modeParam,
   ])
 
   // Settle delay between the freeze beat firing and the timer starting
@@ -539,11 +576,16 @@ function TrainPageInner() {
     // PTH-2: when the session ran inside a Pathway, thread the
     // pathway/chapter/node back to the summary page so its CTAs can
     // route the player back into the Pathway flow.
+    // PTH-3: also forward `mode` so /train/summary can render boss/
+    // mixed pass-fail copy.
     const appendPathwayParams = (qs: URLSearchParams) => {
       if (pathwayContext) {
         qs.set('pathway', pathwayContext.pathwaySlug)
         if (pathwayContext.chapterSlug) qs.set('chapter', pathwayContext.chapterSlug)
         if (pathwayContext.nodeSlug) qs.set('node', pathwayContext.nodeSlug)
+        if (pathwayContext.summaryParams.mode) {
+          qs.set('mode', pathwayContext.summaryParams.mode)
+        }
       } else if (pathwayParam) {
         // Resolver failed but the user did come from a Pathway link —
         // preserve the slug so the summary page can at least offer a
@@ -551,6 +593,36 @@ function TrainPageInner() {
         qs.set('pathway', pathwayParam)
         if (chapterParam) qs.set('chapter', chapterParam)
         if (nodeParam) qs.set('node', nodeParam)
+        if (modeParam) qs.set('mode', modeParam)
+      }
+    }
+
+    const persistChallengeAttempt = (correctCount: number, totalCount: number) => {
+      if (!pathwayContext?.isChallenge) return
+      const mode = pathwayContext.trainingMode
+      if (mode !== 'boss-challenge' && mode !== 'mixed-reads') return
+      if (!pathwayContext.chapterSlug) return
+      const challengeSlug =
+        mode === 'boss-challenge'
+          ? pathwayContext.nodeSlug ??
+            pathwayContext.chapterSlug + '-boss'
+          : pathwayContext.nodeSlug ?? pathwayContext.chapterSlug
+      const passRatio = pathwayContext.passCriteria?.bossBestRatio ?? 0.8
+      try {
+        recordChallengeAttempt({
+          pathwaySlug: pathwayContext.pathwaySlug,
+          chapterSlug: pathwayContext.chapterSlug,
+          mode: mode as ChallengeMode,
+          challengeSlug,
+          bestCount: correctCount,
+          total: totalCount,
+          scenarioIds:
+            pathwayContext.challengeScenarioIds ?? pathwayContext.scenarioIds ?? [],
+          passRatio,
+        })
+      } catch {
+        // localStorage may be disabled — summary page falls back to
+        // computing pass/fail from the URL correct/total params.
       }
     }
 
@@ -561,6 +633,7 @@ function TrainPageInner() {
         body: JSON.stringify({ userId }),
       })
       const data = await res.json()
+      persistChallengeAttempt(Number(data.correct_count) || 0, Number(data.total) || scenarios.length)
       const qs = new URLSearchParams({
         sessionId,
         correct: String(data.correct_count),
@@ -597,30 +670,87 @@ function TrainPageInner() {
       <div className="mx-auto max-w-md space-y-3 px-4 pt-6">
         {/* PTH-2: Pathway context strip — only shows when /train was
             entered via a Pathway link. Compact 2-line breadcrumb +
-            back-link so it doesn't compete with the training UI. */}
+            back-link so it doesn't compete with the training UI.
+            PTH-3: challenge variant swaps to a heat-toned strip with
+            "Boss Challenge" / "Mixed Reads" eyebrow + pass criteria. */}
         {pathwayContext && pathwayContext.error === null ? (
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-brand/30 bg-brand/5 px-3 py-2">
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-brand">
-                Pathway · {pathwayContext.pathwayTitle}
-              </p>
-              <p className="truncate text-[12px] font-semibold leading-tight text-text">
-                {pathwayContext.chapterTitle ?? 'Chapter'}
-                {pathwayContext.nodeTitle ? (
-                  <>
-                    <span className="text-text-mute"> · </span>
-                    <span className="text-text-dim">{pathwayContext.nodeTitle}</span>
-                  </>
-                ) : null}
-              </p>
-            </div>
-            <Link
-              href={pathwayContext.returnHref}
-              className="rounded-full border border-hairline-2 bg-bg-2 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1px] text-text-dim transition-colors hover:text-text"
+          isChallengeMode ? (
+            <div
+              className={[
+                'flex items-center justify-between gap-3 rounded-2xl border px-3 py-2',
+                pathwayContext.trainingMode === 'mixed-reads'
+                  ? 'border-iq/40 bg-iq/10'
+                  : 'border-heat/40 bg-heat/10',
+              ].join(' ')}
             >
-              Back
-            </Link>
-          </div>
+              <div className="min-w-0 flex-1">
+                <p
+                  className={[
+                    'text-[10px] font-bold uppercase tracking-[1.8px]',
+                    pathwayContext.trainingMode === 'mixed-reads' ? 'text-iq' : 'text-heat',
+                  ].join(' ')}
+                >
+                  {pathwayContext.trainingMode === 'mixed-reads'
+                    ? 'Mixed Reads'
+                    : 'Boss Challenge'}
+                  {pathwayContext.challengeTitle ? (
+                    <span className="text-text-mute"> · </span>
+                  ) : null}
+                  {pathwayContext.challengeTitle ? (
+                    <span className="text-text">
+                      {pathwayContext.challengeTitle.replace(/^Boss\s*[—-]\s*/, '')}
+                    </span>
+                  ) : null}
+                </p>
+                <p className="truncate text-[11px] font-semibold leading-tight text-text-dim">
+                  {pathwayContext.pathwayTitle}
+                  {pathwayContext.chapterTitle ? (
+                    <>
+                      <span className="text-text-mute"> · </span>
+                      {pathwayContext.chapterTitle}
+                    </>
+                  ) : null}
+                  {pathwayContext.passCriteria?.bossBestRatio ? (
+                    <>
+                      <span className="text-text-mute"> · </span>
+                      <span className="text-text">
+                        {Math.round(pathwayContext.passCriteria.bossBestRatio * 100)}% to pass
+                      </span>
+                    </>
+                  ) : null}
+                </p>
+              </div>
+              <Link
+                href={pathwayContext.returnHref}
+                className="rounded-full border border-hairline-2 bg-bg-2 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1px] text-text-dim transition-colors hover:text-text"
+              >
+                Back
+              </Link>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-brand/30 bg-brand/5 px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-brand">
+                  Pathway · {pathwayContext.pathwayTitle}
+                </p>
+                <p className="truncate text-[12px] font-semibold leading-tight text-text">
+                  {pathwayContext.chapterTitle ?? 'Chapter'}
+                  {pathwayContext.nodeTitle ? (
+                    <>
+                      <span className="text-text-mute"> · </span>
+                      <span className="text-text-dim">{pathwayContext.nodeTitle}</span>
+                    </>
+                  ) : null}
+                </p>
+              </div>
+              <Link
+                href={pathwayContext.returnHref}
+                className="rounded-full border border-hairline-2 bg-bg-2 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1px] text-text-dim transition-colors hover:text-text"
+              >
+                Back
+              </Link>
+            </div>
+          )
         ) : null}
         {pathwayContext?.error ? (
           <div className="rounded-2xl border border-heat/30 bg-heat/5 px-3 py-2 text-[12px] text-heat">
@@ -855,7 +985,11 @@ function TrainPageInner() {
               iqDelta={feedback.iq_delta}
               streak={feedback.streak ?? streak}
               headline={praise}
-              microPraise={WIN_MICRO_PRAISE[decoderTag ?? 'BACKDOOR_WINDOW']}
+              microPraise={
+                suppressCueHints
+                  ? 'Good rep.'
+                  : WIN_MICRO_PRAISE[decoderTag ?? 'BACKDOOR_WINDOW']
+              }
             />
           ) : null}
         </AnimatePresence>
@@ -868,7 +1002,13 @@ function TrainPageInner() {
             <FeedbackPanel
               isCorrect={feedback.is_correct}
               headline={feedback.is_correct ? praise : praise}
-              microNote={feedback.is_correct ? undefined : MISS_MICRO_NOTE[decoderTag ?? 'BACKDOOR_WINDOW']}
+              microNote={
+                feedback.is_correct
+                  ? undefined
+                  : suppressCueHints
+                    ? 'Reset and try again.'
+                    : MISS_MICRO_NOTE[decoderTag ?? 'BACKDOOR_WINDOW']
+              }
               whyText={feedback.feedback_text}
               hasReplay={!!scene && scene.answerDemo.length > 0}
               onReplay={() => setReplayCounter((n) => n + 1)}
@@ -891,8 +1031,10 @@ function TrainPageInner() {
 
         {/* Phase I — decoder lesson hand-off + self-review surface after the
             best-read replay. Both panels render only for decoder scenarios
-            (legacy fixtures have no decoder_tag and are unchanged). */}
-        {feedback && isDecoder && decoderTag ? (
+            (legacy fixtures have no decoder_tag and are unchanged).
+            PTH-3: suppressed in boss/mixed challenge modes — those panels
+            broadcast the right answer and undermine the test. */}
+        {feedback && isDecoder && decoderTag && !suppressCueHints ? (
           <>
             <DecoderLessonPanel
               decoderName={DECODER_LABELS[decoderTag]}
