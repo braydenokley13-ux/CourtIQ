@@ -5,10 +5,32 @@ import { Scenario3DCanvas } from './Scenario3DCanvas'
 import { Scenario3DErrorBoundary } from './Scenario3DErrorBoundary'
 import type { Scene3D } from '@/lib/scenario3d/scene'
 import type { ReplayMode, ReplayPhase } from './ScenarioReplayController'
-import type { CameraMode } from './imperativeScene'
+import { isGlbAthletePreviewActive, type CameraMode } from './imperativeScene'
 import { getCameraMode } from '@/lib/scenario3d/feature'
 import type { QualityMode } from '@/lib/scenario3d/quality'
 import { PremiumOverlay, type PlaybackRate } from './PremiumOverlay'
+import { loadGlbAthleteAsset } from './glbAthlete'
+
+// FR-2 Packet 1 — module-level GLB asset preload.
+//
+// Why module-level instead of inside an effect: this file is the
+// canonical entry point for the 3D engine, imported by `/train` and
+// `/dev/scenario-preview` the moment the page bundle evaluates. A
+// module-level call fires while React is still building the initial
+// render tree — strictly earlier than any `useEffect` inside
+// `Scenario3DCanvas`, so by the time the canvas's imperative scene-
+// build effect runs the GLTFLoader cache is far more likely to be
+// warm. Combined with the load-on-mount inside `Scenario3DCanvas`,
+// this removes the cold-cache "procedural-then-GLB" flicker on the
+// very first scenario of a session without changing any rendering
+// behaviour for users who never visit the canvas.
+//
+// Gated on `isGlbAthletePreviewActive()` so a build with the env flag
+// off never pays the 1.4 MB asset fetch. SSR is skipped via the
+// `typeof window` guard inside `loadGlbAthleteAsset` itself.
+if (typeof window !== 'undefined' && isGlbAthletePreviewActive()) {
+  void loadGlbAthleteAsset()
+}
 
 interface Scenario3DViewProps {
   fallback: ReactNode
