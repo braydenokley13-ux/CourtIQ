@@ -493,12 +493,12 @@ function ChapterRow({
           })}
         </div>
 
-        {/* PTH-3 / PTH-4: Boss challenge — real launch CTA when boss
-            config exists. Locked → coming-soon style; unlocked-but-cold
-            → "Practice first recommended" tag; mastered → boss is the
-            recommended next step. Cleared decoration is driven by the
-            server-persisted attempt when available, with localStorage
-            as a fallback for the in-flight first paint. */}
+        {/* PTH-3 → PTH-5: Boss challenge — real launch CTA. Cleared
+            decoration is driven by the server-persisted attempt when
+            available, with localStorage as a fallback for the in-flight
+            first paint. PTH-5 also threads the full challengeState so
+            an attempted-but-failed boss prompts "Run it back" with the
+            user's last score. */}
         {chapter.bossChallenge && bossHref ? (
           <BossChallengeRow
             pathwaySlug={pathwaySlug}
@@ -508,13 +508,15 @@ function ChapterRow({
             recommended={allNonBossMastered}
             disabled={state === 'locked'}
             serverCleared={bossServerAttempt?.passed ?? false}
+            challengeState={progress?.challengeState ?? null}
           />
         ) : null}
 
-        {/* PTH-3 / PTH-4: Mixed Reads / capstone CTA — only on the
+        {/* PTH-3 → PTH-5: Mixed Reads / capstone CTA — only on the
             Real Game Mix chapter, where decoderTag is null and the
             player has to identify the cue without the decoder pill.
-            Server-cleared state hydrates here just like the boss row. */}
+            Server-cleared state and attempted-but-failed copy hydrate
+            from progress.challengeState. */}
         {isCapstone && mixedHref ? (
           <MixedReadsRow
             pathwaySlug={pathwaySlug}
@@ -523,6 +525,7 @@ function ChapterRow({
             disabled={state === 'locked'}
             challengeSlug={mixedChallengeSlug}
             serverCleared={mixedServerAttempt?.passed ?? false}
+            challengeState={progress?.challengeState ?? null}
           />
         ) : null}
 

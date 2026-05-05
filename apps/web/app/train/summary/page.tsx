@@ -512,20 +512,23 @@ function ChallengeHero({
 }) {
   const isBoss = mode === 'boss-challenge'
   const accent = passed ? 'brand' : 'heat'
-  const eyebrow = isBoss ? 'Boss Challenge' : 'Mixed Reads'
+  const eyebrow = isBoss ? 'Boss Challenge' : 'Final Mix'
   const title = isBoss
     ? bossTitle?.replace(/^Boss\s*[—-]\s*/, '') ?? 'Boss Challenge'
-    : chapterTitle ?? 'Mixed Reads'
+    : chapterTitle ?? 'Final Mix'
+  // PTH-5 copy: a passed mixed-reads run clears the foundation; we say
+  // it that way to celebrate the milestone rather than just labeling
+  // the rep.
   const headline = passed
     ? isBoss
       ? 'Boss cleared.'
-      : 'Mixed Reads cleared.'
+      : 'Foundation cleared.'
     : isBoss
       ? 'Not cleared yet.'
       : 'Almost. Run it back.'
   const subline = passed
     ? isBoss
-      ? 'Pathway reps unlocked. Keep the read sharp.'
+      ? 'Chapter mastered. Keep the read sharp.'
       : 'You read the play, not the decoder.'
     : isBoss
       ? 'Review the cue, then run it back.'
@@ -577,6 +580,8 @@ function ChallengeActions({
   retryHref: string | null
   pathwayHref: string
 }) {
+  // PTH-5 copy: passed primary CTA → continue pathway / next pathway;
+  // failed primary CTA → retry the challenge directly.
   const retryLabel =
     mode === 'boss-challenge'
       ? passed
@@ -584,7 +589,7 @@ function ChallengeActions({
         : 'Retry Boss'
       : passed
         ? 'Run it back'
-        : 'Retry Mixed Reads'
+        : 'Retry Final Mix'
   const continueLabel = passed ? 'Continue Pathway' : 'Review chapter'
   return (
     <div className="space-y-3 pt-2">
