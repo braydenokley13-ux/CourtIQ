@@ -50,6 +50,10 @@ import {
   GLB_ATHLETE_MATERIAL_PARAMS,
   GLB_ATHLETE_REGION_PALETTE,
 } from '@/lib/scenario3d/glbAthleteAudit'
+import {
+  BASKETBALL_READY_REST_DELTA,
+  type AthleticPoseBoneKey,
+} from '@/lib/scenario3d/glbAthleticPose'
 
 /**
  * Marker stored on the figure root userData so callers and tests
@@ -272,92 +276,68 @@ function buildGlbIdleReadyClip(): THREE.AnimationClip {
       ]),
     ),
   )
-  // Keep the mannequin out of its broad rest silhouette. Arms stay
-  // near the ribs with soft elbows so idle players read as ready,
-  // not parked in an asset bind pose.
-  tracks.push(
-    new THREE.QuaternionKeyframeTrack(
-      `${GLB_BONE_MAP.leftUpperArm}.quaternion`,
-      [0, duration],
-      flattenGlbQuats([
-        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 2.3, 0, 0.02),
-        glbArmBindRelativeQuat(GLB_BONE_MAP.leftUpperArm, 2.3, 0, 0.02),
-      ]),
-    ),
-  )
-  tracks.push(
-    new THREE.QuaternionKeyframeTrack(
-      `${GLB_BONE_MAP.rightUpperArm}.quaternion`,
-      [0, duration],
-      flattenGlbQuats([
-        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 2.3, 0, -0.02),
-        glbArmBindRelativeQuat(GLB_BONE_MAP.rightUpperArm, 2.3, 0, -0.02),
-      ]),
-    ),
-  )
-  tracks.push(
-    new THREE.QuaternionKeyframeTrack(
-      `${GLB_BONE_MAP.leftForeArm}.quaternion`,
-      [0, duration],
-      flattenGlbQuats([
-        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.42, 0),
-        glbArmBindRelativeQuat(GLB_BONE_MAP.leftForeArm, 0, -0.42, 0),
-      ]),
-    ),
-  )
-  tracks.push(
-    new THREE.QuaternionKeyframeTrack(
-      `${GLB_BONE_MAP.rightForeArm}.quaternion`,
-      [0, duration],
-      flattenGlbQuats([
-        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.42, 0),
-        glbArmBindRelativeQuat(GLB_BONE_MAP.rightForeArm, 0, -0.42, 0),
-      ]),
-    ),
-  )
-  // Knees softened (slight thigh forward).
-  tracks.push(
-    new THREE.QuaternionKeyframeTrack(
-      `${GLB_BONE_MAP.leftThigh}.quaternion`,
-      [0, duration],
-      flattenGlbQuats([
-        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.14, 0, 0),
-        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftThigh, -0.14, 0, 0),
-      ]),
-    ),
-  )
-  tracks.push(
-    new THREE.QuaternionKeyframeTrack(
-      `${GLB_BONE_MAP.rightThigh}.quaternion`,
-      [0, duration],
-      flattenGlbQuats([
-        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.14, 0, 0),
-        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightThigh, -0.14, 0, 0),
-      ]),
-    ),
-  )
-  tracks.push(
-    new THREE.QuaternionKeyframeTrack(
-      `${GLB_BONE_MAP.leftShin}.quaternion`,
-      [0, duration],
-      flattenGlbQuats([
-        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, 0.08, 0, 0),
-        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.leftShin, 0.08, 0, 0),
-      ]),
-    ),
-  )
-  tracks.push(
-    new THREE.QuaternionKeyframeTrack(
-      `${GLB_BONE_MAP.rightShin}.quaternion`,
-      [0, duration],
-      flattenGlbQuats([
-        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, 0.08, 0, 0),
-        glbLowerBodyBindRelativeQuat(GLB_BONE_MAP.rightShin, 0.08, 0, 0),
-      ]),
-    ),
-  )
+
+  // FR-8 Packet 3 — knees + ready arms come from the canonical
+  // basketball-ready rest delta. Pre-FR-8 the offsets (-0.14 thigh,
+  // 0.08 shin, 2.3/0.02 upperarm, -0.42 forearm) were inlined here
+  // and nowhere else. Pulling them into the shared module means the
+  // procedural fallback (Packet 6) and the missing-clip idle hold
+  // (Packet 5 ladder tier 2) read the same numbers, so a clip drop
+  // never regresses the stance.
+  appendBasketballReadyHoldTracks(tracks, duration)
 
   return new THREE.AnimationClip('idle_ready', duration, tracks)
+}
+
+/**
+ * FR-8 Packet 3 — appends a flat 2-keyframe hold for every bone the
+ * basketball-ready rest delta touches, anchored at bind + delta.
+ *
+ * Used by the idle clip and (Packet 5) by the missing-clip idle
+ * fallback so the figure holds the same athletic stance regardless
+ * of which clip the resolver picked.
+ */
+function appendBasketballReadyHoldTracks(
+  tracks: THREE.KeyframeTrack[],
+  duration: number,
+): void {
+  const times: ReadonlyArray<number> = [0, duration]
+  const armBuilder = (
+    boneKey: AthleticPoseBoneKey,
+    boneName: string,
+  ): THREE.KeyframeTrack => {
+    const d = BASKETBALL_READY_REST_DELTA[boneKey]
+    return new THREE.QuaternionKeyframeTrack(
+      `${boneName}.quaternion`,
+      [...times],
+      flattenGlbQuats([
+        glbArmBindRelativeQuat(boneName, d.x, d.y, d.z),
+        glbArmBindRelativeQuat(boneName, d.x, d.y, d.z),
+      ]),
+    )
+  }
+  const lowerBuilder = (
+    boneKey: AthleticPoseBoneKey,
+    boneName: string,
+  ): THREE.KeyframeTrack => {
+    const d = BASKETBALL_READY_REST_DELTA[boneKey]
+    return new THREE.QuaternionKeyframeTrack(
+      `${boneName}.quaternion`,
+      [...times],
+      flattenGlbQuats([
+        glbLowerBodyBindRelativeQuat(boneName, d.x, d.y, d.z),
+        glbLowerBodyBindRelativeQuat(boneName, d.x, d.y, d.z),
+      ]),
+    )
+  }
+  tracks.push(armBuilder('leftUpperArm', GLB_BONE_MAP.leftUpperArm))
+  tracks.push(armBuilder('rightUpperArm', GLB_BONE_MAP.rightUpperArm))
+  tracks.push(armBuilder('leftForeArm', GLB_BONE_MAP.leftForeArm))
+  tracks.push(armBuilder('rightForeArm', GLB_BONE_MAP.rightForeArm))
+  tracks.push(lowerBuilder('leftThigh', GLB_BONE_MAP.leftThigh))
+  tracks.push(lowerBuilder('rightThigh', GLB_BONE_MAP.rightThigh))
+  tracks.push(lowerBuilder('leftShin', GLB_BONE_MAP.leftShin))
+  tracks.push(lowerBuilder('rightShin', GLB_BONE_MAP.rightShin))
 }
 
 /**
