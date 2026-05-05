@@ -339,6 +339,45 @@ export function Scenario3DCanvas({
   const [filmRoomReplayPhase, setFilmRoomReplayPhase] = useState<ReplayPhase>(
     'idle',
   )
+  // V1 UX completion — phase emission dedup.
+  //
+  // When `?simple=0` is set on the URL the canvas mounts BOTH the
+  // imperative `ReplayStateMachine` (line ~1106) AND the JSX
+  // `ScenarioScene3D` → `ScenarioReplayController` tree (line ~1731);
+  // both emitters call `setFilmRoomReplayPhase` + the parent's
+  // `onPhase` for every transition they observe. The two emitters
+  // share the {idle/setup/playing/frozen/consequence/replaying/done}
+  // values (only the JSX controller adds `cueRepaint`), so the same
+  // phase can be emitted twice in a row — which then re-flushes the
+  // FR-4 dispatcher useEffect and the FR-5 overlay-bridge effect
+  // even though nothing actually changed.
+  //
+  // Dedup is applied at the bridge level: the helper below stamps
+  // the most-recently-emitted phase in a ref and skips the
+  // setFilmRoomReplayPhase + onPhase fan-out when the next emitter
+  // pushes the same value. The cueRepaint phase still flows through
+  // because it never duplicates with the imperative state machine
+  // (only the JSX controller emits it).
+  const lastEmittedPhaseRef = useRef<ReplayPhase | null>(null)
+  const emitPhaseRef = useRef<((phase: ReplayPhase) => void) | null>(null)
+  if (!emitPhaseRef.current) {
+    emitPhaseRef.current = (phase: ReplayPhase) => {
+      if (lastEmittedPhaseRef.current === phase) return
+      lastEmittedPhaseRef.current = phase
+      setFilmRoomReplayPhase(phase)
+      onPhase?.(phase)
+    }
+  }
+  // Re-bind the parent's `onPhase` reference each render so the
+  // emitter always calls the latest closure (deps changes etc.).
+  useEffect(() => {
+    emitPhaseRef.current = (phase: ReplayPhase) => {
+      if (lastEmittedPhaseRef.current === phase) return
+      lastEmittedPhaseRef.current = phase
+      setFilmRoomReplayPhase(phase)
+      onPhase?.(phase)
+    }
+  }, [onPhase])
   // P3.3F — `?forceGlb=1` URL param. When set the figure builder
   // (a) skips the skinned/premium/Phase-F fallback chain and
   // (b) returns a bright magenta marker for any figure the GLB
@@ -1098,13 +1137,16 @@ export function Scenario3DCanvas({
           if (visibleScene.freezeAtMs !== null) {
             const machine = new ReplayStateMachine(motion, visibleScene)
             stateMachineRef.current = machine
-            const phaseListener = onPhase
             const unsubscribe = machine.subscribe(({ state }) => {
               // ReplayState matches ReplayPhase 1:1 for the values the
               // train flow cares about; cast and forward.
               const next = state as ReplayState as ReplayPhase
-              setFilmRoomReplayPhase(next)
-              phaseListener?.(next)
+              // V1 UX completion — route through the dedup emitter so
+              // the JSX controller and the imperative state machine
+              // can co-exist under `?simple=0` without firing twice
+              // for the same phase. The emitter both updates local
+              // state and forwards to the parent's `onPhase`.
+              emitPhaseRef.current?.(next)
               // Phase B / B1 — re-apply React-owned playback flags after
               // every state transition. `setMovements` (called by
               // `startConsequence` / `startReplay`) clears `pausedAtT`,
@@ -1157,6 +1199,12 @@ export function Scenario3DCanvas({
           }
           consumedChoiceRef.current = null
           pendingPickRef.current = null
+          // V1 UX completion — reset the phase-dedup high-water mark
+          // on every scene rebuild so the new scenario's first
+          // `idle → setup → playing` chain emits cleanly. Without
+          // this, a previous scenario that ended on `'idle'` would
+          // suppress the new scenario's first `'idle'` notification.
+          lastEmittedPhaseRef.current = null
         } catch (error) {
           // eslint-disable-next-line no-console
           console.error('[scenario3d] camera/motion init failed', error)
@@ -1728,8 +1776,11 @@ export function Scenario3DCanvas({
               resetCounter={resetCounter}
               onCaption={onCaption}
               onPhase={(p) => {
-                setFilmRoomReplayPhase(p)
-                onPhase?.(p)
+                // V1 UX completion — route through the dedup emitter
+                // so a JSX-emitted phase that happens to match the
+                // most recent imperative state-machine emission is
+                // collapsed instead of double-firing the bridge.
+                emitPhaseRef.current?.(p)
               }}
               showPaths={showPaths}
               pickedChoiceId={pickedChoiceId}
