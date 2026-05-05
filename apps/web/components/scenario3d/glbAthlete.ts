@@ -1342,6 +1342,30 @@ export interface BuildGlbAthletePreviewOptions {
   isKeyDefender?: boolean
 }
 
+/**
+ * FR-3 §7.10 — known GLB bind-pose limitation (documented, not fixed).
+ *
+ * The Quaternius UAL2 mannequin's bind pose is a near-A-pose rest
+ * position, not a basketball stance. Hand-authored clip deltas
+ * (`idle_ready`, `cut_sprint`, `defense_slide`, `defensive_deny`)
+ * therefore have to ride on top of an off-axis rest to deliver a
+ * "ready" silhouette — and the plan §5.6 calls out that authoring
+ * a "basketball ready" rest delta is the v2 GLB step the renderer
+ * eventually wants.
+ *
+ * FR-3 deliberately does NOT modify the bind pose. The brief
+ * authorizes only safe procedural / readability work (no bind-pose
+ * deltas, no new GLB assets, no animation system changes) and the
+ * planning doc earmarks the bind-pose fix for FR-8 alongside the
+ * premium athlete pack. The §7.2 / §7.3 / §7.7 cues land via the
+ * indicator layer (rings, shadow, chevron, halo) — those are the
+ * FR-3-safe surfaces that materially raise readability without
+ * risking the existing animation system.
+ *
+ * Procedural figures already ship a basketball-ready pose lookup
+ * (see `applyIdlePose` / `applyDefensivePose` / `applyDenialPose`
+ * in `imperativeScene.ts`); no FR-3 change is required there.
+ */
 export function buildGlbAthletePreview(
   teamColor: string,
   _trimColor: string,
