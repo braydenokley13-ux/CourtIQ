@@ -2,13 +2,15 @@
 
 /**
  * Client-only wrappers for the chapter Boss + Mixed Reads rows on
- * /pathways/[pathwaySlug] (PTH-3).
+ * /pathways/[pathwaySlug] (PTH-3 + PTH-4).
  *
- * The parent page is a server component, so this island is the only
- * place that can read the localStorage-backed boss/mixed pass state
- * surfaced by `localChallengeProgress`. The "cleared" decoration is
- * advisory: it appears post-pass but never gates anything, so it's
- * safe for it to be missing on first paint.
+ * PTH-3 read the cleared state from localStorage. PTH-4 promoted boss
+ * / mixed clears to a server-persisted `BossChallengeAttempt` row, so
+ * this island now prefers a `serverCleared` prop (surfaced from the
+ * server-rendered parent) and only falls back to localStorage when
+ * the server signal is missing — e.g. progress fetch failed or the
+ * row hasn't replicated yet. The "cleared" decoration is advisory:
+ * it appears post-pass but never gates anything.
  */
 
 import Link from 'next/link'
@@ -25,15 +27,20 @@ function useClearedTag(args: {
   chapterSlug: string
   mode: ChallengeMode
   challengeSlug: string
+  /** PTH-4: authoritative server-persisted cleared state. When true,
+   *  we render cleared regardless of localStorage. When undefined,
+   *  the hook falls back to the localStorage signal so we still show
+   *  a clear before the server round-trip resolves. */
+  serverCleared?: boolean
 }) {
-  const { pathwaySlug, chapterSlug, mode, challengeSlug } = args
-  const [cleared, setCleared] = useState(false)
+  const { pathwaySlug, chapterSlug, mode, challengeSlug, serverCleared } = args
+  const [localCleared, setLocalCleared] = useState(false)
   useEffect(() => {
-    setCleared(
+    setLocalCleared(
       hasClearedChallenge({ pathwaySlug, chapterSlug, mode, challengeSlug }),
     )
   }, [pathwaySlug, chapterSlug, mode, challengeSlug])
-  return cleared
+  return serverCleared === true ? true : localCleared
 }
 
 export function BossChallengeRow({
@@ -43,6 +50,7 @@ export function BossChallengeRow({
   ready,
   recommended,
   disabled,
+  serverCleared,
 }: {
   pathwaySlug: string
   chapter: PathwayChapterConfig
@@ -50,6 +58,10 @@ export function BossChallengeRow({
   ready: boolean
   recommended: boolean
   disabled: boolean
+  /** PTH-4: server-persisted cleared signal from the page-level
+   *  PathwayProgressSummary. When true, we render cleared without
+   *  reading localStorage. */
+  serverCleared?: boolean
 }) {
   const boss = chapter.bossChallenge!
   const cleared = useClearedTag({
@@ -57,6 +69,7 @@ export function BossChallengeRow({
     chapterSlug: chapter.slug,
     mode: 'boss-challenge',
     challengeSlug: boss.slug,
+    serverCleared,
   })
   const cleanTitle = boss.title.replace(/^Boss\s*[—-]\s*/, '')
   const ctaLabel = cleared
@@ -115,18 +128,22 @@ export function MixedReadsRow({
   href,
   disabled,
   challengeSlug,
+  serverCleared,
 }: {
   pathwaySlug: string
   chapter: PathwayChapterConfig
   href: string
   disabled: boolean
   challengeSlug: string
+  /** PTH-4: server-persisted cleared signal. */
+  serverCleared?: boolean
 }) {
   const cleared = useClearedTag({
     pathwaySlug,
     chapterSlug: chapter.slug,
     mode: 'mixed-reads',
     challengeSlug,
+    serverCleared,
   })
   return (
     <div
