@@ -186,6 +186,37 @@ export default function TrainPage() {
   )
 }
 
+/** Subset of ResolvedPathwayTrainingContext that /train consumes.
+ *  Shape matches the API response so we don't need a runtime decoder. */
+type PathwayContext = {
+  pathwaySlug: string
+  pathwayTitle: string
+  chapterSlug: string | null
+  chapterTitle: string | null
+  nodeSlug: string | null
+  nodeTitle: string | null
+  scenarioIds: string[]
+  trainingMode: string | null
+  returnHref: string
+  summaryParams: { pathway: string; chapter?: string; node?: string }
+  source: string
+  error:
+    | 'pathway-not-found'
+    | 'pathway-coming-soon'
+    | 'chapter-not-found'
+    | 'node-not-found'
+    | 'no-trainable-scenarios'
+    | null
+}
+
+const PATHWAY_ERROR_COPY: Record<NonNullable<PathwayContext['error']>, string> = {
+  'pathway-not-found': "We couldn't find that Pathway. Running standard training instead.",
+  'pathway-coming-soon': 'That Pathway is coming soon — running standard training instead.',
+  'chapter-not-found': "We couldn't find that chapter. Running standard training instead.",
+  'node-not-found': "We couldn't find that step. Running standard training instead.",
+  'no-trainable-scenarios': 'No reps available for that step yet. Running standard training instead.',
+}
+
 function TrainPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -206,8 +237,15 @@ function TrainPageInner() {
         : null,
     [scenarioIdsParamRaw],
   )
+  // PTH-2: Pathway context params. The resolver lives server-side at
+  // /api/pathways/training-context — /train just forwards the URL
+  // params and reads back the resolved scenarioIds + display titles.
+  const pathwayParam = searchParams.get('pathway')
+  const chapterParam = searchParams.get('chapter')
+  const nodeParam = searchParams.get('node')
   const [userId, setUserId] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
+  const [pathwayContext, setPathwayContext] = useState<PathwayContext | null>(null)
   const [scenarios, setScenarios] = useState<SessionScenario[]>([])
   const [idx, setIdx] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
@@ -265,11 +303,48 @@ function TrainPageInner() {
 
       setUserId(user.id)
       try {
+        // PTH-2: when any pathway/chapter/node param is present,
+        // resolve the Pathway training context first. The resolver
+        // returns the canonical scenarioIds + the titles we surface
+        // in the Pathway strip. Errors are soft-warnings — we still
+        // run the session if the resolver returned scenarios, and
+        // fall back to the URL/concept selection otherwise.
+        let resolvedContext: PathwayContext | null = null
+        if (pathwayParam) {
+          try {
+            const ctxRes = await fetch(
+              `/api/pathways/training-context?${new URLSearchParams({
+                pathway: pathwayParam,
+                ...(chapterParam ? { chapter: chapterParam } : {}),
+                ...(nodeParam ? { node: nodeParam } : {}),
+                ...(scenarioIdsParamRaw ? { scenarioIds: scenarioIdsParamRaw } : {}),
+              }).toString()}`,
+            )
+            if (ctxRes.ok) {
+              const ctxBody = (await ctxRes.json()) as { context: PathwayContext | null }
+              resolvedContext = ctxBody.context ?? null
+              if (resolvedContext) setPathwayContext(resolvedContext)
+            }
+          } catch {
+            // Soft-fail: the strip just doesn't render. The session
+            // still starts off whatever URL params are present.
+          }
+        }
+
         // Pinned-list (scenarioIds) wins over the singular scenario
         // pin and over the concept filter — Pathways pages always pass
         // a concrete ordered set, and the API matches that ordering.
-        const requestedSize = scenarioIdsParam
-          ? scenarioIdsParam.length
+        // When the context resolver returned scenarios (e.g. user came
+        // in via ?pathway=...&chapter=...) we prefer those over a
+        // potentially-empty URL list.
+        const sessionScenarioIds =
+          scenarioIdsParam && scenarioIdsParam.length > 0
+            ? scenarioIdsParam
+            : resolvedContext?.scenarioIds && resolvedContext.scenarioIds.length > 0
+              ? resolvedContext.scenarioIds
+              : null
+        const requestedSize = sessionScenarioIds
+          ? sessionScenarioIds.length
           : scenarioParam
             ? 1
             : 5
@@ -280,7 +355,7 @@ function TrainPageInner() {
             n: requestedSize,
             concept: conceptParam ?? undefined,
             scenarioId: scenarioParam ?? undefined,
-            scenarioIds: scenarioIdsParam ?? undefined,
+            scenarioIds: sessionScenarioIds ?? undefined,
           }),
         })
         const body = await res.json().catch(() => ({})) as {
@@ -307,7 +382,16 @@ function TrainPageInner() {
         setLoading(false)
       }
     })()
-  }, [router, conceptParam, scenarioParam, scenarioIdsParam])
+  }, [
+    router,
+    conceptParam,
+    scenarioParam,
+    scenarioIdsParam,
+    scenarioIdsParamRaw,
+    pathwayParam,
+    chapterParam,
+    nodeParam,
+  ])
 
   // Settle delay between the freeze beat firing and the timer starting
   // ticking — gives the kid ~700ms to register the question before the
@@ -452,6 +536,24 @@ function TrainPageInner() {
       return
     }
 
+    // PTH-2: when the session ran inside a Pathway, thread the
+    // pathway/chapter/node back to the summary page so its CTAs can
+    // route the player back into the Pathway flow.
+    const appendPathwayParams = (qs: URLSearchParams) => {
+      if (pathwayContext) {
+        qs.set('pathway', pathwayContext.pathwaySlug)
+        if (pathwayContext.chapterSlug) qs.set('chapter', pathwayContext.chapterSlug)
+        if (pathwayContext.nodeSlug) qs.set('node', pathwayContext.nodeSlug)
+      } else if (pathwayParam) {
+        // Resolver failed but the user did come from a Pathway link —
+        // preserve the slug so the summary page can at least offer a
+        // "Back to Pathways" link.
+        qs.set('pathway', pathwayParam)
+        if (chapterParam) qs.set('chapter', chapterParam)
+        if (nodeParam) qs.set('node', nodeParam)
+      }
+    }
+
     try {
       const res = await fetch(`/api/session/${sessionId}/complete`, {
         method: 'POST',
@@ -468,6 +570,7 @@ function TrainPageInner() {
         duration: String(data.duration_ms),
         concept: conceptParam ?? '',
       })
+      appendPathwayParams(qs)
       router.push(`/train/summary?${qs.toString()}`)
     } catch {
       // Soft-fail: still send them to summary with whatever we have so far.
@@ -480,6 +583,7 @@ function TrainPageInner() {
         duration: '0',
         concept: conceptParam ?? '',
       })
+      appendPathwayParams(qs)
       router.push(`/train/summary?${qs.toString()}`)
     }
   }
@@ -491,6 +595,39 @@ function TrainPageInner() {
   return (
     <main className="min-h-dvh bg-bg-0 text-text pb-8">
       <div className="mx-auto max-w-md space-y-3 px-4 pt-6">
+        {/* PTH-2: Pathway context strip — only shows when /train was
+            entered via a Pathway link. Compact 2-line breadcrumb +
+            back-link so it doesn't compete with the training UI. */}
+        {pathwayContext && pathwayContext.error === null ? (
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-brand/30 bg-brand/5 px-3 py-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-brand">
+                Pathway · {pathwayContext.pathwayTitle}
+              </p>
+              <p className="truncate text-[12px] font-semibold leading-tight text-text">
+                {pathwayContext.chapterTitle ?? 'Chapter'}
+                {pathwayContext.nodeTitle ? (
+                  <>
+                    <span className="text-text-mute"> · </span>
+                    <span className="text-text-dim">{pathwayContext.nodeTitle}</span>
+                  </>
+                ) : null}
+              </p>
+            </div>
+            <Link
+              href={pathwayContext.returnHref}
+              className="rounded-full border border-hairline-2 bg-bg-2 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1px] text-text-dim transition-colors hover:text-text"
+            >
+              Back
+            </Link>
+          </div>
+        ) : null}
+        {pathwayContext?.error ? (
+          <div className="rounded-2xl border border-heat/30 bg-heat/5 px-3 py-2 text-[12px] text-heat">
+            {PATHWAY_ERROR_COPY[pathwayContext.error]}
+          </div>
+        ) : null}
+
         {/* Header — clear at-a-glance status. XP + IQ live as soft chips
             so the eye doesn't have to parse three different colors when
             the streak is hot. */}
