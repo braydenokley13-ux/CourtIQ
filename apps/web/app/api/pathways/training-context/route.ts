@@ -37,6 +37,7 @@ export async function GET(request: Request) {
   const chapterSlug = url.searchParams.get('chapter')
   const nodeSlug = url.searchParams.get('node')
   const scenarioIdsCsv = url.searchParams.get('scenarioIds')
+  const mode = url.searchParams.get('mode')
 
   // Without a pathway slug there's nothing to resolve. Returning
   // `context: null` lets the client cleanly fall back to weighted
@@ -50,6 +51,7 @@ export async function GET(request: Request) {
     chapterSlug,
     nodeSlug,
     scenarioIdsCsv,
+    mode,
   })
 
   return NextResponse.json({ context })

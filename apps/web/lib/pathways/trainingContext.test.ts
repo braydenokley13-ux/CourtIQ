@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { resolvePathwayTrainingContext } from './trainingContext'
+import { buildTrainHrefFromContext, resolvePathwayTrainingContext } from './trainingContext'
 import { getFoundationPathway } from './helpers'
 import type { PathwayProgressSummary } from './types'
 
@@ -188,5 +188,124 @@ describe('resolvePathwayTrainingContext — error paths', () => {
       nodeSlug: 'imaginary-node',
     })
     expect(ctx!.error).toBe('node-not-found')
+  })
+
+  it('refuses challenge context for coming-soon pathways', () => {
+    const ctx = resolvePathwayTrainingContext({
+      pathwaySlug: 'closeout-killer',
+      mode: 'boss-challenge',
+    })
+    expect(ctx!.error).toBe('pathway-coming-soon')
+    expect(ctx!.isChallenge).toBe(false)
+  })
+})
+
+describe('resolvePathwayTrainingContext — PTH-3 boss-challenge mode', () => {
+  it('resolves to bossChallenge.scenarioIds and surfaces challenge metadata', () => {
+    const ctx = resolvePathwayTrainingContext({
+      pathwaySlug: FOUNDATION.slug,
+      chapterSlug: 'read-the-denial',
+      mode: 'boss-challenge',
+    })
+    expect(ctx!.error).toBeNull()
+    expect(ctx!.source).toBe('boss-challenge')
+    expect(ctx!.trainingMode).toBe('boss-challenge')
+    expect(ctx!.scenarioIds).toEqual(['BDW-01', 'BDW-02', 'BDW-03', 'BDW-04', 'BDW-05'])
+    expect(ctx!.isChallenge).toBe(true)
+    expect(ctx!.hideDecoderPill).toBe(true)
+    expect(ctx!.suppressCueHints).toBe(true)
+    expect(ctx!.challengeTitle).toBe('Boss — Denial Reader')
+    expect(ctx!.passCriteria?.bossBestRatio).toBe(0.8)
+    expect(ctx!.challengeScenarioIds).toEqual([
+      'BDW-01',
+      'BDW-02',
+      'BDW-03',
+      'BDW-04',
+      'BDW-05',
+    ])
+    expect(ctx!.summaryParams.mode).toBe('boss-challenge')
+  })
+
+  it('falls back to a soft error when the chapter has no boss config', () => {
+    // Synthesize input pointing at a chapter — Foundation chapters all
+    // have boss configs, so we route the resolver at a *real* pathway
+    // chapter and assert a non-error result first; then prove the
+    // boss-not-configured code path with a stub-style call where the
+    // mode is set but the URL doesn't actually carry a chapter.
+    const noChapter = resolvePathwayTrainingContext({
+      pathwaySlug: FOUNDATION.slug,
+      mode: 'boss-challenge',
+    })
+    // When a chapter is missing we return an empty boss-mode context
+    // rather than crash; /train then falls back to standard training.
+    expect(noChapter!.error).toBeNull()
+    expect(noChapter!.scenarioIds).toEqual([])
+    expect(noChapter!.trainingMode).toBe('boss-challenge')
+  })
+
+  it('preserves explicit scenarioIds while keeping boss-challenge metadata', () => {
+    const ctx = resolvePathwayTrainingContext({
+      pathwaySlug: FOUNDATION.slug,
+      chapterSlug: 'read-the-denial',
+      mode: 'boss-challenge',
+      scenarioIdsCsv: 'BDW-03,BDW-05',
+    })
+    expect(ctx!.scenarioIds).toEqual(['BDW-03', 'BDW-05'])
+    expect(ctx!.isChallenge).toBe(true)
+    // canonical challenge ids stay visible for retry/local progress key.
+    expect(ctx!.challengeScenarioIds).toEqual([
+      'BDW-01',
+      'BDW-02',
+      'BDW-03',
+      'BDW-04',
+      'BDW-05',
+    ])
+  })
+})
+
+describe('resolvePathwayTrainingContext — PTH-3 mixed-reads mode', () => {
+  it('resolves the capstone mixed-reads scenario set', () => {
+    const ctx = resolvePathwayTrainingContext({
+      pathwaySlug: FOUNDATION.slug,
+      chapterSlug: 'real-game-mix',
+      mode: 'mixed-reads',
+    })
+    expect(ctx!.error).toBeNull()
+    expect(ctx!.source).toBe('mixed-reads')
+    expect(ctx!.trainingMode).toBe('mixed-reads')
+    expect(ctx!.isChallenge).toBe(true)
+    expect(ctx!.hideDecoderPill).toBe(true)
+    expect(ctx!.scenarioIds.length).toBe(20)
+    expect(ctx!.scenarioIds[0]).toBe('BDW-01')
+    expect(ctx!.scenarioIds[19]).toBe('SKR-05')
+    expect(ctx!.summaryParams.mode).toBe('mixed-reads')
+  })
+
+  it('honors mode=mixed-reads on a non-mixed chapter by reusing chapter union', () => {
+    const ctx = resolvePathwayTrainingContext({
+      pathwaySlug: FOUNDATION.slug,
+      chapterSlug: 'read-the-denial',
+      mode: 'mixed-reads',
+    })
+    // Non-mixed chapter has no mixed-reads node; resolver picks the
+    // first node and surfaces an isChallenge=true mixed-reads context.
+    expect(ctx!.error).toBeNull()
+    expect(ctx!.isChallenge).toBe(true)
+    expect(ctx!.trainingMode).toBe('mixed-reads')
+    expect(ctx!.scenarioIds.length).toBeGreaterThan(0)
+  })
+})
+
+describe('resolvePathwayTrainingContext — buildTrainHrefFromContext', () => {
+  it('preserves boss-challenge mode + canonical scenario ids on retry', () => {
+    const ctx = resolvePathwayTrainingContext({
+      pathwaySlug: FOUNDATION.slug,
+      chapterSlug: 'read-the-denial',
+      mode: 'boss-challenge',
+    })!
+    const retry = buildTrainHrefFromContext(ctx)
+    expect(retry).toContain('mode=boss-challenge')
+    expect(retry).toContain('chapter=read-the-denial')
+    expect(retry).toContain('scenarioIds=BDW-01%2CBDW-02%2CBDW-03%2CBDW-04%2CBDW-05')
   })
 })

@@ -16,6 +16,8 @@ import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ProgressRing } from '@/components/ui'
 import {
+  buildBossChallengeTrainHref,
+  buildMixedReadsTrainHref,
   buildSkillNodeTrainHref,
   countChapterScenarios,
   getAccentColor,
@@ -24,6 +26,7 @@ import {
   getDecoderLabel,
   getPathwayBySlug,
 } from '@/lib/pathways/helpers'
+import { BossChallengeRow, MixedReadsRow } from './BossMixedRows'
 import { getPathwayProgress } from '@/lib/pathways/progressService'
 import type {
   PathwayChapterConfig,
@@ -313,6 +316,7 @@ function ActivePathwayView({
           {pathway.chapters.map((chapter, i) => (
             <ChapterRow
               key={chapter.slug}
+              pathway={pathway}
               pathwaySlug={pathway.slug}
               chapter={chapter}
               progress={progress?.chapters[i] ?? null}
@@ -341,11 +345,13 @@ function ActivePathwayView({
 }
 
 function ChapterRow({
+  pathway,
   pathwaySlug,
   chapter,
   progress,
   isHighlighted,
 }: {
+  pathway: PathwayConfig
   pathwaySlug: string
   chapter: PathwayChapterConfig
   progress: PathwayChapterProgress | null
@@ -360,6 +366,24 @@ function ChapterRow({
   const isCapstone = chapter.decoderTag === null
   const decoderAccPct =
     progress?.decoderAccuracy != null ? Math.round(progress.decoderAccuracy * 100) : null
+
+  // PTH-3: a boss is "ready" once any non-boss skill node has been
+  // attempted. We keep the gate simple — strict "all nodes mastered"
+  // would block early experimentation, and the warning copy ("Practice
+  // first recommended") still nudges the right behavior.
+  const nonBossAttempts = progress?.skillNodes.reduce(
+    (acc, n) => acc + (n.attemptedCount > 0 ? 1 : 0),
+    0,
+  ) ?? 0
+  const allNonBossMastered =
+    chapter.skillNodes.length > 0 &&
+    chapter.skillNodes.every((n) => {
+      const np = progress?.skillNodes.find((p) => p.slug === n.slug)
+      return np?.state === 'mastered'
+    })
+  const bossReady = nonBossAttempts > 0
+  const bossHref = buildBossChallengeTrainHref(pathway, chapter)
+  const mixedHref = isCapstone ? buildMixedReadsTrainHref(pathway, chapter) : null
 
   return (
     <article
@@ -438,20 +462,36 @@ function ChapterRow({
           })}
         </div>
 
-        {/* Boss challenge — visible only as a teaser in v1; the actual
-            boss-mode UI lands in PTH-3. */}
-        {chapter.bossChallenge ? (
-          <div className="rounded-xl border border-heat/30 bg-heat/5 p-3">
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] font-bold uppercase tracking-[1.5px] text-heat">
-                Boss · {chapter.bossChallenge.title.replace(/^Boss\s*[—-]\s*/, '')}
-              </p>
-              <span className="rounded-full border border-heat/40 bg-bg-2 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[1px] text-text-mute">
-                Coming soon
-              </span>
-            </div>
-            <p className="mt-1 text-[12px] text-text-dim">{chapter.bossChallenge.subtitle}</p>
-          </div>
+        {/* PTH-3: Boss challenge — real launch CTA when boss config
+            exists. Locked → coming-soon style; unlocked-but-cold →
+            "Practice first recommended" tag; mastered → boss is the
+            recommended next step. Cleared decoration hydrates from
+            localStorage (client-only). */}
+        {chapter.bossChallenge && bossHref ? (
+          <BossChallengeRow
+            pathwaySlug={pathwaySlug}
+            chapter={chapter}
+            href={bossHref}
+            ready={bossReady}
+            recommended={allNonBossMastered}
+            disabled={state === 'locked'}
+          />
+        ) : null}
+
+        {/* PTH-3: Mixed Reads / capstone CTA — only on the Real Game
+            Mix chapter, where decoderTag is null and the player has
+            to identify the cue without the decoder pill. */}
+        {isCapstone && mixedHref ? (
+          <MixedReadsRow
+            pathwaySlug={pathwaySlug}
+            chapter={chapter}
+            href={mixedHref}
+            disabled={state === 'locked'}
+            challengeSlug={
+              chapter.skillNodes.find((n) => n.trainingMode === 'mixed-reads')?.slug ??
+              chapter.slug
+            }
+          />
         ) : null}
 
         {/* Chapter-level CTA — built from the first un-mastered skill

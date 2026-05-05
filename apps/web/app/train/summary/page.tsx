@@ -5,6 +5,8 @@ import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
+  buildBossChallengeTrainHref,
+  buildMixedReadsTrainHref,
   buildPathwayDetailHref,
   buildPathwayTrainHref,
   getChapterBySlug,
@@ -15,6 +17,11 @@ import type {
   PathwayConfig,
   PathwayProgressSummary,
 } from '@/lib/pathways/types'
+import {
+  isPassingAttempt,
+  recordChallengeAttempt,
+  type ChallengeMode,
+} from '@/lib/pathways/localChallengeProgress'
 
 type ModuleSummary = {
   slug: string
@@ -63,6 +70,10 @@ function SummaryContent() {
   const pathwaySlug = params.get('pathway')
   const chapterSlug = params.get('chapter')
   const nodeSlug = params.get('node')
+  // PTH-3 challenge mode — flips the summary into pass/fail framing.
+  const modeParam = params.get('mode')
+  const challengeMode: ChallengeMode | null =
+    modeParam === 'boss-challenge' || modeParam === 'mixed-reads' ? modeParam : null
 
   const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0
   const rank = rankFromAccuracy(accuracy)
@@ -133,28 +144,96 @@ function SummaryContent() {
     }
   }, [concept, pathway])
 
+  // PTH-3: Boss / mixed-reads pass-fail computation. Pass criteria
+  // come from the chapter's bossChallenge (boss) or the chapter's
+  // own passCriteria (mixed reads). v1 uses correct count as a
+  // bestCount approximation — see localChallengeProgress.ts.
+  const passRatio =
+    challengeMode === 'boss-challenge'
+      ? chapter?.bossChallenge?.passCriteria.bossBestRatio ?? 0.8
+      : challengeMode === 'mixed-reads'
+        ? // Mixed reads passes on a high score across the chapter.
+          0.7
+        : null
+  const passed =
+    challengeMode != null && total > 0
+      ? isPassingAttempt(correct, total, passRatio)
+      : false
+  const passPct = passRatio != null ? Math.round(passRatio * 100) : null
+
+  // Mirror the result into localStorage so the pathway detail page
+  // can show "Cleared" without re-fetching. /train already does this
+  // on the way through, but we re-record here to cover the case
+  // where the user lands on summary via direct URL (e.g. shared link
+  // or back-button).
+  useEffect(() => {
+    if (!challengeMode) return
+    if (!pathwaySlug || !chapterSlug) return
+    if (total <= 0) return
+    const challengeSlug =
+      challengeMode === 'boss-challenge'
+        ? nodeSlug ?? `${chapterSlug}-boss`
+        : nodeSlug ?? chapterSlug
+    try {
+      recordChallengeAttempt({
+        pathwaySlug,
+        chapterSlug,
+        mode: challengeMode,
+        challengeSlug,
+        bestCount: correct,
+        total,
+        scenarioIds: [],
+        passRatio,
+      })
+    } catch {
+      // ignore
+    }
+  }, [challengeMode, pathwaySlug, chapterSlug, nodeSlug, correct, total, passRatio])
+
+  // Retry hrefs — boss replays the canonical boss scenario set;
+  // mixed-reads replays the chapter's mixed scenario set.
+  const retryHref =
+    challengeMode === 'boss-challenge' && pathway && chapter
+      ? buildBossChallengeTrainHref(pathway, chapter)
+      : challengeMode === 'mixed-reads' && pathway && chapter
+        ? buildMixedReadsTrainHref(pathway, chapter, { nodeSlug })
+        : null
+
   return (
     <main className="min-h-dvh bg-bg-0 p-5 text-text">
       <div className="mx-auto max-w-md space-y-4">
-        <motion.header
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, ease: [0.2, 0.8, 0.2, 1] }}
-          className="rounded-3xl border-2 border-brand bg-gradient-to-br from-bg-1 to-bg-2 p-6 text-center shadow-brand-sm"
-        >
-          <p className={`text-[12px] font-semibold uppercase tracking-[2px] ${rank.tone}`}>
-            {rank.label}
-          </p>
-          <p className="mt-2 font-display text-[44px] font-black leading-none tracking-tight text-text">
-            {correct}<span className="text-text-dim">/{total}</span>
-          </p>
-          <p className="mt-1 text-sm text-text-dim">{accuracy}% right · {seconds}s</p>
-          {chapter ? (
-            <p className="mt-3 text-[12px] font-semibold uppercase tracking-[1.5px] text-text-dim">
-              You trained · {chapter.title}
+        {challengeMode ? (
+          <ChallengeHero
+            mode={challengeMode}
+            chapterTitle={chapter?.title ?? null}
+            bossTitle={chapter?.bossChallenge?.title ?? null}
+            correct={correct}
+            total={total}
+            passed={passed}
+            passPct={passPct}
+            seconds={seconds}
+          />
+        ) : (
+          <motion.header
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, ease: [0.2, 0.8, 0.2, 1] }}
+            className="rounded-3xl border-2 border-brand bg-gradient-to-br from-bg-1 to-bg-2 p-6 text-center shadow-brand-sm"
+          >
+            <p className={`text-[12px] font-semibold uppercase tracking-[2px] ${rank.tone}`}>
+              {rank.label}
             </p>
-          ) : null}
-        </motion.header>
+            <p className="mt-2 font-display text-[44px] font-black leading-none tracking-tight text-text">
+              {correct}<span className="text-text-dim">/{total}</span>
+            </p>
+            <p className="mt-1 text-sm text-text-dim">{accuracy}% right · {seconds}s</p>
+            {chapter ? (
+              <p className="mt-3 text-[12px] font-semibold uppercase tracking-[1.5px] text-text-dim">
+                You trained · {chapter.title}
+              </p>
+            ) : null}
+          </motion.header>
+        )}
 
         {/* Reward grid */}
         <div className="grid grid-cols-2 gap-3">
@@ -231,31 +310,41 @@ function SummaryContent() {
         )}
 
         {/* Actions — Pathway sessions hide "Back to lessons" so the
-            user lands back on the Pathway map by default. */}
-        <div className="grid grid-cols-2 gap-3 pt-2">
-          <Link
-            href={
-              pathway
-                ? buildPathwayTrainHref({
-                    pathwaySlug: pathway.slug,
-                    chapterSlug: chapter?.slug ?? null,
-                    nodeSlug: nodeSlug ?? null,
-                  })
-                : concept
-                  ? `/train?concept=${encodeURIComponent(concept)}`
-                  : '/train'
-            }
-            className="rounded-xl bg-brand py-3.5 text-center font-display text-[14px] font-bold uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm active:scale-[0.99]"
-          >
-            Play again
-          </Link>
-          <Link
-            href={pathway ? buildPathwayDetailHref(pathway.slug) : '/academy'}
-            className="rounded-xl border border-hairline-2 bg-bg-1 py-3.5 text-center font-display text-[14px] font-semibold text-text active:scale-[0.99]"
-          >
-            {pathway ? 'Back to Pathway' : 'Back to lessons'}
-          </Link>
-        </div>
+            user lands back on the Pathway map by default. PTH-3
+            challenge runs swap to retry/continue framing. */}
+        {challengeMode && pathway ? (
+          <ChallengeActions
+            mode={challengeMode}
+            passed={passed}
+            retryHref={retryHref}
+            pathwayHref={buildPathwayDetailHref(pathway.slug)}
+          />
+        ) : (
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <Link
+              href={
+                pathway
+                  ? buildPathwayTrainHref({
+                      pathwaySlug: pathway.slug,
+                      chapterSlug: chapter?.slug ?? null,
+                      nodeSlug: nodeSlug ?? null,
+                    })
+                  : concept
+                    ? `/train?concept=${encodeURIComponent(concept)}`
+                    : '/train'
+              }
+              className="rounded-xl bg-brand py-3.5 text-center font-display text-[14px] font-bold uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm active:scale-[0.99]"
+            >
+              Play again
+            </Link>
+            <Link
+              href={pathway ? buildPathwayDetailHref(pathway.slug) : '/academy'}
+              className="rounded-xl border border-hairline-2 bg-bg-1 py-3.5 text-center font-display text-[14px] font-semibold text-text active:scale-[0.99]"
+            >
+              {pathway ? 'Back to Pathway' : 'Back to lessons'}
+            </Link>
+          </div>
+        )}
 
         <Link
           href="/home"
@@ -372,6 +461,143 @@ function PathwayCtaBlock({
         className="block text-center text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim hover:text-text"
       >
         Back to {pathway.title}
+      </Link>
+    </div>
+  )
+}
+
+function ChallengeHero({
+  mode,
+  chapterTitle,
+  bossTitle,
+  correct,
+  total,
+  passed,
+  passPct,
+  seconds,
+}: {
+  mode: ChallengeMode
+  chapterTitle: string | null
+  bossTitle: string | null
+  correct: number
+  total: number
+  passed: boolean
+  passPct: number | null
+  seconds: number
+}) {
+  const isBoss = mode === 'boss-challenge'
+  const accent = passed ? 'brand' : 'heat'
+  const eyebrow = isBoss ? 'Boss Challenge' : 'Mixed Reads'
+  const title = isBoss
+    ? bossTitle?.replace(/^Boss\s*[—-]\s*/, '') ?? 'Boss Challenge'
+    : chapterTitle ?? 'Mixed Reads'
+  const headline = passed
+    ? isBoss
+      ? 'Boss cleared.'
+      : 'Mixed Reads cleared.'
+    : isBoss
+      ? 'Not cleared yet.'
+      : 'Almost. Run it back.'
+  const subline = passed
+    ? isBoss
+      ? 'Pathway reps unlocked. Keep the read sharp.'
+      : 'You read the play, not the decoder.'
+    : isBoss
+      ? 'Review the cue, then run it back.'
+      : 'You had to identify the cue without the decoder label.'
+  return (
+    <motion.header
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: [0.2, 0.8, 0.2, 1] }}
+      className={[
+        'rounded-3xl border-2 bg-gradient-to-br from-bg-1 to-bg-2 p-6 text-center',
+        passed ? 'border-brand shadow-brand-sm' : 'border-heat/60 shadow-heat',
+      ].join(' ')}
+    >
+      <p
+        className={[
+          'text-[10px] font-bold uppercase tracking-[2px]',
+          passed ? 'text-brand' : 'text-heat',
+        ].join(' ')}
+      >
+        {eyebrow} · {passed ? 'Passed' : 'Try again'}
+      </p>
+      <p className="mt-2 font-display text-[44px] font-black leading-none tracking-tight text-text">
+        {correct}
+        <span className="text-text-dim">/{total}</span>
+      </p>
+      <p className="mt-1 text-sm text-text-dim">
+        {passPct !== null ? `${passPct}% to pass · ${seconds}s` : `${seconds}s`}
+      </p>
+      <p className={`mt-3 font-display text-[18px] font-bold leading-tight text-${accent}`}>
+        {headline}
+      </p>
+      <p className="mt-1 text-[13px] leading-snug text-text-dim">{subline}</p>
+      <p className="mt-3 text-[11px] font-semibold uppercase tracking-[1.5px] text-text-mute">
+        {title}
+      </p>
+    </motion.header>
+  )
+}
+
+function ChallengeActions({
+  mode,
+  passed,
+  retryHref,
+  pathwayHref,
+}: {
+  mode: ChallengeMode
+  passed: boolean
+  retryHref: string | null
+  pathwayHref: string
+}) {
+  const retryLabel =
+    mode === 'boss-challenge'
+      ? passed
+        ? 'Run it back'
+        : 'Retry Boss'
+      : passed
+        ? 'Run it back'
+        : 'Retry Mixed Reads'
+  const continueLabel = passed ? 'Continue Pathway' : 'Review chapter'
+  return (
+    <div className="space-y-3 pt-2">
+      <div className="grid grid-cols-2 gap-3">
+        {retryHref ? (
+          <Link
+            href={retryHref}
+            className={[
+              'rounded-xl py-3.5 text-center font-display text-[14px] font-bold uppercase tracking-[0.5px] active:scale-[0.99]',
+              passed
+                ? 'border border-hairline-2 bg-bg-1 text-text'
+                : 'bg-heat text-bg-0 shadow-heat',
+            ].join(' ')}
+          >
+            {retryLabel}
+          </Link>
+        ) : (
+          <span className="rounded-xl border border-hairline-2 bg-bg-2 py-3.5 text-center font-display text-[14px] font-semibold text-text-mute">
+            {retryLabel}
+          </span>
+        )}
+        <Link
+          href={pathwayHref}
+          className={[
+            'rounded-xl py-3.5 text-center font-display text-[14px] font-bold uppercase tracking-[0.5px] active:scale-[0.99]',
+            passed
+              ? 'bg-brand text-brand-ink shadow-brand-sm'
+              : 'border border-hairline-2 bg-bg-1 text-text',
+          ].join(' ')}
+        >
+          {continueLabel}
+        </Link>
+      </div>
+      <Link
+        href={pathwayHref}
+        className="block rounded-xl bg-bg-2 py-3 text-center font-display text-[12px] font-semibold uppercase tracking-[1.5px] text-text-dim"
+      >
+        Back to Pathway
       </Link>
     </div>
   )

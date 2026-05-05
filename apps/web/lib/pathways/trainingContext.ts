@@ -23,6 +23,8 @@ import {
   getSkillNodeBySlug,
 } from './helpers'
 import type {
+  BossChallengeConfig,
+  PassCriteria,
   PathwayChapterConfig,
   PathwayConfig,
   PathwayProgressSummary,
@@ -41,12 +43,15 @@ export type TrainingContextError =
   | 'chapter-not-found'
   | 'node-not-found'
   | 'no-trainable-scenarios'
+  | 'boss-not-configured'
 
 export type TrainingContextSource =
   | 'explicit-scenario-ids'
   | 'pathway-chapter-node'
   | 'pathway-chapter-recommended'
   | 'pathway-recommended'
+  | 'boss-challenge'
+  | 'mixed-reads'
 
 /** Fully resolved Pathway training context. The /train page reads
  * this on mount; the summary page reads the same shape for back-links
@@ -71,6 +76,7 @@ export interface ResolvedPathwayTrainingContext {
     pathway: string
     chapter?: string
     node?: string
+    mode?: PathwayTrainingMode
   }
   /** True when the resolver fell back to scenarios from a different
    *  source than the URL initially specified — e.g. user passed a
@@ -78,6 +84,24 @@ export interface ResolvedPathwayTrainingContext {
   source: TrainingContextSource
   /** Soft-error code; null when the resolution succeeded. */
   error: TrainingContextError | null
+  /** PTH-3: when true, /train should hide the decoder pill / decoder
+   *  lesson hand-off so a boss/mixed-read run feels like a test. */
+  hideDecoderPill: boolean
+  /** PTH-3: when true, /train should suppress decoder-tied cue hints
+   *  (self-review checklists, micro-praise, etc.). */
+  suppressCueHints: boolean
+  /** PTH-3: when true, the session is a graded challenge. Surfaces
+   *  challenge chrome on /train and pass/fail copy on /train/summary. */
+  isChallenge: boolean
+  /** PTH-3: human-readable challenge title (e.g. "Boss — Denial Reader"). */
+  challengeTitle: string | null
+  /** PTH-3: pass criteria for the challenge — used to compute and
+   *  display pass/fail on /train/summary. */
+  passCriteria: PassCriteria | null
+  /** PTH-3: scenario IDs that originated from the boss/mixed config,
+   *  even when an explicit `scenarioIds=` URL took precedence. Lets
+   *  /train/summary key local pass/fail by canonical challenge IDs. */
+  challengeScenarioIds: string[] | null
 }
 
 export interface ResolveContextInput {
@@ -88,6 +112,9 @@ export interface ResolveContextInput {
    *  validate against LIVE here — that happens server-side in
    *  generateSessionBundle. We only check the IDs are non-empty. */
   scenarioIdsCsv?: string | null
+  /** PTH-3: requested training mode from the URL. `boss-challenge`
+   *  and `mixed-reads` flip the resolver into challenge mode. */
+  mode?: PathwayTrainingMode | string | null
   /** Pre-fetched progress for the pathway when one is referenced.
    *  Required to compute the recommended-next node when only a
    *  pathway slug (or pathway+chapter without node) is passed. */
@@ -114,7 +141,28 @@ function makeError(
     summaryParams: { pathway: pathwaySlug },
     source: 'explicit-scenario-ids',
     error,
+    hideDecoderPill: false,
+    suppressCueHints: false,
+    isChallenge: false,
+    challengeTitle: null,
+    passCriteria: null,
+    challengeScenarioIds: null,
   }
+}
+
+const KNOWN_MODES: ReadonlySet<PathwayTrainingMode> = new Set([
+  'learn-the-cue',
+  'freeze-frame-read',
+  'no-hint',
+  'mixed-reads',
+  'boss-challenge',
+  'film-room',
+  'pressure-test',
+])
+
+function normalizeMode(raw: string | null | undefined): PathwayTrainingMode | null {
+  if (!raw) return null
+  return KNOWN_MODES.has(raw as PathwayTrainingMode) ? (raw as PathwayTrainingMode) : null
 }
 
 function parseScenarioIdsCsv(csv: string | null | undefined): string[] {
@@ -125,13 +173,31 @@ function parseScenarioIdsCsv(csv: string | null | undefined): string[] {
     .filter((s) => s.length > 0)
 }
 
+interface BuildContextOptions {
+  /** Override `trainingMode` (e.g. URL `mode=boss-challenge`). When
+   *  unset, falls back to the node's configured trainingMode. */
+  modeOverride?: PathwayTrainingMode | null
+  hideDecoderPill?: boolean
+  suppressCueHints?: boolean
+  isChallenge?: boolean
+  challengeTitle?: string | null
+  passCriteria?: PassCriteria | null
+  challengeScenarioIds?: string[] | null
+}
+
 function buildContext(
   pathway: PathwayConfig,
   chapter: PathwayChapterConfig | null,
   node: SkillNodeConfig | null,
   scenarioIds: string[],
   source: TrainingContextSource,
+  options: BuildContextOptions = {},
 ): ResolvedPathwayTrainingContext {
+  const trainingMode = options.modeOverride ?? node?.trainingMode ?? null
+  const summaryMode =
+    trainingMode && (trainingMode === 'boss-challenge' || trainingMode === 'mixed-reads')
+      ? trainingMode
+      : null
   return {
     pathwaySlug: pathway.slug,
     pathwayTitle: pathway.title,
@@ -140,15 +206,49 @@ function buildContext(
     nodeSlug: node?.slug ?? null,
     nodeTitle: node?.title ?? null,
     scenarioIds,
-    trainingMode: node?.trainingMode ?? null,
+    trainingMode,
     returnHref: buildPathwayDetailHref(pathway.slug),
     summaryParams: {
       pathway: pathway.slug,
       ...(chapter ? { chapter: chapter.slug } : {}),
       ...(node ? { node: node.slug } : {}),
+      ...(summaryMode ? { mode: summaryMode } : {}),
     },
     source,
     error: null,
+    hideDecoderPill: options.hideDecoderPill ?? false,
+    suppressCueHints: options.suppressCueHints ?? false,
+    isChallenge: options.isChallenge ?? false,
+    challengeTitle: options.challengeTitle ?? null,
+    passCriteria: options.passCriteria ?? null,
+    challengeScenarioIds: options.challengeScenarioIds ?? null,
+  }
+}
+
+function bossOptions(boss: BossChallengeConfig): BuildContextOptions {
+  return {
+    modeOverride: 'boss-challenge',
+    hideDecoderPill: true,
+    suppressCueHints: true,
+    isChallenge: true,
+    challengeTitle: boss.title,
+    passCriteria: boss.passCriteria,
+    challengeScenarioIds: [...boss.scenarioIds],
+  }
+}
+
+function mixedOptions(
+  chapter: PathwayChapterConfig,
+  scenarioIds: string[],
+): BuildContextOptions {
+  return {
+    modeOverride: 'mixed-reads',
+    hideDecoderPill: true,
+    suppressCueHints: true,
+    isChallenge: true,
+    challengeTitle: chapter.title,
+    passCriteria: chapter.passCriteria,
+    challengeScenarioIds: [...scenarioIds],
   }
 }
 
@@ -192,6 +292,7 @@ export function resolvePathwayTrainingContext(
 ): ResolvedPathwayTrainingContext | null {
   const explicitIds = parseScenarioIdsCsv(input.scenarioIdsCsv)
   const hasAnyPathwayParam = Boolean(input.pathwaySlug)
+  const mode = normalizeMode(input.mode ?? null)
 
   // No Pathway context at all → caller handles the legacy weighted /
   // concept / scenarioId paths. Even if explicit scenarioIds are
@@ -213,11 +314,69 @@ export function resolvePathwayTrainingContext(
     return makeError(pathway, pathway.slug, 'node-not-found')
   }
 
+  // Branch 0a (PTH-3): boss challenge mode. Requires a chapter; uses
+  // the chapter's bossChallenge.scenarioIds unless the URL pinned an
+  // explicit list (e.g. retry from summary).
+  if (mode === 'boss-challenge') {
+    if (!chapter) {
+      // Fall through to non-challenge branches; the user opted into
+      // boss mode without specifying a chapter.
+      return buildContext(pathway, null, null, [], 'pathway-recommended', {
+        modeOverride: 'boss-challenge',
+      })
+    }
+    const boss = chapter.bossChallenge
+    if (!boss || boss.scenarioIds.length === 0) {
+      return {
+        ...makeError(pathway, pathway.slug, 'boss-not-configured'),
+        chapterSlug: chapter.slug,
+        chapterTitle: chapter.title,
+      }
+    }
+    const ids = explicitIds.length > 0 ? explicitIds : [...boss.scenarioIds]
+    return buildContext(pathway, chapter, node, ids, 'boss-challenge', bossOptions(boss))
+  }
+
+  // Branch 0b (PTH-3): mixed-reads mode. Targets the chapter's
+  // mixed-reads node (or the URL-pinned node) and bundles its
+  // scenarios; if elsewhere, falls back to whatever scenarios the
+  // URL exposes and surfaces a softer "challenge" frame.
+  if (mode === 'mixed-reads') {
+    if (!chapter) {
+      return buildContext(pathway, null, null, [], 'pathway-recommended', {
+        modeOverride: 'mixed-reads',
+      })
+    }
+    const targetNode =
+      node ??
+      chapter.skillNodes.find((n) => n.trainingMode === 'mixed-reads') ??
+      chapter.skillNodes[0] ??
+      null
+    const baseIds =
+      targetNode && targetNode.scenarioIds.length > 0
+        ? targetNode.scenarioIds
+        : Array.from(new Set(chapter.skillNodes.flatMap((n) => n.scenarioIds)))
+    const ids = explicitIds.length > 0 ? explicitIds : baseIds
+    if (ids.length === 0) {
+      return makeError(pathway, pathway.slug, 'no-trainable-scenarios')
+    }
+    return buildContext(
+      pathway,
+      chapter,
+      targetNode,
+      ids,
+      'mixed-reads',
+      mixedOptions(chapter, baseIds),
+    )
+  }
+
   // Branch 1: Explicit scenarioIds + pathway context. Use the URL ids
   // verbatim and surface the pathway context for the strip / summary.
   // This is the canonical Pathways link shape.
   if (explicitIds.length > 0) {
-    return buildContext(pathway, chapter, node, explicitIds, 'explicit-scenario-ids')
+    return buildContext(pathway, chapter, node, explicitIds, 'explicit-scenario-ids', {
+      modeOverride: mode ?? null,
+    })
   }
 
   // Branch 2: pathway + chapter + node → pick that node's scenarios.
@@ -274,11 +433,23 @@ export function resolvePathwayTrainingContext(
  * /train page uses this in the "Replay this set" CTA on the summary
  * page so the same scenarios run again with the same context. */
 export function buildTrainHrefFromContext(ctx: ResolvedPathwayTrainingContext): string {
+  // Boss/mixed challenges replay against the canonical challenge
+  // scenario set, not whatever (potentially shuffled) ids ran. This
+  // keeps Retry behavior stable across reloads.
+  const replayIds =
+    ctx.isChallenge && ctx.challengeScenarioIds && ctx.challengeScenarioIds.length > 0
+      ? ctx.challengeScenarioIds
+      : ctx.scenarioIds
+  const mode =
+    ctx.trainingMode === 'boss-challenge' || ctx.trainingMode === 'mixed-reads'
+      ? ctx.trainingMode
+      : null
   return buildPathwayTrainHref({
-    scenarioIds: ctx.scenarioIds,
+    scenarioIds: replayIds,
     pathwaySlug: ctx.pathwaySlug,
     chapterSlug: ctx.chapterSlug,
     nodeSlug: ctx.nodeSlug,
+    mode,
   })
 }
 
