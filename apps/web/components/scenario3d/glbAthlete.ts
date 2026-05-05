@@ -1427,10 +1427,33 @@ export function buildGlbAthletePreview(
     figure.add(groundingShadowLayer)
 
     const mixer = new THREE.AnimationMixer(cloned)
-    const clips = getCachedGlbClips()
     const actions: Record<string, THREE.AnimationAction> = {}
-    for (const clip of clips) {
-      actions[clip.name] = mixer.clipAction(clip)
+    // Animation-clip attachment is best-effort and isolated from base
+    // mesh rendering. A failure inside any clip builder must NOT
+    // demote the figure to null; the user should still see the loaded
+    // GLB athlete in idle/static pose even when imported clips are
+    // missing or a synthetic clip throws. Each clip family lives
+    // inside its own try/catch with a one-line console warning so
+    // operators can see WHICH clip family failed without losing the
+    // base render.
+    try {
+      const clips = getCachedGlbClips()
+      for (const clip of clips) {
+        try {
+          actions[clip.name] = mixer.clipAction(clip)
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn('[glbAthlete] failed to attach bespoke clip', {
+            clip: clip.name,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[glbAthlete] bespoke clip cache build failed; figure will render static', {
+        error: err instanceof Error ? err.message : String(err),
+      })
     }
     if (options?.attachImportedCloseoutClip) {
       // Loader contract: every imported clip is root-motion-stripped
@@ -1446,9 +1469,17 @@ export function buildGlbAthletePreview(
       // the Quaternius rest pose after stripping the broken leg
       // tracks. The readable clip is cached per source clip so the
       // cost is paid once per asset swap, not per figure.
-      const closeoutClip = _getReadableCloseoutClip()
-      actions['closeout'] = mixer.clipAction(closeoutClip)
-      _kickOffImportedCloseoutClipLoad()
+      try {
+        const closeoutClip = _getReadableCloseoutClip()
+        actions['closeout'] = mixer.clipAction(closeoutClip)
+        _kickOffImportedCloseoutClipLoad()
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[glbAthlete] imported closeout clip attachment failed; figure stays static',
+          { error: err instanceof Error ? err.message : String(err) },
+        )
+      }
     }
     if (options?.attachImportedBackCutClip) {
       // P2.3 — attach the readable back-cut action when the flag is
@@ -1458,15 +1489,31 @@ export function buildGlbAthletePreview(
       // falls back to the bespoke `cut_sprint` action so the
       // resolver-chosen action is always present on the handle,
       // matching the flag-off resolver fallback exactly.
-      const backCutClip = _getCachedImportedBackCutClipOrNull()
-      if (backCutClip) {
-        actions['back_cut'] = mixer.clipAction(_getReadableBackCutClip(backCutClip))
-      } else if (actions['cut_sprint']) {
-        actions['back_cut'] = actions['cut_sprint']
+      try {
+        const backCutClip = _getCachedImportedBackCutClipOrNull()
+        if (backCutClip) {
+          actions['back_cut'] = mixer.clipAction(_getReadableBackCutClip(backCutClip))
+        } else if (actions['cut_sprint']) {
+          actions['back_cut'] = actions['cut_sprint']
+        }
+        _kickOffImportedBackCutClipLoad()
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[glbAthlete] imported back-cut clip attachment failed; figure stays static',
+          { error: err instanceof Error ? err.message : String(err) },
+        )
       }
-      _kickOffImportedBackCutClipLoad()
     }
-    actions['idle_ready']?.play()
+    try {
+      actions['idle_ready']?.play()
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[glbAthlete] idle_ready play() failed; figure renders in bind pose',
+        { error: err instanceof Error ? err.message : String(err) },
+      )
+    }
 
     const rootBone = findGlbRootBone(cloned)
 
