@@ -3926,6 +3926,14 @@ export interface PlayerFigureDecision {
   scenarioId?: string
   /** FR-2 Packet 4 — owning player id from the scene definition. */
   playerId?: string
+  /** FR-3 §7.3 — `true` when the figure builder painted the cue
+   *  defender heat ring on this figure. Lets the FilmRoomDebugBadge
+   *  surface the resolved key defender per scene without separately
+   *  reaching into `buildBasketballGroup`'s closest-defender
+   *  heuristic. Always omitted on offense / user / non-defender
+   *  figures so the badge can grep for `pick === 'glb' &&
+   *  isKeyDefender === true` cleanly. */
+  isKeyDefender?: boolean
 }
 
 let _figureDecisionLog: PlayerFigureDecision[] = []
@@ -4103,6 +4111,7 @@ export function buildPlayerFigure(
         reason: 'gate-on-cache-warm',
         scenarioId: _currentFigureBuildContext?.scenarioId,
         playerId: _currentFigureBuildContext?.playerId,
+        isKeyDefender: _currentFigureBuildContext?.isKeyDefender,
       }
       _figureDecisionLog.push(decision)
       // GLB success — no fallback breadcrumb required.
@@ -4148,6 +4157,7 @@ export function buildPlayerFigure(
         error: glbFailureError,
         scenarioId: _currentFigureBuildContext?.scenarioId,
         playerId: _currentFigureBuildContext?.playerId,
+        isKeyDefender: _currentFigureBuildContext?.isKeyDefender,
       }
       _figureDecisionLog.push(decision)
       _emitFallbackBreadcrumb(decision)
@@ -4171,6 +4181,7 @@ export function buildPlayerFigure(
           error: glbFailureError,
           scenarioId: _currentFigureBuildContext?.scenarioId,
           playerId: _currentFigureBuildContext?.playerId,
+          isKeyDefender: _currentFigureBuildContext?.isKeyDefender,
         }
         _figureDecisionLog.push(decision)
         _emitFallbackBreadcrumb(decision)
@@ -4198,6 +4209,7 @@ export function buildPlayerFigure(
         error: glbFailureError,
         scenarioId: _currentFigureBuildContext?.scenarioId,
         playerId: _currentFigureBuildContext?.playerId,
+        isKeyDefender: _currentFigureBuildContext?.isKeyDefender,
       }
       _figureDecisionLog.push(decision)
       _emitFallbackBreadcrumb(decision)
@@ -4213,6 +4225,7 @@ export function buildPlayerFigure(
     error: glbFailureError,
     scenarioId: _currentFigureBuildContext?.scenarioId,
     playerId: _currentFigureBuildContext?.playerId,
+    isKeyDefender: _currentFigureBuildContext?.isKeyDefender,
   }
   _figureDecisionLog.push(decision)
   _emitFallbackBreadcrumb(decision)

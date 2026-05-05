@@ -110,6 +110,14 @@ export function FilmRoomDebugBadge({
   const proceduralCount = decisions.filter((d) => d.pick === 'procedural')
     .length
   const glbCount = decisions.filter((d) => d.pick === 'glb').length
+  // FR-3 Packet 7 — surface the resolved key defender so QA can
+  // confirm the §7.3 heat-ring landed on the right figure without
+  // squinting at the floor cue. The figure-decision log carries
+  // `isKeyDefender` per push (FR-3 Packet 7 also stamps the
+  // procedural / premium / GLB / skinned / force-glb-marker rows
+  // with the same flag) so the badge does not need to re-run the
+  // closest-defender heuristic itself.
+  const keyDefender = decisions.find((d) => d.isKeyDefender === true) ?? null
 
   const decoder = scene?.decoderTag ?? '—'
   const sceneId = scene?.id ?? '—'
@@ -169,6 +177,18 @@ export function FilmRoomDebugBadge({
       <div>
         <span style={{ color: '#9cf' }}>render</span>{' '}
         <span style={{ opacity: 0.85 }}>{summary}</span>
+      </div>
+      <div>
+        <span style={{ color: '#9cf' }}>keyDefender</span>{' '}
+        {keyDefender ? (
+          <span style={{ color: '#FF4D6D' }}>
+            {keyDefender.playerId ?? '<unknown>'}
+            {' · '}
+            <span style={{ opacity: 0.7 }}>{keyDefender.pick}</span>
+          </span>
+        ) : (
+          <span style={{ opacity: 0.6 }}>none</span>
+        )}
       </div>
       {staticPose.total > 0 ? (
         <div>
