@@ -197,6 +197,32 @@ model LeaderboardEntry {
   @@id([user_id, week_start])
 }
 
+// PTH-4 — server-persisted boss / mixed-reads challenge attempts.
+// Pathways v1 derived progress from existing tables; PTH-3 added
+// boss + mixed challenges with localStorage-only pass tracking.
+// PTH-4 promotes those clears to account-level state so a cleared
+// boss survives refresh, login on another device, and (later)
+// coach reporting. Pass criteria + bestCount are still computed
+// from existing rows (Attempt + ScenarioChoice.quality) — this
+// table just records the result of a single boss/mixed run.
+model BossChallengeAttempt {
+  id             String   @id @default(uuid())
+  user_id        String
+  pathway_slug   String
+  chapter_slug   String
+  mode           String
+  challenge_slug String
+  session_run_id String?
+  best_count     Int
+  total          Int
+  passed         Boolean
+  scenario_ids   String[]
+  attempted_at   DateTime @default(now())
+
+  @@index([user_id, pathway_slug, chapter_slug])
+  @@index([user_id, challenge_slug, attempted_at])
+}
+
 enum Position {
   PG
   SG

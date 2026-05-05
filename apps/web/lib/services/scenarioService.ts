@@ -67,6 +67,27 @@ export interface SessionBundleOptions {
    *  When set, the session ignores the spaced-rep / weakest-concept
    *  weighting and returns a single-scenario bundle. */
   scenarioId?: string | null
+  /** Pin the session to an ordered list of scenario IDs (Pathways
+   *  driven sessions). When set with at least one valid LIVE id, the
+   *  session ignores the weighted bundle and returns those scenarios
+   *  in the requested order. Invalid IDs are silently dropped; if no
+   *  IDs survive validation the session falls through to weighted
+   *  selection so the user still gets reps. Mirrors the singular
+   *  `scenarioId` pin path. */
+  scenarioIds?: readonly string[] | null
+}
+
+/** Error code returned when the caller passes `scenarioIds` and *every*
+ * id fails LIVE validation. The route handler maps this to a 400 so the
+ * Pathway page can surface a useful failure instead of silently
+ * downgrading to weighted reps. */
+export class InvalidScenarioIdsError extends Error {
+  constructor(
+    public readonly invalidIds: string[],
+  ) {
+    super(`No LIVE scenarios found for IDs: ${invalidIds.join(', ')}`)
+    this.name = 'InvalidScenarioIdsError'
+  }
 }
 
 export async function generateSessionBundle(
@@ -76,6 +97,44 @@ export async function generateSessionBundle(
 ): Promise<SessionBundle> {
   const size = Math.max(1, n)
   const now = new Date()
+
+  // Pinned ordered list of scenario IDs (Pathway sessions). Like the
+  // singular `scenarioId` pin, this skips the weighted bundle entirely
+  // and returns the requested scenarios in the requested order. We
+  // validate every id is LIVE up-front and throw InvalidScenarioIdsError
+  // if *none* of them are — that's a hard failure (caller passed bad
+  // input) rather than silently downgrading to weighted reps.
+  if (options.scenarioIds && options.scenarioIds.length > 0) {
+    const requested = [...options.scenarioIds]
+    const live = await prisma.scenario.findMany({
+      where: { id: { in: requested }, status: 'LIVE' },
+      include: { choices: true },
+    })
+    const liveById = new Map(live.map((s) => [s.id, s]))
+    const ordered: ScenarioWithChoices[] = []
+    const missing: string[] = []
+    for (const id of requested) {
+      const found = liveById.get(id)
+      if (found) ordered.push(found)
+      else missing.push(id)
+    }
+    if (ordered.length === 0) {
+      throw new InvalidScenarioIdsError(missing)
+    }
+    const profile = await prisma.profile.findUnique({ where: { user_id: userId } })
+    const session = await prisma.sessionRun.create({
+      data: { user_id: userId, scenario_ids: ordered.map((s) => s.id) },
+    })
+    return {
+      session_run_id: session.id,
+      scenarios: ordered.map(sanitizeScenario),
+      meta: {
+        user_iq: profile?.iq_score ?? 500,
+        streak: profile?.current_streak ?? 0,
+        daily_goal_progress: 0,
+      },
+    }
+  }
 
   // Pinned scenario (QA / deep-link). Skip the bucket weighting and
   // return that scenario alone if it exists and is LIVE.

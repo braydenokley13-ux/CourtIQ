@@ -1,0 +1,816 @@
+/**
+ * Pathway progress derivation (PTH-1).
+ *
+ * Pathways v1 stores nothing in its own tables. Every number on a
+ * Pathway page derives from rows that already exist:
+ *
+ *   - `Attempt`            — per-rep history (most recent attempt per
+ *                            scenario gives the current best/quality
+ *                            signal).
+ *   - `ScenarioChoice`     — `quality: best | acceptable | wrong`
+ *                            tells us whether the latest attempt was
+ *                            the best answer or just a passable one.
+ *   - `Mastery (decoder)`  — rolling accuracy / attempt count keyed by
+ *                            decoder tag (already populated by
+ *                            masteryService.update on every attempt).
+ *
+ * The pure derivation lives in `derivePathwayProgress` so it can be
+ * unit-tested without a database. The Prisma-backed wrapper
+ * `getPathwayProgress` only does the data fetch and feeds the pure
+ * function.
+ *
+ * Mirrors §9 of `docs/courtiq-pathways-product-plan.md`.
+ */
+
+import { MasteryDimension } from '@prisma/client'
+import { prisma } from '@/lib/db/prisma'
+import {
+  getChallengeAttemptSummary,
+  getChapterBossAttempt,
+  getMixedCapstoneAttempt,
+  isCapstoneChapter,
+  isChapterBossCleared,
+  isMixedCapstoneCleared,
+} from './challengeAttemptService'
+import {
+  buildBossChallengeTrainHref,
+  buildMixedReadsTrainHref,
+  buildPathwayTrainHref,
+  countChapterScenarios,
+  getAllScenarioIdsForPathway,
+  getPathwayBySlug,
+} from './helpers'
+import type {
+  DecoderTag,
+  PathwayChallengeAttemptSummary,
+  PathwayChapterChallengeState,
+  PathwayChapterConfig,
+  PathwayChapterProgress,
+  PathwayChapterState,
+  PathwayConfig,
+  PathwayProgressSummary,
+  PathwayRecommendedNext,
+  PathwaySkillNodeProgress,
+  SkillNodeConfig,
+  SkillNodeState,
+} from './types'
+
+/** Quality of the user's most recent attempt on a single scenario. */
+export type LatestAttemptQuality = 'best' | 'acceptable' | 'wrong'
+
+export interface DecoderMasteryStat {
+  attempts: number
+  rollingAccuracy: number
+}
+
+/** Pure-function input shape so derivation is testable without Prisma. */
+export interface PathwayProgressInput {
+  /** Quality of the most recent attempt per scenario, keyed by scenario ID. */
+  latestQualityByScenarioId: Map<string, LatestAttemptQuality>
+  /** Decoder mastery rows keyed by decoder tag. Missing entries imply
+   *  zero attempts. */
+  decoderMasteryByTag: Map<DecoderTag, DecoderMasteryStat>
+  /** PTH-4: best server-persisted boss / mixed-reads attempt per
+   *  challenge for this user. Optional so existing callers (and the
+   *  pure unit tests) keep working without it. */
+  challengeAttempts?: readonly PathwayChallengeAttemptSummary[]
+}
+
+const ZERO_DECODER: DecoderMasteryStat = { attempts: 0, rollingAccuracy: 0 }
+
+/** Bottom-up state computation for a single skill node. Pure. */
+function deriveSkillNodeState(
+  node: SkillNodeConfig,
+  attemptedCount: number,
+  bestCount: number,
+  prerequisiteNodes: PathwaySkillNodeProgress[],
+): SkillNodeState {
+  const total = node.scenarioIds.length
+  const allPrereqsClear = prerequisiteNodes.every(
+    (p) => p.state === 'completed' || p.state === 'mastered',
+  )
+
+  if (total === 0) return allPrereqsClear ? 'unlocked' : 'locked'
+  if (bestCount >= total) return 'mastered'
+  if (attemptedCount >= total) return 'completed'
+  if (attemptedCount > 0) return 'in_progress'
+  return allPrereqsClear ? 'unlocked' : 'locked'
+}
+
+function deriveSkillNodeProgress(
+  node: SkillNodeConfig,
+  input: PathwayProgressInput,
+  prerequisiteNodes: PathwaySkillNodeProgress[],
+): PathwaySkillNodeProgress {
+  const total = node.scenarioIds.length
+  let attemptedCount = 0
+  let bestCount = 0
+
+  for (const scenarioId of node.scenarioIds) {
+    const quality = input.latestQualityByScenarioId.get(scenarioId)
+    if (!quality) continue
+    attemptedCount += 1
+    if (quality === 'best') bestCount += 1
+  }
+
+  const state = deriveSkillNodeState(node, attemptedCount, bestCount, prerequisiteNodes)
+  const progress = total === 0 ? 0 : attemptedCount / total
+
+  return {
+    slug: node.slug,
+    state,
+    progress,
+    attemptedCount,
+    bestCount,
+    totalScenarios: total,
+  }
+}
+
+function deriveChapterState(skillNodeProgress: PathwaySkillNodeProgress[]): PathwayChapterState {
+  if (skillNodeProgress.length === 0) return 'unlocked'
+  const allMastered = skillNodeProgress.every((n) => n.state === 'mastered')
+  if (allMastered) return 'mastered'
+  const allCompleted = skillNodeProgress.every(
+    (n) => n.state === 'completed' || n.state === 'mastered',
+  )
+  if (allCompleted) return 'completed'
+  const anyInProgress = skillNodeProgress.some(
+    (n) => n.state === 'in_progress' || n.state === 'completed' || n.state === 'mastered',
+  )
+  if (anyInProgress) return 'in_progress'
+  return 'unlocked'
+}
+
+function chapterDecoderStats(
+  chapter: PathwayChapterConfig,
+  input: PathwayProgressInput,
+): { tags: DecoderTag[]; decoderAccuracy: number | null; decoderAttempts: number } {
+  const tags =
+    chapter.decoderTags && chapter.decoderTags.length > 0
+      ? chapter.decoderTags
+      : chapter.decoderTag
+        ? [chapter.decoderTag]
+        : []
+
+  if (tags.length === 0) {
+    return { tags, decoderAccuracy: null, decoderAttempts: 0 }
+  }
+
+  const stats = tags.map((t) => input.decoderMasteryByTag.get(t) ?? ZERO_DECODER)
+  const totalAttempts = stats.reduce((acc, s) => acc + s.attempts, 0)
+  if (totalAttempts === 0) return { tags, decoderAccuracy: null, decoderAttempts: 0 }
+  // Weight by attempts so a single high-accuracy decoder doesn't
+  // dominate when the player has barely touched it.
+  const weighted =
+    stats.reduce((acc, s) => acc + s.rollingAccuracy * s.attempts, 0) / totalAttempts
+  return { tags, decoderAccuracy: weighted, decoderAttempts: totalAttempts }
+}
+
+/**
+ * PTH-5: build the per-chapter challenge state surfaced on the
+ * progress summary. Pure — operates on the existing challengeAttempts
+ * list. Returns kind: 'none' for chapters that don't configure either
+ * a boss or a capstone challenge.
+ */
+function deriveChapterChallengeState(
+  chapter: PathwayChapterConfig,
+  attempts: readonly PathwayChallengeAttemptSummary[],
+): PathwayChapterChallengeState {
+  if (isCapstoneChapter(chapter)) {
+    const best = getMixedCapstoneAttempt(chapter, attempts)
+    if (!best) {
+      return {
+        kind: 'capstone',
+        state: 'not_started',
+        bestCount: 0,
+        total: 0,
+        passed: false,
+        attemptedAt: null,
+        challengeSlug: null,
+      }
+    }
+    return {
+      kind: 'capstone',
+      state: best.passed ? 'cleared' : 'attempted',
+      bestCount: best.bestCount,
+      total: best.total,
+      passed: best.passed,
+      attemptedAt: best.attemptedAt,
+      challengeSlug: best.challengeSlug,
+    }
+  }
+  if (!chapter.bossChallenge) {
+    return {
+      kind: 'none',
+      state: 'not_started',
+      bestCount: 0,
+      total: 0,
+      passed: false,
+      attemptedAt: null,
+      challengeSlug: null,
+    }
+  }
+  const best = getChapterBossAttempt(chapter, attempts)
+  if (!best) {
+    return {
+      kind: 'boss',
+      state: 'not_started',
+      bestCount: 0,
+      total: 0,
+      passed: false,
+      attemptedAt: null,
+      challengeSlug: null,
+    }
+  }
+  return {
+    kind: 'boss',
+    state: best.passed ? 'cleared' : 'attempted',
+    bestCount: best.bestCount,
+    total: best.total,
+    passed: best.passed,
+    attemptedAt: best.attemptedAt,
+    challengeSlug: best.challengeSlug,
+  }
+}
+
+function deriveChapterProgress(
+  chapter: PathwayChapterConfig,
+  input: PathwayProgressInput,
+  /** Whether all prior chapters are mastered (sequence-unlock). */
+  prevChaptersMastered: boolean,
+): PathwayChapterProgress {
+  const isCapstone = isCapstoneChapter(chapter)
+  const challengeAttempts = input.challengeAttempts ?? []
+  const challengeState = deriveChapterChallengeState(chapter, challengeAttempts)
+
+  // -------------------------------------------------------------------------
+  // Capstone (Real Game Mix). PTH-5 promotes server-persisted mixed-reads
+  // attempts into authoritative state for this chapter:
+  //   - cleared (passed)        → mastered, progress 1.0
+  //   - attempted (failed)      → in_progress, progress 0.5
+  //   - not_started + prior OK  → unlocked, progress 0.0
+  //   - not_started + locked    → locked, progress 0.0
+  // The capstone re-uses ch1–4 scenario IDs, so we still ignore the
+  // generic latestQualityByScenarioId signal here — only mixed-reads
+  // attempts can move the capstone ring.
+  // -------------------------------------------------------------------------
+  if (isCapstone) {
+    const { decoderAccuracy, decoderAttempts } = chapterDecoderStats(chapter, input)
+    const cleared = isMixedCapstoneCleared(chapter, challengeAttempts)
+    const attempted = challengeState.state === 'attempted'
+
+    let state: PathwayChapterState
+    let progress: number
+    if (cleared) {
+      state = 'mastered'
+      progress = 1
+    } else if (attempted) {
+      // Attempted but failed — keep them on the page but show partial
+      // progress so the ring reflects effort.
+      state = prevChaptersMastered ? 'in_progress' : 'locked'
+      progress = state === 'locked' ? 0 : 0.5
+    } else if (prevChaptersMastered) {
+      state = 'unlocked'
+      progress = 0
+    } else {
+      state = 'locked'
+      progress = 0
+    }
+
+    const totalScenarios = countChapterScenarios(chapter)
+    return {
+      slug: chapter.slug,
+      state,
+      progress,
+      bestCount: challengeState.passed ? challengeState.bestCount : 0,
+      attemptedCount: challengeState.state !== 'not_started' ? challengeState.bestCount : 0,
+      totalScenarios,
+      decoderAccuracy,
+      decoderAttempts,
+      skillNodes: chapter.skillNodes.map((n) => ({
+        slug: n.slug,
+        state,
+        progress,
+        attemptedCount: 0,
+        bestCount: 0,
+        totalScenarios: n.scenarioIds.length,
+      })),
+      challengeState,
+    }
+  }
+
+  const skillNodes: PathwaySkillNodeProgress[] = []
+  const bySlug = new Map<string, PathwaySkillNodeProgress>()
+
+  for (const node of chapter.skillNodes) {
+    const prereqNodes = (node.prerequisiteNodeSlugs ?? [])
+      .map((slug) => bySlug.get(slug))
+      .filter((n): n is PathwaySkillNodeProgress => Boolean(n))
+    const progress = deriveSkillNodeProgress(node, input, prereqNodes)
+    skillNodes.push(progress)
+    bySlug.set(node.slug, progress)
+  }
+
+  // Sum of unique scenarios attempted/best across the chapter (not the
+  // sum of skill-node counts, since skill nodes can share scenario IDs
+  // — the "Learn the Cue" node shares its rep with "First Reps").
+  const seen = new Set<string>()
+  let attemptedCount = 0
+  let bestCount = 0
+  let totalScenarios = 0
+  for (const node of chapter.skillNodes) {
+    for (const id of node.scenarioIds) {
+      if (seen.has(id)) continue
+      seen.add(id)
+      totalScenarios += 1
+      const quality = input.latestQualityByScenarioId.get(id)
+      if (!quality) continue
+      attemptedCount += 1
+      if (quality === 'best') bestCount += 1
+    }
+  }
+
+  let chapterState = deriveChapterState(skillNodes)
+  if (!prevChaptersMastered && chapterState === 'unlocked' && totalScenarios > 0) {
+    // Sequence-lock: future chapters with no progress stay locked until
+    // the prior chapter is mastered. Once the player has any attempts
+    // we never re-lock — that would be jarring.
+    if (attemptedCount === 0) chapterState = 'locked'
+  }
+
+  // -------------------------------------------------------------------------
+  // PTH-5: server-persisted boss attempts override the node-only chapter
+  // state where they're a higher signal:
+  //   - boss cleared    → chapter is mastered (boss is a no-hint final
+  //                       check; clearing it with no decoder pill is a
+  //                       stronger signal than any node mastery).
+  //   - boss attempted  → keep at most `completed` so a chapter the
+  //                       player just *touched* the boss on isn't
+  //                       silently auto-mastered by node attempts.
+  // -------------------------------------------------------------------------
+  const bossCleared = isChapterBossCleared(chapter, challengeAttempts)
+  if (bossCleared) {
+    chapterState = 'mastered'
+  } else if (challengeState.kind === 'boss' && challengeState.state === 'attempted') {
+    if (chapterState === 'mastered') chapterState = 'completed'
+  }
+
+  // Average progress across non-boss skill nodes; falls back to the
+  // chapter-wide attemptedCount/totalScenarios ratio if the chapter has
+  // no skill nodes (defensive).
+  const baseSkillNodeAvg =
+    skillNodes.length === 0
+      ? totalScenarios === 0
+        ? 0
+        : attemptedCount / totalScenarios
+      : skillNodes.reduce((acc, n) => acc + n.progress, 0) / skillNodes.length
+
+  // PTH-5: boss-cleared chapters fill the ring; chapters with all
+  // non-boss nodes complete-but-boss-not-cleared get a soft 0.8 floor
+  // so the player can see the gap that the boss CTA fills. Otherwise
+  // we keep the node-based average.
+  const allNodesComplete =
+    skillNodes.length > 0 &&
+    skillNodes.every((n) => n.state === 'completed' || n.state === 'mastered')
+  const skillNodeProgressAvg = bossCleared
+    ? 1
+    : allNodesComplete && !bossCleared
+      ? Math.max(0.8, baseSkillNodeAvg)
+      : baseSkillNodeAvg
+
+  const { decoderAccuracy, decoderAttempts } = chapterDecoderStats(chapter, input)
+
+  return {
+    slug: chapter.slug,
+    state: chapterState,
+    progress: skillNodeProgressAvg,
+    bestCount,
+    attemptedCount,
+    totalScenarios,
+    decoderAccuracy,
+    decoderAttempts,
+    skillNodes,
+    challengeState,
+  }
+}
+
+function pickRecommendedNext(
+  pathway: PathwayConfig,
+  chapters: PathwayChapterProgress[],
+): PathwayRecommendedNext | null {
+  if (chapters.length === 0) return null
+
+  const findFirstUnmasteredNode = (
+    chapter: PathwayChapterConfig,
+    progress: PathwayChapterProgress,
+  ) => {
+    for (const node of chapter.skillNodes) {
+      const np = progress.skillNodes.find((n) => n.slug === node.slug)
+      if (!np) continue
+      if (np.state === 'mastered') continue
+      return { chapter, node }
+    }
+    // Already mastered — fall back to first node so the CTA still
+    // points somewhere coherent.
+    const firstNode = chapter.skillNodes[0]
+    return firstNode ? { chapter, node: firstNode } : null
+  }
+
+  const labelFor = (chapter: PathwayChapterConfig, node: SkillNodeConfig, verb: string) =>
+    `${verb} ${chapter.title}${node.kind === 'learn-cue' ? ' — Learn the Cue' : ''}`
+
+  // PTH-5 helpers ----------------------------------------------------------
+  // The recommendation engine now reasons over chapter.challengeState in
+  // addition to the underlying skill-node progress. The priority order:
+  //
+  //   1) Retry a *failed* boss in a chapter that's otherwise complete —
+  //      we want the player to land on the boss they just missed.
+  //   2) Retry a *failed* mixed-reads capstone — same logic but for the
+  //      Real Game Mix.
+  //   3) Resume an in-progress chapter (existing behavior).
+  //   4) If a chapter has all non-boss nodes done but the boss isn't
+  //      cleared yet → recommend the boss.
+  //   5) If chapters 1–4 are mastered and the capstone hasn't been
+  //      cleared → recommend the mixed-reads capstone.
+  //   6) Sequence forward to the next non-mastered chapter (existing).
+  //   7) Weakness shoring (existing).
+  // -----------------------------------------------------------------------
+
+  const buildBossRec = (
+    chapter: PathwayChapterConfig,
+    _progress: PathwayChapterProgress,
+    label: string,
+    reason: PathwayRecommendedNext['reason'],
+  ): PathwayRecommendedNext | null => {
+    const href = buildBossChallengeTrainHref(pathway, chapter)
+    if (!href || !chapter.bossChallenge) return null
+    // The boss isn't a real skill node, so we anchor `skillNodeSlug` to
+    // the boss slug (matches how summary links are built).
+    return {
+      chapterSlug: chapter.slug,
+      skillNodeSlug: chapter.bossChallenge.slug,
+      trainHref: href,
+      label,
+      reason,
+    }
+  }
+
+  const buildCapstoneRec = (
+    chapter: PathwayChapterConfig,
+    label: string,
+    reason: PathwayRecommendedNext['reason'],
+  ): PathwayRecommendedNext | null => {
+    const href = buildMixedReadsTrainHref(pathway, chapter)
+    if (!href) return null
+    const targetNode =
+      chapter.skillNodes.find((n) => n.trainingMode === 'mixed-reads') ??
+      chapter.skillNodes[0] ??
+      null
+    return {
+      chapterSlug: chapter.slug,
+      skillNodeSlug: targetNode?.slug ?? chapter.slug,
+      trainHref: href,
+      label,
+      reason,
+    }
+  }
+
+  const allNonBossNodesClear = (progress: PathwayChapterProgress): boolean =>
+    progress.skillNodes.length > 0 &&
+    progress.skillNodes.every((n) => n.state === 'completed' || n.state === 'mastered')
+
+  // Priority 1: Retry a failed boss in a chapter that's otherwise complete.
+  for (let i = 0; i < pathway.chapters.length; i += 1) {
+    const chapter = pathway.chapters[i]!
+    const progress = chapters[i]!
+    if (progress.state === 'locked') continue
+    if (progress.challengeState.kind !== 'boss') continue
+    if (progress.challengeState.state !== 'attempted') continue
+    if (!allNonBossNodesClear(progress)) continue
+    const rec = buildBossRec(chapter, progress, `Run it back: ${chapter.title} Boss`, 'sequence')
+    if (rec) return rec
+  }
+
+  // Priority 2: Retry a failed mixed-reads capstone.
+  for (let i = 0; i < pathway.chapters.length; i += 1) {
+    const chapter = pathway.chapters[i]!
+    const progress = chapters[i]!
+    if (progress.challengeState.kind !== 'capstone') continue
+    if (progress.challengeState.state !== 'attempted') continue
+    const rec = buildCapstoneRec(chapter, 'Retry Mixed Reads', 'capstone')
+    if (rec) return rec
+  }
+
+  // Priority 3: Resume — lowest-order in-progress chapter. Linear
+  // pacing matches how youth players actually move through curriculum.
+  // PTH-5 only counts a chapter as in_progress for resume purposes when
+  // it has node-level work pending (boss-only "in progress" rolls into
+  // priority 4 below).
+  const inProgress = pathway.chapters
+    .map((c, i) => ({ chapter: c, progress: chapters[i]! }))
+    .find((row) => {
+      if (row.progress.state !== 'in_progress') return false
+      // Capstone resume goes through the capstone branch.
+      if (row.progress.challengeState.kind === 'capstone') return false
+      // If the boss has been attempted but every non-boss node is
+      // already mastered, the priority-4 boss CTA handles it.
+      if (
+        row.progress.challengeState.state === 'attempted' &&
+        allNonBossNodesClear(row.progress)
+      ) {
+        return false
+      }
+      return row.progress.skillNodes.some(
+        (n) => n.state !== 'mastered' && n.state !== 'locked',
+      )
+    })
+  if (inProgress) {
+    const next = findFirstUnmasteredNode(inProgress.chapter, inProgress.progress)
+    if (next) {
+      return {
+        chapterSlug: next.chapter.slug,
+        skillNodeSlug: next.node.slug,
+        trainHref: buildPathwayTrainHref({
+          scenarioIds: next.node.scenarioIds,
+          pathwaySlug: pathway.slug,
+          chapterSlug: next.chapter.slug,
+          nodeSlug: next.node.slug,
+        }),
+        label: labelFor(next.chapter, next.node, 'Continue'),
+        reason: 'resume',
+      }
+    }
+  }
+
+  // Priority 4: Boss is up — non-boss nodes are clear, boss not cleared yet.
+  for (let i = 0; i < pathway.chapters.length; i += 1) {
+    const chapter = pathway.chapters[i]!
+    const progress = chapters[i]!
+    if (progress.state === 'locked') continue
+    if (progress.challengeState.kind !== 'boss') continue
+    if (progress.challengeState.state === 'cleared') continue
+    if (!allNonBossNodesClear(progress)) continue
+    const rec = buildBossRec(chapter, progress, `Run the Boss: ${chapter.title}`, 'sequence')
+    if (rec) return rec
+  }
+
+  // Priority 5: Capstone is up — chapters 1–4 mastered, capstone not cleared.
+  const decoderChapters = pathway.chapters.filter((c) => !isCapstoneChapter(c))
+  const decoderChaptersMastered =
+    decoderChapters.length > 0 &&
+    decoderChapters.every((c) => {
+      const p = chapters.find((row) => row.slug === c.slug)
+      return p?.state === 'mastered'
+    })
+  if (decoderChaptersMastered) {
+    for (let i = 0; i < pathway.chapters.length; i += 1) {
+      const chapter = pathway.chapters[i]!
+      const progress = chapters[i]!
+      if (progress.challengeState.kind !== 'capstone') continue
+      if (progress.challengeState.state === 'cleared') continue
+      const rec = buildCapstoneRec(chapter, 'Final Mix: Real Game Mix', 'capstone')
+      if (rec) return rec
+    }
+  }
+
+  // Priority 6: Sequence — first non-mastered, non-locked chapter.
+  // The "cold-start" reason only fires when the *entire* pathway has
+  // never been touched; once the player has any history, advancing to
+  // a fresh chapter is `sequence`, not `cold-start`.
+  const pathwayHasAnyAttempts =
+    chapters.some((c) => c.attemptedCount > 0) ||
+    chapters.some((c) => c.challengeState.state !== 'not_started')
+  for (let i = 0; i < pathway.chapters.length; i += 1) {
+    const chapter = pathway.chapters[i]!
+    const progress = chapters[i]!
+    if (progress.state === 'mastered') continue
+    if (progress.state === 'locked') continue
+    // Capstone with no skill-node CTA is handled by the capstone branch
+    // above; if we got here it's because chapters 1–4 aren't all
+    // mastered, so don't fall through to a node-level rec on the
+    // capstone (its "skill nodes" reuse decoder scenarios).
+    if (isCapstoneChapter(chapter)) continue
+    const next = findFirstUnmasteredNode(chapter, progress)
+    if (next) {
+      const isColdStart = !pathwayHasAnyAttempts
+      return {
+        chapterSlug: next.chapter.slug,
+        skillNodeSlug: next.node.slug,
+        trainHref: buildPathwayTrainHref({
+          scenarioIds: next.node.scenarioIds,
+          pathwaySlug: pathway.slug,
+          chapterSlug: next.chapter.slug,
+          nodeSlug: next.node.slug,
+        }),
+        label: labelFor(next.chapter, next.node, isColdStart ? 'Start' : 'Continue'),
+        reason: isColdStart ? 'cold-start' : 'sequence',
+      }
+    }
+  }
+
+  // Priority 7: Weakness — every chapter mastered except one with low
+  // decoder accuracy. We surface that chapter's first un-mastered node.
+  const unmastered = chapters
+    .map((c, i) => ({ chapter: pathway.chapters[i]!, progress: c }))
+    .filter((row) => row.progress.state !== 'mastered')
+  if (unmastered.length === 1) {
+    const target = unmastered[0]!
+    if (
+      target.progress.decoderAccuracy !== null &&
+      target.progress.decoderAccuracy < 0.6 &&
+      target.progress.decoderAttempts >= 3
+    ) {
+      const next = findFirstUnmasteredNode(target.chapter, target.progress)
+      if (next) {
+        return {
+          chapterSlug: next.chapter.slug,
+          skillNodeSlug: next.node.slug,
+          trainHref: buildPathwayTrainHref({
+            scenarioIds: next.node.scenarioIds,
+            pathwaySlug: pathway.slug,
+            chapterSlug: next.chapter.slug,
+            nodeSlug: next.node.slug,
+          }),
+          label: `Shore up ${target.chapter.title}`,
+          reason: 'weakness',
+        }
+      }
+    }
+  }
+
+  // Everything mastered. No recommendation; the page can show the
+  // mastery report card.
+  return null
+}
+
+function pickWeakestDecoder(
+  pathway: PathwayConfig,
+  input: PathwayProgressInput,
+): DecoderTag | null {
+  let weakest: { tag: DecoderTag; accuracy: number } | null = null
+  for (const tag of pathway.decoderTags) {
+    const stat = input.decoderMasteryByTag.get(tag)
+    if (!stat || stat.attempts < 3) continue
+    if (!weakest || stat.rollingAccuracy < weakest.accuracy) {
+      weakest = { tag, accuracy: stat.rollingAccuracy }
+    }
+  }
+  return weakest?.tag ?? null
+}
+
+/**
+ * Pure derivation of a `PathwayProgressSummary` from already-fetched
+ * Attempt + Mastery snapshots. Exported for unit tests.
+ */
+export function derivePathwayProgress(
+  pathway: PathwayConfig,
+  input: PathwayProgressInput,
+): PathwayProgressSummary {
+  const chapters: PathwayChapterProgress[] = []
+  let prevMastered = true
+  for (const chapter of pathway.chapters) {
+    const progress = deriveChapterProgress(chapter, input, prevMastered)
+    chapters.push(progress)
+    prevMastered = progress.state === 'mastered'
+  }
+
+  const pathwayProgress =
+    chapters.length === 0
+      ? 0
+      : chapters.reduce((acc, c) => acc + c.progress, 0) / chapters.length
+  const pathwayMastered = chapters.length > 0 && chapters.every((c) => c.state === 'mastered')
+
+  return {
+    slug: pathway.slug,
+    pathwayProgress,
+    pathwayMastered,
+    chapters,
+    recommendedNext: pickRecommendedNext(pathway, chapters),
+    weakestDecoder: pickWeakestDecoder(pathway, input),
+    challengeAttempts: input.challengeAttempts ? [...input.challengeAttempts] : [],
+  }
+}
+
+/**
+ * Server-only entry point: fetch the user's most recent attempts on
+ * the Pathway's scenarios + the user's decoder masteries, then derive
+ * the progress summary.
+ *
+ * Returns a "cold start" summary (everything zeroed) when the pathway
+ * has no chapters yet (coming-soon).
+ */
+export async function getPathwayProgress(
+  userId: string | null,
+  slug: string,
+): Promise<PathwayProgressSummary | null> {
+  const pathway = getPathwayBySlug(slug)
+  if (!pathway) return null
+
+  // Coming-soon pathways with no chapters: nothing to derive.
+  if (pathway.chapters.length === 0 || !userId) {
+    return derivePathwayProgress(pathway, {
+      latestQualityByScenarioId: new Map(),
+      decoderMasteryByTag: new Map(),
+    })
+  }
+
+  const scenarioIds = getAllScenarioIdsForPathway(pathway)
+
+  // PTH-4: load best-of challenge attempts in parallel with the
+  // existing attempt + mastery fan-in. Defensive try/catch so a slow
+  // or down challenge table never breaks the existing progress
+  // surface — the UI just falls back to localStorage cleared state.
+  const [attempts, masteries, challengeAttempts] = await Promise.all([
+    scenarioIds.length === 0
+      ? Promise.resolve([] as Awaited<ReturnType<typeof prisma.attempt.findMany>>)
+      : prisma.attempt.findMany({
+          where: { user_id: userId, scenario_id: { in: scenarioIds } },
+          orderBy: { created_at: 'desc' },
+          select: { scenario_id: true, choice_id: true, created_at: true },
+        }),
+    prisma.mastery.findMany({
+      where: {
+        user_id: userId,
+        dimension: MasteryDimension.decoder,
+        concept_id: { in: pathway.decoderTags },
+      },
+      select: { concept_id: true, attempts_count: true, rolling_accuracy: true },
+    }),
+    getChallengeAttemptSummary(userId, pathway.slug).catch((err) => {
+      console.warn('[pathways/progress] challenge attempts read failed', err)
+      return [] as PathwayChallengeAttemptSummary[]
+    }),
+  ])
+
+  const latestByScenario = new Map<string, { choice_id: string }>()
+  for (const attempt of attempts) {
+    if (!latestByScenario.has(attempt.scenario_id)) {
+      latestByScenario.set(attempt.scenario_id, { choice_id: attempt.choice_id })
+    }
+  }
+
+  const choiceIds = [...latestByScenario.values()].map((a) => a.choice_id)
+  const choices =
+    choiceIds.length === 0
+      ? []
+      : await prisma.scenarioChoice.findMany({
+          where: { id: { in: choiceIds } },
+          select: { id: true, quality: true },
+        })
+  const qualityByChoiceId = new Map<string, LatestAttemptQuality>()
+  for (const c of choices) qualityByChoiceId.set(c.id, c.quality as LatestAttemptQuality)
+
+  const latestQualityByScenarioId = new Map<string, LatestAttemptQuality>()
+  for (const [scenarioId, attempt] of latestByScenario) {
+    const quality = qualityByChoiceId.get(attempt.choice_id)
+    if (quality) latestQualityByScenarioId.set(scenarioId, quality)
+  }
+
+  const decoderMasteryByTag = new Map<DecoderTag, DecoderMasteryStat>()
+  for (const m of masteries) {
+    decoderMasteryByTag.set(m.concept_id as DecoderTag, {
+      attempts: m.attempts_count,
+      rollingAccuracy: m.rolling_accuracy,
+    })
+  }
+
+  return derivePathwayProgress(pathway, {
+    latestQualityByScenarioId,
+    decoderMasteryByTag,
+    challengeAttempts,
+  })
+}
+
+/**
+ * A coarser per-pathway summary used by the hub catalog cards: just
+ * the headline progress percentage and the recommended-next label.
+ * Cheap to call for many pathways at once.
+ */
+export interface PathwayHubCardSummary {
+  slug: string
+  pathwayProgress: number
+  recommendedLabel: string | null
+  recommendedHref: string | null
+  state: 'cold-start' | 'in-progress' | 'mastered'
+}
+
+export function summarizeForHub(
+  summary: PathwayProgressSummary,
+): PathwayHubCardSummary {
+  let state: PathwayHubCardSummary['state']
+  if (summary.pathwayMastered) state = 'mastered'
+  else if (summary.chapters.some((c) => c.attemptedCount > 0)) state = 'in-progress'
+  else state = 'cold-start'
+
+  return {
+    slug: summary.slug,
+    pathwayProgress: summary.pathwayProgress,
+    recommendedLabel: summary.recommendedNext?.label ?? null,
+    recommendedHref: summary.recommendedNext?.trainHref ?? null,
+    state,
+  }
+}
+
+// Helper for chapter scenario count rendering on the detail page,
+// re-exported here so the page can pull a single import surface.
+export { countChapterScenarios }

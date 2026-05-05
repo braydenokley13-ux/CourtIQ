@@ -87,6 +87,12 @@ const USER_TRIM = '#0F8C4E'
 // with any of the team colors. Used on the floor under whichever
 // player held the ball when the scene was built.
 const POSSESSION_RING_COLOR = '#FFCB44'
+// FR-3 §7.1 — heat red for the key defender ring. Mirrors the
+// `--heat` token in `apps/web/app/globals.css` so the floor cue
+// reads as the same brand "danger" used elsewhere in the UI.
+// Applied as a ring swap on the procedural path and as an overlay
+// ring on the GLB indicator layer; never used on the body itself.
+const HEAT_RING_COLOR = '#FF4D6D'
 // Soft contact shadow beneath every player. Pure dark, semi-transparent
 // so it reads as grounding rather than a paint dot.
 const CONTACT_SHADOW_COLOR = '#05070A'
@@ -433,14 +439,38 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
           ? 'defensive'
           : 'idle'
 
-    const playerGroup = buildPlayerFigure(
-      teamColor,
-      trimColor,
-      p.isUser ?? false,
-      p.id === initialHolderId,
-      jerseyNumber,
-      stance,
-    )
+    // FR-2 Packet 4 — register the per-player build context so the
+    // figure-decision log push inside `buildPlayerFigure` can stamp
+    // `{ scenarioId, playerId }` onto every recorded decision (and
+    // emit the structured `[CourtIQ GLB fallback]` breadcrumb on
+    // non-GLB picks). Cleared in a `finally` so an exception in the
+    // builder never leaks context onto the next player.
+    //
+    // FR-3 §7.3 — also propagate the cue-defender flag so the
+    // figure builder can swap the standard team-color ring for the
+    // §7.1 `--heat` cue when this is the closest defender to the
+    // user. `denyDefenderId` is computed once above using the same
+    // closest-to-user heuristic the planning doc names as the
+    // §7.1 fallback when no decoder preset is available.
+    const isKeyDefender = p.team === 'defense' && p.id === denyDefenderId
+    _setPlayerFigureBuildContext({
+      scenarioId: scene.id,
+      playerId: p.id,
+      isKeyDefender,
+    })
+    let playerGroup: THREE.Group
+    try {
+      playerGroup = buildPlayerFigure(
+        teamColor,
+        trimColor,
+        p.isUser ?? false,
+        p.id === initialHolderId,
+        jerseyNumber,
+        stance,
+      )
+    } finally {
+      _setPlayerFigureBuildContext(null)
+    }
     playerGroup.position.set(p.start.x, PLAYER_LIFT, p.start.z)
     playerGroup.rotation.y = computePlayerYaw(p.team, p.start.x, p.start.z)
     root.add(playerGroup)
@@ -566,8 +596,24 @@ export function fitCameraToScene(
 
 // ---------- camera modes ----------
 
-/** All supported camera mode presets, plus "auto" for fit-to-scene. */
-export type CameraMode = 'auto' | 'broadcast' | 'tactical' | 'follow' | 'replay'
+/** All supported camera mode presets, plus "auto" for fit-to-scene.
+ *
+ *  FR-4 §8.2 — extended with the four named teaching presets the
+ *  decoder-aware dispatcher (`lib/scenario3d/cameraPresets.ts`)
+ *  emits. Legacy modes (`auto`, `broadcast`, `tactical`, `follow`,
+ *  `replay`) are retained byte-for-byte so existing `?camera=` URLs
+ *  and the user-facing dropdown keep working unchanged.
+ */
+export type CameraMode =
+  | 'auto'
+  | 'broadcast'
+  | 'tactical'
+  | 'follow'
+  | 'replay'
+  | 'teaching-angle'
+  | 'player-read-angle'
+  | 'help-defense-angle'
+  | 'top-down-coach-board'
 
 /** Static set of every selectable camera mode (used for prop validation). */
 export const CAMERA_MODES: readonly CameraMode[] = [
@@ -576,6 +622,10 @@ export const CAMERA_MODES: readonly CameraMode[] = [
   'tactical',
   'follow',
   'replay',
+  'teaching-angle',
+  'player-read-angle',
+  'help-defense-angle',
+  'top-down-coach-board',
 ] as const
 
 /**
@@ -705,6 +755,20 @@ export function computeCameraTarget(
       return replayTarget(nudgeFor(scene))
     case 'follow':
       return followTarget(scene) ?? broadcastTarget(nudgeFor(scene))
+    case 'teaching-angle': {
+      const t = teachingAngleTarget(scene, aspect) ?? broadcastTarget(nudgeFor(scene))
+      return applyAspectAdjustment(t, mode, aspect)
+    }
+    case 'player-read-angle': {
+      const t = playerReadAngleTarget(scene, aspect) ?? broadcastTarget(nudgeFor(scene))
+      return applyAspectAdjustment(t, mode, aspect)
+    }
+    case 'help-defense-angle': {
+      const t = helpDefenseAngleTarget(scene, aspect) ?? broadcastTarget(nudgeFor(scene))
+      return applyAspectAdjustment(t, mode, aspect)
+    }
+    case 'top-down-coach-board':
+      return applyAspectAdjustment(topDownCoachBoardTarget(scene, aspect), mode, aspect)
     case 'auto':
     default:
       return computeAutoTarget(scene, aspect, baseFov)
@@ -819,6 +883,363 @@ function followTarget(scene: Scene3D): CameraTarget | null {
     // defender hip / shoulder angles when the ball-handler runs
     // past a defender at close range.
     fov: 46,
+    near: 0.5,
+    far: 400,
+  }
+}
+
+// =====================================================================
+// FR-4 §8.7 — mobile-safe aspect adjustment.
+// =====================================================================
+//
+// Inlined (instead of imported from `cameraPresets.ts`) to avoid a
+// module cycle: `cameraPresets.ts` already type-imports `CameraMode`
+// from this file, so a function import in the other direction would
+// trigger the loader's circular-dep warning.
+//
+// The semantics mirror `cameraPresets.aspectAdjustmentForCanvas`
+// 1-to-1 — see that file's docstring for the §8.7 policy. The
+// duplication is small and the test suite asserts both helpers
+// agree (see `cameraPresets.test.ts`).
+function _aspectDeltasForCamera(
+  aspect: number,
+  mode: CameraMode,
+): { distanceScale: number; pitchDeltaDeg: number; fovDeltaDeg: number } {
+  if (!Number.isFinite(aspect) || aspect <= 0) {
+    return { distanceScale: 1, pitchDeltaDeg: 0, fovDeltaDeg: 0 }
+  }
+  if (mode === 'top-down-coach-board') {
+    if (aspect < 0.7) return { distanceScale: 1, pitchDeltaDeg: 0, fovDeltaDeg: 6 }
+    return { distanceScale: 1, pitchDeltaDeg: 0, fovDeltaDeg: 0 }
+  }
+  if (aspect < 0.7) {
+    return { distanceScale: 0.9, pitchDeltaDeg: -5, fovDeltaDeg: 0 }
+  }
+  if (aspect < 1.5) {
+    return { distanceScale: 0.95, pitchDeltaDeg: 0, fovDeltaDeg: 0 }
+  }
+  return { distanceScale: 1, pitchDeltaDeg: 0, fovDeltaDeg: 0 }
+}
+
+/**
+ * Applies the §8.7 mobile-safe deltas on top of a base camera
+ * target. Distance scale dollies the camera toward the look-at;
+ * pitch delta rotates the camera vertically around the look-at
+ * (negative tightens the angle so portrait phones do not show wasted
+ * sky on `help-defense-angle`); FOV delta widens or tightens the
+ * lens additively.
+ *
+ * Pure: the input target is cloned before modification so callers
+ * can keep a reference to the canonical desktop placement.
+ */
+function applyAspectAdjustment(
+  target: CameraTarget,
+  mode: CameraMode,
+  aspect: number,
+): CameraTarget {
+  const deltas = _aspectDeltasForCamera(aspect, mode)
+  if (
+    deltas.distanceScale === 1 &&
+    deltas.pitchDeltaDeg === 0 &&
+    deltas.fovDeltaDeg === 0
+  ) {
+    return target
+  }
+  // Compose a new target rather than mutating the input. The caller
+  // path (`computeCameraTarget` → `CameraController.recomputeTarget`)
+  // copies the position and lookAt anyway, but a pure return makes
+  // the helper safe to use in tests and elsewhere.
+  const lookAt = target.lookAt.clone()
+  let position = target.position.clone()
+
+  // 1. Pitch delta: rotate position around lookAt around the
+  //    horizontal axis perpendicular to the (position → lookAt) ray.
+  if (deltas.pitchDeltaDeg !== 0) {
+    const offset = position.clone().sub(lookAt)
+    const horizontal = Math.hypot(offset.x, offset.z)
+    if (horizontal > 0.001) {
+      // Current pitch (from horizontal). Atan2 — y is the rise,
+      // horizontal is the run. Adding the delta tilts toward the
+      // floor (negative delta → tighter pitch, less sky).
+      const currentPitch = Math.atan2(offset.y, horizontal)
+      const nextPitch = currentPitch + (deltas.pitchDeltaDeg * Math.PI) / 180
+      const radius = offset.length()
+      const newY = Math.sin(nextPitch) * radius
+      const newH = Math.cos(nextPitch) * radius
+      const horizScale = horizontal > 0 ? newH / horizontal : 1
+      position = new THREE.Vector3(
+        lookAt.x + offset.x * horizScale,
+        lookAt.y + newY,
+        lookAt.z + offset.z * horizScale,
+      )
+    }
+  }
+
+  // 2. Distance scale: dolly along the (lookAt → position) ray.
+  if (deltas.distanceScale !== 1) {
+    const offset = position.clone().sub(lookAt)
+    offset.multiplyScalar(deltas.distanceScale)
+    position = lookAt.clone().add(offset)
+  }
+
+  // 3. FOV delta.
+  const fov = Math.max(10, Math.min(120, target.fov + deltas.fovDeltaDeg))
+
+  return {
+    position,
+    lookAt,
+    fov,
+    near: target.near,
+    far: target.far,
+  }
+}
+
+// =====================================================================
+// FR-4 — Decoder-aware teaching camera placements (§8.2 / §8.3 / §8.7)
+// =====================================================================
+//
+// These four placements are the renderer-side counterpart to the
+// `cameraPresets.ts` policy layer. The dispatcher decides *which*
+// preset to ask for; the helpers below compute *where* the camera
+// sits and where it looks for that preset given the scene geometry.
+//
+// Common conventions:
+//   - All return `CameraTarget` with feet-units `position` / `lookAt`,
+//     matching the existing broadcast / tactical / replay helpers.
+//   - All read the user's start position and the closest defender as
+//     "the cue defender," mirroring the FR-3 §7.3 heuristic so the
+//     camera and the heat-ring agree on which figure is the read.
+//   - Aspect-aware adjustments (§8.7) live on the policy side
+//     (`aspectAdjustmentForCanvas`) and are applied by the canvas at
+//     `setMode` time. The placement itself is aspect-independent so
+//     the helpers stay pure data and re-targetable in tests.
+
+interface CueAnchors {
+  user: THREE.Vector3
+  keyDefender: THREE.Vector3 | null
+  ball: THREE.Vector3
+}
+
+/** Pull the FR-3 cue triple — user position, closest defender to the
+ *  user, and the ball — out of the scene. Mirrors the heuristic in
+ *  `buildBasketballGroup` so the camera frames whichever defender the
+ *  heat-ring also marked. */
+function resolveCueAnchors(scene: Scene3D): CueAnchors | null {
+  const user = scene.players.find((p) => p.isUser)
+  if (
+    !user ||
+    !Number.isFinite(user.start.x) ||
+    !Number.isFinite(user.start.z)
+  ) {
+    return null
+  }
+  const userVec = new THREE.Vector3(user.start.x, 0, user.start.z)
+
+  let keyDefender: THREE.Vector3 | null = null
+  let bestDist = Infinity
+  for (const dp of scene.players) {
+    if (dp.team !== 'defense') continue
+    if (!Number.isFinite(dp.start.x) || !Number.isFinite(dp.start.z)) continue
+    const dx = dp.start.x - userVec.x
+    const dz = dp.start.z - userVec.z
+    const d = Math.hypot(dx, dz)
+    if (d < bestDist) {
+      bestDist = d
+      keyDefender = new THREE.Vector3(dp.start.x, 0, dp.start.z)
+    }
+  }
+
+  // Ball: prefer the holder's position, otherwise the static ball coord.
+  let ballVec = new THREE.Vector3(scene.ball.start.x, 0, scene.ball.start.z)
+  const holder = scene.ball.holderId
+    ? scene.players.find((p) => p.id === scene.ball.holderId)
+    : scene.players.find((p) => p.hasBall)
+  if (holder && Number.isFinite(holder.start.x) && Number.isFinite(holder.start.z)) {
+    ballVec = new THREE.Vector3(holder.start.x, 0, holder.start.z)
+  }
+
+  return { user: userVec, keyDefender, ball: ballVec }
+}
+
+/**
+ * §8.2 / §8.3 — Teaching Angle.
+ *
+ * Composed pitch-down framing around the user + key defender. The
+ * camera sits in front of the user (rim-side) at ~24° pitch so body
+ * cues read above the heads of the figures (shoulder, hip, hand, foot)
+ * and the open-space patch sits in the lower 2/3 of the frame.
+ *
+ * Aspect parameter is reserved for future per-aspect placement; for
+ * now the policy-layer `aspectAdjustmentForCanvas` carries the mobile
+ * tweaks and the placement here stays canonical.
+ */
+function teachingAngleTarget(
+  scene: Scene3D,
+  _aspect: number,
+): CameraTarget | null {
+  const a = resolveCueAnchors(scene)
+  if (!a) return null
+
+  // Anchor the look-at at the midpoint of user + key defender; bias
+  // toward the cue area so body language sits centre-frame.
+  const lookAt = a.keyDefender
+    ? new THREE.Vector3(
+        (a.user.x + a.keyDefender.x) * 0.5,
+        4,
+        (a.user.z + a.keyDefender.z) * 0.5,
+      )
+    : new THREE.Vector3(a.user.x, 4, a.user.z)
+
+  // Camera sits between the user and the rim, biased rim-side, so the
+  // user's back / shoulder is in frame and the defender's body cue is
+  // visible past them. Distance scales with how far the cue sits from
+  // mid-court so wing reads do not crowd, paint reads do not pull
+  // back too far.
+  const cueDistFromRim = Math.max(8, lookAt.z)
+  const distance = 18 + cueDistFromRim * 0.35
+  const pitchDeg = 24
+  const pitch = (pitchDeg * Math.PI) / 180
+  // Side-of-court bias: if the user is on the right wing, the camera
+  // pulls slightly left so we frame ACROSS them rather than over their
+  // strong shoulder. Mirrors a TV camera that rides the weak side of
+  // the play.
+  const sideBias = Math.sign(a.user.x) * -2
+  const position = new THREE.Vector3(
+    lookAt.x + sideBias,
+    Math.max(7, Math.sin(pitch) * distance + 3),
+    lookAt.z + Math.cos(pitch) * distance,
+  )
+
+  return {
+    position,
+    lookAt,
+    fov: 38,
+    near: 0.5,
+    far: 400,
+  }
+}
+
+/**
+ * §8.2 / §8.3 — Player Read Angle.
+ *
+ * Over-the-shoulder of the user, looking past them at the key defender
+ * and the ball. The camera sits behind the user along the
+ * (user → keyDefender) axis so the user's back is in frame and the
+ * defender / passing lane sit on the far side. Used in BDW / ESC /
+ * AOR replay legs where the user's read is what matters.
+ */
+function playerReadAngleTarget(
+  scene: Scene3D,
+  _aspect: number,
+): CameraTarget | null {
+  const a = resolveCueAnchors(scene)
+  if (!a) return null
+
+  // Direction from key defender (or ball) back through the user. The
+  // camera sits a few feet behind the user along that axis.
+  const target = a.keyDefender ?? a.ball
+  let dirX = a.user.x - target.x
+  let dirZ = a.user.z - target.z
+  const len = Math.hypot(dirX, dirZ)
+  if (len < 0.001) {
+    // Degenerate — user and target overlap. Fall back to a back-of-
+    // court trail so the camera still produces a sensible frame.
+    dirX = 0
+    dirZ = 1
+  } else {
+    dirX /= len
+    dirZ /= len
+  }
+
+  const trail = 8
+  const position = new THREE.Vector3(
+    a.user.x + dirX * trail,
+    7,
+    a.user.z + dirZ * trail,
+  )
+  // Look at a point just past the user toward the defender so the
+  // read lives in the middle 1/3 of the frame.
+  const lookAhead = 6
+  const lookAt = new THREE.Vector3(
+    a.user.x - dirX * lookAhead,
+    4,
+    a.user.z - dirZ * lookAhead,
+  )
+
+  return {
+    position,
+    lookAt,
+    fov: 42,
+    near: 0.5,
+    far: 400,
+  }
+}
+
+/**
+ * §8.2 / §8.3 — Help Defense Angle.
+ *
+ * Side-on framing with the weak side toward camera. Used by SKR
+ * scenarios so the over-helper and the abandoned weak-side shooter
+ * live in the same shot. The camera rides the side of the court
+ * opposite the ball-handler so the help rotation reads as motion
+ * AWAY from the camera and the weak-side shooter reads as the
+ * left-most or right-most figure in frame.
+ */
+function helpDefenseAngleTarget(
+  scene: Scene3D,
+  _aspect: number,
+): CameraTarget | null {
+  const a = resolveCueAnchors(scene)
+  if (!a) return null
+
+  // Ride the side of the court opposite the ball. If the ball is
+  // strong-side right (positive x), we ride the right sideline so
+  // the rotation toward the ball reads across-frame.
+  const ballSide = Math.sign(a.ball.x) || 1
+  const position = new THREE.Vector3(
+    ballSide * 32,
+    13,
+    Math.max(8, a.ball.z + 4),
+  )
+  // Look at a point between the ball and the user so both the over-
+  // helper (near the ball) and the weak-side shooter (near the user)
+  // sit inside the frame.
+  const lookAt = new THREE.Vector3(
+    (a.ball.x + a.user.x) * 0.5,
+    3,
+    (a.ball.z + a.user.z) * 0.5,
+  )
+
+  return {
+    position,
+    lookAt,
+    fov: 40,
+    near: 0.5,
+    far: 400,
+  }
+}
+
+/**
+ * §8.2 — Top-Down Coach Board.
+ *
+ * Pure top-down (90° pitch). Used in replay teaching for SKR and
+ * by future Film-Room Review. Centered on the cue area when one is
+ * resolvable, otherwise on the geometric centroid of the play.
+ */
+function topDownCoachBoardTarget(
+  scene: Scene3D,
+  _aspect: number,
+): CameraTarget {
+  const a = resolveCueAnchors(scene)
+  // Centroid of user + ball when resolvable; otherwise the canonical
+  // half-court centre. Either way the look-at is on the floor so the
+  // top-down feels like a tactical board.
+  const centerX = a ? (a.user.x + a.ball.x) * 0.5 : 0
+  const centerZ = a ? (a.user.z + a.ball.z) * 0.5 : 18
+  return {
+    position: new THREE.Vector3(centerX, 60, centerZ),
+    lookAt: new THREE.Vector3(centerX, 0, centerZ),
+    fov: 38,
     near: 0.5,
     far: 400,
   }
@@ -3870,6 +4291,7 @@ export function isImportedBackCutClipActive(): boolean {
  */
 export type PlayerFigurePick =
   | 'glb'
+  | 'glb-static-pose'
   | 'skinned'
   | 'premium'
   | 'procedural'
@@ -3886,10 +4308,104 @@ export interface PlayerFigureDecision {
    *  threw. Carries the actual exception text so the operator does
    *  not have to reproduce the failure with breakpoints. */
   error?: string
+  /** FR-2 Packet 4 — owning scenario id at the time of the build,
+   *  if `buildBasketballGroup` was invoked with scene context. Lets
+   *  the dev surface map every recorded fallback back to the
+   *  scenario the user was looking at. Optional so legacy callers
+   *  (preset previews, isolated unit tests) still work without
+   *  retrofit. */
+  scenarioId?: string
+  /** FR-2 Packet 4 — owning player id from the scene definition. */
+  playerId?: string
+  /** FR-3 §7.3 — `true` when the figure builder painted the cue
+   *  defender heat ring on this figure. Lets the FilmRoomDebugBadge
+   *  surface the resolved key defender per scene without separately
+   *  reaching into `buildBasketballGroup`'s closest-defender
+   *  heuristic. Always omitted on offense / user / non-defender
+   *  figures so the badge can grep for `pick === 'glb' &&
+   *  isKeyDefender === true` cleanly. */
+  isKeyDefender?: boolean
 }
 
 let _figureDecisionLog: PlayerFigureDecision[] = []
 let _forceGlbAthletePreview = false
+
+/**
+ * FR-2 Packet 4 — module-scope build context register.
+ *
+ * `buildPlayerFigure` was authored with a fixed signature that the
+ * §3.3F regression tests pin in place; we cannot widen it without
+ * churning every test. Instead, `buildBasketballGroup` writes the
+ * current scene + per-player context to this slot before each
+ * `buildPlayerFigure` call (and clears it after) so the decision-log
+ * push captures `{ scenarioId, playerId }` as well as the existing
+ * `{ pick, reason }` payload.
+ *
+ * Stays empty when callers (premium previews, isolated tests,
+ * `buildAthleteFigure` direct invocations) skip the registration —
+ * the decision log degrades gracefully to its pre-Packet-4 shape.
+ */
+interface PlayerFigureBuildContext {
+  scenarioId: string
+  playerId: string
+  /**
+   * FR-3 §7.3 — when true this player is the cue defender for the
+   * scene, so the figure builder can swap the standard team-color
+   * ring for the §7.1 heat-red `--heat` cue. Optional so callers
+   * that have not resolved a key defender (premium previews,
+   * isolated unit tests, scenes without defenders) keep their
+   * existing visual exactly.
+   */
+  isKeyDefender?: boolean
+}
+let _currentFigureBuildContext: PlayerFigureBuildContext | null = null
+
+export function _setPlayerFigureBuildContext(
+  ctx: PlayerFigureBuildContext | null,
+): void {
+  _currentFigureBuildContext = ctx
+}
+
+/**
+ * FR-3 — read-only accessor for the per-figure build context. Used
+ * by the procedural / GLB figure builders to layer the §7 visual-
+ * language cues (key-defender ring, future grounding shadow, future
+ * silhouette tweaks) onto the existing primitives without changing
+ * the locked `buildPlayerFigure` signature.
+ *
+ * Returns `null` when the caller did not register a context — the
+ * builders honor the legacy default visual in that case so isolated
+ * tests keep their prior contracts.
+ */
+export function _getCurrentPlayerFigureBuildContext(): Readonly<PlayerFigureBuildContext> | null {
+  return _currentFigureBuildContext
+}
+
+/**
+ * FR-2 Packet 4 — emits a single structured `[CourtIQ GLB fallback]`
+ * console line every time a non-`glb` decision lands in the log.
+ * Payload matches the §6.5 spec verbatim — `{ scenarioId, playerId,
+ * pickedPath, reason }` — so logs are grep-able and forwardable to
+ * Sentry breadcrumbs / PostHog without further parsing.
+ *
+ * Keeping the emit at the log-push site (rather than at each
+ * fallback branch above) guarantees the breadcrumb fires once per
+ * decision, in the order figures were built, with the actual final
+ * `pick` recorded — so a subsequent path swap (skinned → premium →
+ * procedural) does not produce duplicate noise.
+ */
+function _emitFallbackBreadcrumb(decision: PlayerFigureDecision): void {
+  if (decision.pick === 'glb') return
+  if (typeof console === 'undefined') return
+  // eslint-disable-next-line no-console
+  console.info('[CourtIQ GLB fallback]', {
+    scenarioId: decision.scenarioId ?? null,
+    playerId: decision.playerId ?? null,
+    pickedPath: decision.pick,
+    reason: decision.reason,
+    error: decision.error ?? null,
+  })
+}
 
 /** P3.3F — clear the decision log. Called by `Scenario3DCanvas`
  *  before every scene-build so a navigation away does not stack
@@ -3981,24 +4497,41 @@ export function buildPlayerFigure(
       glbThrew = err
     }
     if (glb) {
-      _figureDecisionLog.push({
+      const decision: PlayerFigureDecision = {
         pick: 'glb',
         reason: 'gate-on-cache-warm',
-      })
+        scenarioId: _currentFigureBuildContext?.scenarioId,
+        playerId: _currentFigureBuildContext?.playerId,
+        isKeyDefender: _currentFigureBuildContext?.isKeyDefender,
+      }
+      _figureDecisionLog.push(decision)
+      // GLB success — no fallback breadcrumb required.
       return glb
     }
     // GLB attempted but did not return a figure. Surface the actual
     // reason from the in-builder failure tracker so the operator
     // sees `cache-cold` / `threw` / `not-browser` instead of an
     // opaque silent fallback.
+    //
+    // FR-2 Packet 5 — when the in-builder failure says `cache-cold`,
+    // promote the reason to the actual loader-outcome state if it
+    // is already known (`asset-missing-or-no-skin`, `loader-threw`).
+    // Pre-Packet-5 these two failure modes both surfaced as
+    // `glb-cache-cold`, indistinguishable from the legitimate
+    // first-frame race that Packet 2 now defers around.
     const failure = _getLastGlbBuildFailure()
+    const loadOutcome = getGlbAthleteLoadOutcome()
     glbFailureReason =
       glbThrew != null
         ? 'glb-threw'
         : failure.kind === 'threw'
           ? 'glb-threw'
           : failure.kind === 'cache-cold'
-            ? 'glb-cache-cold'
+            ? loadOutcome === 'asset-missing-or-no-skin'
+              ? 'glb-asset-missing-or-no-skin'
+              : loadOutcome === 'loader-threw'
+                ? 'glb-loader-threw'
+                : 'glb-cache-cold'
             : failure.kind === 'not-browser'
               ? 'glb-not-browser'
               : 'glb-returned-null'
@@ -4009,11 +4542,16 @@ export function buildPlayerFigure(
           ? String(glbThrew)
           : failure.error
     if (_forceGlbAthletePreview) {
-      _figureDecisionLog.push({
+      const decision: PlayerFigureDecision = {
         pick: 'force-glb-marker',
         reason: glbFailureReason,
         error: glbFailureError,
-      })
+        scenarioId: _currentFigureBuildContext?.scenarioId,
+        playerId: _currentFigureBuildContext?.playerId,
+        isKeyDefender: _currentFigureBuildContext?.isKeyDefender,
+      }
+      _figureDecisionLog.push(decision)
+      _emitFallbackBreadcrumb(decision)
       return _buildForceGlbFailureMarker()
     }
   }
@@ -4028,11 +4566,16 @@ export function buildPlayerFigure(
         stance,
       )
       if (skinned) {
-        _figureDecisionLog.push({
+        const decision: PlayerFigureDecision = {
           pick: 'skinned',
           reason: glbFailureReason ?? 'skinned-flag-on',
           error: glbFailureError,
-        })
+          scenarioId: _currentFigureBuildContext?.scenarioId,
+          playerId: _currentFigureBuildContext?.playerId,
+          isKeyDefender: _currentFigureBuildContext?.isKeyDefender,
+        }
+        _figureDecisionLog.push(decision)
+        _emitFallbackBreadcrumb(decision)
         return skinned
       }
     } catch {
@@ -4051,22 +4594,32 @@ export function buildPlayerFigure(
         jerseyNumber,
         stance,
       )
-      _figureDecisionLog.push({
+      const decision: PlayerFigureDecision = {
         pick: 'premium',
         reason: glbFailureReason ?? 'premium-flag-on',
         error: glbFailureError,
-      })
+        scenarioId: _currentFigureBuildContext?.scenarioId,
+        playerId: _currentFigureBuildContext?.playerId,
+        isKeyDefender: _currentFigureBuildContext?.isKeyDefender,
+      }
+      _figureDecisionLog.push(decision)
+      _emitFallbackBreadcrumb(decision)
       return premium
     } catch {
       // Phase J fallback — premium path failed, render the
       // Phase F figure so the scene never crashes.
     }
   }
-  _figureDecisionLog.push({
+  const decision: PlayerFigureDecision = {
     pick: 'procedural',
     reason: glbFailureReason ?? 'gate-off',
     error: glbFailureError,
-  })
+    scenarioId: _currentFigureBuildContext?.scenarioId,
+    playerId: _currentFigureBuildContext?.playerId,
+    isKeyDefender: _currentFigureBuildContext?.isKeyDefender,
+  }
+  _figureDecisionLog.push(decision)
+  _emitFallbackBreadcrumb(decision)
   return buildAthleteFigure(teamColor, trimColor, isUser, hasBall, jerseyNumber, stance)
 }
 
@@ -4114,6 +4667,7 @@ function buildSkinnedAthleteFigure(
 import {
   _getLastGlbBuildFailure,
   buildGlbAthletePreview,
+  getGlbAthleteLoadOutcome,
   setGlbAthleteAnimation,
   updateGlbAthletePose,
   type GlbAthleteAnimationName,
@@ -4127,6 +4681,12 @@ function buildGlbAthleteFigure(
   jerseyNumber: string,
   stance: PlayerStance,
 ): THREE.Group | null {
+  // FR-3 §7.3 — read the per-figure build context registered by
+  // `buildBasketballGroup` so the GLB indicator layer knows whether
+  // to mount the key-defender heat ring. Defaults to `false` when
+  // no context is registered (isolated tests, premium previews) so
+  // the GLB visual is byte-identical to its pre-FR-3 shape.
+  const buildCtx = _getCurrentPlayerFigureBuildContext()
   return buildGlbAthletePreview(
     teamColor,
     trimColor,
@@ -4145,6 +4705,7 @@ function buildGlbAthleteFigure(
       // non-flagged build never picks `back_cut`; flag-off behaviour
       // is byte-identical to pre-P2.2 (BACK_CUT intent → `cut_sprint`).
       attachImportedBackCutClip: isImportedBackCutClipActive(),
+      isKeyDefender: buildCtx?.isKeyDefender === true,
     },
   )
 }
@@ -4323,7 +4884,17 @@ export function _resetIntentDebugLogGuard(): void {
 // actual playing athlete on TV. Triangle counts are unchanged
 // (lathe / cylinder segment counts are constant), so the Phase J
 // 2400-tri ceiling is preserved.
-const ATH_TOTAL_HEIGHT = 5.95
+/**
+ * FR-3 §7.8 — procedural figure standing height in court feet.
+ *
+ * Locked against `GLB_TARGET_HEIGHT_FT` from `glbAthlete.ts` to a
+ * ±0.05 ft tolerance by `playerScaleContract.test.ts`. Drift larger
+ * than that breaks the §7.11 "GLB and procedural figures feel like
+ * the same visual system" goal because a procedural-rendered scene
+ * and a GLB-rendered scene would frame the same camera differently.
+ */
+export const ATH_TOTAL_HEIGHT_FT = 5.95
+const ATH_TOTAL_HEIGHT = ATH_TOTAL_HEIGHT_FT
 const ATH_FOOT_HEIGHT = 0.18
 const ATH_FOOT_LENGTH = 1.12
 const ATH_FOOT_WIDTH = 0.54
@@ -4836,16 +5407,38 @@ function buildAthleteFigure(
 
   const ringInner = PLAYER_RADIUS + 0.2
   const ringOuter = isUser ? PLAYER_RADIUS + 0.7 : PLAYER_RADIUS + 0.55
+  // FR-3 §7.3 — key defender swap. When the per-figure build context
+  // marks this player as the cue defender, paint the base ring with
+  // the §7.1 `--heat` token instead of the team color so the user
+  // can identify the read defender within 0.5 s without a label.
+  // Other defenders keep their team color but at a slightly cooler
+  // opacity so the heat ring carries the contrast (§7.11 — contrast
+  // from color temperature, not outlines).
+  const buildCtx = _getCurrentPlayerFigureBuildContext()
+  const isKeyDefender = buildCtx?.isKeyDefender === true
+  const ringColor = isKeyDefender ? HEAT_RING_COLOR : teamColor
+  const ringOpacity = isUser
+    ? 1
+    : isKeyDefender
+      ? 0.95
+      : buildCtx?.isKeyDefender === false &&
+          // Cooler "other defender" — applied only when the context
+          // is registered AND this is a non-key defender. Heuristic
+          // inferred from teamColor matching the DEFENSE_COLOR
+          // constant; offense keeps its full team-color opacity.
+          teamColor.toUpperCase() === DEFENSE_COLOR
+        ? 0.65
+        : 0.85
   // Ring segments are kept intentionally low because these indicators
   // are always viewed from the gameplay camera, not inspected up close.
   const ring = new THREE.Mesh(
     new THREE.RingGeometry(ringInner, ringOuter, 28),
     new THREE.MeshBasicMaterial({
-      color: teamColor,
+      color: ringColor,
       toneMapped: false,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: isUser ? 1 : 0.85,
+      opacity: ringOpacity,
     }),
   )
   ring.rotation.x = -Math.PI / 2

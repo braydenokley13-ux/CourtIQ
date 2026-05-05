@@ -1,9 +1,30 @@
 import { NextResponse } from 'next/server'
-import { generateSessionBundle } from '@/lib/services/scenarioService'
+import {
+  InvalidScenarioIdsError,
+  generateSessionBundle,
+} from '@/lib/services/scenarioService'
 import { listValidConcepts } from '@/lib/services/academyService'
 import { prisma } from '@/lib/db/prisma'
 import { captureServerEvent } from '@/lib/analytics/serverEvents'
 import { createClient } from '@/lib/supabase/server'
+
+function parseScenarioIds(raw: unknown): string[] | null {
+  if (Array.isArray(raw)) {
+    const cleaned = raw
+      .filter((v): v is string => typeof v === 'string')
+      .map((v) => v.trim())
+      .filter((v) => v.length > 0)
+    return cleaned.length > 0 ? cleaned : null
+  }
+  if (typeof raw === 'string' && raw.trim().length > 0) {
+    const cleaned = raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+    return cleaned.length > 0 ? cleaned : null
+  }
+  return null
+}
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -12,10 +33,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const body = await request.json().catch(() => ({})) as {
+  const body = (await request.json().catch(() => ({}))) as {
     n?: number
     concept?: string
     scenarioId?: string
+    scenarioIds?: string[] | string
   }
   const url = new URL(request.url)
   const conceptRaw = body.concept ?? url.searchParams.get('concept') ?? null
@@ -23,6 +45,8 @@ export async function POST(request: Request) {
   const scenarioIdRaw = body.scenarioId ?? url.searchParams.get('scenario') ?? null
   const scenarioId =
     scenarioIdRaw && scenarioIdRaw.trim().length > 0 ? scenarioIdRaw.trim() : null
+  const scenarioIds =
+    parseScenarioIds(body.scenarioIds) ?? parseScenarioIds(url.searchParams.get('scenarioIds'))
 
   await prisma.user.upsert({
     where: { id: user.id },
@@ -60,10 +84,35 @@ export async function POST(request: Request) {
     )
   }
 
-  const bundle = await generateSessionBundle(user.id, scenarioId ? 1 : body.n ?? 5, {
-    concept,
-    scenarioId,
-  })
+  // Determine the requested session size. When scenarioIds is set, we
+  // honor the list length up to a reasonable cap so a Pathway-driven
+  // pinned session always returns exactly the requested reps.
+  const requestedSize = scenarioIds
+    ? Math.min(scenarioIds.length, 25)
+    : scenarioId
+      ? 1
+      : (body.n ?? 5)
+
+  let bundle: Awaited<ReturnType<typeof generateSessionBundle>>
+  try {
+    bundle = await generateSessionBundle(user.id, requestedSize, {
+      concept,
+      scenarioId,
+      scenarioIds,
+    })
+  } catch (err) {
+    if (err instanceof InvalidScenarioIdsError) {
+      return NextResponse.json(
+        {
+          error: 'INVALID_SCENARIO_IDS',
+          message: 'None of the requested scenarios are available right now.',
+          invalidIds: err.invalidIds,
+        },
+        { status: 400 },
+      )
+    }
+    throw err
+  }
 
   captureServerEvent('session_started', {
     session_run_id: bundle.session_run_id,
