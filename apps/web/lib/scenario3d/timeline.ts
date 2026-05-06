@@ -225,15 +225,35 @@ function easeOutAthletic(u: number): number {
   return r * r * (3 - 2 * r)
 }
 
+/** V1 Premiumization — defensive slide ease. Sets foot, slides,
+ *  settles. Symmetric smoothstep with a back-loaded bias so the
+ *  defender does not glide at constant velocity through the whole
+ *  segment — avoids the "defender skating on ice" tell that was
+ *  visible in slide-heavy scenes (SKR-01 helper, AOR-01 closeout
+ *  recover). Pure, deterministic, no THREE dependency. Mirrors the
+ *  same curve in `lib/scenario3d/movementProfile.ts` so any consumer
+ *  that wants the named curve gets the same shape from either entry
+ *  point. Endpoint behaviour: f(0) = 0, f(1) = 1, both clamped
+ *  outside the unit interval. */
+function easeOutDefenseSlide(u: number): number {
+  if (u <= 0) return 0
+  if (u >= 1) return 1
+  const s = u * u * (3 - 2 * u)
+  const back = 0.05 * Math.sin(Math.PI * u) * (u - 0.5)
+  const v = s + back
+  return v < 0 ? 0 : v > 1 ? 1 : v
+}
+
 /** Phase C / C3 — pick the eased curve for a movement kind. Cuts /
  *  drives / jabs / rips / baseline_sneak / stop_ball get ease-out so
  *  they feel like a player making a move; defensive movements
- *  (rotation, closeout) keep the symmetric ease-in-out so a defender
- *  sliding into help reads as smooth, not panicked. `pass` on a
- *  player is a release flick — short and not visually a translation,
- *  so it stays on ease-in-out. Authored JSON timings are unchanged;
- *  this only redistributes WITHIN each segment. Exported so movement
- *  tests can pin the dispatch table without rebuilding a full scene.
+ *  (rotation, closeout) get the V1 defense-slide ease so a defender
+ *  sliding into help reads as "set, slide, settle" rather than
+ *  drifting at constant velocity. `pass` on a player is a release
+ *  flick — short and not visually a translation, so it stays on
+ *  ease-in-out. Authored JSON timings are unchanged; this only
+ *  redistributes WITHIN each segment. Exported so movement tests
+ *  can pin the dispatch table without rebuilding a full scene.
  */
 export function easeForKind(
   kind: SceneMovement['kind'],
@@ -252,6 +272,14 @@ export function easeForKind(
       // velocity. Same arrival profile (zero velocity at u=1) so the
       // "settle on the spot" feel is preserved.
       return easeOutAthletic(u)
+    case 'closeout':
+    case 'rotation':
+      // V1 Premiumization — defensive slides use a smoothstep with a
+      // small back-loaded bias so the slide reads as a controlled
+      // foot-plant rather than a constant glide. Endpoints still hit
+      // 0/1 exactly, so a defender's start/end still align with the
+      // authored snap points.
+      return easeOutDefenseSlide(u)
     default:
       return ease(u)
   }
