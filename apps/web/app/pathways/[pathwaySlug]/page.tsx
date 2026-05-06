@@ -32,6 +32,11 @@ import {
   pickPathwayCta,
   summarisePathwayProgress,
 } from '@/lib/pathways/pathwayCta'
+import {
+  deriveMilestone,
+  type PathwayMilestone,
+  type PathwayMilestoneTone,
+} from '@/lib/pathways/pathwayMilestones'
 import type {
   PathwayChallengeAttemptSummary,
   PathwayChapterConfig,
@@ -194,6 +199,10 @@ function ActivePathwayView({
     tag ? getDecoderLabel(tag) : null,
   )
   const hasAnyProgress = progressPct > 0 || progress?.pathwayMastered === true
+  // V2-F — emotional milestone copy. Surfaced just under the hero so
+  // every player lands on a clear "what matters next" beat that is
+  // less abstract than the percentage ring.
+  const milestone = deriveMilestone(pathway, progress ?? null)
 
   return (
     <main className="min-h-dvh bg-bg-0 p-5 text-text">
@@ -267,6 +276,15 @@ function ActivePathwayView({
             })}
           </div>
         </header>
+
+        {/* V2-F — milestone strip. A single emotional line that
+            anchors the page to a clear next-beat (mastered, capstone
+            unlocked, X reps to mastery, cold-start). Hidden on the
+            'fallback' tone so a returning player who has not earned
+            a real milestone yet sees the CTA card without filler. */}
+        {milestone.tone !== 'fallback' ? (
+          <PathwayMilestoneStrip milestone={milestone} accent={accent} />
+        ) : null}
 
         {/* V1 Premiumization — primary CTA. Centralized via pickPathwayCta
             so the player always sees the right next-action: cold-start
@@ -404,6 +422,82 @@ function PathwayPrimaryCta({
       ) : null}
     </section>
   )
+}
+
+/**
+ * V2-F — emotional milestone strip. Sits between the hero and the
+ * primary CTA so every returning player lands on a clear "what
+ * matters next" beat that is less abstract than the percentage ring
+ * (e.g. "1 rep to master Backdoor Window", "Final Mix unlocked",
+ * "Pathway mastered"). The tone drives the accent — capstone uses
+ * the iq purple, mastered uses brand mint, near-milestones use the
+ * pathway's accent.
+ */
+function PathwayMilestoneStrip({
+  milestone,
+  accent,
+}: {
+  milestone: PathwayMilestone
+  accent: string
+}) {
+  const tone = milestone.tone
+  const dot = MILESTONE_DOT[tone] ?? accent
+  // Tone-driven background tint. We layer a translucent fill on top of
+  // bg-1 so the strip sits a notch brighter than the surrounding
+  // surface without adopting a saturated background that would
+  // compete with the primary CTA below it.
+  const tintLayer =
+    tone === 'mastered'
+      ? 'bg-brand/10 border-brand/40'
+      : tone === 'capstone-unlocked'
+        ? 'bg-iq/10 border-iq/40'
+        : tone === 'capstone-near'
+          ? 'bg-iq/5 border-iq/30'
+          : tone === 'chapter-near'
+            ? 'bg-info/10 border-info/30'
+            : 'bg-bg-1 border-hairline-2'
+
+  return (
+    <section
+      data-milestone-tone={tone}
+      className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${tintLayer}`}
+      role="status"
+      aria-live="polite"
+    >
+      <span
+        aria-hidden
+        className="relative flex h-2.5 w-2.5 shrink-0"
+      >
+        <span
+          className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-50"
+          style={{ background: dot }}
+        />
+        <span
+          className="relative inline-flex h-2.5 w-2.5 rounded-full"
+          style={{ background: dot, boxShadow: `0 0 8px ${dot}` }}
+        />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-display text-[14px] font-bold leading-snug text-text">
+          {milestone.headline}
+        </p>
+        {milestone.detail ? (
+          <p className="mt-0.5 text-[11px] leading-snug text-text-dim">
+            {milestone.detail}
+          </p>
+        ) : null}
+      </div>
+    </section>
+  )
+}
+
+const MILESTONE_DOT: Record<PathwayMilestoneTone, string> = {
+  mastered: '#3BFF9D',
+  'capstone-unlocked': '#8B7CFF',
+  'capstone-near': '#8B7CFF',
+  'chapter-near': '#3D9CFF',
+  'cold-start': '#FFB070',
+  fallback: '#7E8A9B',
 }
 
 /**
