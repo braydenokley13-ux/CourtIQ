@@ -50,6 +50,7 @@ import {
   LEGACY_CAMERA_EASE_S,
   getCameraTransitionEaseS,
 } from '@/lib/scenario3d/cameraTransitions'
+import { buildPlayerShadowTexture } from '@/lib/scenario3d/playerPresence'
 
 // Visual upgrade pass: warmer, richer hardwood; deeper, more saturated
 // paint; brighter team colors so jerseys pop against both floor and
@@ -159,6 +160,41 @@ export interface SceneBuildResult {
   ball: THREE.Group
   /** Y position the held ball should sit at — preserves the prior y math. */
   ballBaseY: number
+}
+
+/**
+ * V2-A — module-level cache for the radial-gradient soft contact
+ * shadow texture. The helper itself is pure (same canvas pixels per
+ * call) so caching across figures is purely a GPU bandwidth win:
+ * one texture upload per session instead of one per figure × scene
+ * rebuild. Reset on hot-module replacement so the cache never
+ * survives across an HMR boundary that may have changed the helper.
+ *
+ * Disposal: this texture intentionally outlives any single scene
+ * graph. The imperative scene's existing `disposeMaterialTextures`
+ * traversal still detects and disposes it via `material.map`, so a
+ * rebuild after a navigation will simply re-create the canvas. Net
+ * cost is one canvas per page load.
+ */
+let _cachedPlayerShadowTexture: THREE.CanvasTexture | null = null
+function getCachedPlayerShadowTexture(): THREE.CanvasTexture | null {
+  if (_cachedPlayerShadowTexture) return _cachedPlayerShadowTexture
+  const tex = buildPlayerShadowTexture()
+  if (!tex) return null
+  // The shared singleton must survive the imperative scene's
+  // dispose traversal, which calls `texture.dispose()` on every
+  // material's `.map`. Override dispose with a no-op so a scene
+  // rebuild does not invalidate the GPU upload for every other
+  // figure that still holds a reference. Net cost is one canvas
+  // for the whole page lifetime.
+  const originalDispose = tex.dispose.bind(tex)
+  tex.dispose = () => {}
+  // Expose the original dispose for explicit teardown if a future
+  // hot-reload path needs it.
+  ;(tex as unknown as { _disposeShared: () => void })._disposeShared =
+    originalDispose
+  _cachedPlayerShadowTexture = tex
+  return _cachedPlayerShadowTexture
 }
 
 /**
@@ -5581,15 +5617,22 @@ function buildAthleteFigure(
     userHeadLayer.add(chevronOutline)
   }
 
-  // Soft contact shadow under the figure (matches the legacy
-  // builder so the floor weight is identical between paths).
+  // Soft contact shadow under the figure. V2-A swaps the flat-color
+  // disc for a radial-gradient soft shadow texture so the figure
+  // reads as grounded rather than pasted onto the floor. The
+  // texture is module-cached and shared across every figure built
+  // by the imperative path; on SSR / no-canvas environments the
+  // helper returns null and we fall back to the legacy untextured
+  // dark disc — preserving the pre-V2 visual contract for tests.
+  const shadowTex = getCachedPlayerShadowTexture()
   const contactShadow = new THREE.Mesh(
-    new THREE.CircleGeometry(PLAYER_RADIUS + 0.55, 24),
+    new THREE.CircleGeometry(PLAYER_RADIUS + 0.85, 32),
     new THREE.MeshBasicMaterial({
-      color: CONTACT_SHADOW_COLOR,
+      color: shadowTex ? '#FFFFFF' : CONTACT_SHADOW_COLOR,
+      map: shadowTex ?? null,
       toneMapped: false,
       transparent: true,
-      opacity: 0.42,
+      opacity: shadowTex ? 1 : 0.42,
       depthWrite: false,
     }),
   )
