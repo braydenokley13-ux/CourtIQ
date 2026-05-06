@@ -180,3 +180,32 @@ function clampNonNegative(n: number): number {
   if (n < 0) return 0
   return n
 }
+
+/**
+ * Reorders an overlay list so anchors mount first, supports second,
+ * auxiliaries last — without touching the per-primitive payload. The
+ * existing teaching overlay path stages primitives in by their array
+ * index via `getStageInDelayMs(i)`; reordering before that map runs
+ * lets anchors land first with no change to the delay table itself.
+ *
+ * Stable: preserves the relative input order inside each role bucket.
+ *
+ * Pure: same input → byte-identical output. The returned array is a
+ * fresh copy so the caller can mutate it freely.
+ */
+export function reorderForChoreography(
+  primitives: readonly OverlayPrimitive[],
+): OverlayPrimitive[] {
+  if (primitives.length <= 1) return [...primitives]
+  // Bucket each primitive into its role while remembering the
+  // original index so the secondary sort stays stable.
+  const buckets: Record<OverlayChoreographyRole, OverlayPrimitive[]> = {
+    anchor: [],
+    support: [],
+    auxiliary: [],
+  }
+  for (const p of primitives) {
+    buckets[roleForPrimitive(p)].push(p)
+  }
+  return [...buckets.anchor, ...buckets.support, ...buckets.auxiliary]
+}

@@ -19,6 +19,7 @@ import { describe, it, expect } from 'vitest'
 import {
   OVERLAY_CHOREOGRAPHY_DEFAULTS,
   buildChoreography,
+  reorderForChoreography,
   roleForPrimitive,
 } from './overlayChoreography'
 import type { OverlayPrimitive } from './schema'
@@ -141,6 +142,56 @@ describe('buildChoreography', () => {
     expect(anchor.delayMs).toBe(100)
     expect(support.delayMs).toBe(300)
     expect(aux.delayMs).toBe(600)
+  })
+})
+
+describe('reorderForChoreography', () => {
+  it('returns an empty array for empty input', () => {
+    expect(reorderForChoreography([])).toEqual([])
+  })
+
+  it('preserves single-element input', () => {
+    expect(reorderForChoreography([visionCone])).toEqual([visionCone])
+  })
+
+  it('reorders so anchors come first, supports second, auxiliaries last', () => {
+    const input = [label, openSpace, visionCone, helpPulse, hipArrow]
+    const out = reorderForChoreography(input)
+    const roles = out.map(roleForPrimitive)
+    // Verify ordering: every anchor index < every support index <
+    // every auxiliary index.
+    const anchorIdx = roles.map((r, i) => (r === 'anchor' ? i : -1)).filter((i) => i >= 0)
+    const supportIdx = roles.map((r, i) => (r === 'support' ? i : -1)).filter((i) => i >= 0)
+    const auxIdx = roles.map((r, i) => (r === 'auxiliary' ? i : -1)).filter((i) => i >= 0)
+    if (anchorIdx.length && supportIdx.length) {
+      expect(Math.max(...anchorIdx)).toBeLessThan(Math.min(...supportIdx))
+    }
+    if (supportIdx.length && auxIdx.length) {
+      expect(Math.max(...supportIdx)).toBeLessThan(Math.min(...auxIdx))
+    }
+  })
+
+  it('preserves relative order inside each role bucket', () => {
+    const input = [hipArrow, visionCone, openSpace, passLaneOpen, label]
+    const out = reorderForChoreography(input)
+    // Anchors: hipArrow first (input index 0), visionCone second
+    // (input index 1).
+    const anchorOrder = out.filter((p) => roleForPrimitive(p) === 'anchor')
+    expect(anchorOrder).toEqual([hipArrow, visionCone])
+  })
+
+  it('is pure: same input returns equal output every call', () => {
+    const input = [label, openSpace, visionCone]
+    const a = reorderForChoreography(input)
+    const b = reorderForChoreography(input)
+    expect(a).toEqual(b)
+  })
+
+  it('does not mutate the input array', () => {
+    const input = [label, openSpace, visionCone]
+    const snapshot = [...input]
+    reorderForChoreography(input)
+    expect(input).toEqual(snapshot)
   })
 })
 
