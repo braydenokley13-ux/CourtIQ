@@ -130,6 +130,27 @@ const BANNER_BAND_COLOR = '#7C879A'
 // so the eye reads it as a single architectural detail.
 const WAINSCOT_COLOR = '#252A35'
 
+// V4-F — premium gym lighting fixtures. Hung pendant lights below the
+// rafters give the gym a real "broadcast venue" feel from the
+// fullscreen camera without changing scene lighting math (the
+// fixtures emit visually via emissive material; the actual lighting
+// contribution stays on the existing key/fill/rim/spot rig so frame
+// budget is unchanged).
+//
+// Housing is a desaturated steel that catches the existing key light
+// without overpowering the warmer hardwood. Lens is a warm off-white
+// with strong emissive intensity so the fixture reads as "on" from
+// any camera mode. Cable is dark so it disappears against the
+// ceiling vignette.
+const PENDANT_HOUSING_COLOR = '#2A2F3A'
+const PENDANT_LENS_COLOR = '#FFE9B6'
+const PENDANT_CABLE_COLOR = '#0E1014'
+
+// V4-F — center-circle accent. A thin trim ring painted into the
+// court floor at half-court (in front of the back wall) adds a
+// premium "broadcast court" detail without introducing branding.
+const CENTER_CIRCLE_TRIM_COLOR = '#F2EAD3'
+
 const PLAYER_HEIGHT = 6
 const PLAYER_RADIUS = 1.2
 // NBA regulation ball radius is ~0.39 ft (9.4" diameter). Bumped slightly
@@ -3437,7 +3458,115 @@ function buildGymShell(): THREE.Group {
   // them up alongside the walls and ceiling.
   addGymBackdrop(gym, gymWidth, gymDepth, centerZ)
 
+  // V4-F — hanging pendant lighting fixtures. Visual-only (emissive,
+  // no extra Three.js Light objects) so the existing key/fill/rim/
+  // spot rig keeps owning actual scene lighting. The fixtures sit
+  // below the rafter grid with thin cables going up to the ceiling.
+  addCeilingPendants(gym, gymWidth, gymDepth)
+
   return gym
+}
+
+/**
+ * V4-F — Hangs a 2×3 array of pendant fixtures below the rafter grid.
+ * Each pendant is housing + lens + cable. Reads as a real venue light
+ * from the broadcast camera and from inside fullscreen, anchoring the
+ * gym feel without burning frame budget on additional point lights
+ * (the existing rig already covers actual illumination).
+ *
+ * Geometry is shared per part (one cylinder for housing, one for
+ * lens, one for cable) and reused via clone — material count per
+ * pendant is 3 (housing / lens / cable), shared across the whole
+ * pendant grid.
+ */
+function addCeilingPendants(
+  gym: THREE.Group,
+  gymWidth: number,
+  gymDepth: number,
+): void {
+  const housingMat = new THREE.MeshStandardMaterial({
+    color: PENDANT_HOUSING_COLOR,
+    roughness: 0.55,
+    metalness: 0.6,
+  })
+  const lensMat = new THREE.MeshStandardMaterial({
+    color: PENDANT_LENS_COLOR,
+    roughness: 0.4,
+    metalness: 0.05,
+    emissive: new THREE.Color(PENDANT_LENS_COLOR),
+    emissiveIntensity: 1.4,
+  })
+  const cableMat = new THREE.MeshStandardMaterial({
+    color: PENDANT_CABLE_COLOR,
+    roughness: 0.85,
+    metalness: 0.2,
+  })
+
+  // Pendant grid — 3 along x (sidelines), 2 along z (ends). Skip the
+  // back row (-z) so the camera looking into the gym sees lights
+  // hanging in front of the bleachers, not behind them.
+  const housingRadius = 0.95
+  const housingHeight = 0.4
+  const lensRadius = 0.78
+  const lensHeight = 0.12
+  const cableLength = 6
+  const cableRadius = 0.05
+
+  const cols = 3
+  const rows = 2
+  const xStep = gymWidth / (cols + 1)
+  const zStep = gymDepth / (rows + 2)
+  const ceilingY = GYM_HEIGHT - 0.12
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = -gymWidth / 2 + xStep * (c + 1)
+      const z = GYM_BACK_Z + zStep * (r + 2)
+      const pendant = new THREE.Group()
+      pendant.name = `pendant-${r}-${c}`
+      pendant.position.set(x, 0, z)
+
+      // Cable up to ceiling.
+      const cable = new THREE.Mesh(
+        new THREE.CylinderGeometry(cableRadius, cableRadius, cableLength, 6),
+        cableMat,
+      )
+      cable.position.set(0, ceilingY - cableLength / 2, 0)
+      pendant.add(cable)
+
+      // Housing — wide flat dark cylinder.
+      const housing = new THREE.Mesh(
+        new THREE.CylinderGeometry(
+          housingRadius * 0.85,
+          housingRadius,
+          housingHeight,
+          12,
+        ),
+        housingMat,
+      )
+      housing.position.set(0, ceilingY - cableLength - housingHeight / 2, 0)
+      pendant.add(housing)
+
+      // Lens — bright emissive disk underneath the housing. The lens
+      // is the visible "light" from any camera angle.
+      const lens = new THREE.Mesh(
+        new THREE.CylinderGeometry(
+          lensRadius,
+          lensRadius * 1.05,
+          lensHeight,
+          12,
+        ),
+        lensMat,
+      )
+      lens.position.set(
+        0,
+        ceilingY - cableLength - housingHeight - lensHeight / 2,
+        0,
+      )
+      pendant.add(lens)
+
+      gym.add(pendant)
+    }
+  }
 }
 
 /**
