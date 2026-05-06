@@ -119,7 +119,7 @@
       "movements": [
         { "id": "user_set", "playerId": "user", "kind": "lift", "to": { "x": -22, "z": 2 }, "delayMs": 0, "durationMs": 500 },
         { "id": "wing_drive_baseline", "playerId": "wing", "kind": "drive", "to": { "x": 14, "z": 3 }, "delayMs": 0, "durationMs": 800 },
-        { "id": "x4_tag_paint", "playerId": "x4", "kind": "rotation", "to": { "x": 4, "z": 5 }, "delayMs": 250, "durationMs": 750 }
+        { "id": "x4_tag_paint", "playerId": "x4", "kind": "rotation", "to": { "x": 4, "z": 5 }, "delayMs": 360, "durationMs": 700 }
       ],
       "freezeMarker": { "kind": "atMs", "atMs": 1500 },
       "answerDemo": [

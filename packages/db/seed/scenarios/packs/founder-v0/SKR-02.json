@@ -119,7 +119,7 @@
       "movements": [
         { "id": "user_drive_baseline", "playerId": "user", "kind": "drive", "to": { "x": 14, "z": 4 }, "delayMs": 0, "durationMs": 800 },
         { "id": "x1_recover", "playerId": "x1", "kind": "stop_ball", "to": { "x": 13, "z": 6 }, "delayMs": 100, "durationMs": 750 },
-        { "id": "x3_sink_help", "playerId": "x3", "kind": "rotation", "to": { "x": -2, "z": 5 }, "delayMs": 250, "durationMs": 1000 }
+        { "id": "x3_sink_help", "playerId": "x3", "kind": "rotation", "to": { "x": -2, "z": 5 }, "delayMs": 350, "durationMs": 950 }
       ],
       "freezeMarker": { "kind": "atMs", "atMs": 1500 },
       "answerDemo": [
