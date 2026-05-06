@@ -72,7 +72,9 @@ export type ReactionCue =
   | 'pass_arrival' // ball arrives at the catcher
 
 interface ReactionLagInput {
-  role: DefenderRole | (string & {})
+  /** A `DefenderRole` literal, or any string for forward
+   *  compatibility with future roles (falls back to a baseline). */
+  role: DefenderRole | string
   cue: ReactionCue
 }
 
@@ -163,7 +165,7 @@ const ROLE_CLOSEOUT_SCALE: Record<DefenderRole, number> = {
  * not consulted.
  */
 export function getRoleCloseoutScale(
-  role: DefenderRole | (string & {}),
+  role: DefenderRole | string,
 ): number {
   const scale = (ROLE_CLOSEOUT_SCALE as Record<string, number>)[role]
   return typeof scale === 'number' && Number.isFinite(scale) && scale > 0
@@ -179,7 +181,7 @@ export function getRoleCloseoutScale(
  */
 export function scaleCloseoutDurationMs(
   baseMs: number,
-  role: DefenderRole | (string & {}),
+  role: DefenderRole | string,
 ): number {
   const safe = Number.isFinite(baseMs) && baseMs > 0 ? baseMs : 600
   const raw = safe * getRoleCloseoutScale(role)
