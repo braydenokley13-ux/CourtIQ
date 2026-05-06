@@ -299,7 +299,8 @@ export function Scenario3DView(props: Scenario3DViewProps) {
           playbackRate={playbackRate}
           paused={paused}
           showPaths={showPaths}
-          height={isFullscreen ? undefined : props.height}
+          height={props.height}
+          fillParent={isFullscreen}
         />
         <PremiumOverlay
           concept={props.concept}

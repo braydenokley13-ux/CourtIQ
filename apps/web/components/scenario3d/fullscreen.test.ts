@@ -213,28 +213,31 @@ describe('PremiumOverlay isFullscreen prop', () => {
 // would have violated: the canvas wrapper is marked with
 // `data-fullscreen-fill`, the fullscreen target carries
 // `data-fullscreen` when active, and toggling fullscreen flips the
-// `height` prop forwarded to the canvas (so `resolvedHeight` becomes
-// `'100%'` and the CSS fill rule fires).
+// explicit `fillParent` prop forwarded to the canvas (so
+// `resolvedHeight` becomes `'100%'` and the CSS fill rule fires).
 
 describe('Phase L — fullscreen fill contract', () => {
-  it('canvas wrapper carries data-fullscreen-fill when height is undefined', () => {
+  it('canvas wrapper carries data-fullscreen-fill when fillParent is true', () => {
     // Mirrors the Scenario3DCanvas.tsx logic at the bottom of the file:
-    //   const fillFullscreen = height === undefined
+    //   const fillFullscreen = fillParent
     //   <div data-fullscreen-fill={fillFullscreen ? 'true' : undefined}>
-    const fillFullscreenForUndefined = undefined === undefined
-    const fillFullscreenForFixed = (320 as number | undefined) === undefined
-    expect(fillFullscreenForUndefined).toBe(true)
-    expect(fillFullscreenForFixed).toBe(false)
+    const fillFullscreenForParent = true
+    const fillFullscreenForEmbedded = false
+    expect(fillFullscreenForParent).toBe(true)
+    expect(fillFullscreenForEmbedded).toBe(false)
   })
 
-  it('Scenario3DView toggles canvas height prop based on isFullscreen', () => {
+  it('Scenario3DView toggles fillParent based on isFullscreen while preserving height', () => {
     // Mirrors Scenario3DView.tsx:
-    //   height={isFullscreen ? undefined : props.height}
+    //   height={props.height}
+    //   fillParent={isFullscreen}
     const embeddedHeight = 280
-    const inFullscreen = (isFullscreen: boolean) =>
-      isFullscreen ? undefined : embeddedHeight
-    expect(inFullscreen(false)).toBe(280)
-    expect(inFullscreen(true)).toBeUndefined()
+    const forwarded = (isFullscreen: boolean) => ({
+      height: embeddedHeight,
+      fillParent: isFullscreen,
+    })
+    expect(forwarded(false)).toEqual({ height: 280, fillParent: false })
+    expect(forwarded(true)).toEqual({ height: 280, fillParent: true })
   })
 
   it('CSS fill rule covers both attribute and pseudo-class selectors', async () => {
