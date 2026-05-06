@@ -26,6 +26,7 @@ import * as THREE from 'three'
 import type { Scene3D, SceneMovement, ScenePlayer } from '@/lib/scenario3d/scene'
 import type { OverlayPrimitive } from '@/lib/scenario3d/schema'
 import { getStageInDelayMs } from '@/lib/scenario3d/overlayLevel'
+import { reorderForChoreography } from '@/lib/scenario3d/overlayChoreography'
 import type { MotionMode } from './imperativeScene'
 
 const PATH_Y = 0.18
@@ -356,8 +357,15 @@ export class TeachingOverlayController {
     postAnswer: readonly OverlayPrimitive[],
   ): void {
     this.disposeAuthored()
-    this.buildAndStageAuthoredPhase(preAnswer, this.preAnswerGroup, 'pre')
-    this.buildAndStageAuthoredPhase(postAnswer, this.postAnswerGroup, 'post')
+    // V2-D — reorder anchors → supports → auxiliaries before staging
+    // so the index-based stage-in delay table assigns the smallest
+    // delays to the headline read primitives. The reorder is stable
+    // and pure; the per-primitive payload is unchanged. The locked
+    // §9.7 stage-in timing (40 / 120 / 220 ms) stays intact.
+    const stagedPre = reorderForChoreography(preAnswer)
+    const stagedPost = reorderForChoreography(postAnswer)
+    this.buildAndStageAuthoredPhase(stagedPre, this.preAnswerGroup, 'pre')
+    this.buildAndStageAuthoredPhase(stagedPost, this.postAnswerGroup, 'post')
   }
 
   /** FR-5 §9.7 — builds each primitive in turn and patches every
