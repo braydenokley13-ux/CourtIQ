@@ -1285,7 +1285,7 @@ function TrainPageInner() {
             onClick={() => void next()}
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 font-display text-[15px] font-bold uppercase tracking-[1px] text-brand-ink shadow-brand"
           >
-            {idx === scenarios.length - 1 ? 'See your results' : 'Next rep'}
+            {idx === scenarios.length - 1 ? 'See how you did' : 'Next rep'}
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 12h14M13 5l7 7-7 7" />
             </svg>

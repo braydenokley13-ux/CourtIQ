@@ -351,7 +351,7 @@ function SummaryContent() {
               href={pathway ? buildPathwayDetailHref(pathway.slug) : '/academy'}
               className="ciq-press-soft block rounded-xl border border-hairline-2 bg-bg-1 py-3 text-center font-display text-[12px] font-semibold uppercase tracking-[1.5px] text-text-dim transition-colors hover:text-text"
             >
-              {pathway ? `Back to ${pathway.title}` : 'Back to lessons'}
+              {pathway ? 'See the chapters' : 'See the lessons'}
             </Link>
           </div>
         )}
@@ -512,7 +512,7 @@ function PathwayCtaBlock({
         href={buildPathwayDetailHref(pathway.slug)}
         className="block text-center text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim hover:text-text"
       >
-        Back to {pathway.title}
+        See {pathway.title}
       </Link>
     </div>
   )
@@ -659,7 +659,7 @@ function ChallengeActions({
         href={pathwayHref}
         className="block rounded-xl bg-bg-2 py-3 text-center font-display text-[12px] font-semibold uppercase tracking-[1.5px] text-text-dim"
       >
-        Back to Pathway
+        See the chapters
       </Link>
       {/* V1 Premiumization — direct deep-link into the per-pathway
           progress view from a challenge result so the player can see
