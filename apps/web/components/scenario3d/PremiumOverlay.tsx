@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CameraMode } from './imperativeScene'
 import type { ReplayMode } from './ScenarioReplayController'
+import {
+  pxToSafeAreaCss,
+  resolveFullscreenChromeInsets,
+} from '@/lib/scenario3d/fullscreenSafeArea'
 
 export interface PremiumOverlayProps {
   /** Scenario concept tag(s) — rendered in the top-left chip. */
@@ -98,13 +102,48 @@ export function PremiumOverlay({
   // pill's bottom inset stays at the standard fullscreen value while
   // the overlay sits ABOVE the pill. Both surfaces are
   // pointer-events-aware so they never trade hits with each other.
-  const inset = isFullscreen ? '24px' : '12px'
-  const bottomInset = isFullscreen ? '38px' : '12px'
-  // hasInteractionOverlay drives a small height-aware shimmy: nothing
-  // visible to the user, but it keeps prop-pass-through honest so a
-  // future tweak (e.g. lifting the pill above larger overlays) has a
-  // clear hook to land on without re-plumbing.
-  void hasInteractionOverlay
+  //
+  // V2-E — chrome insets are now resolved via the aspect-aware
+  // safe-area helper so portrait phones (notch / dynamic island) get
+  // a larger top inset than ultrawide desktops, and 21:9 monitors
+  // get larger side insets so chips never kiss the bezel. Falls
+  // back to the legacy compact insets in non-fullscreen mode so the
+  // embedded /train viewport keeps its current look.
+  const [viewport, setViewport] = useState({ width: 0, height: 0 })
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const update = () => {
+      setViewport({ width: window.innerWidth, height: window.innerHeight })
+    }
+    update()
+    window.addEventListener('resize', update)
+    document.addEventListener('fullscreenchange', update)
+    return () => {
+      window.removeEventListener('resize', update)
+      document.removeEventListener('fullscreenchange', update)
+    }
+  }, [])
+  const chromeInsets = resolveFullscreenChromeInsets({
+    isFullscreen,
+    widthPx: viewport.width,
+    heightPx: viewport.height,
+    hasInteractionOverlay,
+  })
+  const inset = isFullscreen
+    ? pxToSafeAreaCss(chromeInsets.cornerSideInsetPx, 'top')
+    : '12px'
+  const topInset = isFullscreen
+    ? pxToSafeAreaCss(chromeInsets.cornerTopInsetPx, 'top')
+    : '12px'
+  const sideInset = isFullscreen
+    ? `${chromeInsets.cornerSideInsetPx}px`
+    : '12px'
+  const bottomInset = isFullscreen
+    ? pxToSafeAreaCss(chromeInsets.transportBottomInsetPx, 'bottom')
+    : '12px'
+  // Suppress unused — `inset` is the legacy unified value still
+  // referenced by older non-fullscreen code paths inside this file.
+  void inset
 
   return (
     <div
@@ -150,7 +189,7 @@ export function PremiumOverlay({
       {concept ? (
         <div
           className="ciq-broadcast-chip pointer-events-none absolute flex max-w-[55%] items-center gap-2 rounded-full px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[1.6px] text-white/90 transition-opacity duration-200 [opacity:0.65] group-hover/overlay:[opacity:1] group-focus-within/overlay:[opacity:1] group-data-[attention=on]/overlay:[opacity:1]"
-          style={{ left: inset, top: inset }}
+          style={{ left: sideInset, top: topInset }}
         >
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#3BFF9D] shadow-[0_0_8px_#3BFF9D]" />
           <span className="truncate">{concept}</span>
@@ -165,7 +204,7 @@ export function PremiumOverlay({
           caption + transport. */}
       <div
         className="pointer-events-none absolute flex items-center gap-1.5 transition-opacity duration-200 [opacity:0.7] group-hover/overlay:[opacity:1] group-focus-within/overlay:[opacity:1] group-data-[attention=on]/overlay:[opacity:1]"
-        style={{ right: inset, top: inset }}
+        style={{ right: sideInset, top: topInset }}
       >
         {isReplay ? (
           <div
