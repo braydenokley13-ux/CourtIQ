@@ -12,6 +12,7 @@ import {
   clearIntroDismissal,
 } from '@/features/onboarding/IntroCards'
 import { INTRO_HOME_BANNER } from '@/lib/onboarding/introCopy'
+import { deriveReturnFocus, type ReturnFocus } from '@/lib/retention/todayFocus'
 
 const ease = [0.22, 1, 0.36, 1]
 
@@ -108,6 +109,86 @@ function StatCard({ label, value, sub, accent = '#3BE383', delay = 0 }: {
         {value}
       </p>
       {sub && <p className="text-[11px] text-[#4B5563]">{sub}</p>}
+    </motion.div>
+  )
+}
+
+/**
+ * V3 P6 — Return-loop chip.
+ *
+ * Single coaching line that names the player's current focus in
+ * basketball-IQ terms ("Close on Skip the Rotation. A few sharp reads
+ * from mastery."). Tap target falls through to the recommendedNext
+ * train if available, otherwise renders as static copy.
+ *
+ * The chip is visually small — it is NOT another CTA. The Pathway
+ * primary card below it owns the action. This chip exists to tell the
+ * returning player WHY they should tap that card.
+ */
+function ReturnFocusChip({ focus }: { focus: ReturnFocus | null }) {
+  if (!focus) return null
+
+  const accent =
+    focus.band === 'mastered'
+      ? '#3BE383'
+      : focus.band === 'close-to-mastery'
+        ? '#3BE383'
+        : focus.band === 'in-progress'
+          ? '#8B7CFF'
+          : '#5AC8FF'
+
+  const eyebrow =
+    focus.band === 'mastered'
+      ? 'Pathway mastered'
+      : focus.band === 'close-to-mastery'
+        ? "You're close"
+        : focus.band === 'in-progress'
+          ? "Today's focus"
+          : 'Pick up where you left off'
+
+  const Wrapper = focus.href
+    ? ({ children }: { children: React.ReactNode }) => (
+        <Link
+          href={focus.href!}
+          data-testid="home-return-focus"
+          className="ciq-lift block rounded-2xl border border-[#1F2937] bg-[#0E1B16] p-3 transition-colors hover:border-[#3BE383]/40"
+        >
+          {children}
+        </Link>
+      )
+    : ({ children }: { children: React.ReactNode }) => (
+        <div
+          data-testid="home-return-focus"
+          className="rounded-2xl border border-[#1F2937] bg-[#0E1B16] p-3"
+        >
+          {children}
+        </div>
+      )
+
+  return (
+    <motion.div
+      custom={1.5}
+      initial="hidden"
+      animate="show"
+      variants={fadeUp}
+      className="mb-4"
+    >
+      <Wrapper>
+        <p
+          className="text-[10px] font-bold uppercase tracking-[1.5px]"
+          style={{ color: accent }}
+        >
+          {eyebrow}
+        </p>
+        <p className="mt-0.5 font-display text-[14px] font-bold leading-snug text-[#F9FAFB]">
+          {focus.headline}
+        </p>
+        {focus.sub ? (
+          <p className="mt-0.5 text-[12px] leading-snug text-[#9CA3AF]">
+            {focus.sub}
+          </p>
+        ) : null}
+      </Wrapper>
     </motion.div>
   )
 }
@@ -411,6 +492,20 @@ export default function HomePage() {
             style={{ background: 'radial-gradient(circle, rgba(59,227,131,0.12) 0%, transparent 70%)' }}
           />
         </motion.div>
+
+        {/* V3 P6 — return-loop chip. ONE coaching line that names what
+            the player is becoming better at, derived from the data we
+            already fetch. Cold-start (no attempts) hides the chip; the
+            home Pathway CTA does the work for those users. */}
+        {!loading ? (
+          <ReturnFocusChip
+            focus={deriveReturnFocus({
+              attemptsCount: data?.attemptsCount ?? 0,
+              decoders: data?.decoders ?? [],
+              pathway,
+            })}
+          />
+        ) : null}
 
         {/* V3 P5 — stat grid hidden until the player has reps under
             their belt. Cold-start home stays focused on the one
