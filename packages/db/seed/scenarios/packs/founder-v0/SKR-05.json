@@ -125,7 +125,7 @@
       "answerDemo": [
         { "id": "user_stop_pivot", "playerId": "user", "kind": "jab", "to": { "x": 4, "z": 10 }, "delayMs": 0, "durationMs": 250 },
         { "id": "skip_past_x_out", "playerId": "ball", "kind": "skip_pass", "to": { "x": -17, "z": 9 }, "delayMs": 200, "durationMs": 700 },
-        { "id": "o3_catch_shoot", "playerId": "o3", "kind": "lift", "to": { "x": -17, "z": 9 }, "delayMs": 50, "durationMs": 300 }
+        { "id": "o3_catch_shoot", "playerId": "o3", "kind": "lift", "to": { "x": -17, "z": 9 }, "delayMs": 550, "durationMs": 350 }
       ],
       "wrongDemos": [
         {
