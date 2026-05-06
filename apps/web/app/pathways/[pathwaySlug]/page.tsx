@@ -254,24 +254,75 @@ function ActivePathwayView({
             </ProgressRing>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-1.5">
+          {/* V2-F P3 — chapter timeline strip. Each chapter is a
+              segment whose width represents authored rep count and
+              whose fill represents server progress. The recommended
+              chapter gets a brand outline + pulse so the eye lands
+              on it before scrolling the chapter map. */}
+          <div className="mt-4 grid auto-cols-fr grid-flow-col gap-1.5">
             {pathway.chapters.map((chapter, i) => {
               const chProgress = progress?.chapters[i]
               const tag = chapter.decoderTag
               const dotAccent = tag ? getAccentColor(getDecoderAccent(tag)) : accent
-              const filled =
-                chProgress?.state === 'mastered' ||
+              const isMastered = chProgress?.state === 'mastered'
+              const isInProgress =
+                chProgress?.state === 'in_progress' ||
                 chProgress?.state === 'completed' ||
-                chProgress?.state === 'in_progress'
+                chProgress?.state === 'unlocked'
+              const isRecommended = recommended?.chapterSlug === chapter.slug
+              const fillPct = chProgress
+                ? Math.max(
+                    isMastered ? 100 : 0,
+                    Math.round((chProgress.progress ?? 0) * 100),
+                  )
+                : 0
+              const isLocked = !chProgress || chProgress.state === 'locked'
               return (
-                <span
+                <div
                   key={chapter.slug}
-                  className="inline-flex h-2 w-6 rounded-full"
+                  className={`relative h-2.5 overflow-hidden rounded-full bg-white/[0.06] ${
+                    isRecommended ? 'ciq-pulse-attn' : ''
+                  }`}
                   style={{
-                    background: filled ? dotAccent : 'rgba(255,255,255,0.06)',
+                    boxShadow: isRecommended
+                      ? `inset 0 0 0 1px ${accent}88`
+                      : undefined,
                   }}
-                  aria-label={`Chapter ${chapter.order} ${chProgress?.state ?? 'locked'}`}
-                />
+                  aria-label={`Chapter ${chapter.order}${
+                    isLocked
+                      ? ' (locked)'
+                      : isMastered
+                        ? ' (mastered)'
+                        : isRecommended
+                          ? ' (recommended)'
+                          : isInProgress
+                            ? ' (in progress)'
+                            : ''
+                  }`}
+                  title={`${chapter.title}${
+                    isMastered ? ' — Mastered' : isRecommended ? ' — Up next' : ''
+                  }`}
+                >
+                  {!isLocked ? (
+                    <div
+                      className="absolute inset-y-0 left-0 transition-[width] duration-500"
+                      style={{
+                        width: `${fillPct}%`,
+                        background: dotAccent,
+                        opacity: isMastered ? 1 : 0.85,
+                      }}
+                    />
+                  ) : null}
+                  {isMastered ? (
+                    <span
+                      aria-hidden
+                      className="absolute right-1 top-1/2 -translate-y-1/2 text-[8px]"
+                      style={{ color: '#062118' }}
+                    >
+                      ✓
+                    </span>
+                  ) : null}
+                </div>
               )
             })}
           </div>
