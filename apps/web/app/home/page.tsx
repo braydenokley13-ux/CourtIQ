@@ -579,15 +579,22 @@ export default function HomePage() {
           </motion.div>
         ) : null}
 
-        {/* Decoder Mastery */}
+        {/* V3 P7 — "Your reads" — renamed from "Decoder Mastery" so the
+            section reads in the player's voice. The section still
+            mirrors per-decoder accuracy + mastery, but the title and
+            mastered tag are pure-text (no checkmark emoji) so the
+            block feels premium, not gamified. */}
         {!loading && (data?.decoders?.some((d) => d.attempts > 0) ?? false) && (
           <motion.div custom={5.5} initial="hidden" animate="show" variants={fadeUp} className="mb-5">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-[#6B7280]">
-                Decoder Mastery
+                Your reads
               </p>
-              <Link href="/academy" className="text-[11px] font-semibold text-[#3BE383]">
-                Academy →
+              <Link
+                href="/pathways/complete-iq-foundation/progress"
+                className="text-[11px] font-semibold text-[#3BE383]"
+              >
+                Progress →
               </Link>
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -607,7 +614,7 @@ export default function HomePage() {
                           className="text-[10px] font-bold uppercase tracking-wide"
                           style={{ color: mastered ? '#3BE383' : '#F59E0B' }}
                         >
-                          {mastered ? '✅ Mastered' : `${pct}%`}
+                          {mastered ? 'Mastered' : `${pct}%`}
                         </span>
                       </div>
                       <div className="h-1.5 overflow-hidden rounded-full bg-[#1F2937]">
@@ -681,37 +688,62 @@ export default function HomePage() {
           </div>
         </motion.div>
 
-        {/* Nav links */}
-        <motion.div custom={7} initial="hidden" animate="show" variants={fadeUp} className="mt-5 grid grid-cols-2 gap-3">
-          {[
-            { href: '/pathways', label: '🧭 Pathways' },
-            { href: '/academy', label: '🎓 IQ Academy' },
-            { href: '/profile', label: '📊 Profile & Stats' },
-            { href: '/leaderboard', label: '🏆 Leaderboard' },
-            { href: '/settings', label: '⚙️ Settings' },
-          ].map(({ href, label }) => (
+        {/* V3 P7 — slim nav. Two primary tiles (Pathways, Progress) are
+            the daily destinations; everything else collapses into a
+            single hairline footer strip so /home reads as a coaching
+            page, not a menu of pages. Replay walkthrough sits in the
+            footer too — discoverable, not loud. */}
+        <motion.div custom={7} initial="hidden" animate="show" variants={fadeUp} className="mt-5 space-y-2">
+          <div className="grid grid-cols-2 gap-3">
             <Link
-              key={href}
-              href={href}
-              className="flex items-center justify-center rounded-2xl border border-[#1F2937] bg-[#111827] px-4 py-3 text-[13px] font-semibold text-[#9CA3AF] transition-colors hover:border-[#374151] hover:text-[#F9FAFB]"
+              href="/pathways"
+              className="flex flex-col items-center justify-center gap-0.5 rounded-2xl border border-[#1F2937] bg-[#111827] px-4 py-3 transition-colors hover:border-[#374151]"
             >
-              {label}
+              <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#3BE383]">
+                Pathways
+              </span>
+              <span className="text-[12px] text-[#9CA3AF]">Your training route</span>
             </Link>
-          ))}
-          {/* V3 P2 — replay the walkthrough at any time. Lives in the
-              nav grid so it's always one tap away once dismissed. */}
-          <button
-            type="button"
-            onClick={() => {
-              clearIntroDismissal()
-              setIntroDismissed(false)
-              setIntroOpen(true)
-            }}
-            data-testid="home-intro-replay"
-            className="col-span-2 flex items-center justify-center rounded-2xl border border-[#1F2937] bg-[#111827] px-4 py-3 text-[12px] font-semibold uppercase tracking-[1.5px] text-[#9CA3AF] transition-colors hover:border-[#374151] hover:text-[#F9FAFB]"
-          >
-            ↺ Replay walkthrough
-          </button>
+            <Link
+              href="/pathways/complete-iq-foundation/progress"
+              className="flex flex-col items-center justify-center gap-0.5 rounded-2xl border border-[#1F2937] bg-[#111827] px-4 py-3 transition-colors hover:border-[#374151]"
+            >
+              <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#3BE383]">
+                Progress
+              </span>
+              <span className="text-[12px] text-[#9CA3AF]">Strengths & gaps</span>
+            </Link>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-2 text-[11px] font-semibold uppercase tracking-[1.5px] text-[#6B7280]">
+            <Link href="/academy" className="transition-colors hover:text-[#F9FAFB]">
+              Academy
+            </Link>
+            <span aria-hidden className="text-[#374151]">·</span>
+            <Link href="/profile" className="transition-colors hover:text-[#F9FAFB]">
+              Profile
+            </Link>
+            <span aria-hidden className="text-[#374151]">·</span>
+            <Link href="/leaderboard" className="transition-colors hover:text-[#F9FAFB]">
+              Leaderboard
+            </Link>
+            <span aria-hidden className="text-[#374151]">·</span>
+            <Link href="/settings" className="transition-colors hover:text-[#F9FAFB]">
+              Settings
+            </Link>
+            <span aria-hidden className="text-[#374151]">·</span>
+            <button
+              type="button"
+              onClick={() => {
+                clearIntroDismissal()
+                setIntroDismissed(false)
+                setIntroOpen(true)
+              }}
+              data-testid="home-intro-replay"
+              className="font-semibold uppercase tracking-[1.5px] text-[#6B7280] transition-colors hover:text-[#F9FAFB]"
+            >
+              Replay walkthrough
+            </button>
+          </div>
         </motion.div>
       </div>
     </div>

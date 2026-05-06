@@ -56,9 +56,8 @@ export default async function PathwaysHubPage() {
           </Link>
           <h1 className="font-display text-[28px] font-bold leading-tight">Pathways</h1>
           <p className="text-sm text-text-dim">
-            A Pathway is your training route. Each one teaches a small set of
-            reads — chapter by chapter — and ends with a Boss and a Final Mix
-            where you read the play without any hints on screen.
+            Your basketball IQ route. Chapter by chapter. Hints come off
+            in the Boss and the Final Mix — that&apos;s where the read shows up.
           </p>
         </header>
 
