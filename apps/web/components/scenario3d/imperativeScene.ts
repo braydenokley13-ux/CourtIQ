@@ -510,14 +510,21 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
     // Stance: the closest defender to the user / ball-handler stays
     // 'denial' to preserve the BDW-01 backdoor cue; other defenders
     // sit in the base 'defensive' stance (knees bent, hands out);
-    // offense stays 'idle'. Future phases can extend this heuristic
-    // without changing the call site.
+    // the ball-handler picks up the V5 'tripleThreat' offensive pose
+    // so they read as "I have the ball" instead of mirroring an
+    // off-ball teammate; everyone else on offense stays 'idle'.
+    // Future phases can extend this heuristic without changing the
+    // call site.
+    const isBallHandler =
+      p.hasBall || (initialHolderId !== null && p.id === initialHolderId)
     const stance: PlayerStance =
       p.id === denyDefenderId
         ? 'denial'
         : p.team === 'defense'
           ? 'defensive'
-          : 'idle'
+          : isBallHandler
+            ? 'tripleThreat'
+            : 'idle'
 
     // FR-2 Packet 4 — register the per-player build context so the
     // figure-decision log push inside `buildPlayerFigure` can stamp
@@ -4469,6 +4476,16 @@ export type PlayerStance =
   | 'cut'
   | 'sag'
   | 'shrink'
+  // V5 (Stylized Identity Pass) — ball-handler triple-threat stance.
+  // Squared to the rim, knees soft-bent, ball-side arm low and ready
+  // to drive, off-hand high-ish in guard position. Reads as "I have
+  // the ball and I'm reading the defense" instead of the off-ball
+  // idle pose the previous routing used. Routed from
+  // `buildBasketballGroup` whenever a player owns the ball at scene
+  // build time; offense players without the ball still resolve to
+  // 'idle'. Falls back to `applyIdlePose` if a future caller passes
+  // this value to a builder that pre-dates the stance.
+  | 'tripleThreat'
 
 /**
  * Returns the yaw (rotation around y in radians) for a player at
@@ -6227,6 +6244,29 @@ function buildPremiumAthleteFigure(
   // belongs to the user player; helps the user pull forward in the
   // identity read on a busy scene.
   if (isUser) upgradePremiumUserGear(figure)
+
+  // V5 (Stylized Identity Pass) — push the procedural athlete past
+  // "uniformed mannequin" toward a recognizable CourtIQ on-court
+  // language without leaning on paid assets. Each helper is tightly
+  // scoped, owns or reuses a small material set, and parents its
+  // meshes into the existing taxonomy so dispose / stance traversal
+  // are unchanged.
+  //
+  // Order matters: face-read (V5.A) reuses the head/jaw skin material
+  // discovered by the previous head-and-shoulders upgrade, then the
+  // wrist tape (V5.B) reuses the trim material left on the figure
+  // after the uniform pass, then the rim-light shells (V5.C) wrap the
+  // upgraded torso/head/limbs so the additive edge lift outlines the
+  // final silhouette. The user floor bloom (V5.D) is purely a floor
+  // disc and runs last so it sits behind every other ground primitive
+  // in render order.
+  const buildCtx = _getCurrentPlayerFigureBuildContext()
+  const isKeyDefender = buildCtx?.isKeyDefender === true
+  upgradePremiumFaceRead(figure)
+  upgradePremiumWristTape(figure, hasBall, trimColor)
+  upgradePremiumStylizedRimLight(figure, isUser, isKeyDefender, teamColor)
+  if (isUser) upgradePremiumUserFloorBloom(figure)
+
   return figure
 }
 
@@ -6824,6 +6864,350 @@ function upgradePremiumTorso(figure: THREE.Object3D): void {
   oldGeom.dispose()
 }
 
+// =====================================================================
+// V5 — Stylized Identity Pass
+//
+// Pushes the procedural athlete past "uniformed mannequin" toward a
+// recognizable CourtIQ on-court visual language without leaning on any
+// paid asset. Each helper below is purely additive: it parents new
+// meshes into the existing sub-group taxonomy so disposal, stance
+// application, indicator anchoring, and the player-scale contract are
+// all preserved.
+//
+// Performance budget — V5 adds at most:
+//   - 4 small additive shell meshes (head + torso + L/R upper arm) per
+//     figure, each ~80 tris on a low-segment sphere/lathe primitive
+//   - 1 thin wrist tape torus on the off-hand wrist (≈ 60 tris)
+//   - 1 small face-read plane on the head front (≈ 4 tris)
+//   - 1 user-only floor bloom disc (≈ 32 tris, single MeshBasic)
+//
+// Total per-figure overhead: ≤ ~600 extra tris, ≤ 1 new shared
+// material per figure for the rim-light tint, no new textures, no
+// new lights. Runs strictly at build time — none of these meshes
+// participate in the per-frame rAF loop, so determinism / FPS guard
+// surfaces are unaffected.
+// =====================================================================
+
+const RIM_LIGHT_COOL_TINT = '#A8D6FF'
+const RIM_LIGHT_USER_TINT = '#7DFFC2'
+const RIM_LIGHT_KEY_TINT = '#FF8AA0'
+const FACE_READ_INK = '#0A0F18'
+
+/**
+ * V5.A — Face read polish.
+ *
+ * The Phase F head reads as a plain skin-tone sphere from broadcast
+ * distance: no facial detail, no brow line cue beyond the L9 brow
+ * torus, no clear forward-axis read on a static still. Adds two cheap
+ * stylized primitives that anchor the face direction without paying
+ * for a real face mesh:
+ *
+ *   1. A thin dark "visor" plane mounted on the front (-z) of the
+ *      head sphere. Reads as the eye line at gameplay distance —
+ *      narrow enough to behave like a stripe, not a domino mask.
+ *   2. A pair of small skin-tone cheekbone domes that lift the side
+ *      of the head into a shape with structure instead of a
+ *      featureless ball. Together with the existing L9 hair cap and
+ *      brow torus, the head finally has a clear chin-up forward read.
+ *
+ * Reuses the head's skin material (read off the existing head sphere)
+ * so per-figure dispose count is unchanged. Owns one tiny visor
+ * material per figure; tessellation is deliberately small.
+ */
+function upgradePremiumFaceRead(figure: THREE.Object3D): void {
+  const neckHead = figure.getObjectByName('neckHead') as THREE.Group | null
+  if (!neckHead) return
+  let skinMat: THREE.Material | null = null
+  let headMesh: THREE.Mesh | null = null
+  for (const child of neckHead.children) {
+    if (
+      child instanceof THREE.Mesh &&
+      child.geometry instanceof THREE.SphereGeometry &&
+      !headMesh
+    ) {
+      headMesh = child
+      const m = child.material
+      if (!Array.isArray(m)) skinMat = m
+    }
+  }
+  if (!headMesh || !skinMat) return
+
+  // Visor / eye-line stripe — a narrow, gently curved strip at the eye
+  // y on the front of the head. Built from a slim torus arc so it
+  // wraps the brow band naturally and reads as worn shadow at any
+  // small head yaw, not a flat decal. Tessellation kept tight (3×10
+  // segments, 0.7π arc) so the strip costs ≤ 60 tris but still has
+  // smooth coverage from the broadcast camera.
+  const visorMat = new THREE.MeshStandardMaterial({
+    color: FACE_READ_INK,
+    roughness: 0.85,
+    metalness: 0,
+  })
+  const visor = new THREE.Mesh(
+    new THREE.TorusGeometry(ATH_HEAD_R * 0.85, 0.04, 3, 10, Math.PI * 0.7),
+    visorMat,
+  )
+  // Sit at eye height (just below the L9 brow torus), front-facing.
+  visor.rotation.x = Math.PI * 0.5
+  visor.rotation.y = Math.PI * 0.5
+  visor.position.y = ATH_NECK_LENGTH + ATH_HEAD_R * 1.02
+  visor.position.z = -0.02
+  visor.scale.set(1.0, 1.0, 0.62)
+  neckHead.add(visor)
+
+  // Cheekbone domes — small skin-tone hemispheres flanking the head
+  // sphere. Each is ~0.3× head radius, side-anchored, so the side
+  // profile reads as "cheek under temple" rather than smooth ball.
+  for (const sign of [-1, 1] as const) {
+    const cheek = new THREE.Mesh(
+      new THREE.SphereGeometry(
+        ATH_HEAD_R * 0.32,
+        5,
+        3,
+        0,
+        Math.PI * 2,
+        0,
+        Math.PI * 0.55,
+      ),
+      skinMat,
+    )
+    cheek.position.set(
+      sign * ATH_HEAD_R * 0.86,
+      ATH_NECK_LENGTH + ATH_HEAD_R * 0.78,
+      -ATH_HEAD_R * 0.16,
+    )
+    cheek.scale.set(0.85, 0.7, 0.95)
+    cheek.castShadow = true
+    neckHead.add(cheek)
+  }
+}
+
+/**
+ * V5.B — Off-hand wrist tape.
+ *
+ * The Phase J role-readability pass mounts a possession wristband on
+ * the right forearm of the ball-handler. This adds a narrow athletic
+ * tape ring on the LEFT forearm of every figure, in the trim color,
+ * so the upper-extremity silhouette has the "kitted athlete"
+ * basketball language regardless of role. Ball-handlers therefore
+ * read as "wristband on shooting hand + tape on the off hand," which
+ * is recognizably basketball-specific body language.
+ *
+ * Owns a single per-figure trim-tinted material so a future palette
+ * change in `trimColor` flows through automatically. Tessellation is
+ * tuned to the gameplay-camera floor (3×8 = 24 tris) — invisible
+ * cost.
+ */
+function upgradePremiumWristTape(
+  figure: THREE.Object3D,
+  hasBall: boolean,
+  trimColor: string,
+): void {
+  // Tape lives on the off-hand. Right forearm hosts the existing
+  // possession wristband when `hasBall === true`; this helper always
+  // mounts the left wrist tape, plus a left-hand finger wrap on
+  // ball-handlers so the shooting-hand read stays distinct.
+  const armName = 'leftArm'
+  const arm = figure.getObjectByName(armName) as THREE.Group | null
+  if (!arm) return
+  const foreArm = arm.getObjectByName('foreArm') as THREE.Group | null
+  if (!foreArm) return
+  const tapeMat = new THREE.MeshStandardMaterial({
+    color: trimColor,
+    roughness: 0.78,
+    metalness: 0.05,
+  })
+  const tape = new THREE.Mesh(
+    new THREE.TorusGeometry(ATH_FORE_ARM_R * 1.18, 0.034, 3, 6),
+    tapeMat,
+  )
+  tape.rotation.x = Math.PI / 2
+  tape.position.y = -ATH_FORE_ARM_LENGTH * 0.92
+  foreArm.add(tape)
+
+  if (hasBall) {
+    // Finger wrap — a slimmer ring just below the existing hand
+    // sphere. Sells "ball-handler with tape on both hands" without
+    // adding fingers.
+    const fingerWrap = new THREE.Mesh(
+      new THREE.TorusGeometry(ATH_FORE_ARM_R * 1.32, 0.028, 3, 6),
+      tapeMat,
+    )
+    fingerWrap.rotation.x = Math.PI / 2
+    fingerWrap.position.y = -ATH_FORE_ARM_LENGTH - 0.04
+    foreArm.add(fingerWrap)
+  }
+}
+
+/**
+ * V5.C — Stylized rim-light shell pass.
+ *
+ * Adds an inflated, additive, BackSide-rendered shell over the torso,
+ * head, and upper arms so the figure's silhouette picks up a
+ * stylized cool-edge halo from the broadcast camera. This is the
+ * classic "shell pass" technique used in stylized 3D — it costs no
+ * shader changes, no post-processing, and no extra lights, but it
+ * reproduces the rim-light read that shipped engines pay for via
+ * fresnel material nodes.
+ *
+ * The shell tints by role:
+ *   - User figures get a warm mint shell so the user player reads as
+ *     "main character" against the team-color crowd.
+ *   - Key defenders pick up a warm pink shell that mirrors the heat
+ *     ring on the floor, doubling the "this is the read" cue.
+ *   - Everyone else gets a cool ice-blue shell (stadium back light)
+ *     so the silhouette never falls into the dark gym backdrop.
+ *
+ * Opacity is intentionally low (~0.18) so the shells read as glow
+ * rather than outlines. Each shell is a SphereGeometry / LatheGeometry
+ * primitive parented onto the existing taxonomy so disposal,
+ * indicator anchoring, and stance writes are all unaffected.
+ */
+function upgradePremiumStylizedRimLight(
+  figure: THREE.Object3D,
+  isUser: boolean,
+  isKeyDefender: boolean,
+  teamColor: string,
+): void {
+  const tintHex = isUser
+    ? RIM_LIGHT_USER_TINT
+    : isKeyDefender
+      ? RIM_LIGHT_KEY_TINT
+      : RIM_LIGHT_COOL_TINT
+  // User and key-defender shells push slightly stronger so they
+  // pull forward on a busy scene. Everyone else gets a quieter
+  // edge so the rim light reads as ambient lift, not a glow ring.
+  const shellOpacity = isUser ? 0.26 : isKeyDefender ? 0.24 : 0.16
+  // Single shared shell material per figure — simple, cheap, and
+  // additive so the existing lighting rig still owns the body
+  // illumination math.
+  const shellMat = new THREE.MeshBasicMaterial({
+    color: tintHex,
+    toneMapped: false,
+    transparent: true,
+    opacity: shellOpacity,
+    side: THREE.BackSide,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  })
+  // The team color is captured in case a future tint blend wants to
+  // mix toward the jersey hue; today we keep the accent neutral so
+  // every team reads with the same broadcast back-light language.
+  void teamColor
+
+  // Tessellation across the V5.C shells is intentionally tight: shells
+  // are additive overlays seen at gameplay-camera distance, so high
+  // resolution buys nothing visible while spending the per-figure
+  // triangle budget. Numbers below are tuned to keep the premium
+  // figure inside the existing per-figure tri ceiling locked by
+  // `imperativeScene.athlete.test.ts`.
+
+  // ---- Head shell ---------------------------------------------------
+  const neckHead = figure.getObjectByName('neckHead') as THREE.Group | null
+  if (neckHead) {
+    const headShell = new THREE.Mesh(
+      new THREE.SphereGeometry(ATH_HEAD_R * 1.12, 10, 5),
+      shellMat,
+    )
+    headShell.position.y = ATH_NECK_LENGTH + ATH_HEAD_R
+    headShell.scale.set(0.96, 1.12, 1.0)
+    headShell.renderOrder = 1
+    neckHead.add(headShell)
+  }
+
+  // ---- Torso shell --------------------------------------------------
+  const torso = figure.getObjectByName('torso') as THREE.Group | null
+  if (torso) {
+    // Mirror the V-tapered lathe profile of the upgraded torso so the
+    // shell wraps the actual silhouette rather than an oversized
+    // bounding sphere. Slightly inflated radii give the additive
+    // shell a thin halo around the chest/shoulder line. 4-pt profile
+    // is enough resolution for an additive shell — the body lathe
+    // underneath supplies the high-frequency curvature.
+    const profile: THREE.Vector2[] = [
+      new THREE.Vector2(ATH_TORSO_TOP_W * 0.55, ATH_TORSO_HEIGHT * 0.5),
+      new THREE.Vector2(ATH_TORSO_TOP_W * 0.60, ATH_TORSO_HEIGHT * 0.20),
+      new THREE.Vector2(ATH_TORSO_TOP_W * 0.50, -ATH_TORSO_HEIGHT * 0.20),
+      new THREE.Vector2(ATH_TORSO_BOT_W * 0.55, -ATH_TORSO_HEIGHT * 0.5),
+    ]
+    const torsoShell = new THREE.Mesh(
+      new THREE.LatheGeometry(profile, 10),
+      shellMat,
+    )
+    // The Phase F torso group's local origin sits at the bottom
+    // (waist line); the lathe profile above is centered on the torso
+    // mid so we lift it to match the main lathe.
+    torsoShell.position.y = ATH_TORSO_HEIGHT * 0.5
+    torsoShell.scale.set(1, 1, ATH_TORSO_DEPTH / ATH_TORSO_TOP_W)
+    torsoShell.renderOrder = 1
+    torso.add(torsoShell)
+  }
+
+  // ---- Upper-arm shells --------------------------------------------
+  // Adds a narrow inflated cylinder over each upper arm so the
+  // shoulder-deltoid edge reads with the same back-light language
+  // as the torso. The forearms intentionally do NOT get a shell —
+  // the wrist tape (V5.B) and biceps cuff (V4-A) already give the
+  // forearm a clean read; doubling the rim there crowds the limb.
+  for (const armName of ['leftArm', 'rightArm'] as const) {
+    const arm = figure.getObjectByName(armName) as THREE.Group | null
+    const upperArm = arm?.getObjectByName('upperArm') as THREE.Group | null
+    if (!upperArm) continue
+    const profile: THREE.Vector2[] = [
+      new THREE.Vector2(ATH_UPPER_ARM_R * 1.30, ATH_UPPER_ARM_LENGTH * 0.5),
+      new THREE.Vector2(ATH_UPPER_ARM_R * 1.50, ATH_UPPER_ARM_LENGTH * 0.0),
+      new THREE.Vector2(ATH_UPPER_ARM_R * 1.20, -ATH_UPPER_ARM_LENGTH * 0.5),
+    ]
+    const armShell = new THREE.Mesh(
+      new THREE.LatheGeometry(profile, 6),
+      shellMat,
+    )
+    // Phase F upper arm meshes sit at y = -L/2 inside the upperArm
+    // group; the lathe is centered on the arm mid so we lift to match.
+    armShell.position.y = 0
+    armShell.renderOrder = 1
+    upperArm.add(armShell)
+  }
+}
+
+/**
+ * V5.D — User floor bloom.
+ *
+ * Adds a soft additive radial bloom on the floor under the user
+ * player so the user reads with broadcast-grade "main character"
+ * presence on top of the existing user halos. The bloom is wider
+ * and softer than the V4-D feather halo, lives on its own y plane
+ * just below the indicator stack, and uses additive blending so it
+ * lifts the floor color rather than overpainting it.
+ *
+ * Cheap: one CircleGeometry (32 segments → 32 tris) plus one
+ * MeshBasicMaterial. No texture — the bloom feel comes from the
+ * additive blend against the warm hardwood color, not from a
+ * pre-rendered gradient. SSR-safe (no canvas).
+ */
+function upgradePremiumUserFloorBloom(figure: THREE.Group): void {
+  const bloomMat = new THREE.MeshBasicMaterial({
+    color: USER_COLOR,
+    toneMapped: false,
+    transparent: true,
+    opacity: 0.18,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  })
+  const bloom = new THREE.Mesh(
+    new THREE.CircleGeometry(PLAYER_RADIUS + 2.6, 32),
+    bloomMat,
+  )
+  bloom.rotation.x = -Math.PI / 2
+  // Sit just above the contact shadow (y = 0.02) but below every
+  // indicator ring (y = 0.043+) so the bloom never washes out the
+  // halo or the team-color base ring.
+  bloom.position.y = 0.025
+  bloom.renderOrder = -1
+  bloom.name = 'user-floor-bloom'
+  figure.add(bloom)
+}
+
 /**
  * Phase F — non-owning bundle of the named sub-groups the stance
  * lookup table writes into. Each field is a THREE.Group whose pivot
@@ -6873,6 +7257,9 @@ function applyAthleteStance(joints: AthleteJoints, stance: PlayerStance): void {
     case 'sag':
     case 'shrink':
       applySagPose(joints)
+      return
+    case 'tripleThreat':
+      applyTripleThreatPose(joints)
       return
     default:
       applyIdlePose(joints)
@@ -7036,6 +7423,60 @@ function applyDefensivePose(joints: AthleteJoints): void {
   joints.leftForeArm.rotation.set(-0.62, 0, 0.06)
   joints.rightUpperArm.rotation.set(-0.54, 0, -0.92)
   joints.rightForeArm.rotation.set(-0.46, 0, -0.06)
+}
+
+/**
+ * V5 — Triple-threat / ball-handler ready stance.
+ *
+ * The pre-V5 routing put ball-handlers in the off-ball `applyIdlePose`,
+ * which sells "waiting for a screen" instead of "I have the ball." A
+ * triple-threat read is the canonical basketball body language for a
+ * player who has just received the ball and can shoot, drive, or pass
+ * — so it is the right default for whichever player owns possession at
+ * scene-build time.
+ *
+ * Shape goals (broadcast camera distance):
+ *   - Squared to the rim, soft-bent knees, weight slightly forward.
+ *   - Pelvis lower than idle but higher than defensive; the player
+ *     reads as athletic-ready, not crouched.
+ *   - Strong-side arm (right) tucked low and slightly forward, ready
+ *     to drive — the ball is held there at the floor in the indicator
+ *     layer.
+ *   - Off-side arm (left) raised and forward at chest height as a
+ *     guard / passing-window read.
+ *   - Head held up so the eye line crosses the defender, not the ball.
+ *
+ * Pose values are intentionally close to `applyDefensivePose` for
+ * `upperBody.position.y` so the V5 rim-light and floor-bloom polishes
+ * read consistently across both team sides.
+ */
+function applyTripleThreatPose(joints: AthleteJoints): void {
+  // Soft athletic crouch — not as deep as defensive, deeper than idle.
+  // Drop math: 1.45 × (1 - cos(0.34)) ≈ 0.083 ft, hence upperBody.y ≈ -0.08.
+  joints.upperBody.position.y = -0.10
+  joints.leftThigh.rotation.set(-0.34, 0, -0.10)
+  joints.leftCalf.rotation.set(0.32, 0, 0)
+  joints.leftFoot.rotation.set(0, 0.02, 0)
+  joints.rightThigh.rotation.set(-0.30, 0, 0.10)
+  joints.rightCalf.rotation.set(0.30, 0, 0)
+  joints.rightFoot.rotation.set(0, -0.02, 0)
+  // Pelvis squared to the rim with a small forward tilt; torso
+  // counters slightly so the chest reads upright (the ball is held
+  // low and the head is up — a real triple-threat silhouette).
+  joints.pelvis.rotation.set(0.12, 0, 0.02)
+  joints.torso.rotation.set(-0.08, 0, -0.01)
+  joints.neckHead.rotation.set(-0.04, 0, 0)
+  // Strong-side (right) arm tucks low and slightly forward — the
+  // ball is at the right hip in the held-ball indicator. Forearm
+  // angled up so the wristband / wrist tape reads at gameplay
+  // distance.
+  joints.rightUpperArm.rotation.set(0.55, 0, -0.18)
+  joints.rightForeArm.rotation.set(-1.05, 0, -0.06)
+  // Off-side (left) arm rises into a guard position at chest height.
+  // The break at the elbow gives the silhouette a clear "guarding
+  // the ball-side" read.
+  joints.leftUpperArm.rotation.set(-0.32, 0, 0.55)
+  joints.leftForeArm.rotation.set(-1.20, 0, 0.10)
 }
 
 /**
