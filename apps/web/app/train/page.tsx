@@ -25,6 +25,7 @@ import {
   type ChallengeMode,
 } from '@/lib/pathways/localChallengeProgress'
 import { getDecoderOneLiner } from '@/lib/decoders/explanations'
+import { getCoachNudge, shouldShowCoachNudge } from '@/lib/decoders/coachNudges'
 import { getFirstRepCues, isFirstRep } from '@/lib/onboarding/firstRep'
 
 type DecoderTag =
@@ -1113,6 +1114,36 @@ function TrainPageInner() {
             ) : null}
           </div>
         </div>
+
+        {/* V3 P10 P5 — coach attention nudge. ONE short cue surfaced
+            during the pre-freeze watch phase on the first rep of the
+            session (only). Points at WHERE TO LOOK, never the read.
+            Fades the moment the scene freezes so the read is the
+            player's. Hidden in cold-start and challenge modes. */}
+        <AnimatePresence>
+          {shouldShowCoachNudge({
+            decoderTag,
+            scenarioIndex: idx,
+            isFirstRep: firstRep,
+            isChallengeMode,
+            frozen,
+          }) ? (
+            <motion.p
+              key="coach-nudge"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -2 }}
+              transition={{ duration: 0.32, ease: [0.2, 0.8, 0.2, 1] }}
+              data-testid="train-coach-nudge"
+              className="text-center text-[12px] font-semibold leading-snug text-text-mute"
+            >
+              <span className="font-bold uppercase tracking-[1.4px] text-brand/70">
+                Coach ·
+              </span>{' '}
+              {decoderTag ? getCoachNudge(decoderTag) : null}
+            </motion.p>
+          ) : null}
+        </AnimatePresence>
 
         {/* Prompt — held back until the scene reaches its freeze marker
             for decoder scenarios so the user reads the play before
