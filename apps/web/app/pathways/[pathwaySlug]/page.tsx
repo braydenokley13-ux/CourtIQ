@@ -366,6 +366,40 @@ function ActivePathwayView({
           ) : null}
         </section>
 
+        {/* V3 P4 — "How chapters work" explainer panel. Three lines
+            that ground the player in the chapter / boss / final-mix
+            progression before they scroll through the map. Critical
+            for the cold-start case where "Boss Challenge" and "Final
+            Mix" otherwise read as ungrounded jargon. */}
+        <section className="ciq-stage-in rounded-2xl border border-hairline-2 bg-bg-1 p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">
+            How chapters work
+          </p>
+          <ul className="mt-2 space-y-1.5 text-[13px] leading-snug text-text">
+            <li className="flex items-start gap-2">
+              <span aria-hidden className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
+              <span>
+                <strong className="text-text">Each chapter teaches one decoder.</strong>{' '}
+                Watch the play, freeze, pick the read.
+              </span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span aria-hidden className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-heat" />
+              <span>
+                <strong className="text-text">Boss Challenge</strong> closes the chapter.
+                Hints reduced — you have to read the cue yourself.
+              </span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span aria-hidden className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-iq" />
+              <span>
+                <strong className="text-text">Final Mix</strong> is the capstone. Mixed
+                reads from every chapter, no decoder label on screen.
+              </span>
+            </li>
+          </ul>
+        </section>
+
         {/* Chapter map */}
         <section className="ciq-stage-in ciq-stage-in-4 space-y-3">
           <div className="flex items-center justify-between">

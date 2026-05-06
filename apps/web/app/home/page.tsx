@@ -112,6 +112,108 @@ function StatCard({ label, value, sub, accent = '#3BE383', delay = 0 }: {
   )
 }
 
+/**
+ * V3 P4 — Pathway-driven home primary CTA.
+ *
+ * Combines the Pathway hero card and the "Start Today's Session" CTA
+ * into a single action surface so the home page always has exactly
+ * one obvious next step:
+ *   - cold-start (0 attempts) → "Start Foundation" → drops into the
+ *     first recommended train.
+ *   - mid-pathway → "Continue: <chapter>" → drops into recommendedNext.
+ *   - mastered → "Run it back" → links to detail page.
+ *
+ * Falls back to a hero-detail link only while the pathway progress is
+ * still loading.
+ */
+function PathwayPrimaryCard({
+  pathway,
+  loading,
+  attempts,
+}: {
+  pathway: PathwayProgressLite | null
+  loading: boolean
+  attempts: number
+}) {
+  const progressPct = Math.round((pathway?.pathwayProgress ?? 0) * 100)
+  const mastered = pathway?.pathwayMastered === true
+  const hasRecommendation = !!pathway?.recommendedNext?.trainHref
+
+  let eyebrow: string
+  let primaryLabel: string
+  let primarySubline: string
+  let primaryHref: string
+
+  if (loading) {
+    eyebrow = 'Your Pathway'
+    primaryLabel = 'Loading…'
+    primarySubline = 'Pulling your next read.'
+    primaryHref = FOUNDATION_DETAIL_HREF
+  } else if (mastered) {
+    eyebrow = 'Pathway mastered'
+    primaryLabel = 'Run it back'
+    primarySubline = 'Re-run a chapter to keep the reads sharp.'
+    primaryHref = FOUNDATION_DETAIL_HREF
+  } else if (attempts === 0 || !hasRecommendation) {
+    eyebrow = 'Start here'
+    primaryLabel = 'Start Foundation'
+    primarySubline = 'Build your reads from the ground up. ~25 min total.'
+    primaryHref = pathway?.recommendedNext?.trainHref ?? FOUNDATION_DETAIL_HREF
+  } else {
+    eyebrow = 'Continue training'
+    primaryLabel = pathway!.recommendedNext!.label
+    primarySubline = `Pathway · Complete IQ Foundation · ${progressPct}%`
+    primaryHref = pathway!.recommendedNext!.trainHref
+  }
+
+  return (
+    <div
+      className="relative overflow-hidden rounded-2xl border-2 border-[#3BE383]/30 bg-gradient-to-br from-[#0F1F1A] to-[#091812] p-4"
+      style={{ boxShadow: '0 0 32px rgba(59,227,131,0.10), 0 1px 0 rgba(255,255,255,0.04) inset' }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#3BE383]">
+            {eyebrow}
+          </p>
+          <p className="mt-1 font-display text-[18px] font-black leading-tight text-[#F9FAFB]">
+            Complete IQ Foundation
+          </p>
+          <p className="mt-0.5 text-[12px] text-[#9CA3AF]">{primarySubline}</p>
+        </div>
+        <div className="flex shrink-0 flex-col items-end">
+          <p className="font-display text-[20px] font-black leading-none text-[#3BE383]">
+            {progressPct}%
+          </p>
+          <p className="text-[10px] uppercase tracking-[1.2px] text-[#4B5563]">progress</p>
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+        <Link
+          href={primaryHref}
+          className="ciq-press flex items-center justify-center gap-2 rounded-xl px-5 py-3 font-display text-[14px] font-black uppercase tracking-[0.5px]"
+          style={{
+            background: 'linear-gradient(135deg, #3BE383 0%, #22C55E 100%)',
+            color: '#09111E',
+            boxShadow: '0 0 24px rgba(59,227,131,0.35), 0 1px 0 rgba(255,255,255,0.18) inset',
+          }}
+          data-testid="home-pathway-primary"
+        >
+          {primaryLabel}
+          <span aria-hidden>→</span>
+        </Link>
+        <Link
+          href={FOUNDATION_DETAIL_HREF}
+          className="ciq-press-soft flex items-center justify-center rounded-xl border border-[#1F2937] bg-[#0E1B16] px-4 py-3 font-display text-[12px] font-semibold uppercase tracking-[1.5px] text-[#9CA3AF] transition-colors hover:text-[#F9FAFB]"
+        >
+          See chapters
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 function CourtLines() {
   return (
     <svg
@@ -335,65 +437,47 @@ export default function HomePage() {
           />
         </div>
 
-        {/* Pathway CTA — single lightweight card pointing to the
-            active Pathway. Falls back to "Start" copy when the user
-            has no progress yet so the card never reads as empty. */}
-        <motion.div custom={4.5} initial="hidden" animate="show" variants={fadeUp} className="mb-5">
-          <Link
-            href={FOUNDATION_DETAIL_HREF}
-            className="ciq-lift group flex items-center justify-between gap-3 rounded-2xl border-2 border-[#3BE383]/30 bg-[#0F1F1A] p-4 transition-colors hover:border-[#3BE383]/60"
-          >
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-[#3BE383]">
-                {pathway?.pathwayMastered ? 'Pathway mastered' : 'Continue your Pathway'}
-              </p>
-              <p className="mt-1 font-display text-[16px] font-bold leading-tight text-[#F9FAFB]">
-                Complete IQ Foundation
-              </p>
-              <p className="mt-1 text-[12px] text-[#9CA3AF]">
-                {pathway?.recommendedNext?.label ?? 'Build your basketball brain from the ground up.'}
-              </p>
-            </div>
-            <div className="flex flex-col items-end gap-1">
-              <p className="font-display text-[20px] font-black leading-none text-[#3BE383]">
-                {Math.round((pathway?.pathwayProgress ?? 0) * 100)}%
-              </p>
-              <p className="text-[10px] uppercase tracking-[1.2px] text-[#4B5563]">progress</p>
-            </div>
-          </Link>
+        {/* V3 P4 — single primary action, Pathway-driven.
+            The card combines the Pathway context (title, % progress)
+            with the actionable "what comes next" /train deep-link the
+            recommendedNext API already provides. New users see "Start
+            Foundation"; mid-pathway users see "Continue: [chapter]";
+            mastered users get a "Run it back" review affordance. The
+            small "see chapters" link gives a one-tap path to the map
+            for anyone who wants to browse before training. */}
+        <motion.div custom={4.5} initial="hidden" animate="show" variants={fadeUp} className="mb-3">
+          <PathwayPrimaryCard pathway={pathway} loading={loading} attempts={data?.attemptsCount ?? 0} />
         </motion.div>
 
-        {/* Train CTA */}
-        <motion.div custom={5} initial="hidden" animate="show" variants={fadeUp} className="mb-5">
-          <Link
-            href="/train"
-            className="ciq-press group flex items-center justify-between rounded-2xl p-5"
-            style={{
-              background: 'linear-gradient(135deg, #3BE383 0%, #22C55E 100%)',
-              boxShadow: '0 0 32px rgba(59,227,131,0.35), 0 1px 0 rgba(255,255,255,0.2) inset',
-            }}
+        {/* V3 P4 — Quick rep secondary action. Demoted from the green
+            slab so it no longer competes with the Pathway CTA, but
+            kept reachable for impatient players who want a random 5-
+            pack outside the Pathway flow. Empty-state hides it for
+            cold-start users so the page focuses on the one action. */}
+        {!loading && (data?.attemptsCount ?? 0) > 0 ? (
+          <motion.div
+            custom={5}
+            initial="hidden"
+            animate="show"
+            variants={fadeUp}
+            className="mb-5"
           >
-            <div>
-              <p className="font-display text-[18px] font-black tracking-tight text-[#09111E]">
-                🏀 Start Today&apos;s Session
-              </p>
-              <p className="mt-0.5 text-[13px] font-medium text-[#065F46]">5 scenarios · ~3 min</p>
-            </div>
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#09111E"
-              strokeWidth={2.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="shrink-0 transition-transform group-hover:translate-x-1"
+            <Link
+              href="/train"
+              className="ciq-press-soft flex items-center justify-between rounded-2xl border border-[#1F2937] bg-[#111827] px-4 py-3 transition-colors hover:border-[#374151]"
             >
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
-          </Link>
-        </motion.div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-[#9CA3AF]">
+                  Quick rep
+                </p>
+                <p className="mt-0.5 text-[13px] font-semibold text-[#F9FAFB]">
+                  Run 5 random plays · ~3 min
+                </p>
+              </div>
+              <span aria-hidden className="text-[18px] text-[#3BE383]">→</span>
+            </Link>
+          </motion.div>
+        ) : null}
 
         {/* Decoder Mastery */}
         {!loading && (data?.decoders?.some((d) => d.attempts > 0) ?? false) && (
