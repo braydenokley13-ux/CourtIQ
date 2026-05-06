@@ -28,6 +28,10 @@ import {
 } from '@/lib/pathways/helpers'
 import { BossChallengeRow, MixedReadsRow } from './BossMixedRows'
 import { getPathwayProgress } from '@/lib/pathways/progressService'
+import {
+  pickPathwayCta,
+  summarisePathwayProgress,
+} from '@/lib/pathways/pathwayCta'
 import type {
   PathwayChallengeAttemptSummary,
   PathwayChapterConfig,
@@ -184,6 +188,12 @@ function ActivePathwayView({
   const progressPct = Math.round((progress?.pathwayProgress ?? 0) * 100)
   const recommended = progress?.recommendedNext ?? null
   const weakest = progress?.weakestDecoder ?? null
+  // V1 Premiumization — central CTA + progress breakdown.
+  const cta = pickPathwayCta({ pathway, progress, recommended })
+  const breakdown = summarisePathwayProgress(pathway, progress, (tag) =>
+    tag ? getDecoderLabel(tag) : null,
+  )
+  const hasAnyProgress = progressPct > 0 || progress?.pathwayMastered === true
 
   return (
     <main className="min-h-dvh bg-bg-0 p-5 text-text">
@@ -258,57 +268,25 @@ function ActivePathwayView({
           </div>
         </header>
 
-        {/* PTH-6: deep-link into the player-facing progress view. Sits
-            above the Up Next CTA so a returning player has one tap to
-            see strengths/weaknesses + recent runs without scrolling
-            through the chapter map. */}
-        {progressPct > 0 || progress?.pathwayMastered ? (
-          <Link
-            href={`/pathways/${encodeURIComponent(pathway.slug)}/progress`}
-            className="flex items-center justify-between rounded-2xl border border-hairline-2 bg-bg-1 p-3 text-[12px] uppercase tracking-[1.5px] text-text-dim transition-colors hover:border-brand/40 hover:text-text"
-          >
-            <span className="font-bold">View your progress</span>
-            <span aria-hidden>→</span>
-          </Link>
-        ) : null}
+        {/* V1 Premiumization — primary CTA. Centralized via pickPathwayCta
+            so the player always sees the right next-action: cold-start
+            label for first-time users, "Continue training" for mid-
+            pathway, capstone framing for Final Mix unlocks, and a
+            review/browse path for mastered pathways. */}
+        <PathwayPrimaryCta cta={cta} pathway={pathway} />
 
-        {/* Recommended next */}
-        {recommended ? (
-          <section className="rounded-2xl border border-brand/30 bg-bg-1 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-brand">
-              Up next
-            </p>
-            <p className="mt-2 font-display text-[18px] font-bold leading-tight">
-              {recommended.label}
-            </p>
-            <Link
-              href={recommended.trainHref}
-              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3 font-display text-[14px] font-bold uppercase tracking-[0.5px] text-brand-ink"
-            >
-              {progressPct === 0 ? 'Start training' : 'Continue training'}
-              <span aria-hidden>→</span>
-            </Link>
-          </section>
-        ) : progress?.pathwayMastered ? (
-          <section className="rounded-2xl border border-brand/40 bg-bg-1 p-4 text-center">
-            <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-brand">
-              Pathway mastered
-            </p>
-            <p className="mt-2 font-display text-[18px] font-bold leading-tight">
-              You completed Complete IQ Foundation.
-            </p>
-            <p className="mt-2 text-[13px] text-text-dim">
-              Re-run a chapter to keep the reads sharp, or tap a coming-soon Pathway to vote up
-              what we ship next.
-            </p>
-            <Link
-              href="/pathways"
-              className="mt-3 inline-flex items-center justify-center gap-1 rounded-xl border border-hairline-2 bg-bg-2 px-4 py-2 font-display text-[13px] font-semibold text-text-dim"
-            >
-              Browse Pathways
-            </Link>
-          </section>
-        ) : null}
+        {/* V1 Premiumization — compact at-a-glance progress card. Always
+            mounted (cold-start shows zeros) so Pathways feels like a
+            home you return to, not a one-shot link. The "View your
+            progress" deep-link sits inside this surface so it is one
+            tap away for every player who has trained, regardless of
+            how far down the chapter map they have scrolled. */}
+        <PathwayProgressCard
+          pathway={pathway}
+          progressPct={progressPct}
+          breakdown={breakdown}
+          hasAnyProgress={hasAnyProgress}
+        />
 
         {/* Parent / coach summary */}
         <section className="rounded-2xl border border-hairline-2 bg-bg-1 p-4">
@@ -325,9 +303,14 @@ function ActivePathwayView({
 
         {/* Chapter map */}
         <section className="space-y-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">
-            Chapters
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">
+              Chapters
+            </p>
+            <p className="text-[10px] font-semibold uppercase tracking-[1.2px] text-text-mute tabular-nums">
+              {breakdown.chaptersMastered}/{breakdown.totalChapters} mastered
+            </p>
+          </div>
           {pathway.chapters.map((chapter, i) => (
             <ChapterRow
               key={chapter.slug}
@@ -357,6 +340,119 @@ function ActivePathwayView({
         </div>
       </div>
     </main>
+  )
+}
+
+/**
+ * V1 Premiumization — primary CTA card. Centralizes copy + accent
+ * across cold-start / continue / capstone / mastered / fallback so
+ * every priority gets the same surface treatment but with branch-
+ * appropriate framing. The CTA itself is sized as the page's most
+ * prominent action — full-width, brand fill, large tap target —
+ * because Pathways should feel like a home that always knows what
+ * the player should do next.
+ */
+function PathwayPrimaryCta({
+  cta,
+  pathway,
+}: {
+  cta: ReturnType<typeof pickPathwayCta>
+  pathway: PathwayConfig
+}) {
+  const isCelebratory = cta.priority === 'mastered' || cta.priority === 'capstone'
+  const accentClass =
+    cta.priority === 'mastered'
+      ? 'border-brand/45 bg-brand/5'
+      : cta.priority === 'capstone'
+        ? 'border-iq/40 bg-iq/5'
+        : 'border-brand/30 bg-bg-1'
+
+  return (
+    <section
+      className={`rounded-2xl border p-4 ${accentClass}`}
+      data-cta-priority={cta.priority}
+    >
+      <p
+        className={[
+          'text-[11px] font-semibold uppercase tracking-[1.5px]',
+          cta.priority === 'capstone' ? 'text-iq' : 'text-brand',
+        ].join(' ')}
+      >
+        {cta.eyebrow}
+      </p>
+      <p className="mt-2 font-display text-[18px] font-bold leading-tight">
+        {cta.subline ?? pathway.title}
+      </p>
+      <Link
+        href={cta.primaryHref}
+        className={[
+          'mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl py-3 font-display text-[14px] font-bold uppercase tracking-[0.5px]',
+          cta.priority === 'capstone'
+            ? 'bg-iq text-bg-0 shadow-[0_0_24px_-6px_rgba(139,124,255,0.55)]'
+            : 'bg-brand text-brand-ink shadow-brand-sm',
+        ].join(' ')}
+      >
+        {cta.primaryLabel}
+        <span aria-hidden>→</span>
+      </Link>
+      {isCelebratory ? (
+        <p className="mt-2 text-center text-[11px] uppercase tracking-[1.2px] text-text-mute">
+          {cta.priority === 'mastered'
+            ? 'Re-run a chapter to keep the reads sharp.'
+            : 'No decoder pill. Read the play.'}
+        </p>
+      ) : null}
+    </section>
+  )
+}
+
+/**
+ * V1 Premiumization — compact progress home-base card. Shows the
+ * pathway's progress at a glance + the deep-link into the per-
+ * pathway progress view. Always rendered so cold-start players see
+ * the same surface as returning players, just with zeros — the
+ * point is the page should *feel* like a home, not a one-shot CTA.
+ */
+function PathwayProgressCard({
+  pathway,
+  progressPct,
+  breakdown,
+  hasAnyProgress,
+}: {
+  pathway: PathwayConfig
+  progressPct: number
+  breakdown: ReturnType<typeof summarisePathwayProgress>
+  hasAnyProgress: boolean
+}) {
+  const repsCopy = breakdown.totalReps
+    ? `${breakdown.bestReps}/${breakdown.totalReps} best reps`
+    : 'No reps yet'
+  return (
+    <section className="rounded-2xl border border-hairline-2 bg-bg-1 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">
+            Your progress
+          </p>
+          <p className="mt-1 font-display text-[16px] font-bold leading-tight">
+            {progressPct}% pathway · {breakdown.chaptersMastered}/{breakdown.totalChapters} chapters mastered
+          </p>
+          <p className="mt-0.5 text-[12px] text-text-dim">{repsCopy}</p>
+        </div>
+        {breakdown.weakestDecoderLabel ? (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-heat/40 bg-heat/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[1px] text-heat">
+            Watch · {breakdown.weakestDecoderLabel}
+          </span>
+        ) : null}
+      </div>
+      <Link
+        href={`/pathways/${encodeURIComponent(pathway.slug)}/progress`}
+        className="mt-3 flex items-center justify-between rounded-xl border border-hairline bg-bg-2 px-3 py-2.5 text-[11px] font-bold uppercase tracking-[1.5px] text-text-dim transition-colors hover:border-brand/40 hover:text-text"
+      >
+        <span>{hasAnyProgress ? 'View detailed progress' : 'Open progress view'}</span>
+        <span aria-hidden>→</span>
+      </Link>
+    </section>
   )
 }
 
