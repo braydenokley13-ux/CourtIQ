@@ -26,6 +26,10 @@ import {
   type OverlayLevel,
 } from '@/lib/scenario3d/overlayLevel'
 import { getDecoderTeachingLabel } from '@/lib/scenario3d/replayTeachingTimeline'
+import {
+  FramePacingTracker,
+  type FramePacingSummary,
+} from '@/lib/scenario3d/framePacing'
 
 /**
  * FR-1 Packet 6 — film-room teaching-state debug badge.
@@ -151,6 +155,16 @@ export function FilmRoomDebugBadge({
     lastMissingClip: null,
   })
 
+  // V2-H — frame pacing summary, polled at the same 500ms cadence so
+  // QA can see p50 / p95 / max alongside the existing FR-1..FR-6
+  // metrics without spinning up a separate debug overlay. The
+  // tracker lives on `window.__COURTIQ_FRAME_PACING__` (Scenario3DCanvas
+  // attaches it inside its rAF effect); when the canvas isn't
+  // mounted we get null and render zeros, never NaN.
+  const [framePacing, setFramePacing] = useState<FramePacingSummary | null>(
+    null,
+  )
+
   // Poll the figure-decision log + gate booleans every 500 ms, matching
   // the GlbDebugBadge cadence. Cheap: we only mount under the flag.
   useEffect(() => {
@@ -164,6 +178,17 @@ export function FilmRoomDebugBadge({
         backCut: isImportedBackCutClipActive(),
       })
       setStaticPose({ ...getGlbStaticPoseFallbackStats() })
+      // V2-H — pull the latest pacing snapshot. Treat the global as
+      // possibly missing so a remounted canvas after a quality
+      // downgrade doesn't crash the badge.
+      const tracker = (window as unknown as {
+        __COURTIQ_FRAME_PACING__?: FramePacingTracker
+      }).__COURTIQ_FRAME_PACING__
+      if (tracker) {
+        setFramePacing(tracker.summary())
+      } else {
+        setFramePacing(null)
+      }
     }
     tick()
     const id = window.setInterval(tick, 500)
@@ -335,6 +360,32 @@ export function FilmRoomDebugBadge({
         <span style={{ color: '#9cf' }}>freeze</span>{' '}
         <span style={{ opacity: 0.85 }}>{freezeAt}</span>
       </div>
+      {framePacing && framePacing.count > 0 ? (
+        <div>
+          <span style={{ color: '#9cf' }}>fps</span>{' '}
+          <span
+            style={{
+              color: framePacing.avgFps >= 55 ? '#7fdca0' : framePacing.avgFps >= 35 ? '#FFB070' : '#FF4D6D',
+            }}
+          >
+            {framePacing.avgFps.toFixed(0)}
+          </span>
+          {' · '}
+          <span style={{ color: '#9cf' }}>p95</span>{' '}
+          <span style={{ opacity: 0.9 }}>{framePacing.p95Ms.toFixed(1)}ms</span>
+          {' · '}
+          <span style={{ color: '#9cf' }}>max</span>{' '}
+          <span style={{ opacity: 0.9 }}>{framePacing.maxMs.toFixed(1)}ms</span>
+          {framePacing.slowFrames > 0 ? (
+            <>
+              {' · '}
+              <span style={{ color: '#FFB070' }}>
+                {framePacing.slowFrames} slow
+              </span>
+            </>
+          ) : null}
+        </div>
+      ) : null}
       <div>
         <span style={{ color: '#9cf' }}>assist</span>{' '}
         <span style={{ color: '#fcd47a' }}>{cameraAssist ?? 'partial'}</span>
