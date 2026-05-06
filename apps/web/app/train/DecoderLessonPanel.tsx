@@ -52,7 +52,7 @@ export function DecoderLessonPanel({
         </div>
         <div className="min-w-0 flex-1 space-y-1">
           <p className="text-[10px] font-bold uppercase tracking-[1.5px] text-brand">
-            Decoder unlocked
+            You&apos;re seeing it
           </p>
           <p className="font-display text-[16px] font-bold leading-tight text-text">
             {decoderName}

@@ -136,7 +136,7 @@ type AttemptFeedback = {
 }
 
 const PRAISE = ['Good read.', 'Nice cut.', 'You got it.', 'You saw it.', 'Smart move.']
-const RECOVER = ['Almost.', 'So close.', 'Not yet.', 'Try again.', 'Reset.']
+const RECOVER = ['Almost.', 'So close.', 'Not yet.', 'Reset and watch.', 'Reset.']
 
 /** Per-decoder micro-praise — names the cue the kid noticed. */
 const WIN_MICRO_PRAISE: Record<DecoderTag, string> = {
@@ -233,13 +233,13 @@ type PathwayContext = {
 }
 
 const PATHWAY_ERROR_COPY: Record<NonNullable<PathwayContext['error']>, string> = {
-  'pathway-not-found': "We couldn't find that Pathway. Running standard training instead.",
-  'pathway-coming-soon': 'That Pathway is coming soon — running standard training instead.',
-  'chapter-not-found': "We couldn't find that chapter. Running standard training instead.",
-  'node-not-found': "We couldn't find that step. Running standard training instead.",
-  'no-trainable-scenarios': 'No reps available for that step yet. Running standard training instead.',
+  'pathway-not-found': "That Pathway isn't here yet — running a quick set instead.",
+  'pathway-coming-soon': 'That Pathway is on the way — running a quick set instead.',
+  'chapter-not-found': "Can't find that chapter — running a quick set instead.",
+  'node-not-found': "Can't find that step — running a quick set instead.",
+  'no-trainable-scenarios': 'No reps wired up there yet — running a quick set instead.',
   'boss-not-configured':
-    "Boss challenge isn't ready for that chapter yet. Running standard training instead.",
+    "The Boss isn't set for that chapter yet — running a quick set instead.",
 }
 
 function TrainPageInner() {
@@ -1239,7 +1239,7 @@ function TrainPageInner() {
               transition={{ delay: 0.15 }}
               className="rounded-xl border border-brand/40 bg-brand/5 p-3 text-center text-[13px] font-bold text-brand"
             >
-              New badge unlocked
+              Badge earned.
             </motion.div>
           ) : null}
         </AnimatePresence>
@@ -1306,7 +1306,7 @@ function TrainPageInner() {
             }
           >
             <div className="flex items-center gap-2 rounded-full border border-heat/40 bg-heat/10 px-4 py-2 font-display text-[13px] font-bold uppercase tracking-[1px] text-heat shadow-heat">
-              Keep going
+              Reset. Next rep.
             </div>
           </motion.div>
         ) : null}

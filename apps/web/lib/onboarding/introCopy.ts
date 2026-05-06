@@ -54,9 +54,9 @@ export const INTRO_CARDS: readonly IntroCard[] = [
   {
     id: 'decoders',
     eyebrow: 'The four reads',
-    title: 'Recognize the pattern. Win the play.',
+    title: 'See it. Pick it. Win the play.',
     body:
-      'CourtIQ starts with the four reads that show up every possession.',
+      'These four reads show up every possession. We start here.',
     bullets: [
       'Backdoor Window · cut behind the defender.',
       'Empty-Space Cut · fill the spot help just left.',
@@ -67,16 +67,16 @@ export const INTRO_CARDS: readonly IntroCard[] = [
   {
     id: 'pathways',
     eyebrow: 'Your route',
-    title: 'Pathway → Boss → Final Mix.',
+    title: 'Build the read, then test it.',
     body:
-      'A Pathway is a chapter map. Each chapter teaches one read, ends with a Boss, and stacks toward the Final Mix — where you read plays with no labels on screen.',
+      'You train one read at a time. The Boss tests you on it. The Final Mix takes the labels off and you have to call it yourself.',
   },
   {
     id: 'start',
     eyebrow: 'Ready',
     title: 'Run your first rep.',
     body:
-      'Foundation is your starting Pathway. About 25 minutes total. The first read is two taps away.',
+      'Foundation is where you start. About 25 minutes total. The first read is two taps away.',
     ctaLabel: 'Start Foundation',
   },
 ] as const

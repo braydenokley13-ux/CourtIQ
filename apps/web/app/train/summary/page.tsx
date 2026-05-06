@@ -303,7 +303,7 @@ function SummaryContent() {
             href={`/academy/${nextModule.slug}`}
             className="ciq-lift block rounded-2xl border border-hairline-2 bg-bg-1 p-4"
           >
-            <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-iq">Try next</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-iq">Next read</p>
             <p className="mt-1 font-display text-[16px] font-bold text-text">{nextModule.title}</p>
             <p className="mt-0.5 text-[13px] text-text-dim">
               {nextModule.scenario_count} {nextModule.scenario_count === 1 ? 'play' : 'plays'} ·{' '}
@@ -504,7 +504,7 @@ function PathwayCtaBlock({
         href={`/pathways/${encodeURIComponent(pathway.slug)}/progress`}
         className="flex items-center justify-between rounded-xl border border-hairline bg-bg-2 px-3 py-2 text-[11px] font-bold uppercase tracking-[1.5px] text-text-dim transition-colors hover:border-brand/40 hover:text-text"
       >
-        <span>View detailed progress</span>
+        <span>See your reads</span>
         <span aria-hidden>→</span>
       </Link>
 
@@ -576,7 +576,7 @@ function ChallengeHero({
           passed ? 'text-brand' : 'text-heat',
         ].join(' ')}
       >
-        {eyebrow} · {passed ? 'Passed' : 'Try again'}
+        {eyebrow} · {passed ? 'Cleared' : 'Not yet'}
       </p>
       <p className="mt-2 font-display text-[44px] font-black leading-none tracking-tight text-text">
         {correct}
@@ -669,7 +669,7 @@ function ChallengeActions({
         href={`/pathways/${encodeURIComponent(pathwaySlug)}/progress`}
         className="block text-center text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim hover:text-text"
       >
-        View detailed progress →
+        See your reads →
       </Link>
     </div>
   )
@@ -700,24 +700,24 @@ function SessionRecap({
   // Pick a single coaching headline based on the result band so the
   // first line never feels generic.
   const headline = (() => {
-    if (total === 0) return 'Reps logged.'
+    if (total === 0) return 'Reps in the bank.'
     if (accuracy >= 90) return 'You read it cleanly.'
     if (accuracy >= 70) return 'Sharp read on most of those.'
-    if (accuracy >= 50) return 'Mixed results — the read is forming.'
-    if (accuracy >= 30) return 'Tough one. The read takes reps.'
-    return "Let's run it back. The cue is the unlock."
+    if (accuracy >= 50) return 'The read is starting to show up.'
+    if (accuracy >= 30) return 'Tough set. The read takes reps.'
+    return "Reset and run it back. One rep at a time."
   })()
 
   const iqLine = (() => {
-    if (iq > 0) return `IQ +${iq}. Your reads are tightening.`
-    if (iq < 0) return `IQ ${iq}. Reset, watch the cue, run another.`
-    return `IQ steady. The next rep is where the gain shows up.`
+    if (iq > 0) return `IQ +${iq} — the read is getting faster.`
+    if (iq < 0) return `IQ ${iq}. Reset, watch the cue, go again.`
+    return `IQ steady. The next rep is where the jump shows.`
   })()
 
   const concept = chapterTitle && !isChallenge
-    ? `Mastery on ${chapterTitle} moved with this set.`
+    ? `${chapterTitle} got a little sharper.`
     : isChallenge
-      ? 'Hints-off reps build the real read.'
+      ? 'No labels. Just the play. That is the real read.'
       : null
 
   return (
