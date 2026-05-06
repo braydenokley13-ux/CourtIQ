@@ -358,7 +358,7 @@ function ActivePathwayView({
         />
 
         {/* Parent / coach summary */}
-        <section className="rounded-2xl border border-hairline-2 bg-bg-1 p-4">
+        <section className="ciq-stage-in ciq-stage-in-3 rounded-2xl border border-hairline-2 bg-bg-1 p-4">
           <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">
             What you build here
           </p>
@@ -371,7 +371,7 @@ function ActivePathwayView({
         </section>
 
         {/* Chapter map */}
-        <section className="space-y-3">
+        <section className="ciq-stage-in ciq-stage-in-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">
               Chapters

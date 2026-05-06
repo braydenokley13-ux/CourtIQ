@@ -62,7 +62,7 @@ export default async function PathwaysHubPage() {
         </header>
 
         {/* Active pathways */}
-        <section className="space-y-3">
+        <section className="ciq-stage-in ciq-stage-in-1 space-y-3">
           <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">
             Your Pathway
           </p>
@@ -87,7 +87,7 @@ export default async function PathwaysHubPage() {
         </section>
 
         {/* Coming-soon catalog */}
-        <section className="space-y-3">
+        <section className="ciq-stage-in ciq-stage-in-2 space-y-3">
           <div className="flex items-end justify-between">
             <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">
               Coming soon
