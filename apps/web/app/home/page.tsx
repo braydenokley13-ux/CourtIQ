@@ -412,30 +412,35 @@ export default function HomePage() {
           />
         </motion.div>
 
-        {/* Stat grid */}
-        <div className="mb-5 grid grid-cols-3 gap-3">
-          <StatCard
-            label="Streak"
-            value={streak > 0 ? `${streak} 🔥` : '0'}
-            sub={streak === 1 ? 'day' : 'days'}
-            accent="#F59E0B"
-            delay={2}
-          />
-          <StatCard
-            label="Accuracy"
-            value={`${accuracyPct}%`}
-            sub="all-time"
-            accent={accuracyPct >= 75 ? '#3BE383' : '#F59E0B'}
-            delay={3}
-          />
-          <StatCard
-            label="Sessions"
-            value={data?.attemptsCount ? Math.ceil(data.attemptsCount / 5) : 0}
-            sub="completed"
-            accent="#8B7CF8"
-            delay={4}
-          />
-        </div>
+        {/* V3 P5 — stat grid hidden until the player has reps under
+            their belt. Cold-start home stays focused on the one
+            action; the grid would only show zeros and add dashboard
+            noise that pulls away from the Pathway CTA. */}
+        {!loading && (data?.attemptsCount ?? 0) > 0 ? (
+          <div className="mb-5 grid grid-cols-3 gap-3">
+            <StatCard
+              label="Streak"
+              value={streak > 0 ? `${streak} 🔥` : '0'}
+              sub={streak === 1 ? 'day' : 'days'}
+              accent="#F59E0B"
+              delay={2}
+            />
+            <StatCard
+              label="Accuracy"
+              value={`${accuracyPct}%`}
+              sub="all-time"
+              accent={accuracyPct >= 75 ? '#3BE383' : '#F59E0B'}
+              delay={3}
+            />
+            <StatCard
+              label="Sessions"
+              value={data?.attemptsCount ? Math.ceil(data.attemptsCount / 5) : 0}
+              sub="completed"
+              accent="#8B7CF8"
+              delay={4}
+            />
+          </div>
+        ) : null}
 
         {/* V3 P4 — single primary action, Pathway-driven.
             The card combines the Pathway context (title, % progress)

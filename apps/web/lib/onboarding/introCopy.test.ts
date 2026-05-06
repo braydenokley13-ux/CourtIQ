@@ -19,10 +19,10 @@ import {
 } from './introCopy'
 
 describe('intro copy', () => {
-  it('exposes the five-card walkthrough in order', () => {
+  it('exposes the four-card walkthrough in order', () => {
     const ids: IntroCardId[] = INTRO_CARDS.map((c) => c.id)
-    expect(ids).toEqual(['welcome', 'decoders', 'pathways', 'film-room', 'start'])
-    expect(INTRO_CARD_COUNT).toBe(5)
+    expect(ids).toEqual(['welcome', 'decoders', 'pathways', 'start'])
+    expect(INTRO_CARD_COUNT).toBe(4)
   })
 
   it('every card has eyebrow / title / body and reads basketball-first', () => {
@@ -31,6 +31,13 @@ describe('intro copy', () => {
       expect(card.title.length).toBeGreaterThan(0)
       expect(card.body.length).toBeGreaterThan(20)
     }
+  })
+
+  it('welcome card lands the watch / pick / read big idea', () => {
+    const w = getIntroCard('welcome')
+    const bag = `${w.title} ${w.body} ${w.bullets?.join(' ') ?? ''}`.toLowerCase()
+    expect(bag).toContain('watch')
+    expect(bag).toMatch(/pick|read/)
   })
 
   it('decoders card names all four decoders so first-time users see them', () => {
@@ -42,22 +49,11 @@ describe('intro copy', () => {
     expect(joined).toContain('skip the rotation')
   })
 
-  it('pathways card mentions Foundation and the Final Mix capstone', () => {
+  it('pathways card mentions the Final Mix capstone', () => {
     const card = getIntroCard('pathways')
     const bag = `${card.body} ${card.bullets?.join(' ') ?? ''}`.toLowerCase()
-    expect(bag).toContain('foundation')
     expect(bag).toContain('final mix')
     expect(bag).toContain('boss')
-  })
-
-  it('film-room card explains the watch → freeze → pick beat', () => {
-    const card = getIntroCard('film-room')
-    const bag = `${card.body} ${card.bullets?.join(' ') ?? ''}`.toLowerCase()
-    expect(bag).toContain('watch')
-    expect(bag).toContain('freeze')
-    // "pick" or "decide" — the modal can swap the verb without
-    // breaking the contract.
-    expect(bag).toMatch(/pick|decide/)
   })
 
   it('only the final card carries a CTA so the walkthrough ends on action', () => {
@@ -70,8 +66,9 @@ describe('intro copy', () => {
     }
   })
 
-  it('home banner promises a 60-second walkthrough', () => {
-    expect(INTRO_HOME_BANNER.title.toLowerCase()).toContain('60 seconds')
+  it('home banner sells "see how" not "read about" — coaching voice', () => {
+    expect(INTRO_HOME_BANNER.title.length).toBeGreaterThan(0)
+    expect(INTRO_HOME_BANNER.title.toLowerCase()).not.toContain('learn')
     expect(INTRO_HOME_BANNER.ctaLabel.length).toBeGreaterThan(0)
     expect(INTRO_HOME_BANNER.skipLabel.length).toBeGreaterThan(0)
   })

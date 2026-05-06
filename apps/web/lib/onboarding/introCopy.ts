@@ -29,84 +29,65 @@ export interface IntroCard {
 }
 
 /**
- * The four-card explainer + a final "start" card. Each card answers a
- * single question a brand-new player might have:
- *   1. What is CourtIQ?
- *   2. What is a decoder?
- *   3. What is a Pathway?
- *   4. What is the Film Room (a rep)?
- *   5. Start your Pathway.
+ * Three short cards + a "start" card. Each card lands ONE idea so the
+ * walkthrough teaches by orientation, not by reading. The user can
+ * jump into a rep from card 1 — concepts get revealed in the rep
+ * itself, not pre-loaded as a tutorial.
  *
- * The `start` card carries the CTA so the surface always ends on an
- * action, not on more reading.
+ *   1. What CourtIQ is — watch, freeze, pick.
+ *   2. What you train — the four reads, named.
+ *   3. How you progress — Pathway → Boss → Final Mix.
+ *   4. Start.
  */
 export const INTRO_CARDS: readonly IntroCard[] = [
   {
     id: 'welcome',
-    eyebrow: 'Welcome to CourtIQ',
-    title: 'Train the reads, not just the reps.',
+    eyebrow: 'CourtIQ',
+    title: 'Watch the play. Pick the read.',
     body:
-      'Basketball IQ is the speed at which you read a play and pick the right next move. CourtIQ trains it the same way you train a jumper — one rep at a time.',
+      'Basketball IQ is how fast you see what should happen next. We train it the way you train a jumper — one rep at a time.',
     bullets: [
-      'Watch a real play freeze at the decision moment.',
-      'Pick the read. See what would have happened.',
-      'Your IQ score moves with every rep.',
+      'Real play freezes at the read.',
+      'You pick. You see what would have happened.',
     ],
   },
   {
     id: 'decoders',
-    eyebrow: 'Decoders',
-    title: 'Four reads. Recognize the pattern, win the play.',
+    eyebrow: 'The four reads',
+    title: 'Recognize the pattern. Win the play.',
     body:
-      'A decoder is a pattern you learn to recognize. CourtIQ starts with four — the reads that show up on every possession.',
+      'CourtIQ starts with the four reads that show up every possession.',
     bullets: [
-      'Backdoor Window — cut behind a defender who blocks the pass.',
-      'Empty-Space Cut — fill the spot a helper just left.',
-      'Advantage or Reset — attack the closeout or move the ball.',
-      'Skip the Rotation — beat the help with the cross-court pass.',
+      'Backdoor Window · cut behind the defender.',
+      'Empty-Space Cut · fill the spot help just left.',
+      'Advantage or Reset · attack the closeout or move it.',
+      'Skip the Rotation · cross-court past the help.',
     ],
   },
   {
     id: 'pathways',
-    eyebrow: 'Pathways',
-    title: 'Your training route.',
+    eyebrow: 'Your route',
+    title: 'Pathway → Boss → Final Mix.',
     body:
-      'A Pathway is a chapter-by-chapter map. Each chapter teaches one decoder, ends with a Boss Challenge, and stacks toward the Final Mix — where you read plays without the decoder label on screen.',
-    bullets: [
-      'Start with Complete IQ Foundation.',
-      'Each chapter = one decoder, mastered.',
-      'Boss & Final Mix = no hints, just reads.',
-    ],
-  },
-  {
-    id: 'film-room',
-    eyebrow: 'Film Room',
-    title: 'One rep. One read. Real basketball.',
-    body:
-      'Every rep plays out on a 3D court. The clip freezes at the read. You pick. The play resolves the way it would in a real game.',
-    bullets: [
-      'Watch the play, freeze, decide.',
-      'Right read = mastery moves up.',
-      'Wrong read = see the consequence, run it back.',
-    ],
+      'A Pathway is a chapter map. Each chapter teaches one read, ends with a Boss, and stacks toward the Final Mix — where you read plays with no labels on screen.',
   },
   {
     id: 'start',
     eyebrow: 'Ready',
-    title: 'Start with Foundation.',
+    title: 'Run your first rep.',
     body:
-      'Foundation builds your reads from the ground up — about 25 minutes of training spread across four chapters and a Final Mix capstone.',
+      'Foundation is your starting Pathway. About 25 minutes total. The first read is two taps away.',
     ctaLabel: 'Start Foundation',
   },
 ] as const
 
 /** Player-voice headline shown on the home page when the intro hasn't
- *  been seen yet. Kept short — the cards do the heavy lifting. */
+ *  been seen yet. Coaching-voice; not a "tutorial" pitch. */
 export const INTRO_HOME_BANNER = {
   eyebrow: 'New here',
-  title: '60 seconds to learn how CourtIQ works.',
-  body: 'Quick walkthrough — what it is, what you train, what to do first.',
-  ctaLabel: 'Show me',
+  title: 'See how CourtIQ trains your reads.',
+  body: '30 seconds. Then your first rep.',
+  ctaLabel: 'Watch',
   skipLabel: 'Skip',
 } as const
 

@@ -182,6 +182,20 @@ export function IntroCardsModal({
                   ))}
                 </ul>
               ) : null}
+              {/* V3 P5/P7 — "skip into a rep" path on the first card.
+                  Lets a player who already gets it bail out of reading
+                  and feel the product immediately, which is the whole
+                  point of the walkthrough. */}
+              {card.id === 'welcome' ? (
+                <Link
+                  href={startHref}
+                  onClick={handleFinish}
+                  data-testid="intro-cards-jump-in"
+                  className="mt-2 inline-flex items-center gap-1 self-start rounded-full border border-hairline-2 bg-bg-2 px-3 py-1 text-[11px] font-bold uppercase tracking-[1.2px] text-text-dim transition-colors hover:text-text"
+                >
+                  Or jump straight to a rep →
+                </Link>
+              ) : null}
             </motion.div>
           </AnimatePresence>
         </div>

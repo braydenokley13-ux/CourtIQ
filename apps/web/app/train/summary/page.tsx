@@ -282,41 +282,19 @@ function SummaryContent() {
           />
         ) : null}
 
-        {/* What improved */}
-        <div className="rounded-2xl border border-hairline-2 bg-bg-1 p-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">
-            What just happened
-          </p>
-          <ul className="mt-2 space-y-1.5 text-sm text-text">
-            <li className="flex items-start gap-2">
-              <span aria-hidden className="mt-0.5 text-brand">▶</span>
-              <span>You finished {total} {total === 1 ? 'play' : 'plays'} in {seconds} seconds.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span aria-hidden className="mt-0.5 text-brand">▶</span>
-              <span>You earned <strong className="text-xp">+{xp} XP</strong> toward your next level.</span>
-            </li>
-            {iq !== 0 && (
-              <li className="flex items-start gap-2">
-                <span aria-hidden className="mt-0.5 text-brand">▶</span>
-                <span>
-                  Your IQ {iq > 0 ? 'went up' : 'dipped'} by{' '}
-                  <strong className={iq > 0 ? 'text-brand' : 'text-heat'}>
-                    {iq > 0 ? '+' : ''}
-                    {iq}
-                  </strong>
-                  .
-                </span>
-              </li>
-            )}
-            {accuracy >= 80 && (
-              <li className="flex items-start gap-2">
-                <span aria-hidden className="mt-0.5 text-brand">▶</span>
-                <span>Mastery on this concept moved up. Nice reads.</span>
-              </li>
-            )}
-          </ul>
-        </div>
+        {/* V3 P5 — leaner "What changed" recap. IQ-first, single line
+            of momentum framing per item; XP is folded into the reward
+            grid above so it doesn't get a second mention. The point is
+            to send the player back into another rep with a "I see why
+            that worked" feeling, not a stat reading. */}
+        <SessionRecap
+          correct={correct}
+          total={total}
+          accuracy={accuracy}
+          iq={iq}
+          chapterTitle={chapter?.title ?? null}
+          isChallenge={!!challengeMode}
+        />
 
         {/* Suggested next — only for non-Pathway sessions; Pathway
             sessions already get a dedicated Up Next via PathwayCtaBlock. */}
@@ -346,7 +324,11 @@ function SummaryContent() {
             pathwaySlug={pathway.slug}
           />
         ) : (
-          <div className="grid grid-cols-2 gap-3 pt-2">
+          // V3 P5 — "Run it back" leads. The replay is where the
+          // learning sticks; the secondary "Back to..." link is
+          // visually demoted so the next-rep moment is the obvious
+          // gravitational pull on this screen.
+          <div className="space-y-2 pt-2">
             <Link
               href={
                 pathway
@@ -359,15 +341,17 @@ function SummaryContent() {
                     ? `/train?concept=${encodeURIComponent(concept)}`
                     : '/train'
               }
-              className="ciq-press rounded-xl bg-brand py-3.5 text-center font-display text-[14px] font-bold uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm"
+              className="ciq-press flex items-center justify-center gap-2 rounded-xl bg-brand py-4 text-center font-display text-[14px] font-black uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm"
+              data-testid="summary-run-it-back"
             >
-              Play again
+              Run it back
+              <span aria-hidden>→</span>
             </Link>
             <Link
               href={pathway ? buildPathwayDetailHref(pathway.slug) : '/academy'}
-              className="ciq-press-soft rounded-xl border border-hairline-2 bg-bg-1 py-3.5 text-center font-display text-[14px] font-semibold text-text"
+              className="ciq-press-soft block rounded-xl border border-hairline-2 bg-bg-1 py-3 text-center font-display text-[12px] font-semibold uppercase tracking-[1.5px] text-text-dim transition-colors hover:text-text"
             >
-              {pathway ? 'Back to Pathway' : 'Back to lessons'}
+              {pathway ? `Back to ${pathway.title}` : 'Back to lessons'}
             </Link>
           </div>
         )}
@@ -687,6 +671,69 @@ function ChallengeActions({
       >
         View detailed progress →
       </Link>
+    </div>
+  )
+}
+
+/**
+ * V3 P5 — coaching-voice recap. Replaces the "you finished N plays /
+ * earned X XP / IQ went up by Y" stat reading with two short lines
+ * that name what the player just got better at, in basketball-IQ
+ * terms. The goal is to land a "I see why that worked" feeling, not
+ * a grind-tracker.
+ */
+function SessionRecap({
+  correct,
+  total,
+  accuracy,
+  iq,
+  chapterTitle,
+  isChallenge,
+}: {
+  correct: number
+  total: number
+  accuracy: number
+  iq: number
+  chapterTitle: string | null
+  isChallenge: boolean
+}) {
+  // Pick a single coaching headline based on the result band so the
+  // first line never feels generic.
+  const headline = (() => {
+    if (total === 0) return 'Reps logged.'
+    if (accuracy >= 90) return 'You read it cleanly.'
+    if (accuracy >= 70) return 'Sharp read on most of those.'
+    if (accuracy >= 50) return 'Mixed results — the read is forming.'
+    if (accuracy >= 30) return 'Tough one. The read takes reps.'
+    return "Let's run it back. The cue is the unlock."
+  })()
+
+  const iqLine = (() => {
+    if (iq > 0) return `IQ +${iq}. Your reads are tightening.`
+    if (iq < 0) return `IQ ${iq}. Reset, watch the cue, run another.`
+    return `IQ steady. The next rep is where the gain shows up.`
+  })()
+
+  const concept = chapterTitle && !isChallenge
+    ? `Mastery on ${chapterTitle} moved with this set.`
+    : isChallenge
+      ? 'Hints-off reps build the real read.'
+      : null
+
+  return (
+    <div className="rounded-2xl border border-hairline-2 bg-bg-1 p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">
+        What changed
+      </p>
+      <p className="mt-2 font-display text-[16px] font-bold leading-snug text-text">
+        {headline}
+      </p>
+      <p className="mt-1 text-[13px] leading-snug text-text-dim">
+        {correct}/{total} read · {iqLine}
+      </p>
+      {concept ? (
+        <p className="mt-1 text-[12px] leading-snug text-text-mute">{concept}</p>
+      ) : null}
     </div>
   )
 }

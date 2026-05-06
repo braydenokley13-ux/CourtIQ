@@ -24,6 +24,7 @@ import {
   recordChallengeAttempt,
   type ChallengeMode,
 } from '@/lib/pathways/localChallengeProgress'
+import { getDecoderOneLiner } from '@/lib/decoders/explanations'
 
 type DecoderTag =
   | 'BACKDOOR_WINDOW'
@@ -777,6 +778,13 @@ function TrainPageInner() {
                     </>
                   ) : null}
                 </p>
+                {/* V3 P5 — explicit "hints off" subline. Otherwise the
+                    missing decoder pill on a Boss / Final Mix run reads
+                    as broken rather than intentional. Player learns
+                    they're being asked to identify the cue themselves. */}
+                <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[1.2px] text-text-mute">
+                  Hints off — read the cue yourself.
+                </p>
               </div>
               <Link
                 href={pathwayContext.returnHref}
@@ -932,6 +940,20 @@ function TrainPageInner() {
                   </span>
                 </span>
               </div>
+              {/* V3 P5 — read-it-in-five-words coach line. Anchors the
+                  decoder pill to a plain-language cue so the player
+                  knows what they're training before the freeze fires. */}
+              {decoderTag ? (
+                <p
+                  data-testid="train-decoder-oneliner"
+                  className="text-[12px] leading-snug text-text-dim"
+                >
+                  <span className="font-bold uppercase tracking-[1.4px] text-text-mute">
+                    Read ·
+                  </span>{' '}
+                  {getDecoderOneLiner(decoderTag)}
+                </p>
+              ) : null}
               {isDecoder ? <PhaseTracker phase={learnPhase} /> : null}
             </div>
           ) : null}
