@@ -25,7 +25,7 @@ function buildSceneWithSingleMovement(kind: SceneMovementKind): Scene3D {
   return {
     id: `lean_test_${kind}`,
     court: 'half',
-    camera: 'broadcast',
+    camera: 'teaching_angle',
     players: [
       { id: 'user', team: 'offense', role: 'wing', start: { x: 0, z: 10 }, isUser: true },
     ],
