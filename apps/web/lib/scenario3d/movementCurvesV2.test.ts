@@ -43,7 +43,8 @@ describe('easeAthleticCutV2', () => {
   })
 
   it('is more front-loaded than ease-in-out cubic at u=0.3', () => {
-    const symmetric = 0.3 < 0.5 ? 4 * 0.3 * 0.3 * 0.3 : 1 - Math.pow(-2 * 0.3 + 2, 3) / 2
+    // ease-in-out cubic at u=0.3 (first half formula).
+    const symmetric = 4 * 0.3 * 0.3 * 0.3
     expect(easeAthleticCutV2(0.3)).toBeGreaterThan(symmetric)
   })
 
