@@ -290,6 +290,44 @@ describe('V2 readiness — pathwayMilestones sweep', () => {
   })
 })
 
+describe('V2 readiness — wired contracts', () => {
+  it('reorderForChoreography preserves length and content (no primitives lost)', async () => {
+    const { reorderForChoreography } = await import('./overlayChoreography')
+    const inputs: OverlayPrimitive[] = [
+      { kind: 'label', anchor: { x: 0, z: 0 }, text: 'a' },
+      { kind: 'defender_vision_cone', playerId: 'd1' },
+      { kind: 'open_space_region', anchor: { x: 0, z: 0 }, radiusFt: 4 },
+    ]
+    const out = reorderForChoreography(inputs)
+    expect(out).toHaveLength(inputs.length)
+    // Every input must appear in the output exactly once.
+    for (const p of inputs) {
+      expect(out.filter((q) => q === p)).toHaveLength(1)
+    }
+  })
+
+  it('camera transition policy: every teach-in is slower than every base-to-base', async () => {
+    const teachInPairs: Array<[CameraMode, CameraMode]> = [
+      ['broadcast', 'teaching-angle'],
+      ['auto', 'teaching-angle'],
+      ['broadcast', 'help-defense-angle'],
+      ['follow', 'player-read-angle'],
+    ]
+    const basePairs: Array<[CameraMode, CameraMode]> = [
+      ['broadcast', 'auto'],
+      ['auto', 'follow'],
+      ['follow', 'broadcast'],
+    ]
+    for (const [a, b] of teachInPairs) {
+      for (const [c, d] of basePairs) {
+        expect(getCameraTransitionEaseS(a, b)).toBeGreaterThan(
+          getCameraTransitionEaseS(c, d),
+        )
+      }
+    }
+  })
+})
+
 describe('V2 readiness — playerPresence + framePacing smoke', () => {
   it('player shadow + sheen helpers do not throw with default options', () => {
     expect(() => buildPlayerShadowTexture()).not.toThrow()
