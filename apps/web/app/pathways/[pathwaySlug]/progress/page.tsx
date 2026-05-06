@@ -33,6 +33,10 @@ import {
 } from '@/lib/pathways/playerProgressInsights'
 import { getPathwayProgress } from '@/lib/pathways/progressService'
 import type { PathwayConfig } from '@/lib/pathways/types'
+import {
+  getDecoderExplanation,
+  getDecoderOneLiner,
+} from '@/lib/decoders/explanations'
 
 export const dynamic = 'force-dynamic'
 
@@ -264,6 +268,17 @@ function WeaknessCallout({ weakness }: { weakness: WeaknessInsight | null }) {
   if (!weakness) return null
   const tagAccent = getAccentColor(getDecoderAccent(weakness.tag))
   const accuracyPct = Math.round(weakness.accuracy * 100)
+  // V3 P3 — pull the canonical "what to watch" coaching line so the
+  // weakness callout actually tells the player what to look for next
+  // rep, not just that they're behind. If the tag isn't covered (e.g.
+  // a future decoder), fall back to the generated message alone.
+  const explanation = (() => {
+    try {
+      return getDecoderExplanation(weakness.tag)
+    } catch {
+      return null
+    }
+  })()
   return (
     <section className="rounded-2xl border border-heat/40 bg-heat/[0.06] p-4">
       <div className="flex items-center justify-between gap-2">
@@ -278,6 +293,14 @@ function WeaknessCallout({ weakness }: { weakness: WeaknessInsight | null }) {
         </span>
       </div>
       <p className="mt-2 text-[13px] leading-snug text-text">{weakness.message}</p>
+      {explanation ? (
+        <p className="mt-2 text-[12px] italic leading-snug text-text-dim">
+          <span className="font-bold not-italic uppercase tracking-[1.4px] text-text-mute">
+            Watch ·
+          </span>{' '}
+          {explanation.watch}
+        </p>
+      ) : null}
       <p className="mt-2 text-[10px] uppercase tracking-[1.5px] text-text-mute">
         {accuracyPct}% accuracy · {weakness.attempts} reps
       </p>
@@ -317,14 +340,31 @@ function DecoderRow({ insight }: { insight: DecoderInsight }) {
   // When no reps yet, render a faint hairline track instead of a fill —
   // keeps the row visually consistent without overstating effort.
   const fillColor = insight.group === 'untested' ? 'rgba(255,255,255,0.08)' : tagAccent
+  // V3 P3 — surface the canonical one-liner under the label so the
+  // player can ground the bar in plain language without leaving the
+  // page. Falls back gracefully if the tag isn't covered yet (it
+  // always is in v1; the runtime guard keeps the page resilient if
+  // a future decoder ships with progress before its copy lands).
+  const oneLiner = (() => {
+    try {
+      return getDecoderOneLiner(insight.tag)
+    } catch {
+      return null
+    }
+  })()
 
   return (
     <li className="rounded-2xl border border-hairline-2 bg-bg-1 p-3">
-      <div className="flex items-center justify-between gap-2">
-        <p className="font-display text-[14px] font-semibold leading-tight text-text">
-          {insight.label}
-        </p>
-        <span className={`text-[10px] font-bold uppercase tracking-[1px] ${groupCopy.tone}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="font-display text-[14px] font-semibold leading-tight text-text">
+            {insight.label}
+          </p>
+          {oneLiner ? (
+            <p className="mt-0.5 text-[11px] leading-snug text-text-dim">{oneLiner}</p>
+          ) : null}
+        </div>
+        <span className={`shrink-0 text-[10px] font-bold uppercase tracking-[1px] ${groupCopy.tone}`}>
           {groupCopy.label}
         </span>
       </div>

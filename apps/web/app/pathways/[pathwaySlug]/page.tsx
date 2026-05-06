@@ -27,6 +27,7 @@ import {
   getPathwayBySlug,
 } from '@/lib/pathways/helpers'
 import { BossChallengeRow, MixedReadsRow } from './BossMixedRows'
+import { DecoderExplainerCard } from '@/components/decoders/DecoderExplainer'
 import { getPathwayProgress } from '@/lib/pathways/progressService'
 import {
   pickPathwayCta,
@@ -136,19 +137,14 @@ function ComingSoonView({ pathway }: { pathway: PathwayConfig }) {
           <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">
             Decoders trained
           </p>
-          <div className="flex flex-wrap gap-2">
-            {pathway.decoderTags.map((tag) => {
-              const tagAccent = getAccentColor(getDecoderAccent(tag))
-              return (
-                <span
-                  key={tag}
-                  className="inline-flex items-center gap-1.5 rounded-full border bg-bg-2 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[1px]"
-                  style={{ color: tagAccent, borderColor: `${tagAccent}55` }}
-                >
-                  {getDecoderLabel(tag)}
-                </span>
-              )
-            })}
+          <p className="text-[12px] text-text-mute">
+            A decoder is a pattern you learn to recognize. Each card below shows the cue,
+            the read, and why it changes the play.
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {pathway.decoderTags.map((tag) => (
+              <DecoderExplainerCard key={tag} tag={tag} />
+            ))}
           </div>
         </section>
 
@@ -391,6 +387,32 @@ function ActivePathwayView({
               challengeAttempts={progress?.challengeAttempts ?? []}
             />
           ))}
+        </section>
+
+        {/* V3 P3 — Decoder reference. A standing "what each read means"
+            section so the player can ground every chapter title back
+            in plain-language basketball before training, and revisit it
+            after a missed rep on the summary page. Built from the same
+            canonical copy module as the onboarding intro and the
+            progress view, so every surface tells the same story. */}
+        <section className="space-y-3">
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">
+              What each read means
+            </p>
+            <p className="text-[10px] uppercase tracking-[1px] text-text-mute">
+              {pathway.decoderTags.length} decoders
+            </p>
+          </div>
+          <p className="text-[12px] text-text-mute">
+            A decoder is a pattern you learn to recognize. Read once before
+            you train — revisit any time after a missed rep.
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {pathway.decoderTags.map((tag) => (
+              <DecoderExplainerCard key={tag} tag={tag} />
+            ))}
+          </div>
         </section>
 
         <div className="flex gap-2 pt-2">
