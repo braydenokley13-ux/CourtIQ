@@ -407,11 +407,11 @@ function PathwayCtaBlock({
   //  - mid-chapter → keep it simple
   let headline: string
   if (chapterMastered && chapter) {
-    headline = `Chapter complete: ${chapter.title}`
+    headline = `${chapter.title} — locked in.`
   } else if (justFinishedChapter && chapter) {
-    headline = `You finished ${chapter.title}`
+    headline = `${chapter.title} — done. One more rep and it sticks.`
   } else {
-    headline = `Pathway · ${pathway.title}`
+    headline = pathway.title
   }
 
   const upNextLabel = recommended?.label ?? null
@@ -431,15 +431,15 @@ function PathwayCtaBlock({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-brand">
-            Pathway progress
+            Where you stand
           </p>
           <p className="mt-1 font-display text-[16px] font-bold leading-tight text-text">
             {headline}
           </p>
           {chapterProgress ? (
             <p className="mt-1 text-[12px] text-text-dim">
-              {chapterProgress.bestCount}/{chapterProgress.totalScenarios} best ·{' '}
-              {Math.round(chapterProgress.progress * 100)}% chapter progress
+              {chapterProgress.bestCount}/{chapterProgress.totalScenarios} clean reads ·{' '}
+              {Math.round(chapterProgress.progress * 100)}% of the chapter
             </p>
           ) : null}
         </div>

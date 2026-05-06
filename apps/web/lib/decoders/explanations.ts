@@ -41,52 +41,52 @@ const EXPLANATIONS: Record<DecoderTag, DecoderExplanation> = {
     label: 'Backdoor Window',
     oneLiner: 'Cut behind a defender who blocks the pass.',
     meaning:
-      'A backdoor window is the open space behind your defender when he steps up to deny the pass.',
+      'When the defender denies the pass, the rim is wide open behind him. That is the window.',
     watch:
-      'Watch his hand and lead foot. If they cut off the passing lane, the lane to the rim just opened behind him.',
+      'His hand and lead foot. The second they stab into the passing lane, the back-cut is open.',
     matters:
-      'Backdoors turn a denied pass into a layup. They beat aggressive overplays and reset the offense.',
+      'A denial turns into a layup. Aggressive defenders feed you the rim the moment you go behind them.',
     example:
-      'You curl to the wing, your defender shoots his hand into the lane — you plant, cut to the rim, ask for the ball with your hands up.',
+      'You curl to the wing, his hand stabs into the lane — you plant, cut to the rim, hands up for the ball.',
   },
   EMPTY_SPACE_CUT: {
     tag: 'EMPTY_SPACE_CUT',
     label: 'Empty-Space Cut',
     oneLiner: 'Fill the spot a helper just left.',
     meaning:
-      'An empty-space cut is a baseline (or 45) cut into the area a help defender just abandoned to stop the ball.',
+      'Help shifts to the ball — the spot they leave is wide open. The cut goes there.',
     watch:
-      'Watch the help defender. Once he steps in to stop the drive, his man — and his spot — are wide open.',
+      'The help defender. The instant he commits to stop the drive, his man and his spot are yours.',
     matters:
-      'Cutting into empty space gives the driver a clean kick-out and turns a tough finish into an easy two.',
+      'A tough finish becomes an easy one. The driver gets a clean kick-out window when you cut on time.',
     example:
-      'Your teammate drives baseline; the corner help-defender steps over. You cut along the baseline and show target hands.',
+      'Your guard drives baseline; the corner help-defender steps over. You cut along the baseline with target hands.',
   },
   ADVANTAGE_OR_RESET: {
     tag: 'ADVANTAGE_OR_RESET',
     label: 'Advantage or Reset',
     oneLiner: 'Attack the closeout — or move the ball.',
     meaning:
-      'Advantage or reset is the read on the catch: either you have an edge to take, or you don\'t — and you swing it.',
+      'On the catch you decide: take the closeout\'s edge, or move it. The worst answer is to hold the ball.',
     watch:
-      'Watch the closeout\'s feet. High and out of control = drive. Low and balanced = pump and swing.',
+      'His feet on the closeout. High and out of control = drive. Balanced = pump and swing it.',
     matters:
-      'Holding the ball after a closeout kills the offense. Deciding fast keeps the defense rotating.',
+      'Holding the ball after a closeout kills the offense. Quick decisions keep the defense rotating.',
     example:
-      'You catch on the wing. Defender flies at you with both feet in the air — one hard dribble past him, finish or kick.',
+      'You catch on the wing. He flies at you with both feet in the air — one hard dribble past, finish or kick.',
   },
   SKIP_THE_ROTATION: {
     tag: 'SKIP_THE_ROTATION',
     label: 'Skip the Rotation',
     oneLiner: 'Beat the help with the cross-court pass.',
     meaning:
-      'A skip is the cross-court pass that beats a rotating defense — you skip a defender to find the open shooter.',
+      'Two defenders go to the ball — the shooter they left behind is one cross-court pass away.',
     watch:
-      'Watch where the help came from. The defender who left a shooter is the one you skip past.',
+      'Where the help came from. The defender who left a shooter is the one you skip past.',
     matters:
-      'Skips turn a help-rotation into an open three. They punish defenses that send two to the ball.',
+      'Skips turn a help rotation into an open three. They punish any defense that sends two to the ball.',
     example:
-      'You drive middle, two help. You see the weak-side corner is empty — line drive across the lane to the open shooter.',
+      'You drive middle, two help. The weak-side corner is empty — line drive across the lane to the open shooter.',
   },
 }
 

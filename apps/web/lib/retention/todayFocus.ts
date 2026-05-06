@@ -90,7 +90,7 @@ export function deriveReturnFocus({
     return {
       band: 'mastered',
       headline: 'Pathway mastered.',
-      sub: 'Run a chapter back any time to keep the reads sharp.',
+      sub: 'Run a chapter back any time — keeps the reads sharp.',
       href: pathway?.recommendedNext?.trainHref ?? null,
     }
   }
@@ -99,8 +99,8 @@ export function deriveReturnFocus({
   if (closest) {
     return {
       band: 'close-to-mastery',
-      headline: `Close on ${closest.title}.`,
-      sub: 'A few sharp reads from mastery.',
+      headline: `${closest.title} is starting to click.`,
+      sub: 'A few more sharp reads and it’s locked.',
       href: pathway?.recommendedNext?.trainHref ?? null,
     }
   }
@@ -109,7 +109,7 @@ export function deriveReturnFocus({
   if (active) {
     return {
       band: 'in-progress',
-      headline: `You're sharpening ${active.title}.`,
+      headline: `${active.title} is sharpening up.`,
       sub: pathway?.recommendedNext?.label ?? null,
       href: pathway?.recommendedNext?.trainHref ?? null,
     }
