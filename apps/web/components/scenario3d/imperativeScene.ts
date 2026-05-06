@@ -6128,6 +6128,16 @@ function buildPremiumAthleteFigure(
   upgradePremiumLegsAndFeet(figure)
   upgradePremiumUniform(figure, trimColor)
   upgradePremiumRoleReadability(figure, hasBall, stance)
+  // V4-A — premium athlete kit (socks, biceps cuffs, side stripes).
+  // Adds basketball-specific gear that reads at gameplay distance
+  // and pushes the figure beyond "uniformed mannequin." Materials
+  // are per-figure but tiny (one new MeshStandardMaterial for the
+  // white kit accents; shoe stripes reuse the accent material).
+  upgradePremiumKit(figure)
+  // V4-D — user-only gear: headband. Mounts only when the figure
+  // belongs to the user player; helps the user pull forward in the
+  // identity read on a busy scene.
+  if (isUser) upgradePremiumUserGear(figure)
   return figure
 }
 
@@ -6406,6 +6416,115 @@ function upgradePremiumShoe(foot: THREE.Group): void {
   heelCounter.position.set(0, ATH_FOOT_HEIGHT * 0.55, ATH_FOOT_LENGTH * 0.32)
   heelCounter.castShadow = true
   foot.add(heelCounter)
+  // V4-A — generic side stripe. A thin diagonal accent slab on each
+  // shoe side, reading as a brand swoosh shape without copying any
+  // real brand mark. Reuses the accentMat so per-figure material
+  // count stays unchanged. Box geometry is the cheapest possible
+  // primitive (12 tris) so per-foot cost is 24 tris.
+  for (const sign of [-1, 1] as const) {
+    const sideStripe = new THREE.Mesh(
+      new THREE.BoxGeometry(
+        0.04,
+        ATH_FOOT_HEIGHT * 0.35,
+        ATH_FOOT_LENGTH * 0.62,
+      ),
+      accentMat,
+    )
+    sideStripe.position.set(
+      sign * (ATH_FOOT_WIDTH * 0.5 + 0.01),
+      ATH_FOOT_HEIGHT * 0.62,
+      -ATH_FOOT_LENGTH * 0.18,
+    )
+    // Slight upward tilt at the toe so the stripe reads dynamic from
+    // the broadcast camera, not a flat band.
+    sideStripe.rotation.x = sign * 0.06
+    foot.add(sideStripe)
+  }
+}
+
+/**
+ * V4-D — user-only gear. Adds a slim brand-neutral headband around
+ * the user player's head so they pull forward in the identity read
+ * on a busy scene without competing with the existing user halo
+ * indicator. Mat is the same USER_COLOR token the halo uses, so the
+ * head, halo, and chevron read as one coordinated identity layer.
+ */
+function upgradePremiumUserGear(figure: THREE.Object3D): void {
+  const neckHead = figure.getObjectByName('neckHead') as THREE.Group | null
+  if (!neckHead) return
+  const headbandMat = new THREE.MeshStandardMaterial({
+    color: USER_COLOR,
+    roughness: 0.7,
+    metalness: 0.1,
+    emissive: new THREE.Color(USER_COLOR),
+    emissiveIntensity: 0.18,
+  })
+  // Sit the band at the brow line — same y the existing brow torus
+  // uses, slightly fatter so it reads as worn fabric rather than a
+  // hairline outline. Tessellation 4×12 (96 tris) — readable at the
+  // gameplay-camera floor.
+  const band = new THREE.Mesh(
+    new THREE.TorusGeometry(ATH_HEAD_R * 1.02, 0.06, 4, 12),
+    headbandMat,
+  )
+  band.rotation.x = Math.PI * 0.5
+  band.position.y = ATH_NECK_LENGTH + ATH_HEAD_R * 1.15
+  band.scale.set(1.02, 1.0, 0.9)
+  neckHead.add(band)
+}
+
+/**
+ * V4-A — adds a white sock band above the shoe and a thin biceps
+ * cuff on each upper arm. Cheap geometry that pushes the figure from
+ * "mannequin in a uniform" to "kitted athlete." Owns its own white
+ * material (per-figure unique because the socks read brighter than
+ * the existing skin/jersey palette and we don't want them tinted by
+ * a shared material). Net per-figure cost: 1 material + 4 short
+ * cylinders.
+ */
+function upgradePremiumKit(figure: THREE.Object3D): void {
+  const kitMat = new THREE.MeshStandardMaterial({
+    color: '#F0F2F4',
+    roughness: 0.85,
+    metalness: 0.04,
+  })
+  // Socks — wrap each ankle just above the shoe. 8-segment cylinder
+  // (32 tris) is enough at gameplay-camera distance.
+  for (const legName of ['leftLeg', 'rightLeg'] as const) {
+    const leg = figure.getObjectByName(legName) as THREE.Group | null
+    const calf = leg?.getObjectByName('calf') as THREE.Group | null
+    if (!calf) continue
+    // Calf's local coords place the foot anchor at y = -ATH_CALF_LENGTH;
+    // mount the sock just above that so it sits above the shoe.
+    const sock = new THREE.Mesh(
+      new THREE.CylinderGeometry(
+        ATH_CALF_BOT_R * 1.18,
+        ATH_CALF_BOT_R * 1.22,
+        0.36,
+        8,
+      ),
+      kitMat,
+    )
+    sock.position.y = -ATH_CALF_LENGTH + 0.18
+    sock.castShadow = true
+    calf.add(sock)
+  }
+  // Biceps cuff — a thin ring around the upper arm just above the
+  // elbow joint. Reads as taped/braced biceps (a basketball staple)
+  // without committing to a sleeve mesh. Tessellation tuned to the
+  // gameplay-camera floor (4 radial × 10 tubular = 80 tris per cuff).
+  for (const armName of ['leftArm', 'rightArm'] as const) {
+    const arm = figure.getObjectByName(armName) as THREE.Group | null
+    const upperArm = arm?.getObjectByName('upperArm') as THREE.Group | null
+    if (!upperArm) continue
+    const cuff = new THREE.Mesh(
+      new THREE.TorusGeometry(ATH_UPPER_ARM_R * 1.32, 0.04, 4, 10),
+      kitMat,
+    )
+    cuff.rotation.x = Math.PI / 2
+    cuff.position.y = -ATH_UPPER_ARM_LENGTH * 0.92
+    upperArm.add(cuff)
+  }
 }
 
 /**

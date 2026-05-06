@@ -192,15 +192,20 @@ describe('athlete builder disposal', () => {
       const figure = buildPlayerFigure('#2D8AFF', '#0A4FB8', s.user, s.ball, '4', s.stance)
       const tris = countTriangles(figure)
       expect(tris).toBeGreaterThan(0)
-      // Phase J ceiling: 2400 tris per figure. The Phase F fallback
-      // (still available; the recovery plan's recorded baselines
-      // were 1190 non-user / 1398 user) keeps Phase F's own budget
-      // when the premium flag is off. The premium path adds body
-      // lathes, trap/jaw, toe-cap/heel, shoulder piping + shorts
-      // hem, and — conditional on inputs — a ball-handler wristband
-      // and a defender cuff. The cap leaves headroom for future
-      // narrow polish.
-      expect(tris).toBeLessThanOrEqual(2400)
+      // V4-A ceiling: 2750 tris per figure (was Phase J 2400). The
+      // Phase F fallback (still available when the premium flag is
+      // off) keeps its own pre-V4 budget. The premium path adds:
+      //   - body lathes, trap/jaw, toe-cap/heel
+      //   - shoulder piping + shorts hem
+      //   - V4-A socks + biceps cuffs (kit mat)
+      //   - V4-A side stripes on each shoe
+      //   - V4-D headband on the user player
+      //   - conditional ball-handler wristband and defender cuff
+      // 2750 leaves a small headroom for further narrow polish; if
+      // a future packet pushes a figure past this ceiling, the
+      // tessellation knobs in `upgradePremiumKit` are the first
+      // thing to dial back.
+      expect(tris).toBeLessThanOrEqual(2750)
       disposeGroup(figure)
     }
   })
