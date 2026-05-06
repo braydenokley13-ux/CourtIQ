@@ -258,6 +258,20 @@ function ActivePathwayView({
           </div>
         </header>
 
+        {/* PTH-6: deep-link into the player-facing progress view. Sits
+            above the Up Next CTA so a returning player has one tap to
+            see strengths/weaknesses + recent runs without scrolling
+            through the chapter map. */}
+        {progressPct > 0 || progress?.pathwayMastered ? (
+          <Link
+            href={`/pathways/${encodeURIComponent(pathway.slug)}/progress`}
+            className="flex items-center justify-between rounded-2xl border border-hairline-2 bg-bg-1 p-3 text-[12px] uppercase tracking-[1.5px] text-text-dim transition-colors hover:border-brand/40 hover:text-text"
+          >
+            <span className="font-bold">View your progress</span>
+            <span aria-hidden>→</span>
+          </Link>
+        ) : null}
+
         {/* Recommended next */}
         {recommended ? (
           <section className="rounded-2xl border border-brand/30 bg-bg-1 p-4">
