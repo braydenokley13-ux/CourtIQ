@@ -48,7 +48,11 @@ import {
   type QualitySettings,
   type QualityTier,
 } from '@/lib/scenario3d/quality'
-import { buildDustMotes, type DustMotes } from '@/lib/scenario3d/atmosphere'
+import {
+  buildDustMotes,
+  getRimHaloPulseAlpha,
+  type DustMotes,
+} from '@/lib/scenario3d/atmosphere'
 import { FramePacingTracker } from '@/lib/scenario3d/framePacing'
 import {
   isGlbAthleteCacheReady,
@@ -925,6 +929,24 @@ export function Scenario3DCanvas({
           // medium/low devices skip the cost entirely.
           const dust = dustMotesRef.current
           if (dust) dust.tick(nowMs)
+
+          // V2-A — rim halo ambient breath. One material lookup per
+          // frame; the helper is a single sin() call. The base opacity
+          // is stamped on the mesh's userData by buildBasketballGroup
+          // so the pulse multiplies the authored value instead of
+          // drifting unboundedly across frames.
+          if (qualityRef.current.tier !== 'low') {
+            const rimGlow = threeScene.getObjectByName('rim-glow') as
+              | THREE.Mesh
+              | undefined
+            const baseOpacity = rimGlow?.userData.baseOpacity as
+              | number
+              | undefined
+            if (rimGlow && typeof baseOpacity === 'number') {
+              const mat = rimGlow.material as THREE.MeshBasicMaterial
+              mat.opacity = baseOpacity * getRimHaloPulseAlpha(nowMs)
+            }
+          }
 
           gl.render(threeScene, cam)
           frame++

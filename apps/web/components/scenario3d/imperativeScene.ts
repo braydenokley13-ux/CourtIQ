@@ -282,19 +282,24 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   // on the rim/paint area without lighting up the rest of the floor.
   // Phase 4: tightened radius and lowered opacity so the glow no
   // longer outshines the painted key.
-  const rimGlow = new THREE.Mesh(
-    new THREE.CircleGeometry(8.5, 64),
-    new THREE.MeshBasicMaterial({
-      color: '#FFB070',
-      toneMapped: false,
-      transparent: true,
-      opacity: 0.12,
-      depthWrite: false,
-    }),
-  )
+  // V2-A — the rim glow's authored opacity is stamped into userData
+  // so the per-frame loop can multiply it by `getRimHaloPulseAlpha`
+  // without losing the base value across frames. The pulse is a
+  // ±10% breath every ~5.8s — too quiet to compete with action,
+  // alive enough to read as a real gym instead of a still life.
+  const rimGlowMat = new THREE.MeshBasicMaterial({
+    color: '#FFB070',
+    toneMapped: false,
+    transparent: true,
+    opacity: 0.12,
+    depthWrite: false,
+  })
+  const rimGlow = new THREE.Mesh(new THREE.CircleGeometry(8.5, 64), rimGlowMat)
   rimGlow.rotation.x = -Math.PI / 2
   rimGlow.position.set(0, FLOOR_LIFT + 0.005, 1.5)
   rimGlow.renderOrder = -2
+  rimGlow.name = 'rim-glow'
+  ;(rimGlow.userData as Record<string, unknown>).baseOpacity = 0.12
   root.add(rimGlow)
 
   // Royal blue paint. Slightly translucent so a hint of the hardwood
