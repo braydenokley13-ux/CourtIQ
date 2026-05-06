@@ -1765,6 +1765,20 @@ export function Scenario3DCanvas({
             // on it.
             ;(createdScene as THREE.Scene).background = new THREE.Color(activeBg)
 
+            // V4-C — Atmospheric depth fog. Linear fog with the
+            // background tint, near=80ft / far=180ft, so close-up
+            // players (camera typically 35-70 ft from the action)
+            // remain crisp while distant gym walls and bleachers
+            // gain a soft falloff. This gives the fullscreen
+            // composition real depth and removes the "isolated
+            // primitives floating in dark" feel without affecting
+            // teaching readability.
+            ;(createdScene as THREE.Scene).fog = new THREE.Fog(
+              activeBg,
+              80,
+              180,
+            )
+
             // CRITICAL: aim the camera before the first render. The
             // declarative `camera={{ position }}` prop only sets
             // position — no lookAt — so the default camera stares flat

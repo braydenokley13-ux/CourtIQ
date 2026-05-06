@@ -263,9 +263,24 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   const fill = new THREE.DirectionalLight(0xb8d2ff, 0.78)
   fill.position.set(-28, 36, 12)
   root.add(fill)
-  const rim = new THREE.DirectionalLight(0xc6dcff, 0.65)
+  // V4-C — stronger back rim for premium silhouette separation. The
+  // rim light catches the top of player shoulders and the back of
+  // sneakers from -z, which is exactly the edge that needs to pop
+  // off the dark gym backdrop. 0.65 → 0.85 keeps it subordinate to
+  // the key (1.32) so the main illumination still feels broadcast-
+  // forward, but the player edge now reads cleanly even when a
+  // figure is crossing in front of a low-contrast wall section.
+  const rim = new THREE.DirectionalLight(0xc6dcff, 0.85)
   rim.position.set(0, 48, -22)
   root.add(rim)
+  // V4-C — second rim from the opposite side. Catches the front of
+  // the body when a player is back-cutting toward the rim. Cooler
+  // tint than the back rim so the two edges don't both read as
+  // "stage lights" — this side reads as ambient bounce off the
+  // brighter half of the gym.
+  const sideRim = new THREE.DirectionalLight(0xa0c8ff, 0.42)
+  sideRim.position.set(-40, 36, 38)
+  root.add(sideRim)
   const courtSpot = new THREE.PointLight(0xffd8a0, 0.55, 75, 1.6)
   courtSpot.position.set(0, 24, 8)
   root.add(courtSpot)
