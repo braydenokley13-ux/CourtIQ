@@ -46,6 +46,10 @@ import {
   composeFullscreenFraming,
   safeFullscreenAspect,
 } from '@/lib/scenario3d/fullscreenComposition'
+import {
+  LEGACY_CAMERA_EASE_S,
+  getCameraTransitionEaseS,
+} from '@/lib/scenario3d/cameraTransitions'
 
 // Visual upgrade pass: warmer, richer hardwood; deeper, more saturated
 // paint; brighter team colors so jerseys pop against both floor and
@@ -1414,7 +1418,14 @@ export class CameraController {
   // same reason; the camera now matches. Time constant 0.18s gives
   // ~72% convergence in 200ms — close to what the old code produced
   // at 60fps, but identical at every frame rate.
-  private easeTimeConstantS = 0.18
+  //
+  // V2-C — the time constant is now mode-aware. `setMode()` reads
+  // the cinematic transition policy in `lib/scenario3d/cameraTransitions`
+  // to pick a slower curve when the cut is a teaching cut (broadcast
+  // → teaching-angle on freeze, etc.) and a slower curve still on
+  // top-down lifts. The default 0.18s baseline is preserved for
+  // same-mode and base→base transitions.
+  private easeTimeConstantS = LEGACY_CAMERA_EASE_S
   private lastTickWallMs = 0
 
   constructor(scene: Scene3D, aspect: number, baseFov: number) {
@@ -1428,10 +1439,16 @@ export class CameraController {
   /**
    * Updates the active mode. Mode changes trigger a target recompute
    * and are eased in unless the caller follows up with snapNext().
+   *
+   * V2-C — the ease time constant is repicked from the cinematic
+   * transition policy on every mode change so a freeze cut feels
+   * intentional (slower curve) while an incidental swap stays snappy.
    */
   setMode(mode: CameraMode): void {
     if (mode === this.mode) return
+    const previous = this.mode
     this.mode = mode
+    this.easeTimeConstantS = getCameraTransitionEaseS(previous, mode)
     this.recomputeTarget()
   }
 
