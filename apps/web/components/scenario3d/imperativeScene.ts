@@ -6017,6 +6017,14 @@ function buildAthleteFigure(
   )
   ring.rotation.x = -Math.PI / 2
   ring.position.y = 0.05
+  // V4-D — tag the heat ring so the per-frame loop can find it and
+  // pulse its opacity. Stamps the ring's authored opacity into
+  // userData so the loop multiplies the breathing factor against the
+  // authored value rather than drifting unboundedly across frames.
+  if (isKeyDefender) {
+    ring.name = 'key-defender-heat-ring'
+    ;(ring.userData as Record<string, unknown>).baseOpacity = ringOpacity
+  }
   baseLayer.add(ring)
 
   const innerOutline = new THREE.Mesh(

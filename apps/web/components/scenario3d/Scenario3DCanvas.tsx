@@ -50,6 +50,7 @@ import {
 } from '@/lib/scenario3d/quality'
 import {
   buildDustMotes,
+  getKeyDefenderPulseAlpha,
   getRimHaloPulseAlpha,
   type DustMotes,
 } from '@/lib/scenario3d/atmosphere'
@@ -968,6 +969,25 @@ export function Scenario3DCanvas({
             if (rimGlow && typeof baseOpacity === 'number') {
               const mat = rimGlow.material as THREE.MeshBasicMaterial
               mat.opacity = baseOpacity * getRimHaloPulseAlpha(nowMs)
+            }
+            // V4-D — key-defender heat-ring pulse. Same authored-opacity
+            // / per-frame-multiplier shape as the rim halo. The figure
+            // builder tags the heat ring with `name = 'key-defender-
+            // heat-ring'` and stamps `userData.baseOpacity = ringOpacity`
+            // so the per-frame loop can find it without a global
+            // registry. We use `getObjectByName` once per frame to grab
+            // the first heat ring; the founder-v0 scenarios only ever
+            // mark a single key defender, so the ring is unique. If a
+            // future scenario marks two, the second will be missed —
+            // not a regression because the pre-V4 code didn't pulse at
+            // all.
+            const keyRing = threeScene.getObjectByName('key-defender-heat-ring') as
+              | THREE.Mesh
+              | undefined
+            const keyBase = keyRing?.userData.baseOpacity as number | undefined
+            if (keyRing && typeof keyBase === 'number') {
+              const mat = keyRing.material as THREE.MeshBasicMaterial
+              mat.opacity = keyBase * getKeyDefenderPulseAlpha(nowMs)
             }
           }
 
