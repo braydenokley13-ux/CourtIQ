@@ -25,6 +25,7 @@ import {
   type ChallengeMode,
 } from '@/lib/pathways/localChallengeProgress'
 import { getDecoderOneLiner } from '@/lib/decoders/explanations'
+import { getFirstRepCues, isFirstRep } from '@/lib/onboarding/firstRep'
 
 type DecoderTag =
   | 'BACKDOOR_WINDOW'
@@ -275,6 +276,12 @@ function TrainPageInner() {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [pathwayContext, setPathwayContext] = useState<PathwayContext | null>(null)
   const [scenarios, setScenarios] = useState<SessionScenario[]>([])
+  // V3 P9 — total prior attempts. Drives "first rep" cold-start mode
+  // so the player's very first read happens without the dashboard
+  // chrome (decoder pill, one-liner, phase tracker, XP/IQ chips,
+  // difficulty, timer). Stays `null` while loading so we never flash
+  // the chrome and snap it away.
+  const [attemptsCount, setAttemptsCount] = useState<number | null>(null)
   const [idx, setIdx] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<AttemptFeedback | null>(null)
@@ -357,6 +364,17 @@ function TrainPageInner() {
   // Decoder scenarios hold the prompt + choices until 'frozen' fires;
   // legacy scenarios are unchanged (questionReady = true from the start).
   const questionReady = !isDecoder || frozen
+  // V3 P9 — cold-start "first rep" mode. Strips chrome that telegraphs
+  // the answer (decoder pill, "Read · ..." line, phase tracker) and
+  // chrome that competes with the canvas for attention (XP/IQ/streak
+  // chips, difficulty number, response timer). Active only on the
+  // player's very first scenario of their very first session.
+  const firstRep = isFirstRep({
+    attemptsCount,
+    scenarioIndex: idx,
+    isChallengeMode,
+  })
+  const firstRepCues = getFirstRepCues()
 
   useEffect(() => {
     void (async () => {
@@ -368,6 +386,24 @@ function TrainPageInner() {
       }
 
       setUserId(user.id)
+      // V3 P9 — fire profile fetch in parallel with the session start
+      // so the page knows whether this is the player's first ever rep
+      // before the canvas mounts. Soft-fail: if the request fails we
+      // fall back to "not first" (the safer assumption — keep the
+      // dashboard chrome in case we're wrong).
+      void (async () => {
+        try {
+          const profileRes = await fetch(`/api/profile?userId=${user.id}`)
+          if (profileRes.ok) {
+            const body = (await profileRes.json()) as { attemptsCount?: number }
+            setAttemptsCount(typeof body.attemptsCount === 'number' ? body.attemptsCount : 0)
+          } else {
+            setAttemptsCount(0)
+          }
+        } catch {
+          setAttemptsCount(0)
+        }
+      })()
       try {
         // PTH-2: when any pathway/chapter/node param is present,
         // resolve the Pathway training context first. The resolver
@@ -481,9 +517,12 @@ function TrainPageInner() {
     if (!questionReady) return
     if (!timerArmed) return
     if (timeLeft <= 0) return
+    // V3 P9 — zero time pressure on the player's first rep so they can
+    // sit in the freeze and actually look at the play.
+    if (firstRep) return
     const t = setTimeout(() => setTimeLeft((v) => Math.max(0, Number((v - 0.1).toFixed(1)))), 100)
     return () => clearTimeout(t)
-  }, [phase, timeLeft, questionReady, timerArmed])
+  }, [phase, timeLeft, questionReady, timerArmed, firstRep])
 
   useEffect(() => {
     setTimeLeft(8)
@@ -835,27 +874,35 @@ function TrainPageInner() {
             <span aria-hidden>✕</span>
             Quit
           </Link>
-          <div className="flex items-center gap-1.5 text-[11px] font-bold tabular-nums">
-            <span className="inline-flex items-center gap-1 rounded-full border border-hairline-2 bg-bg-2 px-2.5 py-1 text-xp">
-              <span aria-hidden>✦</span>
-              {xp}
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full border border-hairline-2 bg-bg-2 px-2.5 py-1 text-iq">
-              IQ {iq}
-            </span>
-            {streak > 0 ? (
-              <motion.span
-                key={`streak-${streak}`}
-                initial={{ scale: 0.85, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.35, ease: [0.34, 1.56, 0.64, 1] }}
-                className="inline-flex items-center gap-1 rounded-full border border-heat/40 bg-heat/10 px-2.5 py-1 text-heat"
-              >
-                <span aria-hidden>🔥</span>
-                {streak}
-              </motion.span>
-            ) : null}
-          </div>
+          {/* V3 P9 — hide XP/IQ/streak chips on the player's first ever
+              rep. They're zeros (or near-zero) and pull the eye away
+              from the canvas. The first read should feel like film
+              study, not a dashboard. */}
+          {firstRep ? (
+            <div aria-hidden />
+          ) : (
+            <div className="flex items-center gap-1.5 text-[11px] font-bold tabular-nums">
+              <span className="inline-flex items-center gap-1 rounded-full border border-hairline-2 bg-bg-2 px-2.5 py-1 text-xp">
+                <span aria-hidden>✦</span>
+                {xp}
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-hairline-2 bg-bg-2 px-2.5 py-1 text-iq">
+                IQ {iq}
+              </span>
+              {streak > 0 ? (
+                <motion.span
+                  key={`streak-${streak}`}
+                  initial={{ scale: 0.85, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.35, ease: [0.34, 1.56, 0.64, 1] }}
+                  className="inline-flex items-center gap-1 rounded-full border border-heat/40 bg-heat/10 px-2.5 py-1 text-heat"
+                >
+                  <span aria-hidden>🔥</span>
+                  {streak}
+                </motion.span>
+              ) : null}
+            </div>
+          )}
         </div>
 
         {/* Question progress */}
@@ -890,28 +937,46 @@ function TrainPageInner() {
 
         {/* Timer / phase line. Difficulty stays on the left as a quiet
             anchor; the right side surfaces a status line that adapts to
-            what the user should be paying attention to right now. */}
-        <div className="flex items-center justify-between text-[11px] uppercase tracking-[1.5px] text-text-dim">
-          <span>Difficulty {current.difficulty}</span>
-          {phase === 'prompt' && questionReady ? (
-            <motion.span
-              key="timer"
-              initial={{ opacity: 0, y: -2 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={timeLeft < 2 ? 'font-bold text-heat' : 'font-bold text-text'}
-            >
-              {timeLeft.toFixed(1)}s
-            </motion.span>
-          ) : phase === 'prompt' && !questionReady ? (
-            <span className="inline-flex items-center gap-1.5 font-bold text-text-dim">
-              <span aria-hidden className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand/60" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand" />
+            what the user should be paying attention to right now.
+            V3 P9 — on the player's first ever rep we drop the
+            difficulty + timer entirely; only the "Watch the play"
+            cue remains during pre-freeze, and the choice cards take
+            over from the freeze beat onward. Zero pressure, no math. */}
+        {firstRep ? (
+          phase === 'prompt' && !questionReady ? (
+            <div className="flex items-center justify-end text-[11px] uppercase tracking-[1.5px] text-text-dim">
+              <span className="inline-flex items-center gap-1.5 font-bold text-text-dim">
+                <span aria-hidden className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand/60" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand" />
+                </span>
+                Watch the play
               </span>
-              Watch the play
-            </span>
-          ) : null}
-        </div>
+            </div>
+          ) : null
+        ) : (
+          <div className="flex items-center justify-between text-[11px] uppercase tracking-[1.5px] text-text-dim">
+            <span>Difficulty {current.difficulty}</span>
+            {phase === 'prompt' && questionReady ? (
+              <motion.span
+                key="timer"
+                initial={{ opacity: 0, y: -2 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={timeLeft < 2 ? 'font-bold text-heat' : 'font-bold text-text'}
+              >
+                {timeLeft.toFixed(1)}s
+              </motion.span>
+            ) : phase === 'prompt' && !questionReady ? (
+              <span className="inline-flex items-center gap-1.5 font-bold text-text-dim">
+                <span aria-hidden className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand/60" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand" />
+                </span>
+                Watch the play
+              </span>
+            ) : null}
+          </div>
+        )}
 
         {/* Phase 6 — module shell panel. Decoder pill, step row, and
             canvas live inside a single glass surface so the canvas reads
@@ -919,7 +984,21 @@ function TrainPageInner() {
             chrome. Decoder scenarios get the full pill+tracker stack;
             legacy scenarios still get the panel + canvas. */}
         <div className="ciq-module-panel space-y-3 p-3">
-          {decoderLabel ? (
+          {firstRep ? (
+            // V3 P9 — first-rep eyebrow. NAMING the decoder before the
+            // freeze would skip past the recognition moment we're
+            // trying to build, so the player only sees a soft "Watch
+            // the play" cue here. The decoder noun is revealed in the
+            // WinBurst / FeedbackPanel after the rep.
+            <div data-testid="train-first-rep-eyebrow" className="space-y-1">
+              <p className="text-[10px] font-bold uppercase tracking-[1.8px] text-brand/80">
+                {firstRepCues.eyebrow}
+              </p>
+              <p className="text-[13px] font-semibold leading-snug text-text">
+                {firstRepCues.framing}
+              </p>
+            </div>
+          ) : decoderLabel ? (
             <div className="space-y-2.5">
               <div className="flex items-center gap-2">
                 {/* Coach's-clipboard label: small DECODER eyebrow over the
@@ -1043,9 +1122,15 @@ function TrainPageInner() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}
             >
-              <p className="text-[12px] font-semibold leading-snug text-text-dim">
-                {current.prompt}
-              </p>
+              {/* V3 P9 — on the first rep, drop the scenario subline so
+                  the player sees a single, calm question. The decoder
+                  noun gets revealed AFTER the rep, not above the
+                  choices. */}
+              {firstRep ? null : (
+                <p className="text-[12px] font-semibold leading-snug text-text-dim">
+                  {current.prompt}
+                </p>
+              )}
               <p className="mt-1 font-display text-[22px] font-bold leading-tight text-text">
                 What do you do?
               </p>
@@ -1094,11 +1179,21 @@ function TrainPageInner() {
               xpDelta={feedback.xp_delta}
               iqDelta={feedback.iq_delta}
               streak={feedback.streak ?? streak}
-              headline={praise}
+              // V3 P9 — first-rep recognition. NAMING the decoder for
+              // the first time AFTER the player picked the right read
+              // is the satisfaction beat in the V3 emotional arc. The
+              // basketball-language one-liner doubles as the sub.
+              headline={
+                firstRep && decoderTag
+                  ? firstRepCues.recognitionHeadline(DECODER_LABELS[decoderTag])
+                  : praise
+              }
               microPraise={
-                suppressCueHints
-                  ? 'Good rep.'
-                  : WIN_MICRO_PRAISE[decoderTag ?? 'BACKDOOR_WINDOW']
+                firstRep && decoderTag
+                  ? firstRepCues.recognitionSub(getDecoderOneLiner(decoderTag))
+                  : suppressCueHints
+                    ? 'Good rep.'
+                    : WIN_MICRO_PRAISE[decoderTag ?? 'BACKDOOR_WINDOW']
               }
             />
           ) : null}
@@ -1111,13 +1206,23 @@ function TrainPageInner() {
           {feedback ? (
             <FeedbackPanel
               isCorrect={feedback.is_correct}
-              headline={feedback.is_correct ? praise : praise}
+              // V3 P9 — on a missed first rep, name the decoder in the
+              // headline so the player has a noun for the pattern they
+              // just watched in the replay. (Win-case recognition is
+              // owned by the WinBurst above.)
+              headline={
+                firstRep && !feedback.is_correct && decoderTag
+                  ? firstRepCues.recoveryHeadline(DECODER_LABELS[decoderTag])
+                  : praise
+              }
               microNote={
                 feedback.is_correct
                   ? undefined
-                  : suppressCueHints
-                    ? 'Reset and try again.'
-                    : MISS_MICRO_NOTE[decoderTag ?? 'BACKDOOR_WINDOW']
+                  : firstRep && decoderTag
+                    ? getDecoderOneLiner(decoderTag)
+                    : suppressCueHints
+                      ? 'Reset and try again.'
+                      : MISS_MICRO_NOTE[decoderTag ?? 'BACKDOOR_WINDOW']
               }
               whyText={feedback.feedback_text}
               hasReplay={!!scene && scene.answerDemo.length > 0}
@@ -1143,8 +1248,12 @@ function TrainPageInner() {
             best-read replay. Both panels render only for decoder scenarios
             (legacy fixtures have no decoder_tag and are unchanged).
             PTH-3: suppressed in boss/mixed challenge modes — those panels
-            broadcast the right answer and undermine the test. */}
-        {feedback && isDecoder && decoderTag && !suppressCueHints ? (
+            broadcast the right answer and undermine the test.
+            V3 P9 — also suppressed on the player's first ever rep. The
+            4-question self-review reads like school after a moment that
+            should feel like a rep. The lesson hand-off card stays
+            available from the next rep onward. */}
+        {feedback && isDecoder && decoderTag && !suppressCueHints && !firstRep ? (
           <>
             <DecoderLessonPanel
               decoderName={DECODER_LABELS[decoderTag]}
