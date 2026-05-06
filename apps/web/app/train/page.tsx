@@ -1311,7 +1311,10 @@ function TrainPageInner() {
           <motion.button
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35, duration: 0.25 }}
+            // V3 P10 P6 — final beat in the post-rep cascade. Lands
+            // just after the SelfReviewChecklist so the page never
+            // layout-shifts under the player's tap.
+            transition={{ delay: 0.55, duration: 0.25 }}
             whileTap={{ scale: 0.99 }}
             onClick={() => void next()}
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 font-display text-[15px] font-bold uppercase tracking-[1px] text-brand-ink shadow-brand"

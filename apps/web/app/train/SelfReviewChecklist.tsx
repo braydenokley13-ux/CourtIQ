@@ -39,7 +39,11 @@ export function SelfReviewChecklist({
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: [0.2, 0.8, 0.2, 1] }}
+      // V3 P10 P6 — staggered after FeedbackPanel + DecoderLessonPanel
+      // so the post-rep cascade reads as win → why → move → reflect.
+      // Held under the next-rep button delay so the layout never
+      // shifts mid-stagger.
+      transition={{ duration: 0.25, delay: 0.42, ease: [0.2, 0.8, 0.2, 1] }}
       className="ciq-shell-card space-y-3 border p-4"
     >
       <div className="flex items-center justify-between">
