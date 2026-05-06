@@ -162,6 +162,13 @@ export const GLB_ATHLETE_REGION_PALETTE: Readonly<
  *   - roughness 0.72, metalness 0.02 — softer fabric response that
  *     reads as cotton/poly jersey rather than vinyl. The GLB and the
  *     procedural fallback both pick these up.
+ * Visual/Motion review (this packet):
+ *   - roughness 0.64, metalness 0.03 — slightly less rough so the
+ *     jersey picks up more of the broadcast key/rim lighting,
+ *     pushing the athlete toward an NBA-broadcast premium feel
+ *     without crossing into vinyl. Stays inside the locked
+ *     [0.60, 0.85] roughness and [0, 0.06] metalness budgets so
+ *     the audit guards still trip on accidental drift.
  */
 export interface GlbAthleteMaterialParams {
   /** MeshStandardMaterial roughness for the team-tinted body mesh. */
@@ -176,9 +183,9 @@ export interface GlbAthleteMaterialParams {
 
 export const GLB_ATHLETE_MATERIAL_PARAMS: Readonly<GlbAthleteMaterialParams> =
   Object.freeze({
-    bodyRoughness: 0.72,
-    bodyMetalness: 0.02,
-    jointsRoughness: 0.72,
+    bodyRoughness: 0.64,
+    bodyMetalness: 0.03,
+    jointsRoughness: 0.7,
     jointsMetalness: 0.0,
   })
 

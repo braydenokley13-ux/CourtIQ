@@ -1686,6 +1686,44 @@ const YAW_TIME_CONSTANT_OFFENSE_S = 0.2
 const YAW_TIME_CONSTANT_DEFENSE_S = 0.14
 
 /**
+ * Visual/Motion review — peak forward-lean (radians, around the X
+ * axis of the figure root) per movement kind. Pure data; consumed by
+ * `MotionController.applyAthleticLean`.
+ *
+ * The lean is applied through a triangular envelope across the
+ * movement's [startMs, endMs) so a runner ramps the lean in as they
+ * accelerate, holds it through the middle of the segment, and decays
+ * it as they brake into the endpoint. Outside of any active segment
+ * the lean is 0 (upright).
+ *
+ * Values are deliberately small (≤ ~7°) so the lean reads as
+ * basketball body language rather than a ragdoll tilt — anything
+ * beyond that starts to look like a player diving forward off-balance.
+ *
+ * Cuts / drives / jabs lean the most because they are the most
+ * explosive moves in the founder-v0 pack. Closeouts and rotations
+ * stay upright because the player's job there is to close space
+ * with controlled balance, not commit forward weight. Lifts /
+ * drifts (off-ball repositioning) are also upright. Passes apply to
+ * the ball, not a player, so they are intentionally absent.
+ */
+const ATHLETIC_LEAN_PEAK_RAD_BY_KIND: Record<string, number> = {
+  cut: 0.105,           // ~6°
+  back_cut: 0.115,      // ~6.6°
+  drive: 0.12,          // ~6.9°
+  jab: 0.075,           // ~4.3°
+  baseline_sneak: 0.085, // ~4.9°
+  rip: 0.06,            // ~3.4°
+  closeout: 0,
+  rotation: 0,
+  lift: 0,
+  drift: 0,
+  stop_ball: 0,
+  pass: 0,
+  skip_pass: 0,
+}
+
+/**
  * Phase C / C2 — squared minimum direction magnitude before we use
  * the per-frame movement-direction or defender→ball heuristic for
  * yaw. Below this, we fall back to the static team yaw so a paused
@@ -2025,10 +2063,60 @@ export class MotionController {
     // four scalars below per player.
     this.applyPlayerYaw(nowMs, t)
 
+    // Visual/Motion review — deterministic athletic forward-lean during
+    // explosive moves. Pure function of (player, t, segment kind), so
+    // replay determinism is preserved. Reads the active movement for
+    // the same `t` the position sampler used and writes a small
+    // `rotation.x` on the figure root: knees-loaded forward lean for
+    // cuts/drives/jabs, neutral otherwise.
+    this.applyAthleticLean(t)
+
     // Phase O-ANIM (OB6) — drive GLB athlete mixers from the same
     // tick. No-op for procedural / skinned figures (the helpers
     // short-circuit on missing handles) so non-GLB scenes pay nothing.
     this.applyGlbAnimation(nowMs, t)
+  }
+
+  /**
+   * Visual/Motion review — applies a small forward-lean rotation on
+   * each figure's root group while it is in an explosive movement
+   * segment. Pure function of (player, t, kind) — reads only timeline
+   * state and the segment's start/end ms — so the rendered transform
+   * remains deterministic across replays.
+   *
+   * Lean values:
+   *   - cut, back_cut, drive, jab, baseline_sneak: ~6° forward
+   *   - lift / rotation / pass / closeout / stop_ball: 0 (upright)
+   *
+   * The lean ramps in/out symmetrically over the segment so a runner
+   * loads the lean as they accelerate, holds it through the middle,
+   * and decays it as they brake into the destination — matching the
+   * `easeOutAthletic` velocity profile inside the timeline sampler.
+   * Outside any active segment, the lean is 0 (upright).
+   */
+  private applyAthleticLean(t: number): void {
+    for (const player of this.scene.players) {
+      const g = this.playerGroups.get(player.id)
+      if (!g) continue
+      const active = this.findActivePlayerMovement(player.id, t)
+      if (!active) {
+        g.rotation.x = 0
+        continue
+      }
+      const peak = ATHLETIC_LEAN_PEAK_RAD_BY_KIND[active.kind] ?? 0
+      if (peak === 0) {
+        g.rotation.x = 0
+        continue
+      }
+      // Triangular envelope over the segment, peaking at u=0.5. The
+      // segment durations are short (≤ 800 ms typically) so a
+      // symmetric ramp keeps the lean visible without clipping the
+      // start or end frames.
+      const span = Math.max(1, active.endMs - active.startMs)
+      const u = Math.max(0, Math.min(1, (t - active.startMs) / span))
+      const envelope = 1 - Math.abs(u - 0.5) * 2
+      g.rotation.x = peak * envelope
+    }
   }
 
   // --- internals ---
@@ -5121,10 +5209,17 @@ function buildAthleteFigure(
     roughness: 0.72,
     metalness: 0,
   })
+  // Visual/Motion review — premium sneaker response. Lifted metalness
+  // 0.08 → 0.14 and roughness 0.58 → 0.42 so the shoe upper picks up
+  // a subtle highlight from the broadcast key light instead of
+  // reading as matte plastic. Stays well below "patent leather"
+  // territory (metalness < 0.2, roughness > 0.3) per the audit
+  // bounds, so the silhouette still reads as athletic footwear, not
+  // a chrome plate.
   const shoeMat = new THREE.MeshStandardMaterial({
     color: SHOE_COLOR,
-    roughness: 0.58,
-    metalness: 0.08,
+    roughness: 0.42,
+    metalness: 0.14,
   })
   const accentMat = new THREE.MeshStandardMaterial({
     color: ACCENT_COLOR,
@@ -5669,15 +5764,21 @@ function buildAthleteFigure(
   // by the imperative path; on SSR / no-canvas environments the
   // helper returns null and we fall back to the legacy untextured
   // dark disc — preserving the pre-V2 visual contract for tests.
+  //
+  // Visual/Motion review — bumped the radius from 0.85 → 1.05 ft and
+  // the legacy fallback opacity from 0.42 → 0.55 so the player reads
+  // as planted rather than floating. The textured path keeps its
+  // opacity at 1 because the alpha gradient already feathers out;
+  // the wider disc just gives the gradient more room to breathe.
   const shadowTex = getCachedPlayerShadowTexture()
   const contactShadow = new THREE.Mesh(
-    new THREE.CircleGeometry(PLAYER_RADIUS + 0.85, 32),
+    new THREE.CircleGeometry(PLAYER_RADIUS + 1.05, 32),
     new THREE.MeshBasicMaterial({
       color: shadowTex ? '#FFFFFF' : CONTACT_SHADOW_COLOR,
       map: shadowTex ?? null,
       toneMapped: false,
       transparent: true,
-      opacity: shadowTex ? 1 : 0.42,
+      opacity: shadowTex ? 1 : 0.55,
       depthWrite: false,
     }),
   )
@@ -5842,16 +5943,26 @@ function upgradePremiumUniform(figure: THREE.Object3D, trimColor: string): void 
     }
   }
   if (jerseyMat) {
-    // Matte fabric: enough rim-light response to show shape, without
-    // the shiny toy/plastic feel.
-    jerseyMat.roughness = 0.66
-    jerseyMat.metalness = 0.01
+    // Visual/Motion review — premium fabric response. Slightly less
+    // rough than before (0.66 → 0.58) to pick up more rim/edge light
+    // from the broadcast lighting rig, and a faint emissive in the
+    // jersey color so the silhouette reads with NBA-broadcast-style
+    // stage glow even in the shadow side. Metalness stays near zero
+    // so it never reads as vinyl.
+    jerseyMat.roughness = 0.58
+    jerseyMat.metalness = 0.02
+    jerseyMat.emissive = new THREE.Color(jerseyMat.color).multiplyScalar(0.18)
+    jerseyMat.emissiveIntensity = 0.55
   }
   if (shortsMat) {
     // Shorts stay matte and a touch rougher than the jersey so the
-    // two pieces of the uniform read as distinct fabrics.
-    shortsMat.roughness = 0.88
+    // two pieces of the uniform read as distinct fabrics. Slight
+    // emissive lift mirrors the jersey treatment so the lower body
+    // does not crater into shadow against a darker floor.
+    shortsMat.roughness = 0.82
     shortsMat.metalness = 0
+    shortsMat.emissive = new THREE.Color(shortsMat.color).multiplyScalar(0.10)
+    shortsMat.emissiveIntensity = 0.4
   }
   if (shortsMesh) {
     const h = ATH_PELVIS_HEIGHT
