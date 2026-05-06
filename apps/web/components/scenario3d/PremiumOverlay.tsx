@@ -111,6 +111,38 @@ export function PremiumOverlay({
       className="group/overlay pointer-events-none absolute inset-0"
       data-attention={idleAttention ? 'on' : 'off'}
     >
+      {/* V2-E — fullscreen edge gradients. Two subtle vertical fades
+          frame the top and bottom edges so chrome chips and the
+          transport pill sit on a soft envelope rather than directly
+          on the gym shell. Mounted only in fullscreen so the
+          embedded /train viewport keeps its existing flat look —
+          the page-layout module shell already provides the framing
+          there. The gradients are pointer-events: none and have
+          their own data-edge-gradient attribute so a future tweak
+          can target them via CSS without scraping classes. */}
+      {isFullscreen ? (
+        <>
+          <div
+            data-edge-gradient="top"
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 z-0 h-24"
+            style={{
+              background:
+                'linear-gradient(to bottom, rgba(6, 8, 12, 0.55) 0%, rgba(6, 8, 12, 0) 100%)',
+            }}
+          />
+          <div
+            data-edge-gradient="bottom"
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-32"
+            style={{
+              background:
+                'linear-gradient(to top, rgba(6, 8, 12, 0.65) 0%, rgba(6, 8, 12, 0) 100%)',
+            }}
+          />
+        </>
+      ) : null}
+
       {/* Top-left: scenario chip — quietly orients the user. Idle dims to
           ~55% so the chip never competes with the court; comes back to
           full when the overlay is engaged. Hidden on decoder scenarios
