@@ -1708,13 +1708,51 @@ const YAW_TIME_CONSTANT_DEFENSE_S = 0.14
  * the ball, not a player, so they are intentionally absent.
  */
 const ATHLETIC_LEAN_PEAK_RAD_BY_KIND: Record<string, number> = {
-  cut: 0.105,           // ~6°
-  back_cut: 0.115,      // ~6.6°
-  drive: 0.12,          // ~6.9°
-  jab: 0.075,           // ~4.3°
-  baseline_sneak: 0.085, // ~4.9°
-  rip: 0.06,            // ~3.4°
-  closeout: 0,
+  // Premium review pass — bumped peaks toward 8-10° for explosive
+  // moves so cuts and drives read as committed body weight, not a
+  // light tilt. Stays inside the < 12° basketball-body-language
+  // floor — anything beyond starts to look like an off-balance dive.
+  cut: 0.14,            // ~8.0°
+  back_cut: 0.155,      // ~8.9°
+  drive: 0.165,         // ~9.5°
+  jab: 0.10,            // ~5.7°
+  baseline_sneak: 0.115, // ~6.6°
+  rip: 0.085,           // ~4.9°
+  // Closeout gets a small forward weight — defenders on the close
+  // commit forward to challenge the shot, which is what reads as
+  // "aggressive closeout" instead of "drift." Smaller than offensive
+  // lean so it does not over-commit.
+  closeout: 0.07,       // ~4.0°
+  rotation: 0,
+  lift: 0,
+  drift: 0,
+  stop_ball: 0,
+  pass: 0,
+  skip_pass: 0,
+}
+
+/**
+ * Visual/Motion review (premium pass) — vertical-bob (stride bounce)
+ * peak in feet for explosive movement segments. Pure deterministic
+ * function of (segment kind, u) so replay determinism is preserved.
+ *
+ * The bob is applied as `figure.position.y = bob(...)` on top of the
+ * floor offset, with two stride peaks per segment (u=0.25 and u=0.75)
+ * — a left-foot stride and a right-foot stride. Combined with the
+ * forward-lean envelope, this removes the "gliding" tell where the
+ * figure translates with no vertical motion.
+ *
+ * Values are deliberately tiny (≤ 0.06 ft / ≈ 1.8 cm) so the bob
+ * reads as stride pulse, not a hop.
+ */
+const ATHLETIC_BOB_PEAK_FT_BY_KIND: Record<string, number> = {
+  cut: 0.05,
+  back_cut: 0.055,
+  drive: 0.06,
+  jab: 0.025,
+  baseline_sneak: 0.045,
+  rip: 0.02,
+  closeout: 0.03,
   rotation: 0,
   lift: 0,
   drift: 0,
@@ -1836,6 +1874,16 @@ export class MotionController {
   // keep advancing even while paused (so the in-place idle pose stays
   // alive at a stopped freeze frame).
   private lastAnimTickWallMs: number = 0
+  // Visual/Motion review (premium pass) — per-player baseline y
+  // captured the first time the controller writes a stride bob, so
+  // bob exit can return position.y to the build-time floor offset
+  // without re-reading the value (which the user-controlled bob
+  // had just clobbered). Players that never enter a bob-eligible
+  // segment (e.g. defenders that only rotate) are NEVER added to
+  // this map, preserving the "animation must not own world position"
+  // P0-LOCK contract for those players exactly as before.
+  private baselineY: Map<string, number> = new Map()
+  private bobActiveFor: Set<string> = new Set()
 
   constructor(
     scene: Scene3D,
@@ -2078,21 +2126,28 @@ export class MotionController {
   }
 
   /**
-   * Visual/Motion review — applies a small forward-lean rotation on
-   * each figure's root group while it is in an explosive movement
-   * segment. Pure function of (player, t, kind) — reads only timeline
-   * state and the segment's start/end ms — so the rendered transform
-   * remains deterministic across replays.
+   * Visual/Motion review — applies a small forward-lean rotation AND
+   * a stride-bounce vertical bob on each figure's root group while it
+   * is in an explosive movement segment. Pure function of
+   * (player, t, kind) — reads only timeline state and the segment's
+   * start/end ms — so the rendered transform remains deterministic
+   * across replays.
    *
-   * Lean values:
-   *   - cut, back_cut, drive, jab, baseline_sneak: ~6° forward
-   *   - lift / rotation / pass / closeout / stop_ball: 0 (upright)
+   * Lean (rotation.x):
+   *   - cut, back_cut, drive, jab, baseline_sneak, rip: 5-10° forward
+   *   - closeout: ~4° forward (committed defender)
+   *   - lift / rotation / pass / stop_ball: 0 (upright)
+   *
+   * Bob (position.y):
+   *   - explosive moves bob ≤ 0.06 ft with two stride peaks per
+   *     segment (u=0.25 and u=0.75), giving the figure a visible
+   *     foot-load / push-off cadence instead of gliding.
    *
    * The lean ramps in/out symmetrically over the segment so a runner
    * loads the lean as they accelerate, holds it through the middle,
    * and decays it as they brake into the destination — matching the
    * `easeOutAthletic` velocity profile inside the timeline sampler.
-   * Outside any active segment, the lean is 0 (upright).
+   * Outside any active segment, the lean and bob are both 0.
    */
   private applyAthleticLean(t: number): void {
     for (const player of this.scene.players) {
@@ -2100,13 +2155,38 @@ export class MotionController {
       if (!g) continue
       const active = this.findActivePlayerMovement(player.id, t)
       if (!active) {
+        // Reset rotation.x so a previous segment's lean does not
+        // linger into idle frames. position.y is intentionally NOT
+        // touched here — the build-time `PLAYER_LIFT` offset (or 0
+        // in mock harnesses) owns the baseline, and the stride bob
+        // below adds to that baseline only when an explosive segment
+        // is active. Mirrors the P0-LOCK contract that animation must
+        // not own world position outside its own active segment.
         g.rotation.x = 0
+        // Clear any latent bob this controller previously wrote.
+        // We track that via a per-player flag so we never tap
+        // position.y for a player that has never experienced a bob,
+        // preserving the legacy mock-tests "y untouched" contract.
+        if (this.bobActiveFor.has(player.id)) {
+          g.position.y = this.baselineY.get(player.id) ?? g.position.y
+          this.bobActiveFor.delete(player.id)
+        }
         continue
       }
-      const peak = ATHLETIC_LEAN_PEAK_RAD_BY_KIND[active.kind] ?? 0
-      if (peak === 0) {
+      const leanPeak = ATHLETIC_LEAN_PEAK_RAD_BY_KIND[active.kind] ?? 0
+      const bobPeak = ATHLETIC_BOB_PEAK_FT_BY_KIND[active.kind] ?? 0
+      if (leanPeak === 0 && bobPeak === 0) {
         g.rotation.x = 0
+        if (this.bobActiveFor.has(player.id)) {
+          g.position.y = this.baselineY.get(player.id) ?? g.position.y
+          this.bobActiveFor.delete(player.id)
+        }
         continue
+      }
+      // Capture the build-time baseline once per player on first
+      // explosive frame so the bob can return to it on segment end.
+      if (!this.baselineY.has(player.id)) {
+        this.baselineY.set(player.id, g.position.y)
       }
       // Triangular envelope over the segment, peaking at u=0.5. The
       // segment durations are short (≤ 800 ms typically) so a
@@ -2114,8 +2194,19 @@ export class MotionController {
       // start or end frames.
       const span = Math.max(1, active.endMs - active.startMs)
       const u = Math.max(0, Math.min(1, (t - active.startMs) / span))
-      const envelope = 1 - Math.abs(u - 0.5) * 2
-      g.rotation.x = peak * envelope
+      g.rotation.x = leanPeak * (1 - Math.abs(u - 0.5) * 2)
+      // Two stride peaks per segment via |sin(2πu)| — peaks at
+      // u=0.25 (right-foot stride) and u=0.75 (left-foot stride),
+      // grounded contact at u=0, 0.5, 1.0. The amplitude is gated
+      // by the same triangular envelope so the figure does not
+      // bounce on the first or last frame.
+      const strideEnvelope = 1 - Math.abs(u - 0.5) * 2
+      const baseline = this.baselineY.get(player.id) ?? 0
+      const bob = bobPeak * Math.abs(Math.sin(u * Math.PI * 2)) * strideEnvelope
+      g.position.y = baseline + bob
+      if (bobPeak > 0) {
+        this.bobActiveFor.add(player.id)
+      }
     }
   }
 
@@ -5144,9 +5235,17 @@ const ATH_PELVIS_HEIGHT = 0.58
 const ATH_PELVIS_WIDTH = 1.16
 const ATH_PELVIS_DEPTH = 0.84
 const ATH_TORSO_HEIGHT = 1.58
-const ATH_TORSO_TOP_W = 1.52
+// Visual/Motion review (premium pass) — broader shoulder line +
+// slightly deeper chest. Pre-review the torso top read narrow against
+// the bumped quad/calf mass, so the silhouette tapered the wrong way
+// at the gameplay camera. The new values keep the existing V-taper
+// (top > bot) but lift the shoulder slab to NBA-broadcast proportions
+// (~31% of height) and add a touch of chest depth so the figure does
+// not flatten in profile. Total-height contract (5.95 ft) is
+// untouched so the playerScaleContract test still passes.
+const ATH_TORSO_TOP_W = 1.66
 const ATH_TORSO_BOT_W = 0.98
-const ATH_TORSO_DEPTH = 0.84
+const ATH_TORSO_DEPTH = 0.92
 const ATH_NECK_LENGTH = 0.20
 const ATH_NECK_R = 0.15
 const ATH_HEAD_R = 0.39
@@ -5155,7 +5254,11 @@ const ATH_UPPER_ARM_R = 0.18
 const ATH_FORE_ARM_LENGTH = 0.95
 const ATH_FORE_ARM_R = 0.145
 const ATH_HIP_GAP = 0.58
-const ATH_SHOULDER_WIDTH = 1.64
+// Visual/Motion review — wider arm-to-arm span so the deltoid line
+// reads as basketball-broadcast wide. 1.64 → 1.78 puts the shoulder
+// pivot at ~30% of standing height (NBA wing average ≈ 30-32%) while
+// the height contract stays at 5.95 ft.
+const ATH_SHOULDER_WIDTH = 1.78
 
 // Anchor heights derived once from the proportions above. `_Y` is the
 // world-space y of the *anchor pivot* on the figure root (origin =
@@ -5649,7 +5752,16 @@ function buildAthleteFigure(
   possessionLayer.add(possession)
 
   const ringInner = PLAYER_RADIUS + 0.2
-  const ringOuter = isUser ? PLAYER_RADIUS + 0.7 : PLAYER_RADIUS + 0.55
+  // Visual/Motion review (premium pass) — wider key-defender ring so
+  // the heat read carries from the broadcast camera. User keeps its
+  // generous outer (0.7); other players go 0.55, key defender goes
+  // 0.78 so the heat ring outlines a visibly larger footprint than
+  // a teammate next to it.
+  const ringOuter = isUser
+    ? PLAYER_RADIUS + 0.7
+    : _getCurrentPlayerFigureBuildContext()?.isKeyDefender === true
+      ? PLAYER_RADIUS + 0.78
+      : PLAYER_RADIUS + 0.55
   // FR-3 §7.3 — key defender swap. When the per-figure build context
   // marks this player as the cue defender, paint the base ring with
   // the §7.1 `--heat` token instead of the team color so the user
@@ -5660,18 +5772,22 @@ function buildAthleteFigure(
   const buildCtx = _getCurrentPlayerFigureBuildContext()
   const isKeyDefender = buildCtx?.isKeyDefender === true
   const ringColor = isKeyDefender ? HEAT_RING_COLOR : teamColor
+  // Visual/Motion review (premium pass) — slightly cooler non-key
+  // defenders (0.65 → 0.55) and a touch hotter offensive teammates
+  // (0.85 → 0.92) so the offense/defense identity reads without a
+  // legend on the first frame.
   const ringOpacity = isUser
     ? 1
     : isKeyDefender
-      ? 0.95
+      ? 1
       : buildCtx?.isKeyDefender === false &&
           // Cooler "other defender" — applied only when the context
           // is registered AND this is a non-key defender. Heuristic
           // inferred from teamColor matching the DEFENSE_COLOR
           // constant; offense keeps its full team-color opacity.
           teamColor.toUpperCase() === DEFENSE_COLOR
-        ? 0.65
-        : 0.85
+        ? 0.55
+        : 0.92
   // Ring segments are kept intentionally low because these indicators
   // are always viewed from the gameplay camera, not inspected up close.
   const ring = new THREE.Mesh(
@@ -5703,14 +5819,19 @@ function buildAthleteFigure(
   baseLayer.add(innerOutline)
 
   if (isUser) {
+    // Visual/Motion review (premium pass) — bumped the user halo
+    // and soft-halo opacities (0.40→0.55, 0.16→0.26) so the user
+    // pulls forward in the read on a busy scene. Adds a third,
+    // wider feather ring at very low alpha so the falloff feels
+    // continuous rather than ending abruptly.
     const halo = new THREE.Mesh(
-      new THREE.RingGeometry(ringOuter + 0.05, ringOuter + 0.6, 28),
+      new THREE.RingGeometry(ringOuter + 0.05, ringOuter + 0.6, 32),
       new THREE.MeshBasicMaterial({
         color: USER_COLOR,
         toneMapped: false,
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.4,
+        opacity: 0.55,
       }),
     )
     halo.rotation.x = -Math.PI / 2
@@ -5718,18 +5839,35 @@ function buildAthleteFigure(
     userLayer.add(halo)
 
     const softHalo = new THREE.Mesh(
-      new THREE.RingGeometry(ringOuter + 0.65, ringOuter + 1.4, 28),
+      new THREE.RingGeometry(ringOuter + 0.65, ringOuter + 1.4, 32),
       new THREE.MeshBasicMaterial({
         color: USER_COLOR,
         toneMapped: false,
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.16,
+        opacity: 0.26,
       }),
     )
     softHalo.rotation.x = -Math.PI / 2
     softHalo.position.y = 0.044
     userLayer.add(softHalo)
+
+    // Outer feather ring — keeps the halo edge from snapping to a
+    // hard outline at gameplay distance. ≤ 0.10 alpha so it never
+    // competes with the inner two rings.
+    const featherHalo = new THREE.Mesh(
+      new THREE.RingGeometry(ringOuter + 1.4, ringOuter + 2.1, 32),
+      new THREE.MeshBasicMaterial({
+        color: USER_COLOR,
+        toneMapped: false,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.10,
+      }),
+    )
+    featherHalo.rotation.x = -Math.PI / 2
+    featherHalo.position.y = 0.043
+    userLayer.add(featherHalo)
 
     const chevron = new THREE.Mesh(
       new THREE.ConeGeometry(0.42, 0.85, 16),

@@ -65,20 +65,22 @@ function leanAt(scene: Scene3D, ms: number): number {
 }
 
 describe('Athletic lean — explosive segments lean forward through a triangular envelope', () => {
-  for (const kind of ['cut', 'back_cut', 'drive', 'jab', 'baseline_sneak'] as const) {
+  for (const kind of ['cut', 'back_cut', 'drive', 'jab', 'baseline_sneak', 'closeout'] as const) {
     it(`'${kind}' segment peaks above 0 at u=0.5 (mid-segment)`, () => {
       const scene = buildSceneWithSingleMovement(kind)
       // Sample at mid-segment (~400 ms into the 800 ms span).
       const lean = leanAt(scene, 400)
       // The triangular envelope hits exactly 1.0 at u=0.5, so the
       // observed rotation.x equals the configured peak. Every
-      // explosive kind has peak > 0.05 rad (~3°) — visible at
-      // broadcast distance but well below ragdoll territory.
-      expect(lean).toBeGreaterThan(0.05)
-      // Cap at ~7° (0.13 rad) so no kind tilts the figure into a
+      // segment tagged "explosive" has peak > 0.04 rad (~2.3°) —
+      // visible at broadcast distance but well below ragdoll
+      // territory. Closeout is included as the smallest "explosive
+      // commit" (≈ 4°) — defenders weight forward to challenge.
+      expect(lean).toBeGreaterThan(0.04)
+      // Cap at ~12° (0.21 rad) so no kind tilts the figure into a
       // dive — the upper bound is the basketball-body-language
       // floor we want, not a hard physics limit.
-      expect(lean).toBeLessThan(0.13)
+      expect(lean).toBeLessThan(0.21)
     })
 
     it(`'${kind}' segment ramps in (lower lean at u=0.1 than u=0.5)`, () => {
@@ -98,7 +100,10 @@ describe('Athletic lean — explosive segments lean forward through a triangular
 })
 
 describe('Athletic lean — non-explosive segments keep the figure upright', () => {
-  for (const kind of ['rotation', 'lift', 'drift', 'closeout', 'stop_ball'] as const) {
+  // Closeout was promoted to "committed defender" lean in the premium
+  // pass — see ATHLETIC_LEAN_PEAK_RAD_BY_KIND. Repositioning /
+  // off-ball / pass segments still stay upright.
+  for (const kind of ['rotation', 'lift', 'drift', 'stop_ball'] as const) {
     it(`'${kind}' segment never leans the figure (rotation.x stays 0)`, () => {
       const scene = buildSceneWithSingleMovement(kind)
       // Sample across the segment: any sample must be 0.
@@ -133,5 +138,67 @@ describe('Athletic lean — determinism', () => {
     const a = leanAt(sceneA, 400)
     const b = leanAt(sceneB, 400)
     expect(a).toBeCloseTo(b, 12)
+  })
+})
+
+/**
+ * Returns the user's `position.y` at elapsed `ms` for the given scene.
+ * The test stub initializes y=0, so any non-zero return is the bob
+ * contribution from the active segment. Same bootstrap-then-jump
+ * pattern as `leanAt`.
+ */
+function bobAt(scene: Scene3D, ms: number): number {
+  const { motion, players } = makeMotion(scene)
+  motion.tick(0)
+  motion.tick(0 + 250 + ms)
+  return players.get('user')!.position.y
+}
+
+describe('Athletic stride bob — explosive segments produce a foot-load cadence', () => {
+  for (const kind of ['cut', 'back_cut', 'drive'] as const) {
+    it(`'${kind}' segment shows a non-zero bob between strides (u≈0.25)`, () => {
+      const scene = buildSceneWithSingleMovement(kind)
+      // u ≈ 0.25 → 200 ms into 800 ms span.
+      const bob = bobAt(scene, 200)
+      expect(bob).toBeGreaterThan(0)
+      // Bob is bounded ≤ 0.06 ft (~1.8 cm) — explicitly small.
+      expect(bob).toBeLessThan(0.07)
+    })
+
+    it(`'${kind}' segment grounds the figure at u=0.5 (peak lean, mid-stride contact)`, () => {
+      const scene = buildSceneWithSingleMovement(kind)
+      // |sin(2π·0.5)| = |sin(π)| = 0 → contact point.
+      const bob = bobAt(scene, 400)
+      expect(bob).toBeCloseTo(0, 6)
+    })
+  }
+})
+
+describe('Athletic stride bob — non-explosive segments keep the figure grounded', () => {
+  // Players in non-explosive movements never get tagged for bob, so
+  // position.y stays at the build-time baseline (0 in the test stub,
+  // PLAYER_LIFT in the real builder).
+  for (const kind of ['rotation', 'lift', 'drift'] as const) {
+    it(`'${kind}' segment keeps position.y at the build baseline across the segment`, () => {
+      const scene = buildSceneWithSingleMovement(kind)
+      for (const ms of [100, 400, 700]) {
+        expect(bobAt(scene, ms), `${kind}@${ms}ms`).toBeCloseTo(0, 6)
+      }
+    })
+  }
+})
+
+describe('Athletic stride bob — preserves build-time baseline outside any active segment', () => {
+  it('a player with no movements is never tagged for bob (position.y untouched)', () => {
+    const scene: Scene3D = {
+      ...buildSceneWithSingleMovement('cut'),
+      movements: [],
+    }
+    const { motion, players } = makeMotion(scene)
+    // The mock stub initializes y=0; the controller MUST NOT write
+    // to it for a player that never enters an explosive segment.
+    motion.tick(0)
+    motion.tick(1_000)
+    expect(players.get('user')!.position.y).toBe(0)
   })
 })
