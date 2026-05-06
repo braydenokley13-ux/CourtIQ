@@ -13,6 +13,7 @@ import {
 } from '@/features/onboarding/IntroCards'
 import { INTRO_HOME_BANNER } from '@/lib/onboarding/introCopy'
 import { deriveReturnFocus, type ReturnFocus } from '@/lib/retention/todayFocus'
+import { pickHomePathwayCta } from '@/lib/retention/homePathwayCta'
 
 const ease = [0.22, 1, 0.36, 1]
 
@@ -216,36 +217,11 @@ function PathwayPrimaryCard({
   loading: boolean
   attempts: number
 }) {
+  // V3 P8 — banding extracted to lib/retention/homePathwayCta.ts so
+  // the cold-start / continue / mastered split is unit-testable.
+  const cta = pickHomePathwayCta({ pathway, attempts, loading })
+  const { eyebrow, primaryLabel, primarySubline, primaryHref } = cta
   const progressPct = Math.round((pathway?.pathwayProgress ?? 0) * 100)
-  const mastered = pathway?.pathwayMastered === true
-  const hasRecommendation = !!pathway?.recommendedNext?.trainHref
-
-  let eyebrow: string
-  let primaryLabel: string
-  let primarySubline: string
-  let primaryHref: string
-
-  if (loading) {
-    eyebrow = 'Your Pathway'
-    primaryLabel = 'Loading…'
-    primarySubline = 'Pulling your next read.'
-    primaryHref = FOUNDATION_DETAIL_HREF
-  } else if (mastered) {
-    eyebrow = 'Pathway mastered'
-    primaryLabel = 'Run it back'
-    primarySubline = 'Re-run a chapter to keep the reads sharp.'
-    primaryHref = FOUNDATION_DETAIL_HREF
-  } else if (attempts === 0 || !hasRecommendation) {
-    eyebrow = 'Start here'
-    primaryLabel = 'Start Foundation'
-    primarySubline = 'Build your reads from the ground up. ~25 min total.'
-    primaryHref = pathway?.recommendedNext?.trainHref ?? FOUNDATION_DETAIL_HREF
-  } else {
-    eyebrow = 'Continue training'
-    primaryLabel = pathway!.recommendedNext!.label
-    primarySubline = `Pathway · Complete IQ Foundation · ${progressPct}%`
-    primaryHref = pathway!.recommendedNext!.trainHref
-  }
 
   return (
     <div
