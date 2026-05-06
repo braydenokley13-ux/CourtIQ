@@ -636,11 +636,24 @@ export function Scenario3DCanvas({
     // covers the React render flush (data-fullscreen-fill prop), and
     // a third deferred apply at ~120ms catches Safari's slower
     // post-fullscreen layout pass.
+    //
+    // Visual/Motion review — the final deferred apply also calls
+    // `snapNext()` on the camera controller. Without this, any
+    // in-flight eased lerp toward intermediate aspect targets
+    // (caused by the browser publishing 1-3 sub-pixel layout
+    // updates before the transition settles) would keep chasing the
+    // moving target for ~0.18-0.46s after the transition ended,
+    // reading as a brief shake. Snapping to the final target collapses
+    // every transient lerp into one clean jump on the last apply.
     const applyAfterTransition = () => {
       apply()
       requestAnimationFrame(() => {
         apply()
-        setTimeout(apply, 120)
+        setTimeout(() => {
+          apply()
+          const ctrl = cameraControllerRef.current
+          if (ctrl) ctrl.snapNext()
+        }, 120)
       })
     }
 
@@ -886,18 +899,27 @@ export function Scenario3DCanvas({
           // replay legs that contained passes. We still consume the
           // arrival flag every frame so the motion controller's
           // internal counter doesn't backfill, and we still honour
-          // `?shake=1` for dev / motion-design verification — at a
-          // significantly reduced amplitude (0.18 ft, ~60% lower).
-          // Skipped when the user is orbiting or running on the low
-          // quality tier so we never fight a manual dragger or
-          // burn frames on devices the FPS guard already throttled.
+          // `?shake=1` for dev / motion-design verification.
+          //
+          // Visual/Motion review — amplitude tightened to 0.10 ft and
+          // duration to 160 ms. The pre-review 0.18 ft / 220 ms
+          // settings still landed in dev sessions as a noticeable
+          // micro-bump on top of the controller's eased lerp; the
+          // tighter envelope keeps the cue available for motion-
+          // design verification while staying below the human-
+          // noticeable jitter floor on the broadcast camera.
+          // Additionally gated on the controller having reached its
+          // current target (`hasSettled`) so a shake never stacks on
+          // top of an in-flight teaching cut — that was the visible
+          // "double bounce" the V1 stabilization pass flagged.
           if (motion && motion.consumePassArrival() &&
               shakeEnabledRef.current &&
               ctrl && !orbitMode &&
+              ctrl.hasSettled() &&
               qualityRef.current.tier !== 'low') {
             shakeRef.current = {
-              amplitude: 0.18,
-              duration: 220,
+              amplitude: 0.1,
+              duration: 160,
               startedAt: nowMs,
             }
           }

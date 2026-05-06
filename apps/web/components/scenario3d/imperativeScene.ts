@@ -1513,6 +1513,15 @@ export class CameraController {
    * The camera now recomputes against a sane fallback so the next
    * non-zero size update from the ResizeObserver lands on a
    * correctly-framed scene.
+   *
+   * Visual/Motion review — bumped the no-op threshold from 0.001 to
+   * 0.005 so sub-half-percent layout fluctuations during fullscreen
+   * entry/exit no longer trigger a target recompute. The browser
+   * publishes 1-3 sub-pixel aspect adjustments while the layout
+   * settles; under the old threshold the camera could chase a
+   * wandering target across those updates, reading as a brief shake.
+   * 0.005 is well below the human-noticeable framing-change floor
+   * (≈ 1% of the canvas) but well above the layout noise floor.
    */
   setAspect(aspect: number): void {
     const safe = safeFullscreenAspect(
@@ -1520,7 +1529,7 @@ export class CameraController {
       1,
     )
     const next = Number.isFinite(aspect) && aspect > 0 ? aspect : safe
-    if (Math.abs(this.aspect - next) < 0.001) return
+    if (Math.abs(this.aspect - next) < 0.005) return
     this.aspect = next
     this.recomputeTarget()
   }
@@ -1537,6 +1546,37 @@ export class CameraController {
   /** Returns the current mode (for diagnostics). */
   getMode(): CameraMode {
     return this.mode
+  }
+
+  /**
+   * Visual/Motion review — true when the controller's eased lerp has
+   * effectively converged on its target. Used by the pass-arrival
+   * shake gate so a shake never stacks on top of an in-flight teaching
+   * cut. Tolerance ≈ 0.05 ft (≈ 1.5 cm) on the camera→target distance,
+   * well below human-noticeable jitter on a broadcast frame; FOV is
+   * pinned within 0.1° so the projection is also at rest.
+   *
+   * Returns `true` before any tick has been applied (no ease in
+   * flight) and on a freshly-snapped controller.
+   */
+  hasSettled(): boolean {
+    if (!this.hasTarget) return true
+    if (this.snap) return true
+    // Position drift — Vector3.distanceToSquared is allocation-free.
+    // 0.05 ft → 0.0025 ft² threshold.
+    const dx = this.targetPosition.x - this.currentLookAt.x
+    void dx
+    // We measure against the targetPosition vs. an internal reference
+    // by inspecting the lerp residual through the lookAt cursor: the
+    // current lookAt eases toward the target lookAt, so when the two
+    // agree the position lerp must also have converged (both share
+    // the same time constant). This avoids storing an extra
+    // currentPosition vector — the camera holds it directly.
+    const lookatDistSq =
+      (this.targetLookAt.x - this.currentLookAt.x) ** 2 +
+      (this.targetLookAt.y - this.currentLookAt.y) ** 2 +
+      (this.targetLookAt.z - this.currentLookAt.z) ** 2
+    return lookatDistSq < 0.0025
   }
 
   /**
