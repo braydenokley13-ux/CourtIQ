@@ -81,6 +81,8 @@ interface Scenario3DCanvasProps {
   className?: string
   /** Optional explicit pixel height. Defaults to 320px. */
   height?: number
+  /** Fill the parent height, used by the fullscreen film-room shell. */
+  fillParent?: boolean
   /** Normalised scene to render. If omitted, the built-in default is used. */
   scene?: Scene3D | null
   /** Human-readable concept tag(s), shown in dev-only canvas diagnostics. */
@@ -215,9 +217,8 @@ export function Scenario3DCanvas({
   fallback,
   children,
   className,
-  // undefined signals fullscreen / fill-parent mode; the canvas container
-  // uses '100%' in that case instead of a fixed pixel height.
-  height = 320,
+  height,
+  fillParent = false,
   scene,
   concept,
   replayMode = 'intro',
@@ -1559,8 +1560,11 @@ export function Scenario3DCanvas({
     teachingOverlayRef.current?.setVisible(!!showPaths)
   }, [showPaths])
 
-  // When height is undefined the canvas is in fill-parent mode (e.g. fullscreen).
-  const resolvedHeight: number | string = height ?? '100%'
+  // Fullscreen cannot be represented by passing `height={undefined}`:
+  // the prop's normal default height also uses `undefined`. Keep the
+  // two states explicit so embedded callers still default to 320px
+  // while fullscreen reliably fills its parent.
+  const resolvedHeight: number | string = fillParent ? '100%' : height ?? 320
 
   if (mode === 'probing') {
     return (
@@ -1642,12 +1646,12 @@ export function Scenario3DCanvas({
   const controllerActive = !emergencyMode && !debugMode && simpleMode
 
   // Phase K — when the outer view is in fullscreen mode it sets
-  // `height={undefined}` on the canvas so this wrapper fills the
+  // `fillParent` on the canvas so this wrapper fills the
   // fullscreen element. The `data-fullscreen-fill` hook lets the
   // global :fullscreen CSS lock the wrapper to 100% / 100% even when
   // a stale parent constraint would otherwise collapse it back to a
   // narrow band.
-  const fillFullscreen = height === undefined
+  const fillFullscreen = fillParent
   return (
     <div
       ref={containerRef}

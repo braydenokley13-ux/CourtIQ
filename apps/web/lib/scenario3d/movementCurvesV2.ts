@@ -17,11 +17,9 @@
  *                                   so the player arrives sharply with
  *                                   weight forward.
  *
- * These curves are NOT yet wired into `easeForKind` because the existing
- * replay-determinism tests pin sampled positions to the legacy curves;
- * a future packet that opts a feature flag can swap the dispatch on a
- * per-scene or per-deploy basis. Tests pin curve shape so the V2
- * dispatch can be toggled with confidence.
+ * These curves are wired into `easeForKind` by default. The main
+ * replay-determinism tests now pin the V2 sampled positions, so replay
+ * remains deterministic while the visual read feels more athletic.
  *
  * Hard contract:
  *   - Pure, deterministic. f(0) = 0, f(1) = 1 for every curve.
