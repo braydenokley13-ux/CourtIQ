@@ -323,7 +323,7 @@ function SummaryContent() {
         {!pathway && nextModule && (
           <Link
             href={`/academy/${nextModule.slug}`}
-            className="block rounded-2xl border border-hairline-2 bg-bg-1 p-4 active:scale-[0.99]"
+            className="ciq-lift block rounded-2xl border border-hairline-2 bg-bg-1 p-4"
           >
             <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-iq">Try next</p>
             <p className="mt-1 font-display text-[16px] font-bold text-text">{nextModule.title}</p>
@@ -359,13 +359,13 @@ function SummaryContent() {
                     ? `/train?concept=${encodeURIComponent(concept)}`
                     : '/train'
               }
-              className="rounded-xl bg-brand py-3.5 text-center font-display text-[14px] font-bold uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm active:scale-[0.99]"
+              className="ciq-press rounded-xl bg-brand py-3.5 text-center font-display text-[14px] font-bold uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm"
             >
               Play again
             </Link>
             <Link
               href={pathway ? buildPathwayDetailHref(pathway.slug) : '/academy'}
-              className="rounded-xl border border-hairline-2 bg-bg-1 py-3.5 text-center font-display text-[14px] font-semibold text-text active:scale-[0.99]"
+              className="ciq-press-soft rounded-xl border border-hairline-2 bg-bg-1 py-3.5 text-center font-display text-[14px] font-semibold text-text"
             >
               {pathway ? 'Back to Pathway' : 'Back to lessons'}
             </Link>
@@ -494,7 +494,7 @@ function PathwayCtaBlock({
       ) : upNextLabel && upNextHref ? (
         <Link
           href={upNextHref}
-          className="flex items-center justify-center gap-2 rounded-xl bg-brand py-3 font-display text-[13px] font-bold uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm transition-transform active:scale-[0.99]"
+          className="ciq-press flex items-center justify-center gap-2 rounded-xl bg-brand py-3 font-display text-[13px] font-bold uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm"
         >
           {nextChapter && nextChapter.slug !== chapter?.slug
             ? `Up next: ${nextChapter.title}`
@@ -504,7 +504,7 @@ function PathwayCtaBlock({
       ) : (
         <Link
           href={buildPathwayDetailHref(pathway.slug)}
-          className="flex items-center justify-center gap-2 rounded-xl bg-brand py-3 font-display text-[13px] font-bold uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm transition-transform active:scale-[0.99]"
+          className="ciq-press flex items-center justify-center gap-2 rounded-xl bg-brand py-3 font-display text-[13px] font-bold uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm"
         >
           Continue Pathway
           <span aria-hidden>→</span>
@@ -646,7 +646,7 @@ function ChallengeActions({
           <Link
             href={retryHref}
             className={[
-              'rounded-xl py-3.5 text-center font-display text-[14px] font-bold uppercase tracking-[0.5px] active:scale-[0.99]',
+              'ciq-press rounded-xl py-3.5 text-center font-display text-[14px] font-bold uppercase tracking-[0.5px]',
               passed
                 ? 'border border-hairline-2 bg-bg-1 text-text'
                 : 'bg-heat text-bg-0 shadow-heat',
@@ -662,7 +662,7 @@ function ChallengeActions({
         <Link
           href={pathwayHref}
           className={[
-            'rounded-xl py-3.5 text-center font-display text-[14px] font-bold uppercase tracking-[0.5px] active:scale-[0.99]',
+            'ciq-press rounded-xl py-3.5 text-center font-display text-[14px] font-bold uppercase tracking-[0.5px]',
             passed
               ? 'bg-brand text-brand-ink shadow-brand-sm'
               : 'border border-hairline-2 bg-bg-1 text-text',

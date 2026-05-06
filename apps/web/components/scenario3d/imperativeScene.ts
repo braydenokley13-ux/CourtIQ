@@ -46,6 +46,11 @@ import {
   composeFullscreenFraming,
   safeFullscreenAspect,
 } from '@/lib/scenario3d/fullscreenComposition'
+import {
+  LEGACY_CAMERA_EASE_S,
+  getCameraTransitionEaseS,
+} from '@/lib/scenario3d/cameraTransitions'
+import { buildPlayerShadowTexture } from '@/lib/scenario3d/playerPresence'
 
 // Visual upgrade pass: warmer, richer hardwood; deeper, more saturated
 // paint; brighter team colors so jerseys pop against both floor and
@@ -158,6 +163,41 @@ export interface SceneBuildResult {
 }
 
 /**
+ * V2-A — module-level cache for the radial-gradient soft contact
+ * shadow texture. The helper itself is pure (same canvas pixels per
+ * call) so caching across figures is purely a GPU bandwidth win:
+ * one texture upload per session instead of one per figure × scene
+ * rebuild. Reset on hot-module replacement so the cache never
+ * survives across an HMR boundary that may have changed the helper.
+ *
+ * Disposal: this texture intentionally outlives any single scene
+ * graph. The imperative scene's existing `disposeMaterialTextures`
+ * traversal still detects and disposes it via `material.map`, so a
+ * rebuild after a navigation will simply re-create the canvas. Net
+ * cost is one canvas per page load.
+ */
+let _cachedPlayerShadowTexture: THREE.CanvasTexture | null = null
+function getCachedPlayerShadowTexture(): THREE.CanvasTexture | null {
+  if (_cachedPlayerShadowTexture) return _cachedPlayerShadowTexture
+  const tex = buildPlayerShadowTexture()
+  if (!tex) return null
+  // The shared singleton must survive the imperative scene's
+  // dispose traversal, which calls `texture.dispose()` on every
+  // material's `.map`. Override dispose with a no-op so a scene
+  // rebuild does not invalidate the GPU upload for every other
+  // figure that still holds a reference. Net cost is one canvas
+  // for the whole page lifetime.
+  const originalDispose = tex.dispose.bind(tex)
+  tex.dispose = () => {}
+  // Expose the original dispose for explicit teardown if a future
+  // hot-reload path needs it.
+  ;(tex as unknown as { _disposeShared: () => void })._disposeShared =
+    originalDispose
+  _cachedPlayerShadowTexture = tex
+  return _cachedPlayerShadowTexture
+}
+
+/**
  * Builds the full basketball scene as a single THREE.Group plus a
  * sidecar map of per-player groups and the ball group. Caller is
  * responsible for adding/removing `result.root` from the scene graph
@@ -242,19 +282,24 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   // on the rim/paint area without lighting up the rest of the floor.
   // Phase 4: tightened radius and lowered opacity so the glow no
   // longer outshines the painted key.
-  const rimGlow = new THREE.Mesh(
-    new THREE.CircleGeometry(8.5, 64),
-    new THREE.MeshBasicMaterial({
-      color: '#FFB070',
-      toneMapped: false,
-      transparent: true,
-      opacity: 0.12,
-      depthWrite: false,
-    }),
-  )
+  // V2-A — the rim glow's authored opacity is stamped into userData
+  // so the per-frame loop can multiply it by `getRimHaloPulseAlpha`
+  // without losing the base value across frames. The pulse is a
+  // ±10% breath every ~5.8s — too quiet to compete with action,
+  // alive enough to read as a real gym instead of a still life.
+  const rimGlowMat = new THREE.MeshBasicMaterial({
+    color: '#FFB070',
+    toneMapped: false,
+    transparent: true,
+    opacity: 0.12,
+    depthWrite: false,
+  })
+  const rimGlow = new THREE.Mesh(new THREE.CircleGeometry(8.5, 64), rimGlowMat)
   rimGlow.rotation.x = -Math.PI / 2
   rimGlow.position.set(0, FLOOR_LIFT + 0.005, 1.5)
   rimGlow.renderOrder = -2
+  rimGlow.name = 'rim-glow'
+  ;(rimGlow.userData as Record<string, unknown>).baseOpacity = 0.12
   root.add(rimGlow)
 
   // Royal blue paint. Slightly translucent so a hint of the hardwood
@@ -1414,7 +1459,14 @@ export class CameraController {
   // same reason; the camera now matches. Time constant 0.18s gives
   // ~72% convergence in 200ms — close to what the old code produced
   // at 60fps, but identical at every frame rate.
-  private easeTimeConstantS = 0.18
+  //
+  // V2-C — the time constant is now mode-aware. `setMode()` reads
+  // the cinematic transition policy in `lib/scenario3d/cameraTransitions`
+  // to pick a slower curve when the cut is a teaching cut (broadcast
+  // → teaching-angle on freeze, etc.) and a slower curve still on
+  // top-down lifts. The default 0.18s baseline is preserved for
+  // same-mode and base→base transitions.
+  private easeTimeConstantS = LEGACY_CAMERA_EASE_S
   private lastTickWallMs = 0
 
   constructor(scene: Scene3D, aspect: number, baseFov: number) {
@@ -1428,10 +1480,16 @@ export class CameraController {
   /**
    * Updates the active mode. Mode changes trigger a target recompute
    * and are eased in unless the caller follows up with snapNext().
+   *
+   * V2-C — the ease time constant is repicked from the cinematic
+   * transition policy on every mode change so a freeze cut feels
+   * intentional (slower curve) while an incidental swap stays snappy.
    */
   setMode(mode: CameraMode): void {
     if (mode === this.mode) return
+    const previous = this.mode
     this.mode = mode
+    this.easeTimeConstantS = getCameraTransitionEaseS(previous, mode)
     this.recomputeTarget()
   }
 
@@ -5564,15 +5622,22 @@ function buildAthleteFigure(
     userHeadLayer.add(chevronOutline)
   }
 
-  // Soft contact shadow under the figure (matches the legacy
-  // builder so the floor weight is identical between paths).
+  // Soft contact shadow under the figure. V2-A swaps the flat-color
+  // disc for a radial-gradient soft shadow texture so the figure
+  // reads as grounded rather than pasted onto the floor. The
+  // texture is module-cached and shared across every figure built
+  // by the imperative path; on SSR / no-canvas environments the
+  // helper returns null and we fall back to the legacy untextured
+  // dark disc — preserving the pre-V2 visual contract for tests.
+  const shadowTex = getCachedPlayerShadowTexture()
   const contactShadow = new THREE.Mesh(
-    new THREE.CircleGeometry(PLAYER_RADIUS + 0.55, 24),
+    new THREE.CircleGeometry(PLAYER_RADIUS + 0.85, 32),
     new THREE.MeshBasicMaterial({
-      color: CONTACT_SHADOW_COLOR,
+      color: shadowTex ? '#FFFFFF' : CONTACT_SHADOW_COLOR,
+      map: shadowTex ?? null,
       toneMapped: false,
       transparent: true,
-      opacity: 0.42,
+      opacity: shadowTex ? 1 : 0.42,
       depthWrite: false,
     }),
   )

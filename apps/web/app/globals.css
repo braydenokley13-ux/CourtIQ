@@ -195,4 +195,126 @@ body {
       0 1px 0 rgba(255, 255, 255, 0.04) inset,
       0 12px 30px -16px rgba(0, 0, 0, 0.7);
   }
+
+  /* V2-G — Premium microinteractions.
+     Centralizes the four tactile feedback primitives that previously
+     were re-authored at every call site (and slightly different at
+     each). Apply via class so a future tone change ripples to every
+     button, card, and link in one edit.
+
+       .ciq-press       — snappy scale-down on active, shadow recede
+       .ciq-press-soft  — gentler press for cards / list rows
+       .ciq-lift        — hover-lift with shadow growth (cards / chips)
+       .ciq-pulse-attn  — single-shot attention pulse (newly-arrived
+                            CTAs / freshly-unlocked rows). Plays once
+                            then idles. */
+
+  .ciq-press {
+    transition:
+      transform 120ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 160ms cubic-bezier(0.22, 1, 0.36, 1),
+      filter 120ms ease;
+    will-change: transform;
+  }
+  .ciq-press:active {
+    transform: scale(0.97) translateY(0.5px);
+    filter: brightness(0.96);
+  }
+  .ciq-press:focus-visible {
+    outline: 2px solid rgba(59, 227, 131, 0.6);
+    outline-offset: 2px;
+  }
+
+  .ciq-press-soft {
+    transition:
+      transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 160ms ease;
+    will-change: transform;
+  }
+  .ciq-press-soft:active {
+    transform: scale(0.99) translateY(0.5px);
+  }
+
+  .ciq-lift {
+    transition:
+      transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 220ms ease;
+  }
+  @media (hover: hover) {
+    .ciq-lift:hover {
+      transform: translateY(-1.5px);
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.05) inset,
+        0 18px 40px -22px rgba(0, 0, 0, 0.7),
+        0 6px 18px -8px rgba(59, 227, 131, 0.18);
+    }
+  }
+  .ciq-lift:active {
+    transform: translateY(0px);
+  }
+
+  /* Single-shot attention pulse.
+     Applied to a newly-rendered CTA or a freshly-unlocked chapter row
+     so the eye gets a one-time cue without an indefinite animation
+     loop pulling focus from the action. The keyframes mix a soft
+     scale tick with a brand-tinted ring that fades in then out. */
+  @keyframes ciqPulseAttn {
+    0%, 100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(59, 227, 131, 0);
+    }
+    18% {
+      transform: scale(1.012);
+      box-shadow: 0 0 0 6px rgba(59, 227, 131, 0.22);
+    }
+    55% {
+      transform: scale(1);
+      box-shadow: 0 0 0 12px rgba(59, 227, 131, 0);
+    }
+  }
+  .ciq-pulse-attn {
+    animation: ciqPulseAttn 1500ms cubic-bezier(0.22, 1, 0.36, 1) 1;
+    animation-fill-mode: both;
+  }
+
+  /* V2-G — Stage-in reveal. Used on Pathway hero strips, milestone
+     callouts, and chapter rows so the page assembles with a tiny
+     editorial fade rather than appearing all-at-once. The reveal is
+     deliberately quiet: 4px lift + opacity 0 → 1 over 360ms, no
+     translation along x so it works under reduced-motion users with
+     `prefers-reduced-motion: reduce` (the rule below disables the
+     translate component, leaving only the opacity fade in). */
+  @keyframes ciqStageIn {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .ciq-stage-in {
+    animation: ciqStageIn 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .ciq-stage-in-1 { animation-delay: 0ms; }
+  .ciq-stage-in-2 { animation-delay: 60ms; }
+  .ciq-stage-in-3 { animation-delay: 120ms; }
+  .ciq-stage-in-4 { animation-delay: 180ms; }
+  .ciq-stage-in-5 { animation-delay: 240ms; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ciq-stage-in,
+    .ciq-pulse-attn {
+      animation: none !important;
+    }
+    .ciq-press:active,
+    .ciq-press-soft:active,
+    .ciq-lift:active,
+    .ciq-lift:hover {
+      transform: none !important;
+    }
+  }
 }

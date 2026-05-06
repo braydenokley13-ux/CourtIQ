@@ -32,6 +32,11 @@ import {
   pickPathwayCta,
   summarisePathwayProgress,
 } from '@/lib/pathways/pathwayCta'
+import {
+  deriveMilestone,
+  type PathwayMilestone,
+  type PathwayMilestoneTone,
+} from '@/lib/pathways/pathwayMilestones'
 import type {
   PathwayChallengeAttemptSummary,
   PathwayChapterConfig,
@@ -194,6 +199,10 @@ function ActivePathwayView({
     tag ? getDecoderLabel(tag) : null,
   )
   const hasAnyProgress = progressPct > 0 || progress?.pathwayMastered === true
+  // V2-F — emotional milestone copy. Surfaced just under the hero so
+  // every player lands on a clear "what matters next" beat that is
+  // less abstract than the percentage ring.
+  const milestone = deriveMilestone(pathway, progress ?? null)
 
   return (
     <main className="min-h-dvh bg-bg-0 p-5 text-text">
@@ -245,28 +254,88 @@ function ActivePathwayView({
             </ProgressRing>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-1.5">
+          {/* V2-F P3 — chapter timeline strip. Each chapter is a
+              segment whose width represents authored rep count and
+              whose fill represents server progress. The recommended
+              chapter gets a brand outline + pulse so the eye lands
+              on it before scrolling the chapter map. */}
+          <div className="mt-4 grid auto-cols-fr grid-flow-col gap-1.5">
             {pathway.chapters.map((chapter, i) => {
               const chProgress = progress?.chapters[i]
               const tag = chapter.decoderTag
               const dotAccent = tag ? getAccentColor(getDecoderAccent(tag)) : accent
-              const filled =
-                chProgress?.state === 'mastered' ||
+              const isMastered = chProgress?.state === 'mastered'
+              const isInProgress =
+                chProgress?.state === 'in_progress' ||
                 chProgress?.state === 'completed' ||
-                chProgress?.state === 'in_progress'
+                chProgress?.state === 'unlocked'
+              const isRecommended = recommended?.chapterSlug === chapter.slug
+              const fillPct = chProgress
+                ? Math.max(
+                    isMastered ? 100 : 0,
+                    Math.round((chProgress.progress ?? 0) * 100),
+                  )
+                : 0
+              const isLocked = !chProgress || chProgress.state === 'locked'
               return (
-                <span
+                <div
                   key={chapter.slug}
-                  className="inline-flex h-2 w-6 rounded-full"
+                  className={`relative h-2.5 overflow-hidden rounded-full bg-white/[0.06] ${
+                    isRecommended ? 'ciq-pulse-attn' : ''
+                  }`}
                   style={{
-                    background: filled ? dotAccent : 'rgba(255,255,255,0.06)',
+                    boxShadow: isRecommended
+                      ? `inset 0 0 0 1px ${accent}88`
+                      : undefined,
                   }}
-                  aria-label={`Chapter ${chapter.order} ${chProgress?.state ?? 'locked'}`}
-                />
+                  aria-label={`Chapter ${chapter.order}${
+                    isLocked
+                      ? ' (locked)'
+                      : isMastered
+                        ? ' (mastered)'
+                        : isRecommended
+                          ? ' (recommended)'
+                          : isInProgress
+                            ? ' (in progress)'
+                            : ''
+                  }`}
+                  title={`${chapter.title}${
+                    isMastered ? ' — Mastered' : isRecommended ? ' — Up next' : ''
+                  }`}
+                >
+                  {!isLocked ? (
+                    <div
+                      className="absolute inset-y-0 left-0 transition-[width] duration-500"
+                      style={{
+                        width: `${fillPct}%`,
+                        background: dotAccent,
+                        opacity: isMastered ? 1 : 0.85,
+                      }}
+                    />
+                  ) : null}
+                  {isMastered ? (
+                    <span
+                      aria-hidden
+                      className="absolute right-1 top-1/2 -translate-y-1/2 text-[8px]"
+                      style={{ color: '#062118' }}
+                    >
+                      ✓
+                    </span>
+                  ) : null}
+                </div>
               )
             })}
           </div>
         </header>
+
+        {/* V2-F — milestone strip. A single emotional line that
+            anchors the page to a clear next-beat (mastered, capstone
+            unlocked, X reps to mastery, cold-start). Hidden on the
+            'fallback' tone so a returning player who has not earned
+            a real milestone yet sees the CTA card without filler. */}
+        {milestone.tone !== 'fallback' ? (
+          <PathwayMilestoneStrip milestone={milestone} accent={accent} />
+        ) : null}
 
         {/* V1 Premiumization — primary CTA. Centralized via pickPathwayCta
             so the player always sees the right next-action: cold-start
@@ -289,7 +358,7 @@ function ActivePathwayView({
         />
 
         {/* Parent / coach summary */}
-        <section className="rounded-2xl border border-hairline-2 bg-bg-1 p-4">
+        <section className="ciq-stage-in ciq-stage-in-3 rounded-2xl border border-hairline-2 bg-bg-1 p-4">
           <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">
             What you build here
           </p>
@@ -302,7 +371,7 @@ function ActivePathwayView({
         </section>
 
         {/* Chapter map */}
-        <section className="space-y-3">
+        <section className="ciq-stage-in ciq-stage-in-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">
               Chapters
@@ -386,7 +455,7 @@ function PathwayPrimaryCta({
       <Link
         href={cta.primaryHref}
         className={[
-          'mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl py-3 font-display text-[14px] font-bold uppercase tracking-[0.5px]',
+          'ciq-press mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl py-3 font-display text-[14px] font-bold uppercase tracking-[0.5px]',
           cta.priority === 'capstone'
             ? 'bg-iq text-bg-0 shadow-[0_0_24px_-6px_rgba(139,124,255,0.55)]'
             : 'bg-brand text-brand-ink shadow-brand-sm',
@@ -404,6 +473,88 @@ function PathwayPrimaryCta({
       ) : null}
     </section>
   )
+}
+
+/**
+ * V2-F — emotional milestone strip. Sits between the hero and the
+ * primary CTA so every returning player lands on a clear "what
+ * matters next" beat that is less abstract than the percentage ring
+ * (e.g. "1 rep to master Backdoor Window", "Final Mix unlocked",
+ * "Pathway mastered"). The tone drives the accent — capstone uses
+ * the iq purple, mastered uses brand mint, near-milestones use the
+ * pathway's accent.
+ */
+function PathwayMilestoneStrip({
+  milestone,
+  accent,
+}: {
+  milestone: PathwayMilestone
+  accent: string
+}) {
+  const tone = milestone.tone
+  const dot = MILESTONE_DOT[tone] ?? accent
+  // Tone-driven background tint. We layer a translucent fill on top of
+  // bg-1 so the strip sits a notch brighter than the surrounding
+  // surface without adopting a saturated background that would
+  // compete with the primary CTA below it.
+  const tintLayer =
+    tone === 'mastered'
+      ? 'bg-brand/10 border-brand/40'
+      : tone === 'capstone-unlocked'
+        ? 'bg-iq/10 border-iq/40'
+        : tone === 'capstone-near'
+          ? 'bg-iq/5 border-iq/30'
+          : tone === 'chapter-near'
+            ? 'bg-info/10 border-info/30'
+            : 'bg-bg-1 border-hairline-2'
+
+  // V2-G — capstone-unlocked + chapter-near surfaces also get a
+  // single-shot attention pulse so the eye lands on the milestone
+  // before the CTA. Mastered/cold-start skip the pulse since they
+  // are persistent states, not "moments."
+  const shouldPulse = tone === 'capstone-unlocked' || tone === 'chapter-near'
+
+  return (
+    <section
+      data-milestone-tone={tone}
+      className={`ciq-stage-in ${shouldPulse ? 'ciq-pulse-attn' : ''} flex items-center gap-3 rounded-2xl border px-4 py-3 ${tintLayer}`}
+      role="status"
+      aria-live="polite"
+    >
+      <span
+        aria-hidden
+        className="relative flex h-2.5 w-2.5 shrink-0"
+      >
+        <span
+          className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-50"
+          style={{ background: dot }}
+        />
+        <span
+          className="relative inline-flex h-2.5 w-2.5 rounded-full"
+          style={{ background: dot, boxShadow: `0 0 8px ${dot}` }}
+        />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-display text-[14px] font-bold leading-snug text-text">
+          {milestone.headline}
+        </p>
+        {milestone.detail ? (
+          <p className="mt-0.5 text-[11px] leading-snug text-text-dim">
+            {milestone.detail}
+          </p>
+        ) : null}
+      </div>
+    </section>
+  )
+}
+
+const MILESTONE_DOT: Record<PathwayMilestoneTone, string> = {
+  mastered: '#3BFF9D',
+  'capstone-unlocked': '#8B7CFF',
+  'capstone-near': '#8B7CFF',
+  'chapter-near': '#3D9CFF',
+  'cold-start': '#FFB070',
+  fallback: '#7E8A9B',
 }
 
 /**
@@ -528,9 +679,10 @@ function ChapterRow({
 
   return (
     <article
+      data-chapter-state={state}
       className={[
-        'relative overflow-hidden rounded-2xl border-2 bg-bg-1 transition-colors',
-        isHighlighted ? 'border-brand/50' : 'border-hairline-2',
+        'ciq-lift relative overflow-hidden rounded-2xl border-2 bg-bg-1 transition-colors',
+        isHighlighted ? 'border-brand/50 ciq-pulse-attn' : 'border-hairline-2',
         state === 'locked' ? 'opacity-70' : '',
       ].join(' ')}
     >
@@ -762,7 +914,7 @@ function ChapterCta({
   return (
     <Link
       href={buildSkillNodeTrainHref(target, { pathwaySlug, chapterSlug: chapter.slug })}
-      className="flex items-center justify-center gap-2 rounded-xl bg-brand py-2.5 font-display text-[13px] font-bold uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm transition-transform active:scale-[0.99]"
+      className="ciq-press flex items-center justify-center gap-2 rounded-xl bg-brand py-2.5 font-display text-[13px] font-bold uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm"
     >
       {verb}
       <span aria-hidden>→</span>

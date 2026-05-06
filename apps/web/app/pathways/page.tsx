@@ -62,7 +62,7 @@ export default async function PathwaysHubPage() {
         </header>
 
         {/* Active pathways */}
-        <section className="space-y-3">
+        <section className="ciq-stage-in ciq-stage-in-1 space-y-3">
           <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">
             Your Pathway
           </p>
@@ -87,7 +87,7 @@ export default async function PathwaysHubPage() {
         </section>
 
         {/* Coming-soon catalog */}
-        <section className="space-y-3">
+        <section className="ciq-stage-in ciq-stage-in-2 space-y-3">
           <div className="flex items-end justify-between">
             <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">
               Coming soon
@@ -106,13 +106,13 @@ export default async function PathwaysHubPage() {
         <div className="flex gap-2 pt-2">
           <Link
             href="/train"
-            className="flex-1 rounded-xl bg-brand py-3 text-center font-display text-sm font-bold uppercase tracking-[0.5px] text-brand-ink"
+            className="ciq-press flex-1 rounded-xl bg-brand py-3 text-center font-display text-sm font-bold uppercase tracking-[0.5px] text-brand-ink"
           >
             Quick 5 plays
           </Link>
           <Link
             href="/home"
-            className="rounded-xl bg-bg-2 px-5 py-3 font-display text-[13px] font-semibold text-text-dim"
+            className="ciq-press-soft rounded-xl bg-bg-2 px-5 py-3 font-display text-[13px] font-semibold text-text-dim"
           >
             Home
           </Link>
@@ -141,7 +141,7 @@ function ActivePathwayCard({
 
   return (
     <div
-      className="relative overflow-hidden rounded-3xl border-2 border-brand/40 bg-gradient-to-br from-bg-1 to-bg-2 p-5 shadow-brand-sm"
+      className="ciq-stage-in relative overflow-hidden rounded-3xl border-2 border-brand/40 bg-gradient-to-br from-bg-1 to-bg-2 p-5 shadow-brand-sm"
       style={{ boxShadow: `0 0 32px ${accent}1f, 0 1px 0 rgba(255,255,255,0.04) inset` }}
     >
       <div className="flex items-start justify-between gap-4">
@@ -189,14 +189,14 @@ function ActivePathwayCard({
       <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
         <Link
           href={recommendedHref}
-          className="flex items-center justify-center gap-2 rounded-xl bg-brand py-3 font-display text-[14px] font-bold uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm transition-transform active:scale-[0.99]"
+          className="ciq-press flex items-center justify-center gap-2 rounded-xl bg-brand py-3 font-display text-[14px] font-bold uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm"
         >
           {isStart ? 'Start Pathway' : recommendedLabel}
           <span aria-hidden>→</span>
         </Link>
         <Link
           href={detailHref}
-          className="flex items-center justify-center rounded-xl border border-hairline-2 bg-bg-2 px-4 py-3 font-display text-[13px] font-semibold text-text-dim transition-colors hover:text-text"
+          className="ciq-press-soft flex items-center justify-center rounded-xl border border-hairline-2 bg-bg-2 px-4 py-3 font-display text-[13px] font-semibold text-text-dim transition-colors hover:text-text"
         >
           See chapters
         </Link>
@@ -212,7 +212,7 @@ function ComingSoonCard({ pathway }: { pathway: PathwayConfig }) {
   return (
     <Link
       href={`/pathways/${pathway.slug}`}
-      className="group relative flex h-full flex-col gap-3 overflow-hidden rounded-2xl border border-hairline-2 bg-bg-1 p-4 transition-colors hover:border-hairline"
+      className="ciq-lift group relative flex h-full flex-col gap-3 overflow-hidden rounded-2xl border border-hairline-2 bg-bg-1 p-4 transition-colors hover:border-hairline"
     >
       <div className="flex items-center justify-between text-[10px] uppercase tracking-[1.5px]">
         <span style={{ color: accent }} className="font-bold">

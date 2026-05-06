@@ -1,0 +1,172 @@
+/**
+ * V2-B — Premium athletic motion curves.
+ *
+ * Adds three new deterministic time-warp curves that read as more
+ * athletic than the existing easings without disturbing replay
+ * determinism:
+ *
+ *   - `easeAthleticCutV2(u)`     — cuts / drives. Adds a tiny
+ *                                   anticipation pre-load (the
+ *                                   "load-the-feet" beat) before the
+ *                                   explosive front-half, then settles
+ *                                   on the spot.
+ *   - `easeCloseoutV2(u)`        — defender closeouts. Steep accel
+ *                                   into the closeout, sharp deceleration
+ *                                   into a committed stop (no overrun).
+ *   - `easeStopHardV2(u)`        — `stop_ball` reads. Late deceleration
+ *                                   so the player arrives sharply with
+ *                                   weight forward.
+ *
+ * These curves are NOT yet wired into `easeForKind` because the existing
+ * replay-determinism tests pin sampled positions to the legacy curves;
+ * a future packet that opts a feature flag can swap the dispatch on a
+ * per-scene or per-deploy basis. Tests pin curve shape so the V2
+ * dispatch can be toggled with confidence.
+ *
+ * Hard contract:
+ *   - Pure, deterministic. f(0) = 0, f(1) = 1 for every curve.
+ *   - Outputs clamped to [0, 1] regardless of input.
+ *   - No randomness, no time-of-day dependency.
+ */
+
+/**
+ * Anticipation-loaded explosive cut.
+ *
+ * Curve: small back-dip in the first 5% (the "load") followed by an
+ * accelerated power curve that re-uses the existing smoothstep
+ * post-warp so endpoints have zero derivative. The dip is bounded
+ * tight (≤ 0.012) so the anticipation reads as weight-loading rather
+ * than as the player actually moving backwards.
+ *
+ * Shape highlights (locked by tests):
+ *   - f(0) = 0
+ *   - f(0.05) ≤ 0   (tiny back-load — feet loading)
+ *   - f(0.30) ≥ legacy easeOutAthletic(0.30)
+ *   - f(0.7) > 0.85 (most of the cut is finished by 70% of duration)
+ *   - f(1) = 1
+ */
+export function easeAthleticCutV2(u: number): number {
+  if (u <= 0) return 0
+  if (u >= 1) return 1
+  // Anticipation window: 0..0.06. A small sin-shaped dip; the
+  // amplitude is tight enough that a player only reads it as
+  // foot-load, not actual reverse motion.
+  if (u < 0.06) {
+    const local = u / 0.06
+    const dip = -0.012 * Math.sin(Math.PI * local)
+    return clamp01(dip)
+  }
+  // Post-anticipation: a steeper power curve smoothed by smoothstep.
+  // r = pow((u - 0.06) / 0.94, 0.62) — front-loads more aggressively
+  // than the legacy 0.7 exponent, so the cut reads as decisive
+  // immediately after the load.
+  const r = Math.pow((u - 0.06) / 0.94, 0.62)
+  return clamp01(r * r * (3 - 2 * r))
+}
+
+/**
+ * Closeout: defender accelerates fast, then commits to a hard stop.
+ *
+ * Curve: aggressive front-load, then a deceleration tail that
+ * concentrates the last 25% of the run in an arc that approaches
+ * arrival nearly tangentially. The tail uses a quintic-style
+ * smoothing so f'(1) → 0 — the defender does not overshoot.
+ *
+ * Shape highlights:
+ *   - f(0) = 0, f(1) = 1
+ *   - f(0.25) ≥ 0.42 (defender is ~42% of the way after a quarter
+ *     of the time — closeouts are explosive)
+ *   - f(0.75) ≥ 0.94 (almost arrived; final 25% is the brake)
+ *   - f'(0) = 0     (smooth start, no twitch out of stance)
+ *   - f'(1) = 0     (committed arrival, no jitter)
+ */
+export function easeCloseoutV2(u: number): number {
+  if (u <= 0) return 0
+  if (u >= 1) return 1
+  // Front-loaded power curve (exponent 0.42 — much more aggressive
+  // than the 0.7 athletic exponent). Then a quintic smoothstep so
+  // the arrival has zero velocity.
+  const r = Math.pow(u, 0.42)
+  return clamp01(r * r * r * (10 + r * (-15 + r * 6)))
+}
+
+/**
+ * Hard stop arrival. Used for `stop_ball`-style reads where the
+ * player rushes into a contest then plants. Curve:
+ *   - f(0..0.55) ≈ legacy ease-in-out cubic (consistent first half)
+ *   - f(0.55..1) accelerates the brake so deceleration is felt sharply
+ *     at the back of the segment.
+ *
+ * Shape highlights:
+ *   - f(0) = 0, f(1) = 1
+ *   - f(0.5) ≈ 0.5 (still symmetric at midpoint — the brake has
+ *     not started)
+ *   - f(0.85) ≥ 0.95 (the brake has done most of its work)
+ *   - f'(1) = 0
+ */
+export function easeStopHardV2(u: number): number {
+  if (u <= 0) return 0
+  if (u >= 1) return 1
+  if (u < 0.55) {
+    // Standard ease-in-out cubic up to the brake point.
+    return u < 0.5
+      ? 4 * u * u * u
+      : 1 - Math.pow(-2 * u + 2, 3) / 2
+  }
+  // From 0.55 onward, run an ease-out cubic over the local progress
+  // (u - 0.55) / 0.45 so the brake decelerates quickly toward
+  // arrival. The derivatives match the ease-in-out cubic's at the
+  // 0.55 boundary so there is no velocity discontinuity.
+  const base = 1 - Math.pow(-2 * 0.55 + 2, 3) / 2
+  const local = (u - 0.55) / 0.45
+  const inv = 1 - local
+  const tail = 1 - inv * inv * inv
+  return clamp01(base + (1 - base) * tail)
+}
+
+/**
+ * The kinds of movement segments the V2 curve dispatcher knows about.
+ * Mirrors the subset of `SceneMovementKind` the V2 curves actually
+ * handle; other kinds fall through to the legacy dispatch.
+ */
+export type MovementCurveV2Kind =
+  | 'cut'
+  | 'back_cut'
+  | 'baseline_sneak'
+  | 'drive'
+  | 'jab'
+  | 'rip'
+  | 'closeout'
+  | 'stop_ball'
+
+/**
+ * Returns the V2 athletic curve for the named movement kind, or
+ * `null` when the kind has no V2 override (caller should fall back
+ * to the legacy curve). Pure dispatch.
+ */
+export function getPremiumCurveForKind(
+  kind: string,
+): ((u: number) => number) | null {
+  switch (kind) {
+    case 'cut':
+    case 'back_cut':
+    case 'baseline_sneak':
+    case 'drive':
+    case 'jab':
+    case 'rip':
+      return easeAthleticCutV2
+    case 'closeout':
+      return easeCloseoutV2
+    case 'stop_ball':
+      return easeStopHardV2
+    default:
+      return null
+  }
+}
+
+function clamp01(n: number): number {
+  if (!Number.isFinite(n)) return 0
+  if (n < 0) return 0
+  if (n > 1) return 1
+  return n
+}

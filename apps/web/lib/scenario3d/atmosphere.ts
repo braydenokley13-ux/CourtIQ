@@ -1,15 +1,46 @@
 /**
- * Subtle atmospheric polish for the imperative basketball scene. Currently
- * limited to a slow drifting dust-mote field — a single THREE.Points cloud
- * built once per mount, animated by mutating its existing position buffer
- * (no per-frame mesh recreation). Intended to run only on the high quality
- * tier; medium and low skip it entirely.
+ * Subtle atmospheric polish for the imperative basketball scene.
+ *
+ * Currently exposes:
+ *   - `buildDustMotes` — slow drifting dust-mote field; high-tier only.
+ *   - `getRimHaloPulseAlpha` — V2-A pure helper that returns the
+ *     deterministic alpha multiplier the rim glow should sit at for a
+ *     given wall-clock ms. Pulses once every ~6 seconds at very low
+ *     amplitude; the renderer's per-frame loop multiplies the rim
+ *     glow's authored opacity by this value so the gym reads as
+ *     softly breathing rather than a static still life.
  *
  * All resources owned here (geometry, material, alphaMap) are GPU-bound
  * and must be disposed via `disposeDustMotes()` when the scene unmounts.
  */
 import * as THREE from 'three'
 import { COURT } from './coords'
+
+// V2-A — rim halo ambient pulse.
+//
+// The pre-V2 rim glow was a static MeshBasicMaterial at opacity 0.12.
+// Adding a deterministic, low-amplitude breath to its alpha makes the
+// gym feel alive without competing with the action — the pulse cycles
+// once every ~5.8 seconds and varies the alpha by ±10% of the authored
+// value. Pure function: same `nowMs` → same alpha multiplier, byte-
+// identical across replays.
+const RIM_HALO_PULSE_PERIOD_S = 5.8
+const RIM_HALO_PULSE_AMPLITUDE = 0.1
+
+/**
+ * Returns the alpha multiplier the rim glow should sit at for the given
+ * wall-clock millisecond timestamp. Stays inside [1 - amp, 1 + amp]
+ * so the renderer's authored opacity is preserved on average.
+ *
+ * Pure / deterministic. SSR-safe (no DOM).
+ */
+export function getRimHaloPulseAlpha(nowMs: number): number {
+  if (!Number.isFinite(nowMs)) return 1
+  const t = (nowMs / 1000) / RIM_HALO_PULSE_PERIOD_S
+  // 2π * t produces one full cycle per period. Sin → cosine-like
+  // breathing; (1 + amp * sin) gives a base of 1 with ±amp swing.
+  return 1 + RIM_HALO_PULSE_AMPLITUDE * Math.sin(2 * Math.PI * t)
+}
 
 const DUST_PARTICLE_COUNT = 110
 const DUST_COLOR = '#FFE2A8'
