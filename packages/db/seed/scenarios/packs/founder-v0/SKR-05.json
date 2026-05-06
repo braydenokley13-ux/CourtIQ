@@ -119,7 +119,7 @@
       "movements": [
         { "id": "user_drive_middle", "playerId": "user", "kind": "drive", "to": { "x": 4, "z": 9 }, "delayMs": 0, "durationMs": 700 },
         { "id": "x4_tag", "playerId": "x4", "kind": "rotation", "to": { "x": 2, "z": 5 }, "delayMs": 100, "durationMs": 1200 },
-        { "id": "x3_x_out_to_corner", "playerId": "x3", "kind": "rotation", "to": { "x": -19, "z": 3 }, "delayMs": 600, "durationMs": 800 }
+        { "id": "x3_x_out_to_corner", "playerId": "x3", "kind": "rotation", "to": { "x": -19, "z": 3 }, "delayMs": 600, "durationMs": 700 }
       ],
       "freezeMarker": { "kind": "atMs", "atMs": 1500 },
       "answerDemo": [
