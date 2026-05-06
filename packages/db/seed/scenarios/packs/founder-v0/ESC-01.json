@@ -141,8 +141,8 @@
           "playerId": "x2",
           "kind": "rotation",
           "to": { "x": 10, "z": 5 },
-          "delayMs": 250,
-          "durationMs": 750
+          "delayMs": 360,
+          "durationMs": 700
         }
       ],
       "freezeMarker": { "kind": "atMs", "atMs": 1500 },

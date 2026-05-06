@@ -125,7 +125,8 @@
         { "id": "user_jab", "playerId": "user", "kind": "jab", "to": { "x": 19, "z": 9 }, "delayMs": 0, "durationMs": 200 },
         { "id": "user_back_cut", "playerId": "user", "kind": "back_cut", "to": { "x": 4, "z": 2 }, "delayMs": 50, "durationMs": 700 },
         { "id": "pg_air_lead_pass", "playerId": "ball", "kind": "pass", "to": { "x": 4, "z": 2 }, "delayMs": 350, "durationMs": 600 },
-        { "id": "user_finish", "playerId": "user", "kind": "cut", "to": { "x": 0, "z": 0.5 }, "delayMs": 50, "durationMs": 350 }
+        { "id": "user_catch_at_rim", "playerId": "user", "kind": "lift", "to": { "x": 4, "z": 2 }, "delayMs": 0, "durationMs": 100 },
+        { "id": "user_finish", "playerId": "user", "kind": "cut", "to": { "x": 0, "z": 0.5 }, "delayMs": 30, "durationMs": 320 }
       ],
       "wrongDemos": [
         {

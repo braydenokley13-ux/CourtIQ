@@ -141,7 +141,7 @@
           "playerId": "x2",
           "kind": "closeout",
           "to": { "x": 14, "z": 8 },
-          "delayMs": 350,
+          "delayMs": 450,
           "durationMs": 750
         }
       ],

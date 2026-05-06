@@ -117,14 +117,14 @@
       ],
       "ball": { "start": { "x": 13, "z": 3 }, "holderId": "user" },
       "movements": [
-        { "id": "x3_double_crash", "playerId": "x3", "kind": "rotation", "to": { "x": 11, "z": 4 }, "delayMs": 0, "durationMs": 1500 },
+        { "id": "x3_double_crash", "playerId": "x3", "kind": "rotation", "to": { "x": 11, "z": 4 }, "delayMs": 0, "durationMs": 1300 },
         { "id": "user_chin_pivot", "playerId": "user", "kind": "jab", "to": { "x": 13, "z": 4 }, "delayMs": 300, "durationMs": 400 }
       ],
       "freezeMarker": { "kind": "atMs", "atMs": 1500 },
       "answerDemo": [
         { "id": "user_high_pivot", "playerId": "user", "kind": "jab", "to": { "x": 13, "z": 5 }, "delayMs": 0, "durationMs": 300 },
         { "id": "skip_over_double", "playerId": "ball", "kind": "skip_pass", "to": { "x": -17, "z": 9 }, "delayMs": 200, "durationMs": 800 },
-        { "id": "o3_catch_and_shoot", "playerId": "o3", "kind": "lift", "to": { "x": -17, "z": 9 }, "delayMs": 50, "durationMs": 300 }
+        { "id": "o3_catch_and_shoot", "playerId": "o3", "kind": "lift", "to": { "x": -17, "z": 9 }, "delayMs": 650, "durationMs": 350 }
       ],
       "wrongDemos": [
         {

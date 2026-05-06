@@ -168,8 +168,8 @@
           "playerId": "o4",
           "kind": "lift",
           "to": { "x": -22, "z": 1 },
-          "delayMs": 50,
-          "durationMs": 300
+          "delayMs": 550,
+          "durationMs": 350
         }
       ],
       "wrongDemos": [
@@ -234,8 +234,8 @@
               "playerId": "x2",
               "kind": "closeout",
               "to": { "x": 21, "z": 2 },
-              "delayMs": 100,
-              "durationMs": 500
+              "delayMs": 220,
+              "durationMs": 550
             }
           ]
         }

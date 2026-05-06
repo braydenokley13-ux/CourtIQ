@@ -192,20 +192,31 @@ describe('athlete builder disposal', () => {
       const figure = buildPlayerFigure('#2D8AFF', '#0A4FB8', s.user, s.ball, '4', s.stance)
       const tris = countTriangles(figure)
       expect(tris).toBeGreaterThan(0)
-      // V4-A ceiling: 2750 tris per figure (was Phase J 2400). The
-      // Phase F fallback (still available when the premium flag is
-      // off) keeps its own pre-V4 budget. The premium path adds:
+      // V5 ceiling: 3050 tris per figure (was V4-A 2750, was Phase J
+      // 2400). The Phase F fallback (still available when the premium
+      // flag is off) keeps its own pre-V4 budget. The premium path
+      // now adds:
       //   - body lathes, trap/jaw, toe-cap/heel
       //   - shoulder piping + shorts hem
       //   - V4-A socks + biceps cuffs (kit mat)
       //   - V4-A side stripes on each shoe
       //   - V4-D headband on the user player
-      //   - conditional ball-handler wristband and defender cuff
-      // 2750 leaves a small headroom for further narrow polish; if
-      // a future packet pushes a figure past this ceiling, the
-      // tessellation knobs in `upgradePremiumKit` are the first
-      // thing to dial back.
-      expect(tris).toBeLessThanOrEqual(2750)
+      //   - V5.A face read (visor torus + 2 cheekbone domes)
+      //   - V5.B left-wrist tape (always) + finger wrap (ball-handler)
+      //   - V5.C stylized rim-light shells (head + torso + 2 upper arms)
+      //   - V5.D user-only floor bloom disc
+      //   - conditional ball-handler wristband
+      // The shells dominate the V5 add (they wrap most of the body in
+      // additive overlays so the silhouette picks up a broadcast-style
+      // back-light read). Tessellation on every shell is intentionally
+      // tight — bumping the ceiling instead of clipping the shells is
+      // the explicit decision for the V5 stylized identity packet,
+      // since the geometry is per-figure but cheap to dispatch.
+      // 3200 leaves a small headroom for further narrow polish; if a
+      // future packet pushes a figure past this ceiling, the
+      // tessellation knobs in `upgradePremiumStylizedRimLight` and
+      // `upgradePremiumKit` are the first thing to dial back.
+      expect(tris).toBeLessThanOrEqual(3200)
       disposeGroup(figure)
     }
   })

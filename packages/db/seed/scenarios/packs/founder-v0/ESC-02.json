@@ -148,8 +148,9 @@
           "choiceId": "c4",
           "caption": "You cut up the lane and ran into the drive.",
           "movements": [
-            { "id": "user_cut_lane_line", "playerId": "user", "kind": "cut", "to": { "x": 5, "z": 6 }, "delayMs": 0, "durationMs": 600 },
-            { "id": "pg_collision_path", "playerId": "pg", "kind": "drive", "to": { "x": 5, "z": 6 }, "delayMs": 0, "durationMs": 600 }
+            { "id": "user_cut_lane_line", "playerId": "user", "kind": "cut", "to": { "x": 6, "z": 5 }, "delayMs": 0, "durationMs": 600 },
+            { "id": "pg_collision_path", "playerId": "pg", "kind": "drive", "to": { "x": 4, "z": 7 }, "delayMs": 100, "durationMs": 550 },
+            { "id": "x2_seal_help", "playerId": "x2", "kind": "rotation", "to": { "x": 6, "z": 5 }, "delayMs": 200, "durationMs": 500 }
           ]
         }
       ],

@@ -118,14 +118,14 @@
       "ball": { "start": { "x": 0, "z": 17 }, "holderId": "user" },
       "movements": [
         { "id": "user_drive_middle", "playerId": "user", "kind": "drive", "to": { "x": 4, "z": 9 }, "delayMs": 0, "durationMs": 700 },
-        { "id": "x4_tag", "playerId": "x4", "kind": "rotation", "to": { "x": 2, "z": 5 }, "delayMs": 100, "durationMs": 1200 },
-        { "id": "x3_x_out_to_corner", "playerId": "x3", "kind": "rotation", "to": { "x": -19, "z": 3 }, "delayMs": 600, "durationMs": 800 }
+        { "id": "x4_tag", "playerId": "x4", "kind": "rotation", "to": { "x": 2, "z": 5 }, "delayMs": 220, "durationMs": 1080 },
+        { "id": "x3_x_out_to_corner", "playerId": "x3", "kind": "rotation", "to": { "x": -19, "z": 3 }, "delayMs": 600, "durationMs": 700 }
       ],
       "freezeMarker": { "kind": "atMs", "atMs": 1500 },
       "answerDemo": [
         { "id": "user_stop_pivot", "playerId": "user", "kind": "jab", "to": { "x": 4, "z": 10 }, "delayMs": 0, "durationMs": 250 },
         { "id": "skip_past_x_out", "playerId": "ball", "kind": "skip_pass", "to": { "x": -17, "z": 9 }, "delayMs": 200, "durationMs": 700 },
-        { "id": "o3_catch_shoot", "playerId": "o3", "kind": "lift", "to": { "x": -17, "z": 9 }, "delayMs": 50, "durationMs": 300 }
+        { "id": "o3_catch_shoot", "playerId": "o3", "kind": "lift", "to": { "x": -17, "z": 9 }, "delayMs": 550, "durationMs": 350 }
       ],
       "wrongDemos": [
         {

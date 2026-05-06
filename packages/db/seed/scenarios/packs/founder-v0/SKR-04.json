@@ -125,7 +125,7 @@
       "answerDemo": [
         { "id": "user_pivot_back", "playerId": "user", "kind": "jab", "to": { "x": 7, "z": 11 }, "delayMs": 0, "durationMs": 250 },
         { "id": "skip_to_trail", "playerId": "ball", "kind": "skip_pass", "to": { "x": 0, "z": 19 }, "delayMs": 200, "durationMs": 700 },
-        { "id": "trail_catch_and_shoot", "playerId": "o3", "kind": "lift", "to": { "x": 0, "z": 19 }, "delayMs": 50, "durationMs": 300 }
+        { "id": "trail_catch_and_shoot", "playerId": "o3", "kind": "lift", "to": { "x": 0, "z": 19 }, "delayMs": 550, "durationMs": 350 }
       ],
       "wrongDemos": [
         {
@@ -148,8 +148,9 @@
           "choiceId": "c4",
           "caption": "You pocket-passed the screener. The defender deflected it.",
           "movements": [
-            { "id": "pocket_to_screen", "playerId": "ball", "kind": "pass", "to": { "x": 4, "z": 11 }, "delayMs": 0, "durationMs": 500 },
-            { "id": "x_screen_deflect", "playerId": "x_screen", "kind": "rotation", "to": { "x": 4, "z": 8 }, "delayMs": 100, "durationMs": 400 }
+            { "id": "x_screen_deflect", "playerId": "x_screen", "kind": "rotation", "to": { "x": 5, "z": 8 }, "delayMs": 0, "durationMs": 350 },
+            { "id": "pocket_to_screen", "playerId": "ball", "kind": "pass", "to": { "x": 5, "z": 8 }, "delayMs": 150, "durationMs": 400 },
+            { "id": "ball_tipped_to_corner", "playerId": "ball", "kind": "pass", "to": { "x": 7, "z": 6 }, "delayMs": 50, "durationMs": 300 }
           ]
         }
       ],

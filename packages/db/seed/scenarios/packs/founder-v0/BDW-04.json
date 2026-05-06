@@ -118,14 +118,15 @@
       "ball": { "start": { "x": 17, "z": 9 }, "holderId": "wing" },
       "movements": [
         { "id": "user_set", "playerId": "user", "kind": "lift", "to": { "x": -7, "z": 15 }, "delayMs": 0, "durationMs": 500 },
-        { "id": "x1_deny_slot", "playerId": "x1", "kind": "rotation", "to": { "x": -3, "z": 12 }, "delayMs": 200, "durationMs": 700 }
+        { "id": "x1_deny_slot", "playerId": "x1", "kind": "rotation", "to": { "x": -3, "z": 12 }, "delayMs": 400, "durationMs": 600 }
       ],
       "freezeMarker": { "kind": "atMs", "atMs": 1400 },
       "answerDemo": [
         { "id": "user_jab", "playerId": "user", "kind": "jab", "to": { "x": -8, "z": 16 }, "delayMs": 0, "durationMs": 250 },
         { "id": "user_back_cut", "playerId": "user", "kind": "back_cut", "to": { "x": -3, "z": 4 }, "delayMs": 100, "durationMs": 700 },
         { "id": "wing_lead_pass", "playerId": "ball", "kind": "pass", "to": { "x": -2, "z": 3 }, "delayMs": 500, "durationMs": 550 },
-        { "id": "user_finish", "playerId": "user", "kind": "cut", "to": { "x": 0, "z": 0.5 }, "delayMs": 50, "durationMs": 350 }
+        { "id": "user_catch_at_rim", "playerId": "user", "kind": "lift", "to": { "x": -3, "z": 4 }, "delayMs": 0, "durationMs": 100 },
+        { "id": "user_finish", "playerId": "user", "kind": "cut", "to": { "x": 0, "z": 0.5 }, "delayMs": 30, "durationMs": 320 }
       ],
       "wrongDemos": [
         {
@@ -148,8 +149,9 @@
           "choiceId": "c4",
           "caption": "You stood still. The reversal was tipped.",
           "movements": [
-            { "id": "wing_force_reverse", "playerId": "ball", "kind": "pass", "to": { "x": -7, "z": 14 }, "delayMs": 0, "durationMs": 500 },
-            { "id": "x1_deflect", "playerId": "x1", "kind": "rotation", "to": { "x": -5, "z": 13 }, "delayMs": 100, "durationMs": 350 }
+            { "id": "x1_deflect", "playerId": "x1", "kind": "rotation", "to": { "x": -5, "z": 13 }, "delayMs": 0, "durationMs": 350 },
+            { "id": "wing_force_reverse", "playerId": "ball", "kind": "pass", "to": { "x": -5, "z": 13 }, "delayMs": 200, "durationMs": 400 },
+            { "id": "ball_deflected_loose", "playerId": "ball", "kind": "pass", "to": { "x": -3, "z": 11 }, "delayMs": 50, "durationMs": 350 }
           ]
         }
       ],

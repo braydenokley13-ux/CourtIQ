@@ -118,14 +118,15 @@
       "ball": { "start": { "x": 8, "z": 14 }, "holderId": "pg" },
       "movements": [
         { "id": "user_set", "playerId": "user", "kind": "lift", "to": { "x": 19, "z": 9 }, "delayMs": 0, "durationMs": 500 },
-        { "id": "x2_top_lock", "playerId": "x2", "kind": "rotation", "to": { "x": 17, "z": 12 }, "delayMs": 200, "durationMs": 700 }
+        { "id": "x2_top_lock", "playerId": "x2", "kind": "rotation", "to": { "x": 17, "z": 12 }, "delayMs": 400, "durationMs": 600 }
       ],
       "freezeMarker": { "kind": "atMs", "atMs": 1400 },
       "answerDemo": [
         { "id": "user_plant", "playerId": "user", "kind": "jab", "to": { "x": 20, "z": 9 }, "delayMs": 0, "durationMs": 250 },
         { "id": "user_back_cut", "playerId": "user", "kind": "back_cut", "to": { "x": 5, "z": 2 }, "delayMs": 100, "durationMs": 750 },
         { "id": "pg_lead_pass", "playerId": "ball", "kind": "pass", "to": { "x": 4, "z": 2 }, "delayMs": 500, "durationMs": 600 },
-        { "id": "user_finish", "playerId": "user", "kind": "cut", "to": { "x": 0, "z": 0.5 }, "delayMs": 50, "durationMs": 350 }
+        { "id": "user_catch_at_rim", "playerId": "user", "kind": "lift", "to": { "x": 5, "z": 2 }, "delayMs": 0, "durationMs": 100 },
+        { "id": "user_finish", "playerId": "user", "kind": "cut", "to": { "x": 0, "z": 0.5 }, "delayMs": 30, "durationMs": 320 }
       ],
       "wrongDemos": [
         {
@@ -133,7 +134,7 @@
           "caption": "You drifted to the corner. The pass came, but the layup was gone.",
           "movements": [
             { "id": "user_drift_corner", "playerId": "user", "kind": "drift", "to": { "x": 22, "z": 2 }, "delayMs": 0, "durationMs": 700 },
-            { "id": "pg_corner_pass", "playerId": "ball", "kind": "pass", "to": { "x": 22, "z": 2 }, "delayMs": 250, "durationMs": 500 }
+            { "id": "pg_corner_pass", "playerId": "ball", "kind": "pass", "to": { "x": 22, "z": 2 }, "delayMs": 350, "durationMs": 450 }
           ]
         },
         {

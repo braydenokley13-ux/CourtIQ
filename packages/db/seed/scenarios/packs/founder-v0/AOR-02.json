@@ -119,9 +119,9 @@
       "movements": [
         { "id": "user_lift_to_catch", "playerId": "user", "kind": "lift", "to": { "x": 16, "z": 10 }, "delayMs": 0, "durationMs": 600 },
         { "id": "pg_pass_to_wing", "playerId": "ball", "kind": "pass", "to": { "x": 16, "z": 10 }, "delayMs": 350, "durationMs": 700 },
-        { "id": "x2_flying_closeout", "playerId": "x2", "kind": "closeout", "to": { "x": 17, "z": 11 }, "delayMs": 350, "durationMs": 800 }
+        { "id": "x2_flying_closeout", "playerId": "x2", "kind": "closeout", "to": { "x": 17, "z": 11 }, "delayMs": 420, "durationMs": 800 }
       ],
-      "freezeMarker": { "kind": "atMs", "atMs": 1500 },
+      "freezeMarker": { "kind": "atMs", "atMs": 1300 },
       "answerDemo": [
         { "id": "user_catch_lift", "playerId": "user", "kind": "lift", "to": { "x": 16, "z": 10 }, "delayMs": 0, "durationMs": 200 },
         { "id": "user_rip", "playerId": "user", "kind": "rip", "to": { "x": 17, "z": 9 }, "delayMs": 50, "durationMs": 250 },
