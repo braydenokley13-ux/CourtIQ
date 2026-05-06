@@ -123,8 +123,9 @@
       ],
       "freezeMarker": { "kind": "atMs", "atMs": 1500 },
       "answerDemo": [
-        { "id": "user_lift_to_wing", "playerId": "user", "kind": "cut", "to": { "x": -17, "z": 9 }, "delayMs": 0, "durationMs": 700 },
-        { "id": "wing_kickout", "playerId": "ball", "kind": "pass", "to": { "x": -17, "z": 9 }, "delayMs": 350, "durationMs": 700 }
+        { "id": "user_lift_to_wing", "playerId": "user", "kind": "cut", "to": { "x": -17, "z": 9 }, "delayMs": 0, "durationMs": 600 },
+        { "id": "wing_kickout", "playerId": "ball", "kind": "pass", "to": { "x": -17, "z": 9 }, "delayMs": 350, "durationMs": 700 },
+        { "id": "user_catch_and_shoot", "playerId": "user", "kind": "lift", "to": { "x": -17, "z": 9 }, "delayMs": 250, "durationMs": 280 }
       ],
       "wrongDemos": [
         {

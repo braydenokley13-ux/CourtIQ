@@ -162,12 +162,20 @@
           "durationMs": 600
         },
         {
+          "id": "user_catch_at_rim",
+          "playerId": "user",
+          "kind": "lift",
+          "to": { "x": 4, "z": 2 },
+          "delayMs": 0,
+          "durationMs": 100
+        },
+        {
           "id": "user_finish",
           "playerId": "user",
           "kind": "cut",
           "to": { "x": 0, "z": 0.5 },
-          "delayMs": 50,
-          "durationMs": 350
+          "delayMs": 30,
+          "durationMs": 320
         }
       ],
       "wrongDemos": [
