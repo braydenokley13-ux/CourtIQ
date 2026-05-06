@@ -74,11 +74,11 @@ const DECODER_HANDOFF: Record<
 > = {
   BACKDOOR_WINDOW: {
     teachingPoint:
-      'When your defender blocks the pass, the space behind him is open. Cut there.',
-    lessonConnection: 'Cut behind him when he blocks the pass.',
+      'When the defender denies the pass, the rim is behind him. That space is yours.',
+    lessonConnection: 'His hand goes into the lane — you go behind him.',
     lessonSlug: 'backdoor-window',
     selfReviewChecklist: [
-      'Did I see his hand and foot blocking the pass?',
+      'Did I see his hand drop into the lane?',
       'Did I cut behind him, not in front?',
       'Did I cut hard, like I wanted the layup?',
       'Did I show my hands at the rim?',
@@ -86,8 +86,8 @@ const DECODER_HANDOFF: Record<
   },
   EMPTY_SPACE_CUT: {
     teachingPoint:
-      'When your teammate drives, your job is to fill the space their defender just abandoned.',
-    lessonConnection: 'Cut into the space your teammate just created.',
+      'When help steps to the ball, the spot they leave is wide open. Fill it.',
+    lessonConnection: 'Helper commits — you take his spot.',
     lessonSlug: 'empty-space-cut',
     selfReviewChecklist: [
       'Did I see the helper commit before I cut?',
@@ -97,8 +97,8 @@ const DECODER_HANDOFF: Record<
   },
   SKIP_THE_ROTATION: {
     teachingPoint:
-      'When the defense is rotating, throw the ball to the spot they can’t get to in time.',
-    lessonConnection: 'Beat the rotation with the cross-court pass.',
+      'When two defenders go to the ball, the shooter they left is the one you skip to.',
+    lessonConnection: 'Two on the ball — find the open shooter and skip it.',
     lessonSlug: 'skip-the-rotation',
     selfReviewChecklist: [
       'Did I see the help commit before I skipped?',
@@ -108,8 +108,8 @@ const DECODER_HANDOFF: Record<
   },
   ADVANTAGE_OR_RESET: {
     teachingPoint:
-      'The first move on the catch is the read: either there is an advantage to take, or there isn’t.',
-    lessonConnection: 'If the advantage is there, take it. If not, reset.',
+      'On the catch you decide: take the advantage, or move the ball. Holding it is the worst read.',
+    lessonConnection: 'Out of control = drive. Balanced = swing it.',
     lessonSlug: 'advantage-or-reset',
     selfReviewChecklist: [
       'Did I read the closeout’s feet before I moved?',
@@ -138,20 +138,24 @@ type AttemptFeedback = {
 const PRAISE = ['Good read.', 'Nice cut.', 'You got it.', 'You saw it.', 'Smart move.']
 const RECOVER = ['Almost.', 'So close.', 'Not yet.', 'Reset and watch.', 'Reset.']
 
-/** Per-decoder micro-praise — names the cue the kid noticed. */
+/** Per-decoder micro-praise — names what shifted on the floor, not
+ *  the player's action. The point is "ohh, THAT'S why the space
+ *  opened" — basketball cause-and-effect, not a pat on the head. */
 const WIN_MICRO_PRAISE: Record<DecoderTag, string> = {
-  BACKDOOR_WINDOW: 'You saw the open space behind the defender.',
-  EMPTY_SPACE_CUT: 'You filled the empty space.',
-  SKIP_THE_ROTATION: 'You beat the rotation.',
-  ADVANTAGE_OR_RESET: 'You read the closeout.',
+  BACKDOOR_WINDOW: 'His hand cut off the pass — the rim opened up behind him.',
+  EMPTY_SPACE_CUT: 'The helper stepped to the ball — his spot was yours.',
+  SKIP_THE_ROTATION: 'Two went to the ball — the weak side was wide open.',
+  ADVANTAGE_OR_RESET: 'He flew at you — you beat his momentum.',
 }
 
-/** Per-decoder coaching micro-note shown under a wrong-answer headline. */
+/** Per-decoder coaching micro-note shown under a wrong-answer headline.
+ *  Tells the player what to watch for next rep — the cue, not the
+ *  prescription. */
 const MISS_MICRO_NOTE: Record<DecoderTag, string> = {
-  BACKDOOR_WINDOW: 'Watch the defender. If he blocks the pass, cut behind him.',
-  EMPTY_SPACE_CUT: 'Cut into the space, not the wing.',
-  SKIP_THE_ROTATION: 'Find the help that already left.',
-  ADVANTAGE_OR_RESET: 'Decide on the catch — attack or reset.',
+  BACKDOOR_WINDOW: 'When his hand drops into the lane, the rim is behind him.',
+  EMPTY_SPACE_CUT: 'Watch the helper. The spot he leaves is the one to fill.',
+  SKIP_THE_ROTATION: 'The defender who left a shooter is the one you skip past.',
+  ADVANTAGE_OR_RESET: 'Read his feet on the catch. Out of control = drive. Balanced = swing it.',
 }
 
 function pick<T>(arr: T[], seed: number): T {

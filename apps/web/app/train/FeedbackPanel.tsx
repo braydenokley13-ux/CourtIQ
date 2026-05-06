@@ -79,7 +79,7 @@ export function FeedbackPanel({
 
       <div className="mt-3 rounded-xl border border-hairline bg-bg-2 p-3">
         <p className="text-[10px] font-bold uppercase tracking-[1.4px] text-text-mute">
-          Why
+          The read
         </p>
         <p className="mt-1 text-[13px] leading-snug text-text">{whyText}</p>
       </div>
