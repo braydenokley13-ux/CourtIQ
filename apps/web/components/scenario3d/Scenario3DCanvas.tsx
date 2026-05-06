@@ -49,6 +49,7 @@ import {
   type QualityTier,
 } from '@/lib/scenario3d/quality'
 import { buildDustMotes, type DustMotes } from '@/lib/scenario3d/atmosphere'
+import { FramePacingTracker } from '@/lib/scenario3d/framePacing'
 import {
   isGlbAthleteCacheReady,
   loadGlbAthleteAsset,
@@ -804,6 +805,22 @@ export function Scenario3DCanvas({
     const FPS_GUARD_WINDOW = 120 // ~2s @ 60fps
     const FPS_SLOW_FRAME_MS = 33 // <30fps
     const FPS_SLOW_FRACTION = 0.6 // 60% of the window
+
+    // V2-H — frame-pacing telemetry. The FPS guard above only emits a
+    // single boolean ("should we degrade?"); the tracker keeps the
+    // rolling distribution so a debug surface or telemetry probe can
+    // surface p50 / p95 / max frame deltas without a second rAF. The
+    // tracker is exposed on `window.__COURTIQ_FRAME_PACING__` so a
+    // dev-only console can read it. SSR-safe because the assignment
+    // sits inside this useEffect, which only runs on the client.
+    const framePacing = new FramePacingTracker({
+      bufferSize: FPS_GUARD_WINDOW,
+      slowFrameMs: FPS_SLOW_FRAME_MS,
+    })
+    type WithFramePacing = typeof window & {
+      __COURTIQ_FRAME_PACING__?: FramePacingTracker
+    }
+    ;(window as WithFramePacing).__COURTIQ_FRAME_PACING__ = framePacing
     const tick = () => {
       if (!running) return
       const gl = glRef.current
@@ -918,6 +935,10 @@ export function Scenario3DCanvas({
           const nowFrame = performance.now()
           if (lastFrameAt !== 0 && qualityRef.current.fpsGuardEnabled) {
             const dt = nowFrame - lastFrameAt
+            // V2-H — record the delta into the pacing tracker so debug
+            // surfaces can surface p50/p95/max without spinning a
+            // second rAF.
+            if (frame > FPS_GUARD_WARMUP) framePacing.record(dt)
             if (frame > FPS_GUARD_WARMUP) {
               measuredFrames++
               if (dt > FPS_SLOW_FRAME_MS) slowFrames++
@@ -974,6 +995,12 @@ export function Scenario3DCanvas({
     return () => {
       running = false
       window.cancelAnimationFrame(rafId)
+      // V2-H — clear the dev-mode pacing handle so a remounted canvas
+      // never reads from a torn-down tracker.
+      const w = window as WithFramePacing
+      if (w.__COURTIQ_FRAME_PACING__ === framePacing) {
+        delete w.__COURTIQ_FRAME_PACING__
+      }
     }
     // onQualityChange and setQualitySettings are intentionally omitted —
     // including them would tear down and recreate the rAF loop on every

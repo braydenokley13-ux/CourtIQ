@@ -25,43 +25,43 @@ import type { OverlayPrimitive } from './schema'
 
 const visionCone: OverlayPrimitive = {
   kind: 'defender_vision_cone',
-  defenderId: 'wing-defender',
-  yawDeg: 24,
-  spreadDeg: 60,
+  playerId: 'wing-defender',
 }
 const hipArrow: OverlayPrimitive = {
   kind: 'defender_hip_arrow',
-  defenderId: 'wing-defender',
-  vector: { dx: 1, dz: 0 },
+  playerId: 'wing-defender',
 }
 const passLaneOpen: OverlayPrimitive = {
   kind: 'passing_lane_open',
-  fromPlayerId: 'wing',
-  toPlayerId: 'corner',
+  from: 'wing',
+  to: 'corner',
 }
 const openSpace: OverlayPrimitive = {
   kind: 'open_space_region',
-  shape: 'rect',
-  bounds: { x0: 0, z0: 0, x1: 6, z1: 8 },
+  anchor: { x: 6, z: 8 },
+  radiusFt: 4,
 }
 const label: OverlayPrimitive = {
   kind: 'label',
   text: 'Wing denial',
-  anchor: { kind: 'court', x: 12, z: 8 },
+  anchor: { x: 12, z: 8 },
 }
 const helpPulse: OverlayPrimitive = {
   kind: 'help_pulse',
-  defenderId: 'help',
+  playerId: 'help',
+  role: 'tag',
 }
 const driveCutPreview: OverlayPrimitive = {
   kind: 'drive_cut_preview',
-  fromPlayerId: 'you',
-  to: { x: 0, z: 4 },
+  playerId: 'you',
+  path: [
+    { x: 0, z: 0 },
+    { x: 0, z: 4 },
+  ],
 }
 const handInLane: OverlayPrimitive = {
   kind: 'defender_hand_in_lane',
-  defenderId: 'wing-defender',
-  hand: 'left',
+  playerId: 'wing-defender',
 }
 
 describe('buildChoreography', () => {
