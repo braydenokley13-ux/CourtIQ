@@ -6,6 +6,12 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { NumberTicker } from '@/components/ui/NumberTicker'
 import { XPBar } from '@/components/ui/XPBar'
+import {
+  IntroCardsModal,
+  hasDismissedIntro,
+  clearIntroDismissal,
+} from '@/features/onboarding/IntroCards'
+import { INTRO_HOME_BANNER } from '@/lib/onboarding/introCopy'
 
 const ease = [0.22, 1, 0.36, 1]
 
@@ -131,6 +137,11 @@ export default function HomePage() {
   const [sessions, setSessions] = useState<RecentSession[]>([])
   const [pathway, setPathway] = useState<PathwayProgressLite | null>(null)
   const [loading, setLoading] = useState(true)
+  // V3 P2 — first-time intro modal. Auto-opens for cold-start players;
+  // subsequent loads reopen only when the player explicitly taps the
+  // "Show me" banner (or "Replay walkthrough" link in the nav grid).
+  const [introOpen, setIntroOpen] = useState(false)
+  const [introDismissed, setIntroDismissed] = useState(true)
 
   useEffect(() => {
     async function load() {
@@ -168,6 +179,19 @@ export default function HomePage() {
     load()
   }, [])
 
+  // V3 P2 — auto-open the intro the first time a brand-new player lands
+  // on /home (zero attempts, never dismissed). Dismissal persists in
+  // localStorage; we hydrate the flag client-side so SSR doesn't flash
+  // the modal for returning players.
+  useEffect(() => {
+    if (loading) return
+    const dismissed = hasDismissedIntro()
+    setIntroDismissed(dismissed)
+    if (!dismissed && (data?.attemptsCount ?? 0) === 0) {
+      setIntroOpen(true)
+    }
+  }, [loading, data?.attemptsCount])
+
   const iq = data?.profile?.iq_score ?? 500
   const streak = data?.profile?.current_streak ?? 0
   const level = data?.profile?.level ?? 1
@@ -187,6 +211,15 @@ export default function HomePage() {
       />
       <CourtLines />
 
+      <IntroCardsModal
+        open={introOpen}
+        onClose={() => {
+          setIntroOpen(false)
+          setIntroDismissed(true)
+        }}
+        startHref={FOUNDATION_DETAIL_HREF}
+      />
+
       <div className="relative z-10 mx-auto max-w-lg px-4 pb-24 pt-10">
 
         {/* Greeting */}
@@ -204,6 +237,43 @@ export default function HomePage() {
             Your Basketball <span style={{ color: '#3BE383' }}>IQ</span>
           </h1>
         </motion.div>
+
+        {/* V3 P2 — first-run banner. Only renders when the player has
+            zero recorded attempts AND has explicitly skipped the intro
+            modal (or the modal closed without seeing every card). The
+            banner gives them a one-tap path back into the walkthrough
+            so the explanation is never lost. */}
+        {!loading && (data?.attemptsCount ?? 0) === 0 && introDismissed && !introOpen ? (
+          <motion.button
+            type="button"
+            onClick={() => {
+              clearIntroDismissal()
+              setIntroDismissed(false)
+              setIntroOpen(true)
+            }}
+            custom={0.2}
+            initial="hidden"
+            animate="show"
+            variants={fadeUp}
+            data-testid="home-intro-banner"
+            className="ciq-lift mb-5 flex w-full items-center justify-between gap-3 rounded-2xl border border-[#1F2937] bg-[#0E1B16] px-4 py-3 text-left transition-colors hover:border-[#3BE383]/40"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#3BE383]">
+                {INTRO_HOME_BANNER.eyebrow}
+              </p>
+              <p className="mt-0.5 font-display text-[14px] font-bold text-[#F9FAFB]">
+                {INTRO_HOME_BANNER.title}
+              </p>
+              <p className="mt-0.5 text-[12px] text-[#9CA3AF]">
+                {INTRO_HOME_BANNER.body}
+              </p>
+            </div>
+            <span className="rounded-full border border-[#3BE383]/40 bg-[#3BE383]/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[1px] text-[#3BE383]">
+              {INTRO_HOME_BANNER.ctaLabel} →
+            </span>
+          </motion.button>
+        ) : null}
 
         {/* Big IQ number */}
         <motion.div
@@ -444,6 +514,20 @@ export default function HomePage() {
               {label}
             </Link>
           ))}
+          {/* V3 P2 — replay the walkthrough at any time. Lives in the
+              nav grid so it's always one tap away once dismissed. */}
+          <button
+            type="button"
+            onClick={() => {
+              clearIntroDismissal()
+              setIntroDismissed(false)
+              setIntroOpen(true)
+            }}
+            data-testid="home-intro-replay"
+            className="col-span-2 flex items-center justify-center rounded-2xl border border-[#1F2937] bg-[#111827] px-4 py-3 text-[12px] font-semibold uppercase tracking-[1.5px] text-[#9CA3AF] transition-colors hover:border-[#374151] hover:text-[#F9FAFB]"
+          >
+            ↺ Replay walkthrough
+          </button>
         </motion.div>
       </div>
     </div>
