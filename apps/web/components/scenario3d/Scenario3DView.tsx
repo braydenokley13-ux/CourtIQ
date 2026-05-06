@@ -12,6 +12,10 @@ import { PremiumOverlay, type PlaybackRate } from './PremiumOverlay'
 import { loadGlbAthleteAsset } from './glbAthlete'
 import type { CameraAssist } from '@/lib/scenario3d/cameraPresets'
 import type { OverlayLevel } from '@/lib/scenario3d/overlayLevel'
+import {
+  pxToSafeAreaCss,
+  resolveFullscreenChromeInsets,
+} from '@/lib/scenario3d/fullscreenSafeArea'
 
 // FR-2 Packet 1 — module-level GLB asset preload.
 //
@@ -173,6 +177,10 @@ export function Scenario3DView(props: Scenario3DViewProps) {
   // correct icon and aria-label. All Fullscreen API access is SSR-guarded.
   const containerRef = useRef<HTMLDivElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [fullscreenViewport, setFullscreenViewport] = useState({
+    width: 0,
+    height: 0,
+  })
 
   // V1 UX completion — surface fullscreen state changes to the parent
   // so callers like /train can hide their in-page choice cards while
@@ -208,6 +216,23 @@ export function Scenario3DView(props: Scenario3DViewProps) {
     }
     el.addEventListener('fullscreenchange', onChange)
     return () => el.removeEventListener('fullscreenchange', onChange)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const update = () => {
+      setFullscreenViewport({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      })
+    }
+    update()
+    window.addEventListener('resize', update)
+    document.addEventListener('fullscreenchange', update)
+    return () => {
+      window.removeEventListener('resize', update)
+      document.removeEventListener('fullscreenchange', update)
+    }
   }, [])
 
   const toggleFullscreen = useCallback(() => {
@@ -270,6 +295,12 @@ export function Scenario3DView(props: Scenario3DViewProps) {
     (replayMode === 'answer' && hasAnswerPaths) ||
     (replayMode === 'intro' && (hasIntroPaths || hasDefenders)) ||
     hasAnswerPaths
+  const fullscreenOverlayInsets = resolveFullscreenChromeInsets({
+    isFullscreen,
+    widthPx: fullscreenViewport.width,
+    heightPx: fullscreenViewport.height,
+    hasInteractionOverlay: !!props.renderFullscreenOverlay && isFullscreen,
+  })
 
   return (
     <Scenario3DErrorBoundary scenarioId={props.scene?.id}>
@@ -344,10 +375,16 @@ export function Scenario3DView(props: Scenario3DViewProps) {
             data-fullscreen-interaction-overlay="1"
             className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center px-3 sm:px-4"
             style={{
-              paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 96px)',
+              paddingBottom: pxToSafeAreaCss(
+                fullscreenOverlayInsets.interactionBottomInsetPx,
+                'bottom',
+              ),
             }}
           >
-            <div className="pointer-events-auto w-full max-w-[1100px]">
+            <div
+              className="pointer-events-auto w-full"
+              style={{ maxWidth: fullscreenOverlayInsets.interactionMaxWidthPx }}
+            >
               {props.renderFullscreenOverlay({ isFullscreen })}
             </div>
           </div>

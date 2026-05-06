@@ -76,6 +76,13 @@ describe('Scenario3DView — fullscreen overlay contract', () => {
     expect(block).toMatch(/\bpointer-events-none\b/)
     expect(block).toMatch(/\bpointer-events-auto\b/)
   })
+
+  it('uses the shared fullscreen safe-area helper for overlay spacing', () => {
+    expect(VIEW_SRC).toMatch(/resolveFullscreenChromeInsets/)
+    expect(VIEW_SRC).toMatch(/pxToSafeAreaCss/)
+    expect(VIEW_SRC).toMatch(/interactionBottomInsetPx/)
+    expect(VIEW_SRC).toMatch(/interactionMaxWidthPx/)
+  })
 })
 
 describe('/train — wires Scenario3DView to surface choices in fullscreen', () => {
