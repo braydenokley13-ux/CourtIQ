@@ -21,6 +21,16 @@ const BACKBOARD_COLOR = '#FBFBFD'
 const POLE_COLOR = '#2A3344'
 const ARENA_DARK = '#04060C'
 const ARENA_GLOW = '#1A2540'
+// V1 Premiumization — gym-shell extension. The previous backdrop plane
+// was a 6×3 multiple of the half-court box; on a wide-aspect fullscreen
+// viewport the camera could see past it into the canvas clear color
+// (bg-0 / black). The extension below is unlit primitives only —
+// no textures, no async loads — so a fullscreen canvas reads as a
+// dark warm gym instead of an empty black void.
+const FLOOR_OUTSKIRTS = '#3B2510' // darker hardwood beyond half-court
+const SIDELINE_BAND = '#11161E' // matte sideline strip color
+const BLEACHER_DARK = '#0D1219' // distant gym back wall
+const BLEACHER_GLOW = '#1B2433' // subtle blue-grey backlight
 
 // Y-stack: every decal lifts at least 0.02ft above the previous so depth
 // precision never z-fights at glancing camera angles.
@@ -77,17 +87,78 @@ export function Court3D({ floorY = 0 }: Court3DProps) {
 
   return (
     <group position={[0, floorY, 0]}>
-      {/* Arena backdrop plane — sits behind the court, large but darker
+      {/* V1 Premiumization — extended dark backdrop. Sized to cover the
+          ultrawide auto-fit envelope (±48 ft x extension, +22 ft beyond
+          half-court) so a 21:9 fullscreen viewport never sees the
+          canvas clear color (black) past the gym shell. Unlit, single
+          plane — costs nothing in fill rate. */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.12, courtCenterZ]}>
+        <planeGeometry args={[halfW * 8, halfL * 3.5]} />
+        <meshBasicMaterial color={BLEACHER_DARK} toneMapped={false} />
+      </mesh>
+
+      {/* V1 Premiumization — outskirt floor extension. A darker hardwood
+          band that fills the visible floor beyond the half-court so a
+          wide fullscreen does not see a hard floor edge into a black
+          backdrop. The seam at the half-court line is hidden by the
+          half-court line itself. */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.06, courtCenterZ]}>
+        <planeGeometry args={[halfW * 4, halfL * 1.9]} />
+        <meshBasicMaterial color={FLOOR_OUTSKIRTS} toneMapped={false} />
+      </mesh>
+
+      {/* V1 Premiumization — gym backlight glow. A wide horizontal band
+          behind the action zone so the court sits inside a subtle warm
+          envelope rather than dropping straight to black. Translucent
+          basic material; no lighting required. */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.04, courtCenterZ]}>
+        <planeGeometry args={[halfW * 3.4, halfL * 1.8]} />
+        <meshBasicMaterial color={BLEACHER_GLOW} transparent opacity={0.55} toneMapped={false} />
+      </mesh>
+
+      {/* Original arena backdrop plane — sits behind the court, large but darker
           than the wood so the court reads as the focal element. */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, courtCenterZ]}>
         <planeGeometry args={[halfW * 6, halfL * 3]} />
-        <meshBasicMaterial color={ARENA_DARK} toneMapped={false} />
+        <meshBasicMaterial color={ARENA_DARK} transparent opacity={0.85} toneMapped={false} />
       </mesh>
 
       {/* Subtle arena glow patch around the court. */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, courtCenterZ]}>
         <planeGeometry args={[halfW * 3, halfL * 1.7]} />
         <meshBasicMaterial color={ARENA_GLOW} transparent opacity={0.6} toneMapped={false} />
+      </mesh>
+
+      {/* V1 Premiumization — sideline frames. Two thin matte bands that
+          flank the court along the entire visible Z range. Reads as
+          courtside trim / scorer's table edge, anchors the court as a
+          discrete arena element instead of a free-floating rectangle. */}
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[-(halfW + 1.1), 0.005, courtCenterZ]}
+      >
+        <planeGeometry args={[1.6, halfL * 1.05]} />
+        <meshBasicMaterial color={SIDELINE_BAND} transparent opacity={0.9} toneMapped={false} />
+      </mesh>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[halfW + 1.1, 0.005, courtCenterZ]}
+      >
+        <planeGeometry args={[1.6, halfL * 1.05]} />
+        <meshBasicMaterial color={SIDELINE_BAND} transparent opacity={0.9} toneMapped={false} />
+      </mesh>
+
+      {/* V1 Premiumization — back wall band behind half-court. A taller
+          dark vertical strip stops the camera from seeing past the
+          half-court line into the void on wide aspects. Very thin in
+          z so it does not shadow the action. */}
+      <mesh position={[0, 6, halfL + 0.4]}>
+        <planeGeometry args={[halfW * 4, 14]} />
+        <meshBasicMaterial color={BLEACHER_DARK} transparent opacity={0.92} toneMapped={false} />
+      </mesh>
+      <mesh position={[0, 11, halfL + 0.45]}>
+        <planeGeometry args={[halfW * 4, 6]} />
+        <meshBasicMaterial color={BLEACHER_GLOW} transparent opacity={0.4} toneMapped={false} />
       </mesh>
 
       {/* Wood floor — bright basic material, guaranteed visible. */}
@@ -176,10 +247,12 @@ export function Court3D({ floorY = 0 }: Court3DProps) {
       </group>
 
       {/* Vignette ring around the court — fades the edges into the arena
-          dark. Translucent basic material, no lighting required. */}
+          dark. V1 Premiumization re-tunes opacity from 0.45 → 0.32 so
+          the new outskirts wood band stays visible behind the
+          vignette instead of being painted out to dark. */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, Y_VIGNETTE, courtCenterZ]}>
         <ringGeometry args={[halfL * 0.72, halfL * 1.4, 80]} />
-        <meshBasicMaterial color={ARENA_DARK} transparent opacity={0.45} toneMapped={false} />
+        <meshBasicMaterial color={ARENA_DARK} transparent opacity={0.32} toneMapped={false} />
       </mesh>
 
       {/* Backboard + rim */}
