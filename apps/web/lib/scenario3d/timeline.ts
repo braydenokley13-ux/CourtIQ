@@ -1,5 +1,6 @@
 import type { CourtPoint } from './coords'
 import type { Scene3D, SceneMovement } from './scene'
+import { getPremiumCurveForKind } from './movementCurvesV2'
 
 export interface ResolvedMovement {
   id: string
@@ -244,35 +245,27 @@ function easeOutDefenseSlide(u: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v
 }
 
-/** Phase C / C3 — pick the eased curve for a movement kind. Cuts /
- *  drives / jabs / rips / baseline_sneak / stop_ball get ease-out so
- *  they feel like a player making a move; defensive movements
- *  (rotation, closeout) get the V1 defense-slide ease so a defender
- *  sliding into help reads as "set, slide, settle" rather than
- *  drifting at constant velocity. `pass` on a player is a release
+/** Phase C / C3 / V2 — pick the eased curve for a movement kind. Cuts,
+ *  drives, jabs, rips, baseline_sneak, closeouts, and stop_ball use
+ *  the premium V2 athletic curves so runners load their feet, explode,
+ *  and brake into the spot instead of sliding at a constant pace.
+ *  Rotations keep the controlled defense-slide ease so help defenders
+ *  still read as "set, slide, settle." `pass` on a player is a release
  *  flick — short and not visually a translation, so it stays on
  *  ease-in-out. Authored JSON timings are unchanged; this only
- *  redistributes WITHIN each segment. Exported so movement tests
- *  can pin the dispatch table without rebuilding a full scene.
+ *  redistributes WITHIN each segment. Exported so movement tests can
+ *  pin the dispatch table without rebuilding a full scene.
  */
 export function easeForKind(
   kind: SceneMovement['kind'],
   u: number,
 ): number {
+  const premiumCurve = getPremiumCurveForKind(kind)
+  if (premiumCurve) {
+    return premiumCurve(u)
+  }
+
   switch (kind) {
-    case 'cut':
-    case 'back_cut':
-    case 'baseline_sneak':
-    case 'drive':
-    case 'jab':
-    case 'rip':
-    case 'stop_ball':
-      // Phase K — switched from easeOutCubic to easeOutAthletic so
-      // the player accelerates from rest instead of starting at peak
-      // velocity. Same arrival profile (zero velocity at u=1) so the
-      // "settle on the spot" feel is preserved.
-      return easeOutAthletic(u)
-    case 'closeout':
     case 'rotation':
       // V1 Premiumization — defensive slides use a smoothstep with a
       // small back-loaded bias so the slide reads as a controlled
@@ -285,7 +278,8 @@ export function easeForKind(
   }
 }
 
-// `easeOutCubic` is preserved for any future call sites that want the
-// old explosive-but-snappy curve (e.g. ball arc Y). The active dispatch
-// in `easeForKind` no longer references it directly.
+// The old explosive curves are preserved for future comparisons or
+// diagnostic toggles. The active dispatch in `easeForKind` now uses
+// movementCurvesV2 for those segment kinds.
 void easeOutCubic
+void easeOutAthletic

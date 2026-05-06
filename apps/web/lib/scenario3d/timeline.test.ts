@@ -60,10 +60,9 @@ describe('samplePlayer', () => {
   it('returns an interpolated position mid-movement', () => {
     const p = samplePlayer(scene, tl, 'user', 500)
     expect(p.x).toBeCloseTo(0, 4)
-    // Phase K — `cut` now uses the front-weighted athletic ease,
-    // `smoothstep(u^0.7)`. At u=0.5, r = 0.5^0.7 ≈ 0.6156 and
-    // f = r^2 * (3 - 2r) ≈ 0.6705. Position z = 10 + (4-10) * 0.6705 ≈ 5.978.
-    expect(p.z).toBeCloseTo(5.978, 3)
+    // V2 — `cut` uses the premium athletic curve. At u=0.5,
+    // f ≈ 0.6830. Position z = 10 + (4-10) * 0.6830 ≈ 5.902.
+    expect(p.z).toBeCloseTo(5.902, 3)
   })
 
   it('returns the static start for players with no movements', () => {
@@ -75,28 +74,37 @@ describe('samplePlayer', () => {
   })
 })
 
-describe('Phase C / C3 / Phase K — easeForKind', () => {
-  it('uses the Phase K front-weighted athletic ease for explosive kinds (cut, drive, jab, …)', () => {
-    // Phase K replaced ease-out cubic with `smoothstep(u^0.7)`:
-    // r = 0.5^0.7 ≈ 0.6156; f = r^2 * (3 - 2r) ≈ 0.6705.
-    // Smooth at both endpoints (f'(0)=0 — no snap from idle, f'(1)=0
-    // — settle on the spot) and still front-loaded vs symmetric
-    // ease-in-out at midpoint.
-    for (const kind of ['cut', 'back_cut', 'baseline_sneak', 'drive', 'jab', 'rip', 'stop_ball'] as const) {
-      expect(easeForKind(kind, 0.5)).toBeCloseTo(0.6705, 3)
+describe('Phase C / C3 / V2 — easeForKind', () => {
+  it('uses the V2 premium athletic curve for explosive cuts and drives', () => {
+    // V2: tiny foot-load window, then a front-loaded smoothstep.
+    // At u=0.5 the player is already ~68% through the cut, while both
+    // endpoints stay clamped for deterministic replay.
+    for (const kind of ['cut', 'back_cut', 'baseline_sneak', 'drive', 'jab', 'rip'] as const) {
+      expect(easeForKind(kind, 0.5)).toBeCloseTo(0.683, 3)
     }
   })
 
-  it('uses ease-in-out cubic for defensive / settle kinds', () => {
-    // Symmetric ease-in-out at u=0.5 = 0.5 exactly. Unchanged by
-    // Phase K — only the explosive dispatch was retuned.
-    for (const kind of ['rotation', 'closeout', 'lift', 'drift', 'pass'] as const) {
+  it('uses the V2 closeout curve for aggressive defensive contests', () => {
+    expect(easeForKind('closeout', 0.25)).toBeGreaterThan(0.42)
+    expect(easeForKind('closeout', 0.5)).toBeCloseTo(0.894, 3)
+    expect(easeForKind('closeout', 0.75)).toBeGreaterThan(0.94)
+  })
+
+  it('uses the V2 hard-stop curve for stop_ball arrivals', () => {
+    expect(easeForKind('stop_ball', 0.5)).toBeCloseTo(0.5, 5)
+    expect(easeForKind('stop_ball', 0.85)).toBeGreaterThan(0.95)
+  })
+
+  it('uses ease-in-out cubic for neutral / settle kinds', () => {
+    // Symmetric ease-in-out at u=0.5 = 0.5 exactly. Rotations keep the
+    // defense-slide shape, which also crosses 0.5 at midpoint.
+    for (const kind of ['rotation', 'lift', 'drift', 'pass'] as const) {
       expect(easeForKind(kind, 0.5)).toBeCloseTo(0.5, 5)
     }
   })
 
   it('always hits exact endpoints regardless of kind', () => {
-    for (const kind of ['cut', 'rotation', 'pass'] as const) {
+    for (const kind of ['cut', 'closeout', 'stop_ball', 'rotation', 'pass'] as const) {
       expect(easeForKind(kind, 0)).toBe(0)
       expect(easeForKind(kind, 1)).toBe(1)
     }
