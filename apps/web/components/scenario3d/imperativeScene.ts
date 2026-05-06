@@ -6550,20 +6550,28 @@ function applyAthleteStance(joints: AthleteJoints, stance: PlayerStance): void {
  * a follow-up.
  */
 function applyCutPose(joints: AthleteJoints): void {
+  // Visual/Motion review (premium pass) — explosive first-step
+  // shape. Front leg drives hard (rightThigh -0.30 → -0.45), back
+  // leg loads (leftThigh -0.18 → -0.32 with a deeper calf bend) so
+  // the silhouette has clear push-off from below the hips. Arm
+  // pumps split asymmetric (front arm flexed, back arm extended)
+  // so the figure reads as "running" instead of "leaning."
   joints.upperBody.position.y = -0.05
-  joints.leftThigh.rotation.set(-0.18, 0, -0.05)
-  joints.leftCalf.rotation.set(0.18, 0, 0)
+  joints.leftThigh.rotation.set(-0.32, 0, -0.06)
+  joints.leftCalf.rotation.set(0.42, 0, 0)
   joints.leftFoot.rotation.set(0, 0, 0)
-  joints.rightThigh.rotation.set(-0.30, 0, 0.05)
-  joints.rightCalf.rotation.set(0.30, 0, 0)
+  joints.rightThigh.rotation.set(-0.45, 0, 0.06)
+  joints.rightCalf.rotation.set(0.42, 0, 0)
   joints.rightFoot.rotation.set(0, 0, 0)
-  joints.pelvis.rotation.set(0.10, 0, 0)
-  joints.torso.rotation.set(-0.20, 0, 0)
-  joints.neckHead.rotation.set(0.10, 0, 0)
-  joints.leftUpperArm.rotation.set(0.45, 0, 0.20)
-  joints.leftForeArm.rotation.set(-0.45, 0, 0)
-  joints.rightUpperArm.rotation.set(0.55, 0, -0.20)
-  joints.rightForeArm.rotation.set(-0.45, 0, 0)
+  joints.pelvis.rotation.set(0.14, 0, 0)
+  joints.torso.rotation.set(-0.26, 0, 0)
+  joints.neckHead.rotation.set(0.12, 0, 0)
+  // Asymmetric arm pump: right arm drives forward (front), left arm
+  // flexes back at the elbow. Reads as natural running cadence.
+  joints.leftUpperArm.rotation.set(-0.30, 0, 0.22)
+  joints.leftForeArm.rotation.set(-1.10, 0, 0.04)
+  joints.rightUpperArm.rotation.set(0.85, 0, -0.22)
+  joints.rightForeArm.rotation.set(-0.40, 0, -0.04)
 }
 
 /**
@@ -6596,24 +6604,28 @@ function applySagPose(joints: AthleteJoints): void {
  * is the AOR-01 read this stance enables).
  */
 function applyCloseoutPose(joints: AthleteJoints): void {
-  joints.upperBody.position.y = -0.10
-  // Front foot (right) planted forward, back foot (left) trailing.
-  // Knee bends smaller than defensive — closeout is mid-flight.
-  joints.leftThigh.rotation.set(-0.20, 0, -0.05)
-  joints.leftCalf.rotation.set(0.20, 0, 0)
+  // Visual/Motion review (premium pass) — sharper closeout. Front
+  // foot lands harder (knee 0.40 → 0.50), pelvis tilts more aggressive
+  // forward, hands punch higher and wider so the contest reads "I'm
+  // in your face" rather than "I'm sliding past." The trail leg
+  // stays soft so the silhouette has clear forward weight.
+  joints.upperBody.position.y = -0.13
+  joints.leftThigh.rotation.set(-0.22, 0, -0.05)
+  joints.leftCalf.rotation.set(0.22, 0, 0)
   joints.leftFoot.rotation.set(0, 0, 0)
-  joints.rightThigh.rotation.set(-0.40, 0, 0.10)
-  joints.rightCalf.rotation.set(0.40, 0, 0)
+  joints.rightThigh.rotation.set(-0.50, 0, 0.10)
+  joints.rightCalf.rotation.set(0.50, 0, 0)
   joints.rightFoot.rotation.set(0, 0, 0)
-  // Body angled forward toward the shooter with the chest leading.
-  joints.pelvis.rotation.set(0.12, -0.05, 0.02)
-  joints.torso.rotation.set(-0.34, 0.04, -0.02)
-  joints.neckHead.rotation.set(0.16, -0.04, 0)
-  // Arms are still clearly wide and up, but not perfectly mirrored.
-  joints.leftUpperArm.rotation.set(-0.95, 0, 1.12)
-  joints.leftForeArm.rotation.set(-0.42, 0, 0.04)
-  joints.rightUpperArm.rotation.set(-0.78, 0, -1.28)
-  joints.rightForeArm.rotation.set(-0.30, 0, -0.04)
+  joints.pelvis.rotation.set(0.18, -0.05, 0.02)
+  joints.torso.rotation.set(-0.40, 0.04, -0.02)
+  joints.neckHead.rotation.set(0.20, -0.04, 0)
+  // Arms — both up high, both elbows broken, palms toward the
+  // shooter. Pushed further out so the silhouette carries a
+  // forward-pressure shape from any yaw.
+  joints.leftUpperArm.rotation.set(-1.10, 0, 1.22)
+  joints.leftForeArm.rotation.set(-0.50, 0, 0.04)
+  joints.rightUpperArm.rotation.set(-0.92, 0, -1.40)
+  joints.rightForeArm.rotation.set(-0.36, 0, -0.04)
 }
 
 /**
@@ -6663,30 +6675,30 @@ function applyDefensivePose(joints: AthleteJoints): void {
   // Crouch math: thigh pitches forward by `t`, calf pitches back by
   // `t` (so the calf stays roughly vertical), and the upperBody
   // drops by `thigh_length * (1 - cos(t))` so the foot stays at
-  // the floor. Phase L8 deepens the crouch from t=0.50 → t=0.60
-  // (≈ 28° → 34°) so the defender reads as in a real defensive base
-  // rather than just standing with bent knees. Drop math: 1.45 *
-  // (1 - cos(0.60)) ≈ 0.27ft, hence the upperBody.y = -0.26 anchor.
-  joints.upperBody.position.y = -0.26
-  joints.leftThigh.rotation.set(-0.60, 0, -0.22)
-  joints.leftCalf.rotation.set(0.60, 0, 0)
+  // the floor.
+  //
+  // Visual/Motion review (premium pass) — deepened the defensive
+  // base from t=0.60 → t=0.68 (≈ 39°). Drop math: 1.45 ×
+  // (1 - cos(0.68)) ≈ 0.34 ft, hence upperBody.y = -0.32. Pairs
+  // with widened arm/hand outward angle so the defender reads as
+  // actively-engaged, not just bent-knee. Pelvis/torso tilt also
+  // pushed slightly so the back angles toward the ball.
+  joints.upperBody.position.y = -0.32
+  joints.leftThigh.rotation.set(-0.68, 0, -0.26)
+  joints.leftCalf.rotation.set(0.68, 0, 0)
   joints.leftFoot.rotation.set(0, 0, 0)
-  joints.rightThigh.rotation.set(-0.60, 0, 0.22)
-  joints.rightCalf.rotation.set(0.60, 0, 0)
+  joints.rightThigh.rotation.set(-0.68, 0, 0.26)
+  joints.rightCalf.rotation.set(0.68, 0, 0)
   joints.rightFoot.rotation.set(0, 0, 0)
-  // Pelvis tilts forward a touch so the back is angled toward the
-  // ball instead of straight up. Slightly more pronounced now to
-  // match the deeper crouch.
-  joints.pelvis.rotation.set(0.24, -0.04, 0)
-  joints.torso.rotation.set(-0.24, 0.03, 0)
-  joints.neckHead.rotation.set(0.07, -0.06, 0)
-  // Arms — both out and forward, palms-down basketball defensive
-  // hands. Upper arm rotates outward + forward; forearm rotates
-  // forward at the elbow so hands extend past the body.
-  joints.leftUpperArm.rotation.set(-0.58, 0, 0.92)
-  joints.leftForeArm.rotation.set(-0.52, 0, 0.04)
-  joints.rightUpperArm.rotation.set(-0.46, 0, -0.78)
-  joints.rightForeArm.rotation.set(-0.36, 0, -0.04)
+  joints.pelvis.rotation.set(0.28, -0.04, 0)
+  joints.torso.rotation.set(-0.28, 0.03, 0)
+  joints.neckHead.rotation.set(0.09, -0.06, 0)
+  // Arms wider and palms-down with a touch more elbow break — sells
+  // "active hands" instead of "robot arms out."
+  joints.leftUpperArm.rotation.set(-0.66, 0, 1.06)
+  joints.leftForeArm.rotation.set(-0.62, 0, 0.06)
+  joints.rightUpperArm.rotation.set(-0.54, 0, -0.92)
+  joints.rightForeArm.rotation.set(-0.46, 0, -0.06)
 }
 
 /**
