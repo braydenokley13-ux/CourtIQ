@@ -156,20 +156,31 @@ function bobAt(scene: Scene3D, ms: number): number {
 
 describe('Athletic stride bob — explosive segments produce a foot-load cadence', () => {
   for (const kind of ['cut', 'back_cut', 'drive'] as const) {
-    it(`'${kind}' segment shows a non-zero bob between strides (u≈0.25)`, () => {
+    it(`'${kind}' segment produces a non-zero bob somewhere in the segment`, () => {
+      // V4-B — per-player phase offset means the |sin| zero crossings
+      // aren't pinned to u=0.5 anymore. The contract becomes "the bob
+      // has at least one non-zero peak across the segment AND stays
+      // inside the budgeted amplitude."
       const scene = buildSceneWithSingleMovement(kind)
-      // u ≈ 0.25 → 200 ms into 800 ms span.
-      const bob = bobAt(scene, 200)
-      expect(bob).toBeGreaterThan(0)
-      // Bob is bounded ≤ 0.06 ft (~1.8 cm) — explicitly small.
-      expect(bob).toBeLessThan(0.07)
+      const samples = [80, 160, 240, 320, 400, 480, 560, 640, 720].map((ms) =>
+        bobAt(scene, ms),
+      )
+      const peak = Math.max(...samples)
+      expect(peak).toBeGreaterThan(0)
+      expect(peak).toBeLessThan(0.07)
     })
 
-    it(`'${kind}' segment grounds the figure at u=0.5 (peak lean, mid-stride contact)`, () => {
+    it(`'${kind}' segment bob is bounded by the kind's peak budget`, () => {
+      // Sample the segment densely and confirm no sample exceeds the
+      // budget. Used to be "pinned to 0 at u=0.5"; the V4-B
+      // per-player phase offset breaks the pin but the BOUND still
+      // holds, which is the safety invariant we actually care about.
       const scene = buildSceneWithSingleMovement(kind)
-      // |sin(2π·0.5)| = |sin(π)| = 0 → contact point.
-      const bob = bobAt(scene, 400)
-      expect(bob).toBeCloseTo(0, 6)
+      for (let ms = 0; ms <= 800; ms += 40) {
+        const bob = bobAt(scene, ms)
+        expect(bob, `${kind}@${ms}ms`).toBeLessThanOrEqual(0.07)
+        expect(bob, `${kind}@${ms}ms`).toBeGreaterThanOrEqual(0)
+      }
     })
   }
 })
@@ -186,6 +197,106 @@ describe('Athletic stride bob — non-explosive segments keep the figure grounde
       }
     })
   }
+})
+
+describe('V4-B — Lateral cornering bank during angle-cuts', () => {
+  /**
+   * Builds a scene where the user makes a single cut whose direction
+   * is purely lateral (high |dx|, near-zero dz). Verifies that
+   * `rotation.z` banks INTO the corner — negative when traveling +x,
+   * positive when traveling -x.
+   */
+  function buildLateralCutScene(direction: 'right' | 'left'): Scene3D {
+    const sign = direction === 'right' ? 1 : -1
+    return {
+      ...buildSceneWithSingleMovement('cut'),
+      players: [
+        { id: 'user', team: 'offense', role: 'wing', start: { x: 0, z: 10 }, isUser: true },
+      ],
+      movements: [
+        { id: 'lateral', playerId: 'user', kind: 'cut', to: { x: sign * 8, z: 10.5 }, durationMs: 800 },
+      ],
+    }
+  }
+
+  it('a +x cut produces negative rotation.z (banks right)', () => {
+    const scene = buildLateralCutScene('right')
+    const { motion, players } = makeMotion(scene)
+    motion.tick(0)
+    motion.tick(0 + 250 + 400) // u ≈ 0.5 — peak envelope
+    expect(players.get('user')!.rotation.z).toBeLessThan(0)
+  })
+
+  it('a -x cut produces positive rotation.z (banks left)', () => {
+    const scene = buildLateralCutScene('left')
+    const { motion, players } = makeMotion(scene)
+    motion.tick(0)
+    motion.tick(0 + 250 + 400)
+    expect(players.get('user')!.rotation.z).toBeGreaterThan(0)
+  })
+
+  it('a forward-only cut (no |dx|) produces zero bank', () => {
+    const scene: Scene3D = {
+      ...buildSceneWithSingleMovement('cut'),
+      players: [
+        { id: 'user', team: 'offense', role: 'wing', start: { x: 0, z: 10 }, isUser: true },
+      ],
+      movements: [
+        { id: 'forward', playerId: 'user', kind: 'cut', to: { x: 0, z: 4 }, durationMs: 800 },
+      ],
+    }
+    const { motion, players } = makeMotion(scene)
+    motion.tick(0)
+    motion.tick(0 + 250 + 400)
+    expect(players.get('user')!.rotation.z).toBeCloseTo(0, 6)
+  })
+
+  it('bank amplitude stays under 6° (~0.105 rad) at peak', () => {
+    const scene = buildLateralCutScene('right')
+    const { motion, players } = makeMotion(scene)
+    motion.tick(0)
+    // Sample across segment; the deepest bank shows around mid-segment.
+    let maxAbs = 0
+    for (let ms = 80; ms <= 720; ms += 40) {
+      motion.tick(0 + 250 + ms)
+      const bank = Math.abs(players.get('user')!.rotation.z)
+      if (bank > maxAbs) maxAbs = bank
+    }
+    expect(maxAbs).toBeLessThan(0.105)
+  })
+})
+
+describe('V4-B — Per-player stride phase offset', () => {
+  it('two players with different ids produce different bob values at the same t', () => {
+    const scene: Scene3D = {
+      ...buildSceneWithSingleMovement('cut'),
+      players: [
+        { id: 'aaaa', team: 'offense', role: 'wing', start: { x: 0, z: 10 }, isUser: true },
+        { id: 'zzzz', team: 'offense', role: 'wing', start: { x: 5, z: 10 } },
+      ],
+      movements: [
+        { id: 'a_cut', playerId: 'aaaa', kind: 'cut', to: { x: 4, z: 4 }, durationMs: 800 },
+        { id: 'z_cut', playerId: 'zzzz', kind: 'cut', to: { x: 8, z: 4 }, durationMs: 800 },
+      ],
+    }
+    const { motion, players } = makeMotion(scene)
+    motion.tick(0)
+    motion.tick(0 + 250 + 200) // mid-stride window
+    const aBob = players.get('aaaa')!.position.y
+    const zBob = players.get('zzzz')!.position.y
+    // Different ids → different phase offsets → different bob values.
+    expect(aBob).not.toBe(zBob)
+  })
+
+  it('the same id produces a stable phase offset across separate scenes', () => {
+    // Determinism — a player named 'user' gets the same offset in
+    // two independent scenes that share that id.
+    const sceneA = buildSceneWithSingleMovement('cut')
+    const sceneB = buildSceneWithSingleMovement('cut')
+    const a = bobAt(sceneA, 200)
+    const b = bobAt(sceneB, 200)
+    expect(a).toBeCloseTo(b, 12)
+  })
 })
 
 describe('Athletic stride bob — preserves build-time baseline outside any active segment', () => {

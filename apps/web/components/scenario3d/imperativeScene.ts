@@ -1798,6 +1798,49 @@ const ATHLETIC_BOB_PEAK_FT_BY_KIND: Record<string, number> = {
 }
 
 /**
+ * V4-B — Lateral cornering bank peaks (radians) per movement kind.
+ * Applied as a `rotation.z` on the figure root, scaled by the
+ * x-component of the segment direction so a forward-running cut
+ * (low |dx|) gets minimal bank while an angle-cut (high |dx|) banks
+ * meaningfully into the corner. ≤ ~4° peak so the figure reads as
+ * a runner cornering, not a motorcycle leaning.
+ */
+const ATHLETIC_BANK_PEAK_RAD_BY_KIND: Record<string, number> = {
+  cut: 0.075,
+  back_cut: 0.075,
+  drive: 0.07,
+  jab: 0.04,
+  baseline_sneak: 0.05,
+  rip: 0.03,
+  closeout: 0.04,
+  rotation: 0,
+  lift: 0,
+  drift: 0,
+  stop_ball: 0,
+  pass: 0,
+  skip_pass: 0,
+}
+
+/**
+ * V4-B — Deterministic 0..1 phase offset from a player id. Pure
+ * string-hash function; same id → same offset across replays. Used
+ * by the stride bob so multiple players moving in lock-step do not
+ * all bounce on the same frame, which reads as mechanical.
+ *
+ * Uses a small djb2-style hash modulo 1000 → divided to give a
+ * fractional offset. The `% 1000` cap keeps the result deterministic
+ * across JS engine variants and avoids overflow surprises.
+ */
+function playerIdToPhaseOffset(playerId: string): number {
+  let h = 5381
+  for (let i = 0; i < playerId.length; i++) {
+    h = ((h * 33) ^ playerId.charCodeAt(i)) | 0
+  }
+  // Map to 0..1 using the lower bits.
+  return ((h & 0x7fffffff) % 1000) / 1000
+}
+
+/**
  * Phase C / C2 — squared minimum direction magnitude before we use
  * the per-frame movement-direction or defender→ball heuristic for
  * yaw. Below this, we fall back to the static team yaw so a paused
@@ -2191,14 +2234,16 @@ export class MotionController {
       if (!g) continue
       const active = this.findActivePlayerMovement(player.id, t)
       if (!active) {
-        // Reset rotation.x so a previous segment's lean does not
-        // linger into idle frames. position.y is intentionally NOT
-        // touched here — the build-time `PLAYER_LIFT` offset (or 0
-        // in mock harnesses) owns the baseline, and the stride bob
-        // below adds to that baseline only when an explosive segment
-        // is active. Mirrors the P0-LOCK contract that animation must
-        // not own world position outside its own active segment.
+        // Reset rotation.x / rotation.z so a previous segment's
+        // lean / bank does not linger into idle frames. position.y
+        // is intentionally NOT touched here — the build-time
+        // `PLAYER_LIFT` offset (or 0 in mock harnesses) owns the
+        // baseline, and the stride bob below adds to that baseline
+        // only when an explosive segment is active. Mirrors the
+        // P0-LOCK contract that animation must not own world
+        // position outside its own active segment.
         g.rotation.x = 0
+        g.rotation.z = 0
         // Clear any latent bob this controller previously wrote.
         // We track that via a per-player flag so we never tap
         // position.y for a player that has never experienced a bob,
@@ -2213,6 +2258,7 @@ export class MotionController {
       const bobPeak = ATHLETIC_BOB_PEAK_FT_BY_KIND[active.kind] ?? 0
       if (leanPeak === 0 && bobPeak === 0) {
         g.rotation.x = 0
+        g.rotation.z = 0
         if (this.bobActiveFor.has(player.id)) {
           g.position.y = this.baselineY.get(player.id) ?? g.position.y
           this.bobActiveFor.delete(player.id)
@@ -2231,17 +2277,42 @@ export class MotionController {
       const span = Math.max(1, active.endMs - active.startMs)
       const u = Math.max(0, Math.min(1, (t - active.startMs) / span))
       g.rotation.x = leanPeak * (1 - Math.abs(u - 0.5) * 2)
-      // Two stride peaks per segment via |sin(2πu)| — peaks at
-      // u=0.25 (right-foot stride) and u=0.75 (left-foot stride),
-      // grounded contact at u=0, 0.5, 1.0. The amplitude is gated
-      // by the same triangular envelope so the figure does not
-      // bounce on the first or last frame.
+      // V4-B — per-player stride phase offset so several players
+      // moving together do NOT bounce in lock-step. Hash from
+      // playerId to a 0..1 phase offset; pure deterministic so
+      // replay determinism is preserved (same scene → same offsets).
+      const phaseOffset = playerIdToPhaseOffset(player.id)
+      // Two stride peaks per segment via |sin(2π(u + offset))|. The
+      // amplitude is gated by the same triangular envelope so the
+      // figure does not bounce on the first or last frame.
       const strideEnvelope = 1 - Math.abs(u - 0.5) * 2
       const baseline = this.baselineY.get(player.id) ?? 0
-      const bob = bobPeak * Math.abs(Math.sin(u * Math.PI * 2)) * strideEnvelope
+      const stridePhase = (u + phaseOffset) * Math.PI * 2
+      const bob = bobPeak * Math.abs(Math.sin(stridePhase)) * strideEnvelope
       g.position.y = baseline + bob
       if (bobPeak > 0) {
         this.bobActiveFor.add(player.id)
+      }
+      // V4-B — lateral cornering bank. When the segment has a
+      // significant x-component of travel, the upper body banks
+      // INTO the corner (positive x → bank to the right → negative
+      // rotation.z by Three convention for our yaw). Pure function
+      // of (segment direction, kind), so determinism is preserved.
+      // The amount is small (≤ 4°) and gated by the same triangular
+      // envelope so the bank loads on entry and unloads on arrival.
+      const dx = active.to.x - active.from.x
+      const dz = active.to.z - active.from.z
+      const segLen = Math.sqrt(dx * dx + dz * dz)
+      if (leanPeak > 0 && segLen > 0.01) {
+        const lateralBias = dx / segLen // -1..+1
+        const bankPeak = ATHLETIC_BANK_PEAK_RAD_BY_KIND[active.kind] ?? 0
+        // The figure's local +x is the player's right (after yaw).
+        // Bank toward direction of travel: if traveling +x (right),
+        // bank rotation.z negative so the right side dips. Multiply
+        // by the same envelope so corner-banks blend with peak lean.
+        g.rotation.z = -bankPeak * lateralBias * strideEnvelope
+      } else {
+        g.rotation.z = 0
       }
     }
   }
