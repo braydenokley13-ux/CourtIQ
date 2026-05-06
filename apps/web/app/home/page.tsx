@@ -271,7 +271,7 @@ export default function HomePage() {
         <motion.div custom={4.5} initial="hidden" animate="show" variants={fadeUp} className="mb-5">
           <Link
             href={FOUNDATION_DETAIL_HREF}
-            className="group flex items-center justify-between gap-3 rounded-2xl border-2 border-[#3BE383]/30 bg-[#0F1F1A] p-4 transition-colors hover:border-[#3BE383]/60"
+            className="ciq-lift group flex items-center justify-between gap-3 rounded-2xl border-2 border-[#3BE383]/30 bg-[#0F1F1A] p-4 transition-colors hover:border-[#3BE383]/60"
           >
             <div className="min-w-0 flex-1">
               <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-[#3BE383]">
@@ -297,7 +297,7 @@ export default function HomePage() {
         <motion.div custom={5} initial="hidden" animate="show" variants={fadeUp} className="mb-5">
           <Link
             href="/train"
-            className="group flex items-center justify-between rounded-2xl p-5 transition-transform active:scale-[0.98]"
+            className="ciq-press group flex items-center justify-between rounded-2xl p-5"
             style={{
               background: 'linear-gradient(135deg, #3BE383 0%, #22C55E 100%)',
               boxShadow: '0 0 32px rgba(59,227,131,0.35), 0 1px 0 rgba(255,255,255,0.2) inset',
