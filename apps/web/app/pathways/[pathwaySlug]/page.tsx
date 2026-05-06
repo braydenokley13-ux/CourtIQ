@@ -404,7 +404,7 @@ function PathwayPrimaryCta({
       <Link
         href={cta.primaryHref}
         className={[
-          'mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl py-3 font-display text-[14px] font-bold uppercase tracking-[0.5px]',
+          'ciq-press mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl py-3 font-display text-[14px] font-bold uppercase tracking-[0.5px]',
           cta.priority === 'capstone'
             ? 'bg-iq text-bg-0 shadow-[0_0_24px_-6px_rgba(139,124,255,0.55)]'
             : 'bg-brand text-brand-ink shadow-brand-sm',
@@ -457,10 +457,16 @@ function PathwayMilestoneStrip({
             ? 'bg-info/10 border-info/30'
             : 'bg-bg-1 border-hairline-2'
 
+  // V2-G — capstone-unlocked + chapter-near surfaces also get a
+  // single-shot attention pulse so the eye lands on the milestone
+  // before the CTA. Mastered/cold-start skip the pulse since they
+  // are persistent states, not "moments."
+  const shouldPulse = tone === 'capstone-unlocked' || tone === 'chapter-near'
+
   return (
     <section
       data-milestone-tone={tone}
-      className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${tintLayer}`}
+      className={`ciq-stage-in ${shouldPulse ? 'ciq-pulse-attn' : ''} flex items-center gap-3 rounded-2xl border px-4 py-3 ${tintLayer}`}
       role="status"
       aria-live="polite"
     >
@@ -622,9 +628,10 @@ function ChapterRow({
 
   return (
     <article
+      data-chapter-state={state}
       className={[
-        'relative overflow-hidden rounded-2xl border-2 bg-bg-1 transition-colors',
-        isHighlighted ? 'border-brand/50' : 'border-hairline-2',
+        'ciq-lift relative overflow-hidden rounded-2xl border-2 bg-bg-1 transition-colors',
+        isHighlighted ? 'border-brand/50 ciq-pulse-attn' : 'border-hairline-2',
         state === 'locked' ? 'opacity-70' : '',
       ].join(' ')}
     >
@@ -856,7 +863,7 @@ function ChapterCta({
   return (
     <Link
       href={buildSkillNodeTrainHref(target, { pathwaySlug, chapterSlug: chapter.slug })}
-      className="flex items-center justify-center gap-2 rounded-xl bg-brand py-2.5 font-display text-[13px] font-bold uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm transition-transform active:scale-[0.99]"
+      className="ciq-press flex items-center justify-center gap-2 rounded-xl bg-brand py-2.5 font-display text-[13px] font-bold uppercase tracking-[0.5px] text-brand-ink shadow-brand-sm"
     >
       {verb}
       <span aria-hidden>→</span>
