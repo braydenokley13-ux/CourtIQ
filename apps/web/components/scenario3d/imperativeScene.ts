@@ -146,11 +146,6 @@ const PENDANT_HOUSING_COLOR = '#2A2F3A'
 const PENDANT_LENS_COLOR = '#FFE9B6'
 const PENDANT_CABLE_COLOR = '#0E1014'
 
-// V4-F — center-circle accent. A thin trim ring painted into the
-// court floor at half-court (in front of the back wall) adds a
-// premium "broadcast court" detail without introducing branding.
-const CENTER_CIRCLE_TRIM_COLOR = '#F2EAD3'
-
 const PLAYER_HEIGHT = 6
 const PLAYER_RADIUS = 1.2
 // NBA regulation ball radius is ~0.39 ft (9.4" diameter). Bumped slightly
