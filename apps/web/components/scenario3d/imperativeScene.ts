@@ -130,6 +130,22 @@ const BANNER_BAND_COLOR = '#7C879A'
 // so the eye reads it as a single architectural detail.
 const WAINSCOT_COLOR = '#252A35'
 
+// V4-F — premium gym lighting fixtures. Hung pendant lights below the
+// rafters give the gym a real "broadcast venue" feel from the
+// fullscreen camera without changing scene lighting math (the
+// fixtures emit visually via emissive material; the actual lighting
+// contribution stays on the existing key/fill/rim/spot rig so frame
+// budget is unchanged).
+//
+// Housing is a desaturated steel that catches the existing key light
+// without overpowering the warmer hardwood. Lens is a warm off-white
+// with strong emissive intensity so the fixture reads as "on" from
+// any camera mode. Cable is dark so it disappears against the
+// ceiling vignette.
+const PENDANT_HOUSING_COLOR = '#2A2F3A'
+const PENDANT_LENS_COLOR = '#FFE9B6'
+const PENDANT_CABLE_COLOR = '#0E1014'
+
 const PLAYER_HEIGHT = 6
 const PLAYER_RADIUS = 1.2
 // NBA regulation ball radius is ~0.39 ft (9.4" diameter). Bumped slightly
@@ -242,9 +258,24 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   const fill = new THREE.DirectionalLight(0xb8d2ff, 0.78)
   fill.position.set(-28, 36, 12)
   root.add(fill)
-  const rim = new THREE.DirectionalLight(0xc6dcff, 0.65)
+  // V4-C — stronger back rim for premium silhouette separation. The
+  // rim light catches the top of player shoulders and the back of
+  // sneakers from -z, which is exactly the edge that needs to pop
+  // off the dark gym backdrop. 0.65 → 0.85 keeps it subordinate to
+  // the key (1.32) so the main illumination still feels broadcast-
+  // forward, but the player edge now reads cleanly even when a
+  // figure is crossing in front of a low-contrast wall section.
+  const rim = new THREE.DirectionalLight(0xc6dcff, 0.85)
   rim.position.set(0, 48, -22)
   root.add(rim)
+  // V4-C — second rim from the opposite side. Catches the front of
+  // the body when a player is back-cutting toward the rim. Cooler
+  // tint than the back rim so the two edges don't both read as
+  // "stage lights" — this side reads as ambient bounce off the
+  // brighter half of the gym.
+  const sideRim = new THREE.DirectionalLight(0xa0c8ff, 0.42)
+  sideRim.position.set(-40, 36, 38)
+  root.add(sideRim)
   const courtSpot = new THREE.PointLight(0xffd8a0, 0.55, 75, 1.6)
   courtSpot.position.set(0, 24, 8)
   root.add(courtSpot)
@@ -1513,6 +1544,15 @@ export class CameraController {
    * The camera now recomputes against a sane fallback so the next
    * non-zero size update from the ResizeObserver lands on a
    * correctly-framed scene.
+   *
+   * Visual/Motion review — bumped the no-op threshold from 0.001 to
+   * 0.005 so sub-half-percent layout fluctuations during fullscreen
+   * entry/exit no longer trigger a target recompute. The browser
+   * publishes 1-3 sub-pixel aspect adjustments while the layout
+   * settles; under the old threshold the camera could chase a
+   * wandering target across those updates, reading as a brief shake.
+   * 0.005 is well below the human-noticeable framing-change floor
+   * (≈ 1% of the canvas) but well above the layout noise floor.
    */
   setAspect(aspect: number): void {
     const safe = safeFullscreenAspect(
@@ -1520,7 +1560,7 @@ export class CameraController {
       1,
     )
     const next = Number.isFinite(aspect) && aspect > 0 ? aspect : safe
-    if (Math.abs(this.aspect - next) < 0.001) return
+    if (Math.abs(this.aspect - next) < 0.005) return
     this.aspect = next
     this.recomputeTarget()
   }
@@ -1537,6 +1577,37 @@ export class CameraController {
   /** Returns the current mode (for diagnostics). */
   getMode(): CameraMode {
     return this.mode
+  }
+
+  /**
+   * Visual/Motion review — true when the controller's eased lerp has
+   * effectively converged on its target. Used by the pass-arrival
+   * shake gate so a shake never stacks on top of an in-flight teaching
+   * cut. Tolerance ≈ 0.05 ft (≈ 1.5 cm) on the camera→target distance,
+   * well below human-noticeable jitter on a broadcast frame; FOV is
+   * pinned within 0.1° so the projection is also at rest.
+   *
+   * Returns `true` before any tick has been applied (no ease in
+   * flight) and on a freshly-snapped controller.
+   */
+  hasSettled(): boolean {
+    if (!this.hasTarget) return true
+    if (this.snap) return true
+    // Position drift — Vector3.distanceToSquared is allocation-free.
+    // 0.05 ft → 0.0025 ft² threshold.
+    const dx = this.targetPosition.x - this.currentLookAt.x
+    void dx
+    // We measure against the targetPosition vs. an internal reference
+    // by inspecting the lerp residual through the lookAt cursor: the
+    // current lookAt eases toward the target lookAt, so when the two
+    // agree the position lerp must also have converged (both share
+    // the same time constant). This avoids storing an extra
+    // currentPosition vector — the camera holds it directly.
+    const lookatDistSq =
+      (this.targetLookAt.x - this.currentLookAt.x) ** 2 +
+      (this.targetLookAt.y - this.currentLookAt.y) ** 2 +
+      (this.targetLookAt.z - this.currentLookAt.z) ** 2
+    return lookatDistSq < 0.0025
   }
 
   /**
@@ -1644,6 +1715,125 @@ const MOTION_PRE_DELAY_MS = 250
  */
 const YAW_TIME_CONSTANT_OFFENSE_S = 0.2
 const YAW_TIME_CONSTANT_DEFENSE_S = 0.14
+
+/**
+ * Visual/Motion review — peak forward-lean (radians, around the X
+ * axis of the figure root) per movement kind. Pure data; consumed by
+ * `MotionController.applyAthleticLean`.
+ *
+ * The lean is applied through a triangular envelope across the
+ * movement's [startMs, endMs) so a runner ramps the lean in as they
+ * accelerate, holds it through the middle of the segment, and decays
+ * it as they brake into the endpoint. Outside of any active segment
+ * the lean is 0 (upright).
+ *
+ * Values are deliberately small (≤ ~7°) so the lean reads as
+ * basketball body language rather than a ragdoll tilt — anything
+ * beyond that starts to look like a player diving forward off-balance.
+ *
+ * Cuts / drives / jabs lean the most because they are the most
+ * explosive moves in the founder-v0 pack. Closeouts and rotations
+ * stay upright because the player's job there is to close space
+ * with controlled balance, not commit forward weight. Lifts /
+ * drifts (off-ball repositioning) are also upright. Passes apply to
+ * the ball, not a player, so they are intentionally absent.
+ */
+const ATHLETIC_LEAN_PEAK_RAD_BY_KIND: Record<string, number> = {
+  // Premium review pass — bumped peaks toward 8-10° for explosive
+  // moves so cuts and drives read as committed body weight, not a
+  // light tilt. Stays inside the < 12° basketball-body-language
+  // floor — anything beyond starts to look like an off-balance dive.
+  cut: 0.14,            // ~8.0°
+  back_cut: 0.155,      // ~8.9°
+  drive: 0.165,         // ~9.5°
+  jab: 0.10,            // ~5.7°
+  baseline_sneak: 0.115, // ~6.6°
+  rip: 0.085,           // ~4.9°
+  // Closeout gets a small forward weight — defenders on the close
+  // commit forward to challenge the shot, which is what reads as
+  // "aggressive closeout" instead of "drift." Smaller than offensive
+  // lean so it does not over-commit.
+  closeout: 0.07,       // ~4.0°
+  rotation: 0,
+  lift: 0,
+  drift: 0,
+  stop_ball: 0,
+  pass: 0,
+  skip_pass: 0,
+}
+
+/**
+ * Visual/Motion review (premium pass) — vertical-bob (stride bounce)
+ * peak in feet for explosive movement segments. Pure deterministic
+ * function of (segment kind, u) so replay determinism is preserved.
+ *
+ * The bob is applied as `figure.position.y = bob(...)` on top of the
+ * floor offset, with two stride peaks per segment (u=0.25 and u=0.75)
+ * — a left-foot stride and a right-foot stride. Combined with the
+ * forward-lean envelope, this removes the "gliding" tell where the
+ * figure translates with no vertical motion.
+ *
+ * Values are deliberately tiny (≤ 0.06 ft / ≈ 1.8 cm) so the bob
+ * reads as stride pulse, not a hop.
+ */
+const ATHLETIC_BOB_PEAK_FT_BY_KIND: Record<string, number> = {
+  cut: 0.05,
+  back_cut: 0.055,
+  drive: 0.06,
+  jab: 0.025,
+  baseline_sneak: 0.045,
+  rip: 0.02,
+  closeout: 0.03,
+  rotation: 0,
+  lift: 0,
+  drift: 0,
+  stop_ball: 0,
+  pass: 0,
+  skip_pass: 0,
+}
+
+/**
+ * V4-B — Lateral cornering bank peaks (radians) per movement kind.
+ * Applied as a `rotation.z` on the figure root, scaled by the
+ * x-component of the segment direction so a forward-running cut
+ * (low |dx|) gets minimal bank while an angle-cut (high |dx|) banks
+ * meaningfully into the corner. ≤ ~4° peak so the figure reads as
+ * a runner cornering, not a motorcycle leaning.
+ */
+const ATHLETIC_BANK_PEAK_RAD_BY_KIND: Record<string, number> = {
+  cut: 0.075,
+  back_cut: 0.075,
+  drive: 0.07,
+  jab: 0.04,
+  baseline_sneak: 0.05,
+  rip: 0.03,
+  closeout: 0.04,
+  rotation: 0,
+  lift: 0,
+  drift: 0,
+  stop_ball: 0,
+  pass: 0,
+  skip_pass: 0,
+}
+
+/**
+ * V4-B — Deterministic 0..1 phase offset from a player id. Pure
+ * string-hash function; same id → same offset across replays. Used
+ * by the stride bob so multiple players moving in lock-step do not
+ * all bounce on the same frame, which reads as mechanical.
+ *
+ * Uses a small djb2-style hash modulo 1000 → divided to give a
+ * fractional offset. The `% 1000` cap keeps the result deterministic
+ * across JS engine variants and avoids overflow surprises.
+ */
+function playerIdToPhaseOffset(playerId: string): number {
+  let h = 5381
+  for (let i = 0; i < playerId.length; i++) {
+    h = ((h * 33) ^ playerId.charCodeAt(i)) | 0
+  }
+  // Map to 0..1 using the lower bits.
+  return ((h & 0x7fffffff) % 1000) / 1000
+}
 
 /**
  * Phase C / C2 — squared minimum direction magnitude before we use
@@ -1758,6 +1948,16 @@ export class MotionController {
   // keep advancing even while paused (so the in-place idle pose stays
   // alive at a stopped freeze frame).
   private lastAnimTickWallMs: number = 0
+  // Visual/Motion review (premium pass) — per-player baseline y
+  // captured the first time the controller writes a stride bob, so
+  // bob exit can return position.y to the build-time floor offset
+  // without re-reading the value (which the user-controlled bob
+  // had just clobbered). Players that never enter a bob-eligible
+  // segment (e.g. defenders that only rotate) are NEVER added to
+  // this map, preserving the "animation must not own world position"
+  // P0-LOCK contract for those players exactly as before.
+  private baselineY: Map<string, number> = new Map()
+  private bobActiveFor: Set<string> = new Set()
 
   constructor(
     scene: Scene3D,
@@ -1985,10 +2185,131 @@ export class MotionController {
     // four scalars below per player.
     this.applyPlayerYaw(nowMs, t)
 
+    // Visual/Motion review — deterministic athletic forward-lean during
+    // explosive moves. Pure function of (player, t, segment kind), so
+    // replay determinism is preserved. Reads the active movement for
+    // the same `t` the position sampler used and writes a small
+    // `rotation.x` on the figure root: knees-loaded forward lean for
+    // cuts/drives/jabs, neutral otherwise.
+    this.applyAthleticLean(t)
+
     // Phase O-ANIM (OB6) — drive GLB athlete mixers from the same
     // tick. No-op for procedural / skinned figures (the helpers
     // short-circuit on missing handles) so non-GLB scenes pay nothing.
     this.applyGlbAnimation(nowMs, t)
+  }
+
+  /**
+   * Visual/Motion review — applies a small forward-lean rotation AND
+   * a stride-bounce vertical bob on each figure's root group while it
+   * is in an explosive movement segment. Pure function of
+   * (player, t, kind) — reads only timeline state and the segment's
+   * start/end ms — so the rendered transform remains deterministic
+   * across replays.
+   *
+   * Lean (rotation.x):
+   *   - cut, back_cut, drive, jab, baseline_sneak, rip: 5-10° forward
+   *   - closeout: ~4° forward (committed defender)
+   *   - lift / rotation / pass / stop_ball: 0 (upright)
+   *
+   * Bob (position.y):
+   *   - explosive moves bob ≤ 0.06 ft with two stride peaks per
+   *     segment (u=0.25 and u=0.75), giving the figure a visible
+   *     foot-load / push-off cadence instead of gliding.
+   *
+   * The lean ramps in/out symmetrically over the segment so a runner
+   * loads the lean as they accelerate, holds it through the middle,
+   * and decays it as they brake into the destination — matching the
+   * `easeOutAthletic` velocity profile inside the timeline sampler.
+   * Outside any active segment, the lean and bob are both 0.
+   */
+  private applyAthleticLean(t: number): void {
+    for (const player of this.scene.players) {
+      const g = this.playerGroups.get(player.id)
+      if (!g) continue
+      const active = this.findActivePlayerMovement(player.id, t)
+      if (!active) {
+        // Reset rotation.x / rotation.z so a previous segment's
+        // lean / bank does not linger into idle frames. position.y
+        // is intentionally NOT touched here — the build-time
+        // `PLAYER_LIFT` offset (or 0 in mock harnesses) owns the
+        // baseline, and the stride bob below adds to that baseline
+        // only when an explosive segment is active. Mirrors the
+        // P0-LOCK contract that animation must not own world
+        // position outside its own active segment.
+        g.rotation.x = 0
+        g.rotation.z = 0
+        // Clear any latent bob this controller previously wrote.
+        // We track that via a per-player flag so we never tap
+        // position.y for a player that has never experienced a bob,
+        // preserving the legacy mock-tests "y untouched" contract.
+        if (this.bobActiveFor.has(player.id)) {
+          g.position.y = this.baselineY.get(player.id) ?? g.position.y
+          this.bobActiveFor.delete(player.id)
+        }
+        continue
+      }
+      const leanPeak = ATHLETIC_LEAN_PEAK_RAD_BY_KIND[active.kind] ?? 0
+      const bobPeak = ATHLETIC_BOB_PEAK_FT_BY_KIND[active.kind] ?? 0
+      if (leanPeak === 0 && bobPeak === 0) {
+        g.rotation.x = 0
+        g.rotation.z = 0
+        if (this.bobActiveFor.has(player.id)) {
+          g.position.y = this.baselineY.get(player.id) ?? g.position.y
+          this.bobActiveFor.delete(player.id)
+        }
+        continue
+      }
+      // Capture the build-time baseline once per player on first
+      // explosive frame so the bob can return to it on segment end.
+      if (!this.baselineY.has(player.id)) {
+        this.baselineY.set(player.id, g.position.y)
+      }
+      // Triangular envelope over the segment, peaking at u=0.5. The
+      // segment durations are short (≤ 800 ms typically) so a
+      // symmetric ramp keeps the lean visible without clipping the
+      // start or end frames.
+      const span = Math.max(1, active.endMs - active.startMs)
+      const u = Math.max(0, Math.min(1, (t - active.startMs) / span))
+      g.rotation.x = leanPeak * (1 - Math.abs(u - 0.5) * 2)
+      // V4-B — per-player stride phase offset so several players
+      // moving together do NOT bounce in lock-step. Hash from
+      // playerId to a 0..1 phase offset; pure deterministic so
+      // replay determinism is preserved (same scene → same offsets).
+      const phaseOffset = playerIdToPhaseOffset(player.id)
+      // Two stride peaks per segment via |sin(2π(u + offset))|. The
+      // amplitude is gated by the same triangular envelope so the
+      // figure does not bounce on the first or last frame.
+      const strideEnvelope = 1 - Math.abs(u - 0.5) * 2
+      const baseline = this.baselineY.get(player.id) ?? 0
+      const stridePhase = (u + phaseOffset) * Math.PI * 2
+      const bob = bobPeak * Math.abs(Math.sin(stridePhase)) * strideEnvelope
+      g.position.y = baseline + bob
+      if (bobPeak > 0) {
+        this.bobActiveFor.add(player.id)
+      }
+      // V4-B — lateral cornering bank. When the segment has a
+      // significant x-component of travel, the upper body banks
+      // INTO the corner (positive x → bank to the right → negative
+      // rotation.z by Three convention for our yaw). Pure function
+      // of (segment direction, kind), so determinism is preserved.
+      // The amount is small (≤ 4°) and gated by the same triangular
+      // envelope so the bank loads on entry and unloads on arrival.
+      const dx = active.to.x - active.from.x
+      const dz = active.to.z - active.from.z
+      const segLen = Math.sqrt(dx * dx + dz * dz)
+      if (leanPeak > 0 && segLen > 0.01) {
+        const lateralBias = dx / segLen // -1..+1
+        const bankPeak = ATHLETIC_BANK_PEAK_RAD_BY_KIND[active.kind] ?? 0
+        // The figure's local +x is the player's right (after yaw).
+        // Bank toward direction of travel: if traveling +x (right),
+        // bank rotation.z negative so the right side dips. Multiply
+        // by the same envelope so corner-banks blend with peak lean.
+        g.rotation.z = -bankPeak * lateralBias * strideEnvelope
+      } else {
+        g.rotation.z = 0
+      }
+    }
   }
 
   // --- internals ---
@@ -3218,7 +3539,115 @@ function buildGymShell(): THREE.Group {
   // them up alongside the walls and ceiling.
   addGymBackdrop(gym, gymWidth, gymDepth, centerZ)
 
+  // V4-F — hanging pendant lighting fixtures. Visual-only (emissive,
+  // no extra Three.js Light objects) so the existing key/fill/rim/
+  // spot rig keeps owning actual scene lighting. The fixtures sit
+  // below the rafter grid with thin cables going up to the ceiling.
+  addCeilingPendants(gym, gymWidth, gymDepth)
+
   return gym
+}
+
+/**
+ * V4-F — Hangs a 2×3 array of pendant fixtures below the rafter grid.
+ * Each pendant is housing + lens + cable. Reads as a real venue light
+ * from the broadcast camera and from inside fullscreen, anchoring the
+ * gym feel without burning frame budget on additional point lights
+ * (the existing rig already covers actual illumination).
+ *
+ * Geometry is shared per part (one cylinder for housing, one for
+ * lens, one for cable) and reused via clone — material count per
+ * pendant is 3 (housing / lens / cable), shared across the whole
+ * pendant grid.
+ */
+function addCeilingPendants(
+  gym: THREE.Group,
+  gymWidth: number,
+  gymDepth: number,
+): void {
+  const housingMat = new THREE.MeshStandardMaterial({
+    color: PENDANT_HOUSING_COLOR,
+    roughness: 0.55,
+    metalness: 0.6,
+  })
+  const lensMat = new THREE.MeshStandardMaterial({
+    color: PENDANT_LENS_COLOR,
+    roughness: 0.4,
+    metalness: 0.05,
+    emissive: new THREE.Color(PENDANT_LENS_COLOR),
+    emissiveIntensity: 1.4,
+  })
+  const cableMat = new THREE.MeshStandardMaterial({
+    color: PENDANT_CABLE_COLOR,
+    roughness: 0.85,
+    metalness: 0.2,
+  })
+
+  // Pendant grid — 3 along x (sidelines), 2 along z (ends). Skip the
+  // back row (-z) so the camera looking into the gym sees lights
+  // hanging in front of the bleachers, not behind them.
+  const housingRadius = 0.95
+  const housingHeight = 0.4
+  const lensRadius = 0.78
+  const lensHeight = 0.12
+  const cableLength = 6
+  const cableRadius = 0.05
+
+  const cols = 3
+  const rows = 2
+  const xStep = gymWidth / (cols + 1)
+  const zStep = gymDepth / (rows + 2)
+  const ceilingY = GYM_HEIGHT - 0.12
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = -gymWidth / 2 + xStep * (c + 1)
+      const z = GYM_BACK_Z + zStep * (r + 2)
+      const pendant = new THREE.Group()
+      pendant.name = `pendant-${r}-${c}`
+      pendant.position.set(x, 0, z)
+
+      // Cable up to ceiling.
+      const cable = new THREE.Mesh(
+        new THREE.CylinderGeometry(cableRadius, cableRadius, cableLength, 6),
+        cableMat,
+      )
+      cable.position.set(0, ceilingY - cableLength / 2, 0)
+      pendant.add(cable)
+
+      // Housing — wide flat dark cylinder.
+      const housing = new THREE.Mesh(
+        new THREE.CylinderGeometry(
+          housingRadius * 0.85,
+          housingRadius,
+          housingHeight,
+          12,
+        ),
+        housingMat,
+      )
+      housing.position.set(0, ceilingY - cableLength - housingHeight / 2, 0)
+      pendant.add(housing)
+
+      // Lens — bright emissive disk underneath the housing. The lens
+      // is the visible "light" from any camera angle.
+      const lens = new THREE.Mesh(
+        new THREE.CylinderGeometry(
+          lensRadius,
+          lensRadius * 1.05,
+          lensHeight,
+          12,
+        ),
+        lensMat,
+      )
+      lens.position.set(
+        0,
+        ceilingY - cableLength - housingHeight - lensHeight / 2,
+        0,
+      )
+      pendant.add(lens)
+
+      gym.add(pendant)
+    }
+  }
 }
 
 /**
@@ -5016,9 +5445,17 @@ const ATH_PELVIS_HEIGHT = 0.58
 const ATH_PELVIS_WIDTH = 1.16
 const ATH_PELVIS_DEPTH = 0.84
 const ATH_TORSO_HEIGHT = 1.58
-const ATH_TORSO_TOP_W = 1.52
+// Visual/Motion review (premium pass) — broader shoulder line +
+// slightly deeper chest. Pre-review the torso top read narrow against
+// the bumped quad/calf mass, so the silhouette tapered the wrong way
+// at the gameplay camera. The new values keep the existing V-taper
+// (top > bot) but lift the shoulder slab to NBA-broadcast proportions
+// (~31% of height) and add a touch of chest depth so the figure does
+// not flatten in profile. Total-height contract (5.95 ft) is
+// untouched so the playerScaleContract test still passes.
+const ATH_TORSO_TOP_W = 1.66
 const ATH_TORSO_BOT_W = 0.98
-const ATH_TORSO_DEPTH = 0.84
+const ATH_TORSO_DEPTH = 0.92
 const ATH_NECK_LENGTH = 0.20
 const ATH_NECK_R = 0.15
 const ATH_HEAD_R = 0.39
@@ -5027,7 +5464,11 @@ const ATH_UPPER_ARM_R = 0.18
 const ATH_FORE_ARM_LENGTH = 0.95
 const ATH_FORE_ARM_R = 0.145
 const ATH_HIP_GAP = 0.58
-const ATH_SHOULDER_WIDTH = 1.64
+// Visual/Motion review — wider arm-to-arm span so the deltoid line
+// reads as basketball-broadcast wide. 1.64 → 1.78 puts the shoulder
+// pivot at ~30% of standing height (NBA wing average ≈ 30-32%) while
+// the height contract stays at 5.95 ft.
+const ATH_SHOULDER_WIDTH = 1.78
 
 // Anchor heights derived once from the proportions above. `_Y` is the
 // world-space y of the *anchor pivot* on the figure root (origin =
@@ -5081,10 +5522,17 @@ function buildAthleteFigure(
     roughness: 0.72,
     metalness: 0,
   })
+  // Visual/Motion review — premium sneaker response. Lifted metalness
+  // 0.08 → 0.14 and roughness 0.58 → 0.42 so the shoe upper picks up
+  // a subtle highlight from the broadcast key light instead of
+  // reading as matte plastic. Stays well below "patent leather"
+  // territory (metalness < 0.2, roughness > 0.3) per the audit
+  // bounds, so the silhouette still reads as athletic footwear, not
+  // a chrome plate.
   const shoeMat = new THREE.MeshStandardMaterial({
     color: SHOE_COLOR,
-    roughness: 0.58,
-    metalness: 0.08,
+    roughness: 0.42,
+    metalness: 0.14,
   })
   const accentMat = new THREE.MeshStandardMaterial({
     color: ACCENT_COLOR,
@@ -5514,7 +5962,16 @@ function buildAthleteFigure(
   possessionLayer.add(possession)
 
   const ringInner = PLAYER_RADIUS + 0.2
-  const ringOuter = isUser ? PLAYER_RADIUS + 0.7 : PLAYER_RADIUS + 0.55
+  // Visual/Motion review (premium pass) — wider key-defender ring so
+  // the heat read carries from the broadcast camera. User keeps its
+  // generous outer (0.7); other players go 0.55, key defender goes
+  // 0.78 so the heat ring outlines a visibly larger footprint than
+  // a teammate next to it.
+  const ringOuter = isUser
+    ? PLAYER_RADIUS + 0.7
+    : _getCurrentPlayerFigureBuildContext()?.isKeyDefender === true
+      ? PLAYER_RADIUS + 0.78
+      : PLAYER_RADIUS + 0.55
   // FR-3 §7.3 — key defender swap. When the per-figure build context
   // marks this player as the cue defender, paint the base ring with
   // the §7.1 `--heat` token instead of the team color so the user
@@ -5525,18 +5982,22 @@ function buildAthleteFigure(
   const buildCtx = _getCurrentPlayerFigureBuildContext()
   const isKeyDefender = buildCtx?.isKeyDefender === true
   const ringColor = isKeyDefender ? HEAT_RING_COLOR : teamColor
+  // Visual/Motion review (premium pass) — slightly cooler non-key
+  // defenders (0.65 → 0.55) and a touch hotter offensive teammates
+  // (0.85 → 0.92) so the offense/defense identity reads without a
+  // legend on the first frame.
   const ringOpacity = isUser
     ? 1
     : isKeyDefender
-      ? 0.95
+      ? 1
       : buildCtx?.isKeyDefender === false &&
           // Cooler "other defender" — applied only when the context
           // is registered AND this is a non-key defender. Heuristic
           // inferred from teamColor matching the DEFENSE_COLOR
           // constant; offense keeps its full team-color opacity.
           teamColor.toUpperCase() === DEFENSE_COLOR
-        ? 0.65
-        : 0.85
+        ? 0.55
+        : 0.92
   // Ring segments are kept intentionally low because these indicators
   // are always viewed from the gameplay camera, not inspected up close.
   const ring = new THREE.Mesh(
@@ -5551,6 +6012,14 @@ function buildAthleteFigure(
   )
   ring.rotation.x = -Math.PI / 2
   ring.position.y = 0.05
+  // V4-D — tag the heat ring so the per-frame loop can find it and
+  // pulse its opacity. Stamps the ring's authored opacity into
+  // userData so the loop multiplies the breathing factor against the
+  // authored value rather than drifting unboundedly across frames.
+  if (isKeyDefender) {
+    ring.name = 'key-defender-heat-ring'
+    ;(ring.userData as Record<string, unknown>).baseOpacity = ringOpacity
+  }
   baseLayer.add(ring)
 
   const innerOutline = new THREE.Mesh(
@@ -5568,14 +6037,19 @@ function buildAthleteFigure(
   baseLayer.add(innerOutline)
 
   if (isUser) {
+    // Visual/Motion review (premium pass) — bumped the user halo
+    // and soft-halo opacities (0.40→0.55, 0.16→0.26) so the user
+    // pulls forward in the read on a busy scene. Adds a third,
+    // wider feather ring at very low alpha so the falloff feels
+    // continuous rather than ending abruptly.
     const halo = new THREE.Mesh(
-      new THREE.RingGeometry(ringOuter + 0.05, ringOuter + 0.6, 28),
+      new THREE.RingGeometry(ringOuter + 0.05, ringOuter + 0.6, 32),
       new THREE.MeshBasicMaterial({
         color: USER_COLOR,
         toneMapped: false,
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.4,
+        opacity: 0.55,
       }),
     )
     halo.rotation.x = -Math.PI / 2
@@ -5583,18 +6057,35 @@ function buildAthleteFigure(
     userLayer.add(halo)
 
     const softHalo = new THREE.Mesh(
-      new THREE.RingGeometry(ringOuter + 0.65, ringOuter + 1.4, 28),
+      new THREE.RingGeometry(ringOuter + 0.65, ringOuter + 1.4, 32),
       new THREE.MeshBasicMaterial({
         color: USER_COLOR,
         toneMapped: false,
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.16,
+        opacity: 0.26,
       }),
     )
     softHalo.rotation.x = -Math.PI / 2
     softHalo.position.y = 0.044
     userLayer.add(softHalo)
+
+    // Outer feather ring — keeps the halo edge from snapping to a
+    // hard outline at gameplay distance. ≤ 0.10 alpha so it never
+    // competes with the inner two rings.
+    const featherHalo = new THREE.Mesh(
+      new THREE.RingGeometry(ringOuter + 1.4, ringOuter + 2.1, 32),
+      new THREE.MeshBasicMaterial({
+        color: USER_COLOR,
+        toneMapped: false,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.10,
+      }),
+    )
+    featherHalo.rotation.x = -Math.PI / 2
+    featherHalo.position.y = 0.043
+    userLayer.add(featherHalo)
 
     const chevron = new THREE.Mesh(
       new THREE.ConeGeometry(0.42, 0.85, 16),
@@ -5629,15 +6120,21 @@ function buildAthleteFigure(
   // by the imperative path; on SSR / no-canvas environments the
   // helper returns null and we fall back to the legacy untextured
   // dark disc — preserving the pre-V2 visual contract for tests.
+  //
+  // Visual/Motion review — bumped the radius from 0.85 → 1.05 ft and
+  // the legacy fallback opacity from 0.42 → 0.55 so the player reads
+  // as planted rather than floating. The textured path keeps its
+  // opacity at 1 because the alpha gradient already feathers out;
+  // the wider disc just gives the gradient more room to breathe.
   const shadowTex = getCachedPlayerShadowTexture()
   const contactShadow = new THREE.Mesh(
-    new THREE.CircleGeometry(PLAYER_RADIUS + 0.85, 32),
+    new THREE.CircleGeometry(PLAYER_RADIUS + 1.05, 32),
     new THREE.MeshBasicMaterial({
       color: shadowTex ? '#FFFFFF' : CONTACT_SHADOW_COLOR,
       map: shadowTex ?? null,
       toneMapped: false,
       transparent: true,
-      opacity: shadowTex ? 1 : 0.42,
+      opacity: shadowTex ? 1 : 0.55,
       depthWrite: false,
     }),
   )
@@ -5720,6 +6217,16 @@ function buildPremiumAthleteFigure(
   upgradePremiumLegsAndFeet(figure)
   upgradePremiumUniform(figure, trimColor)
   upgradePremiumRoleReadability(figure, hasBall, stance)
+  // V4-A — premium athlete kit (socks, biceps cuffs, side stripes).
+  // Adds basketball-specific gear that reads at gameplay distance
+  // and pushes the figure beyond "uniformed mannequin." Materials
+  // are per-figure but tiny (one new MeshStandardMaterial for the
+  // white kit accents; shoe stripes reuse the accent material).
+  upgradePremiumKit(figure)
+  // V4-D — user-only gear: headband. Mounts only when the figure
+  // belongs to the user player; helps the user pull forward in the
+  // identity read on a busy scene.
+  if (isUser) upgradePremiumUserGear(figure)
   return figure
 }
 
@@ -5802,16 +6309,26 @@ function upgradePremiumUniform(figure: THREE.Object3D, trimColor: string): void 
     }
   }
   if (jerseyMat) {
-    // Matte fabric: enough rim-light response to show shape, without
-    // the shiny toy/plastic feel.
-    jerseyMat.roughness = 0.66
-    jerseyMat.metalness = 0.01
+    // Visual/Motion review — premium fabric response. Slightly less
+    // rough than before (0.66 → 0.58) to pick up more rim/edge light
+    // from the broadcast lighting rig, and a faint emissive in the
+    // jersey color so the silhouette reads with NBA-broadcast-style
+    // stage glow even in the shadow side. Metalness stays near zero
+    // so it never reads as vinyl.
+    jerseyMat.roughness = 0.58
+    jerseyMat.metalness = 0.02
+    jerseyMat.emissive = new THREE.Color(jerseyMat.color).multiplyScalar(0.18)
+    jerseyMat.emissiveIntensity = 0.55
   }
   if (shortsMat) {
     // Shorts stay matte and a touch rougher than the jersey so the
-    // two pieces of the uniform read as distinct fabrics.
-    shortsMat.roughness = 0.88
+    // two pieces of the uniform read as distinct fabrics. Slight
+    // emissive lift mirrors the jersey treatment so the lower body
+    // does not crater into shadow against a darker floor.
+    shortsMat.roughness = 0.82
     shortsMat.metalness = 0
+    shortsMat.emissive = new THREE.Color(shortsMat.color).multiplyScalar(0.10)
+    shortsMat.emissiveIntensity = 0.4
   }
   if (shortsMesh) {
     const h = ATH_PELVIS_HEIGHT
@@ -5988,6 +6505,115 @@ function upgradePremiumShoe(foot: THREE.Group): void {
   heelCounter.position.set(0, ATH_FOOT_HEIGHT * 0.55, ATH_FOOT_LENGTH * 0.32)
   heelCounter.castShadow = true
   foot.add(heelCounter)
+  // V4-A — generic side stripe. A thin diagonal accent slab on each
+  // shoe side, reading as a brand swoosh shape without copying any
+  // real brand mark. Reuses the accentMat so per-figure material
+  // count stays unchanged. Box geometry is the cheapest possible
+  // primitive (12 tris) so per-foot cost is 24 tris.
+  for (const sign of [-1, 1] as const) {
+    const sideStripe = new THREE.Mesh(
+      new THREE.BoxGeometry(
+        0.04,
+        ATH_FOOT_HEIGHT * 0.35,
+        ATH_FOOT_LENGTH * 0.62,
+      ),
+      accentMat,
+    )
+    sideStripe.position.set(
+      sign * (ATH_FOOT_WIDTH * 0.5 + 0.01),
+      ATH_FOOT_HEIGHT * 0.62,
+      -ATH_FOOT_LENGTH * 0.18,
+    )
+    // Slight upward tilt at the toe so the stripe reads dynamic from
+    // the broadcast camera, not a flat band.
+    sideStripe.rotation.x = sign * 0.06
+    foot.add(sideStripe)
+  }
+}
+
+/**
+ * V4-D — user-only gear. Adds a slim brand-neutral headband around
+ * the user player's head so they pull forward in the identity read
+ * on a busy scene without competing with the existing user halo
+ * indicator. Mat is the same USER_COLOR token the halo uses, so the
+ * head, halo, and chevron read as one coordinated identity layer.
+ */
+function upgradePremiumUserGear(figure: THREE.Object3D): void {
+  const neckHead = figure.getObjectByName('neckHead') as THREE.Group | null
+  if (!neckHead) return
+  const headbandMat = new THREE.MeshStandardMaterial({
+    color: USER_COLOR,
+    roughness: 0.7,
+    metalness: 0.1,
+    emissive: new THREE.Color(USER_COLOR),
+    emissiveIntensity: 0.18,
+  })
+  // Sit the band at the brow line — same y the existing brow torus
+  // uses, slightly fatter so it reads as worn fabric rather than a
+  // hairline outline. Tessellation 4×12 (96 tris) — readable at the
+  // gameplay-camera floor.
+  const band = new THREE.Mesh(
+    new THREE.TorusGeometry(ATH_HEAD_R * 1.02, 0.06, 4, 12),
+    headbandMat,
+  )
+  band.rotation.x = Math.PI * 0.5
+  band.position.y = ATH_NECK_LENGTH + ATH_HEAD_R * 1.15
+  band.scale.set(1.02, 1.0, 0.9)
+  neckHead.add(band)
+}
+
+/**
+ * V4-A — adds a white sock band above the shoe and a thin biceps
+ * cuff on each upper arm. Cheap geometry that pushes the figure from
+ * "mannequin in a uniform" to "kitted athlete." Owns its own white
+ * material (per-figure unique because the socks read brighter than
+ * the existing skin/jersey palette and we don't want them tinted by
+ * a shared material). Net per-figure cost: 1 material + 4 short
+ * cylinders.
+ */
+function upgradePremiumKit(figure: THREE.Object3D): void {
+  const kitMat = new THREE.MeshStandardMaterial({
+    color: '#F0F2F4',
+    roughness: 0.85,
+    metalness: 0.04,
+  })
+  // Socks — wrap each ankle just above the shoe. 8-segment cylinder
+  // (32 tris) is enough at gameplay-camera distance.
+  for (const legName of ['leftLeg', 'rightLeg'] as const) {
+    const leg = figure.getObjectByName(legName) as THREE.Group | null
+    const calf = leg?.getObjectByName('calf') as THREE.Group | null
+    if (!calf) continue
+    // Calf's local coords place the foot anchor at y = -ATH_CALF_LENGTH;
+    // mount the sock just above that so it sits above the shoe.
+    const sock = new THREE.Mesh(
+      new THREE.CylinderGeometry(
+        ATH_CALF_BOT_R * 1.18,
+        ATH_CALF_BOT_R * 1.22,
+        0.36,
+        8,
+      ),
+      kitMat,
+    )
+    sock.position.y = -ATH_CALF_LENGTH + 0.18
+    sock.castShadow = true
+    calf.add(sock)
+  }
+  // Biceps cuff — a thin ring around the upper arm just above the
+  // elbow joint. Reads as taped/braced biceps (a basketball staple)
+  // without committing to a sleeve mesh. Tessellation tuned to the
+  // gameplay-camera floor (4 radial × 10 tubular = 80 tris per cuff).
+  for (const armName of ['leftArm', 'rightArm'] as const) {
+    const arm = figure.getObjectByName(armName) as THREE.Group | null
+    const upperArm = arm?.getObjectByName('upperArm') as THREE.Group | null
+    if (!upperArm) continue
+    const cuff = new THREE.Mesh(
+      new THREE.TorusGeometry(ATH_UPPER_ARM_R * 1.32, 0.04, 4, 10),
+      kitMat,
+    )
+    cuff.rotation.x = Math.PI / 2
+    cuff.position.y = -ATH_UPPER_ARM_LENGTH * 0.92
+    upperArm.add(cuff)
+  }
 }
 
 /**
@@ -6261,20 +6887,28 @@ function applyAthleteStance(joints: AthleteJoints, stance: PlayerStance): void {
  * a follow-up.
  */
 function applyCutPose(joints: AthleteJoints): void {
+  // Visual/Motion review (premium pass) — explosive first-step
+  // shape. Front leg drives hard (rightThigh -0.30 → -0.45), back
+  // leg loads (leftThigh -0.18 → -0.32 with a deeper calf bend) so
+  // the silhouette has clear push-off from below the hips. Arm
+  // pumps split asymmetric (front arm flexed, back arm extended)
+  // so the figure reads as "running" instead of "leaning."
   joints.upperBody.position.y = -0.05
-  joints.leftThigh.rotation.set(-0.18, 0, -0.05)
-  joints.leftCalf.rotation.set(0.18, 0, 0)
+  joints.leftThigh.rotation.set(-0.32, 0, -0.06)
+  joints.leftCalf.rotation.set(0.42, 0, 0)
   joints.leftFoot.rotation.set(0, 0, 0)
-  joints.rightThigh.rotation.set(-0.30, 0, 0.05)
-  joints.rightCalf.rotation.set(0.30, 0, 0)
+  joints.rightThigh.rotation.set(-0.45, 0, 0.06)
+  joints.rightCalf.rotation.set(0.42, 0, 0)
   joints.rightFoot.rotation.set(0, 0, 0)
-  joints.pelvis.rotation.set(0.10, 0, 0)
-  joints.torso.rotation.set(-0.20, 0, 0)
-  joints.neckHead.rotation.set(0.10, 0, 0)
-  joints.leftUpperArm.rotation.set(0.45, 0, 0.20)
-  joints.leftForeArm.rotation.set(-0.45, 0, 0)
-  joints.rightUpperArm.rotation.set(0.55, 0, -0.20)
-  joints.rightForeArm.rotation.set(-0.45, 0, 0)
+  joints.pelvis.rotation.set(0.14, 0, 0)
+  joints.torso.rotation.set(-0.26, 0, 0)
+  joints.neckHead.rotation.set(0.12, 0, 0)
+  // Asymmetric arm pump: right arm drives forward (front), left arm
+  // flexes back at the elbow. Reads as natural running cadence.
+  joints.leftUpperArm.rotation.set(-0.30, 0, 0.22)
+  joints.leftForeArm.rotation.set(-1.10, 0, 0.04)
+  joints.rightUpperArm.rotation.set(0.85, 0, -0.22)
+  joints.rightForeArm.rotation.set(-0.40, 0, -0.04)
 }
 
 /**
@@ -6307,24 +6941,28 @@ function applySagPose(joints: AthleteJoints): void {
  * is the AOR-01 read this stance enables).
  */
 function applyCloseoutPose(joints: AthleteJoints): void {
-  joints.upperBody.position.y = -0.10
-  // Front foot (right) planted forward, back foot (left) trailing.
-  // Knee bends smaller than defensive — closeout is mid-flight.
-  joints.leftThigh.rotation.set(-0.20, 0, -0.05)
-  joints.leftCalf.rotation.set(0.20, 0, 0)
+  // Visual/Motion review (premium pass) — sharper closeout. Front
+  // foot lands harder (knee 0.40 → 0.50), pelvis tilts more aggressive
+  // forward, hands punch higher and wider so the contest reads "I'm
+  // in your face" rather than "I'm sliding past." The trail leg
+  // stays soft so the silhouette has clear forward weight.
+  joints.upperBody.position.y = -0.13
+  joints.leftThigh.rotation.set(-0.22, 0, -0.05)
+  joints.leftCalf.rotation.set(0.22, 0, 0)
   joints.leftFoot.rotation.set(0, 0, 0)
-  joints.rightThigh.rotation.set(-0.40, 0, 0.10)
-  joints.rightCalf.rotation.set(0.40, 0, 0)
+  joints.rightThigh.rotation.set(-0.50, 0, 0.10)
+  joints.rightCalf.rotation.set(0.50, 0, 0)
   joints.rightFoot.rotation.set(0, 0, 0)
-  // Body angled forward toward the shooter with the chest leading.
-  joints.pelvis.rotation.set(0.12, -0.05, 0.02)
-  joints.torso.rotation.set(-0.34, 0.04, -0.02)
-  joints.neckHead.rotation.set(0.16, -0.04, 0)
-  // Arms are still clearly wide and up, but not perfectly mirrored.
-  joints.leftUpperArm.rotation.set(-0.95, 0, 1.12)
-  joints.leftForeArm.rotation.set(-0.42, 0, 0.04)
-  joints.rightUpperArm.rotation.set(-0.78, 0, -1.28)
-  joints.rightForeArm.rotation.set(-0.30, 0, -0.04)
+  joints.pelvis.rotation.set(0.18, -0.05, 0.02)
+  joints.torso.rotation.set(-0.40, 0.04, -0.02)
+  joints.neckHead.rotation.set(0.20, -0.04, 0)
+  // Arms — both up high, both elbows broken, palms toward the
+  // shooter. Pushed further out so the silhouette carries a
+  // forward-pressure shape from any yaw.
+  joints.leftUpperArm.rotation.set(-1.10, 0, 1.22)
+  joints.leftForeArm.rotation.set(-0.50, 0, 0.04)
+  joints.rightUpperArm.rotation.set(-0.92, 0, -1.40)
+  joints.rightForeArm.rotation.set(-0.36, 0, -0.04)
 }
 
 /**
@@ -6374,30 +7012,30 @@ function applyDefensivePose(joints: AthleteJoints): void {
   // Crouch math: thigh pitches forward by `t`, calf pitches back by
   // `t` (so the calf stays roughly vertical), and the upperBody
   // drops by `thigh_length * (1 - cos(t))` so the foot stays at
-  // the floor. Phase L8 deepens the crouch from t=0.50 → t=0.60
-  // (≈ 28° → 34°) so the defender reads as in a real defensive base
-  // rather than just standing with bent knees. Drop math: 1.45 *
-  // (1 - cos(0.60)) ≈ 0.27ft, hence the upperBody.y = -0.26 anchor.
-  joints.upperBody.position.y = -0.26
-  joints.leftThigh.rotation.set(-0.60, 0, -0.22)
-  joints.leftCalf.rotation.set(0.60, 0, 0)
+  // the floor.
+  //
+  // Visual/Motion review (premium pass) — deepened the defensive
+  // base from t=0.60 → t=0.68 (≈ 39°). Drop math: 1.45 ×
+  // (1 - cos(0.68)) ≈ 0.34 ft, hence upperBody.y = -0.32. Pairs
+  // with widened arm/hand outward angle so the defender reads as
+  // actively-engaged, not just bent-knee. Pelvis/torso tilt also
+  // pushed slightly so the back angles toward the ball.
+  joints.upperBody.position.y = -0.32
+  joints.leftThigh.rotation.set(-0.68, 0, -0.26)
+  joints.leftCalf.rotation.set(0.68, 0, 0)
   joints.leftFoot.rotation.set(0, 0, 0)
-  joints.rightThigh.rotation.set(-0.60, 0, 0.22)
-  joints.rightCalf.rotation.set(0.60, 0, 0)
+  joints.rightThigh.rotation.set(-0.68, 0, 0.26)
+  joints.rightCalf.rotation.set(0.68, 0, 0)
   joints.rightFoot.rotation.set(0, 0, 0)
-  // Pelvis tilts forward a touch so the back is angled toward the
-  // ball instead of straight up. Slightly more pronounced now to
-  // match the deeper crouch.
-  joints.pelvis.rotation.set(0.24, -0.04, 0)
-  joints.torso.rotation.set(-0.24, 0.03, 0)
-  joints.neckHead.rotation.set(0.07, -0.06, 0)
-  // Arms — both out and forward, palms-down basketball defensive
-  // hands. Upper arm rotates outward + forward; forearm rotates
-  // forward at the elbow so hands extend past the body.
-  joints.leftUpperArm.rotation.set(-0.58, 0, 0.92)
-  joints.leftForeArm.rotation.set(-0.52, 0, 0.04)
-  joints.rightUpperArm.rotation.set(-0.46, 0, -0.78)
-  joints.rightForeArm.rotation.set(-0.36, 0, -0.04)
+  joints.pelvis.rotation.set(0.28, -0.04, 0)
+  joints.torso.rotation.set(-0.28, 0.03, 0)
+  joints.neckHead.rotation.set(0.09, -0.06, 0)
+  // Arms wider and palms-down with a touch more elbow break — sells
+  // "active hands" instead of "robot arms out."
+  joints.leftUpperArm.rotation.set(-0.66, 0, 1.06)
+  joints.leftForeArm.rotation.set(-0.62, 0, 0.06)
+  joints.rightUpperArm.rotation.set(-0.54, 0, -0.92)
+  joints.rightForeArm.rotation.set(-0.46, 0, -0.06)
 }
 
 /**

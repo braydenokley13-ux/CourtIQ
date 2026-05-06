@@ -42,6 +42,27 @@ export function getRimHaloPulseAlpha(nowMs: number): number {
   return 1 + RIM_HALO_PULSE_AMPLITUDE * Math.sin(2 * Math.PI * t)
 }
 
+// V4-D — Key defender heat-ring pulse.
+//
+// Slightly faster + slightly stronger than the rim halo so the key
+// defender pulls forward in the read on a busy scene without ever
+// fully blinking off. Period 1.6s gives ~38 BPM (mid-tempo); ±25%
+// amplitude is large enough to register but small enough that the
+// ring is always above 0.75× authored opacity.
+const KEY_DEFENDER_PULSE_PERIOD_S = 1.6
+const KEY_DEFENDER_PULSE_AMPLITUDE = 0.25
+
+/**
+ * Returns the alpha multiplier the key-defender heat ring should sit
+ * at for the given wall-clock ms. Stays inside [1-amp, 1+amp].
+ * Pure / deterministic. SSR-safe.
+ */
+export function getKeyDefenderPulseAlpha(nowMs: number): number {
+  if (!Number.isFinite(nowMs)) return 1
+  const t = (nowMs / 1000) / KEY_DEFENDER_PULSE_PERIOD_S
+  return 1 + KEY_DEFENDER_PULSE_AMPLITUDE * Math.sin(2 * Math.PI * t)
+}
+
 const DUST_PARTICLE_COUNT = 110
 const DUST_COLOR = '#FFE2A8'
 const DUST_OPACITY = 0.18

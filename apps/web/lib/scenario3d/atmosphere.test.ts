@@ -13,7 +13,10 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { getRimHaloPulseAlpha } from './atmosphere'
+import {
+  getKeyDefenderPulseAlpha,
+  getRimHaloPulseAlpha,
+} from './atmosphere'
 
 describe('getRimHaloPulseAlpha', () => {
   it('returns the identity multiplier on non-finite input', () => {
@@ -51,5 +54,52 @@ describe('getRimHaloPulseAlpha', () => {
     // At t = T/4, sin(2π * 0.25) = 1, so multiplier = 1 + amp.
     expect(peak).toBeGreaterThan(1.05)
     expect(peak).toBeLessThanOrEqual(1.1)
+  })
+})
+
+describe('V4-D — getKeyDefenderPulseAlpha', () => {
+  it('returns the identity multiplier on non-finite input', () => {
+    expect(getKeyDefenderPulseAlpha(Number.NaN)).toBe(1)
+    expect(getKeyDefenderPulseAlpha(Number.POSITIVE_INFINITY)).toBe(1)
+  })
+
+  it('is deterministic — same time → same value', () => {
+    expect(getKeyDefenderPulseAlpha(1000)).toBe(getKeyDefenderPulseAlpha(1000))
+  })
+
+  it('stays inside the [0.75, 1.25] band for any time', () => {
+    for (let t = 0; t < 30_000; t += 73) {
+      const v = getKeyDefenderPulseAlpha(t)
+      expect(v).toBeGreaterThanOrEqual(0.75)
+      expect(v).toBeLessThanOrEqual(1.25)
+      expect(Number.isFinite(v)).toBe(true)
+    }
+  })
+
+  it('is centered on 1 at zero phase', () => {
+    expect(getKeyDefenderPulseAlpha(0)).toBeCloseTo(1, 6)
+  })
+
+  it('cycles approximately every 1.6 seconds', () => {
+    expect(getKeyDefenderPulseAlpha(1600)).toBeCloseTo(1, 4)
+  })
+
+  it('pulses faster than the rim-halo (more cycles per second)', () => {
+    // Peak count over 10 seconds: rim halo ≈ 10/5.8 ≈ 1.7,
+    // key defender ≈ 10/1.6 ≈ 6.3. The key defender helper must
+    // produce more zero-crossings in the same window.
+    let rimCrossings = 0
+    let keyCrossings = 0
+    let prevRim = getRimHaloPulseAlpha(0) - 1
+    let prevKey = getKeyDefenderPulseAlpha(0) - 1
+    for (let t = 50; t < 10_000; t += 50) {
+      const r = getRimHaloPulseAlpha(t) - 1
+      const k = getKeyDefenderPulseAlpha(t) - 1
+      if (Math.sign(r) !== Math.sign(prevRim)) rimCrossings++
+      if (Math.sign(k) !== Math.sign(prevKey)) keyCrossings++
+      prevRim = r
+      prevKey = k
+    }
+    expect(keyCrossings).toBeGreaterThan(rimCrossings)
   })
 })

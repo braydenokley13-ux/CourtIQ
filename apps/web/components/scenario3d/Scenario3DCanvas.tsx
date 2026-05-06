@@ -50,6 +50,7 @@ import {
 } from '@/lib/scenario3d/quality'
 import {
   buildDustMotes,
+  getKeyDefenderPulseAlpha,
   getRimHaloPulseAlpha,
   type DustMotes,
 } from '@/lib/scenario3d/atmosphere'
@@ -636,11 +637,24 @@ export function Scenario3DCanvas({
     // covers the React render flush (data-fullscreen-fill prop), and
     // a third deferred apply at ~120ms catches Safari's slower
     // post-fullscreen layout pass.
+    //
+    // Visual/Motion review — the final deferred apply also calls
+    // `snapNext()` on the camera controller. Without this, any
+    // in-flight eased lerp toward intermediate aspect targets
+    // (caused by the browser publishing 1-3 sub-pixel layout
+    // updates before the transition settles) would keep chasing the
+    // moving target for ~0.18-0.46s after the transition ended,
+    // reading as a brief shake. Snapping to the final target collapses
+    // every transient lerp into one clean jump on the last apply.
     const applyAfterTransition = () => {
       apply()
       requestAnimationFrame(() => {
         apply()
-        setTimeout(apply, 120)
+        setTimeout(() => {
+          apply()
+          const ctrl = cameraControllerRef.current
+          if (ctrl) ctrl.snapNext()
+        }, 120)
       })
     }
 
@@ -886,18 +900,27 @@ export function Scenario3DCanvas({
           // replay legs that contained passes. We still consume the
           // arrival flag every frame so the motion controller's
           // internal counter doesn't backfill, and we still honour
-          // `?shake=1` for dev / motion-design verification — at a
-          // significantly reduced amplitude (0.18 ft, ~60% lower).
-          // Skipped when the user is orbiting or running on the low
-          // quality tier so we never fight a manual dragger or
-          // burn frames on devices the FPS guard already throttled.
+          // `?shake=1` for dev / motion-design verification.
+          //
+          // Visual/Motion review — amplitude tightened to 0.10 ft and
+          // duration to 160 ms. The pre-review 0.18 ft / 220 ms
+          // settings still landed in dev sessions as a noticeable
+          // micro-bump on top of the controller's eased lerp; the
+          // tighter envelope keeps the cue available for motion-
+          // design verification while staying below the human-
+          // noticeable jitter floor on the broadcast camera.
+          // Additionally gated on the controller having reached its
+          // current target (`hasSettled`) so a shake never stacks on
+          // top of an in-flight teaching cut — that was the visible
+          // "double bounce" the V1 stabilization pass flagged.
           if (motion && motion.consumePassArrival() &&
               shakeEnabledRef.current &&
               ctrl && !orbitMode &&
+              ctrl.hasSettled() &&
               qualityRef.current.tier !== 'low') {
             shakeRef.current = {
-              amplitude: 0.18,
-              duration: 220,
+              amplitude: 0.1,
+              duration: 160,
               startedAt: nowMs,
             }
           }
@@ -946,6 +969,25 @@ export function Scenario3DCanvas({
             if (rimGlow && typeof baseOpacity === 'number') {
               const mat = rimGlow.material as THREE.MeshBasicMaterial
               mat.opacity = baseOpacity * getRimHaloPulseAlpha(nowMs)
+            }
+            // V4-D — key-defender heat-ring pulse. Same authored-opacity
+            // / per-frame-multiplier shape as the rim halo. The figure
+            // builder tags the heat ring with `name = 'key-defender-
+            // heat-ring'` and stamps `userData.baseOpacity = ringOpacity`
+            // so the per-frame loop can find it without a global
+            // registry. We use `getObjectByName` once per frame to grab
+            // the first heat ring; the founder-v0 scenarios only ever
+            // mark a single key defender, so the ring is unique. If a
+            // future scenario marks two, the second will be missed —
+            // not a regression because the pre-V4 code didn't pulse at
+            // all.
+            const keyRing = threeScene.getObjectByName('key-defender-heat-ring') as
+              | THREE.Mesh
+              | undefined
+            const keyBase = keyRing?.userData.baseOpacity as number | undefined
+            if (keyRing && typeof keyBase === 'number') {
+              const mat = keyRing.material as THREE.MeshBasicMaterial
+              mat.opacity = keyBase * getKeyDefenderPulseAlpha(nowMs)
             }
           }
 
@@ -1742,6 +1784,20 @@ export function Scenario3DCanvas({
             // is also a reconciler-dependent Canvas child, so we cannot rely
             // on it.
             ;(createdScene as THREE.Scene).background = new THREE.Color(activeBg)
+
+            // V4-C — Atmospheric depth fog. Linear fog with the
+            // background tint, near=80ft / far=180ft, so close-up
+            // players (camera typically 35-70 ft from the action)
+            // remain crisp while distant gym walls and bleachers
+            // gain a soft falloff. This gives the fullscreen
+            // composition real depth and removes the "isolated
+            // primitives floating in dark" feel without affecting
+            // teaching readability.
+            ;(createdScene as THREE.Scene).fog = new THREE.Fog(
+              activeBg,
+              80,
+              180,
+            )
 
             // CRITICAL: aim the camera before the first render. The
             // declarative `camera={{ position }}` prop only sets
