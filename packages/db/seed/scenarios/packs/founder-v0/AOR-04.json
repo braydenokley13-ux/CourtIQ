@@ -119,7 +119,7 @@
       "movements": [
         { "id": "user_lift_to_catch", "playerId": "user", "kind": "lift", "to": { "x": -17, "z": 10 }, "delayMs": 0, "durationMs": 600 },
         { "id": "wing_cross_kickout", "playerId": "ball", "kind": "skip_pass", "to": { "x": -17, "z": 10 }, "delayMs": 350, "durationMs": 700 },
-        { "id": "x3_x_out_closeout", "playerId": "x3", "kind": "closeout", "to": { "x": -15, "z": 8 }, "delayMs": 250, "durationMs": 800 }
+        { "id": "x3_x_out_closeout", "playerId": "x3", "kind": "closeout", "to": { "x": -15, "z": 8 }, "delayMs": 400, "durationMs": 800 }
       ],
       "freezeMarker": { "kind": "atMs", "atMs": 1500 },
       "answerDemo": [

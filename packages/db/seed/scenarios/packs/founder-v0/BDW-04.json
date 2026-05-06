@@ -118,7 +118,7 @@
       "ball": { "start": { "x": 17, "z": 9 }, "holderId": "wing" },
       "movements": [
         { "id": "user_set", "playerId": "user", "kind": "lift", "to": { "x": -7, "z": 15 }, "delayMs": 0, "durationMs": 500 },
-        { "id": "x1_deny_slot", "playerId": "x1", "kind": "rotation", "to": { "x": -3, "z": 12 }, "delayMs": 200, "durationMs": 700 }
+        { "id": "x1_deny_slot", "playerId": "x1", "kind": "rotation", "to": { "x": -3, "z": 12 }, "delayMs": 400, "durationMs": 600 }
       ],
       "freezeMarker": { "kind": "atMs", "atMs": 1400 },
       "answerDemo": [
