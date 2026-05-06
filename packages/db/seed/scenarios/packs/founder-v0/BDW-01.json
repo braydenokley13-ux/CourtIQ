@@ -240,8 +240,8 @@
               "playerId": "x2",
               "kind": "rotation",
               "to": { "x": 9, "z": 7 },
-              "delayMs": 100,
-              "durationMs": 700
+              "delayMs": 120,
+              "durationMs": 850
             }
           ]
         }

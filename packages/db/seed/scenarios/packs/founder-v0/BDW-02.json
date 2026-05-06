@@ -133,7 +133,7 @@
           "caption": "You drifted to the corner. The pass came, but the layup was gone.",
           "movements": [
             { "id": "user_drift_corner", "playerId": "user", "kind": "drift", "to": { "x": 22, "z": 2 }, "delayMs": 0, "durationMs": 700 },
-            { "id": "pg_corner_pass", "playerId": "ball", "kind": "pass", "to": { "x": 22, "z": 2 }, "delayMs": 250, "durationMs": 500 }
+            { "id": "pg_corner_pass", "playerId": "ball", "kind": "pass", "to": { "x": 22, "z": 2 }, "delayMs": 350, "durationMs": 450 }
           ]
         },
         {

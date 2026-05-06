@@ -148,8 +148,9 @@
           "choiceId": "c4",
           "caption": "You stood still. The reversal was tipped.",
           "movements": [
-            { "id": "wing_force_reverse", "playerId": "ball", "kind": "pass", "to": { "x": -7, "z": 14 }, "delayMs": 0, "durationMs": 500 },
-            { "id": "x1_deflect", "playerId": "x1", "kind": "rotation", "to": { "x": -5, "z": 13 }, "delayMs": 100, "durationMs": 350 }
+            { "id": "x1_deflect", "playerId": "x1", "kind": "rotation", "to": { "x": -5, "z": 13 }, "delayMs": 0, "durationMs": 350 },
+            { "id": "wing_force_reverse", "playerId": "ball", "kind": "pass", "to": { "x": -5, "z": 13 }, "delayMs": 200, "durationMs": 400 },
+            { "id": "ball_deflected_loose", "playerId": "ball", "kind": "pass", "to": { "x": -3, "z": 11 }, "delayMs": 50, "durationMs": 350 }
           ]
         }
       ],
