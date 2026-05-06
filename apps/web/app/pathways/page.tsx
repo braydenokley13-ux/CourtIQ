@@ -56,10 +56,34 @@ export default async function PathwaysHubPage() {
           </Link>
           <h1 className="font-display text-[28px] font-bold leading-tight">Pathways</h1>
           <p className="text-sm text-text-dim">
-            Guided basketball IQ tracks. Each Pathway is a long-form journey that organizes
-            scenarios, decoders, and mastery into a single arc. Pick a track, build the brain.
+            Your basketball IQ route. Chapter by chapter. Hints come off
+            in the Boss and the Final Mix — that&apos;s where the read shows up.
           </p>
         </header>
+
+        {/* V3 P4 — at-a-glance "how this works" strip. Three small
+            tiles ground the player in the vocabulary the rest of the
+            hub uses (decoder / chapter / boss + final mix) before any
+            CTA. Mounted above the active Pathway card so a returning
+            user has the option to skip past it visually but a brand-
+            new user gets the language baked in. */}
+        <section className="grid grid-cols-1 gap-2 sm:grid-cols-3" aria-label="How Pathways work">
+          <HowItWorksTile
+            step="1"
+            label="Decoders"
+            body="Patterns you learn to spot. Backdoor, empty space, advantage, skip."
+          />
+          <HowItWorksTile
+            step="2"
+            label="Chapters"
+            body="One decoder per chapter. Watch, freeze, pick the read."
+          />
+          <HowItWorksTile
+            step="3"
+            label="Boss & Final Mix"
+            body="No decoder label on screen. You have to read the play yourself."
+          />
+        </section>
 
         {/* Active pathways */}
         <section className="ciq-stage-in ciq-stage-in-1 space-y-3">
@@ -103,16 +127,20 @@ export default async function PathwaysHubPage() {
           </div>
         </section>
 
+        {/* V3 P4 — secondary actions. Quick rep is demoted from a
+            brand-fill primary so it doesn't compete with the active
+            Pathway CTA above; it's still one tap away for players who
+            want a random 5-pack outside the Pathway flow. */}
         <div className="flex gap-2 pt-2">
           <Link
             href="/train"
-            className="ciq-press flex-1 rounded-xl bg-brand py-3 text-center font-display text-sm font-bold uppercase tracking-[0.5px] text-brand-ink"
+            className="ciq-press-soft flex-1 rounded-xl border border-hairline-2 bg-bg-1 py-3 text-center font-display text-[13px] font-semibold uppercase tracking-[1.5px] text-text-dim transition-colors hover:text-text"
           >
             Quick 5 plays
           </Link>
           <Link
             href="/home"
-            className="ciq-press-soft rounded-xl bg-bg-2 px-5 py-3 font-display text-[13px] font-semibold text-text-dim"
+            className="ciq-press-soft rounded-xl bg-bg-2 px-5 py-3 font-display text-[13px] font-semibold uppercase tracking-[1.5px] text-text-dim"
           >
             Home
           </Link>
@@ -201,6 +229,34 @@ function ActivePathwayCard({
           See chapters
         </Link>
       </div>
+    </div>
+  )
+}
+
+/**
+ * V3 P4 — small "how this works" tile used in the Pathways hub strip.
+ * Numbered eyebrow + bold label + one-sentence explanation; small
+ * enough to fit three across on desktop and stack on mobile without
+ * stealing attention from the active Pathway card.
+ */
+function HowItWorksTile({
+  step,
+  label,
+  body,
+}: {
+  step: string
+  label: string
+  body: string
+}) {
+  return (
+    <div className="rounded-2xl border border-hairline-2 bg-bg-1 p-3">
+      <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[1.5px] text-text-mute">
+        <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-bg-2 text-[10px] font-black text-brand">
+          {step}
+        </span>
+        {label}
+      </p>
+      <p className="mt-1.5 text-[12px] leading-snug text-text">{body}</p>
     </div>
   )
 }
