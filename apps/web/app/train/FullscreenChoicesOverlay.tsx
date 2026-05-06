@@ -68,7 +68,13 @@ export function FullscreenChoicesOverlay({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
       data-fullscreen-choices="1"
-      className="rounded-2xl border border-white/10 bg-bg-0/85 p-2 shadow-[0_18px_48px_-20px_rgba(0,0,0,0.75)] backdrop-blur-md sm:p-3"
+      // V1 Premiumization — `max-h: 40vh` + `overflow-y: auto` so the
+      // overlay never crowds more than ~40% of the fullscreen viewport
+      // even when a kid is on a short mobile-landscape phone with 4
+      // long-label choices. The transport pill sits below this overlay
+      // (96px inset on the slot wrapper); the cap here ensures we
+      // never push the canvas read into a tiny remainder.
+      className="max-h-[40vh] overflow-y-auto rounded-2xl border border-white/10 bg-bg-0/85 p-2 shadow-[0_18px_48px_-20px_rgba(0,0,0,0.75)] backdrop-blur-md sm:p-3"
     >
       {prompt ? (
         <p className="mb-1.5 line-clamp-2 px-1 text-center text-[11px] font-semibold uppercase tracking-[0.1em] text-text-dim sm:mb-2 sm:text-[12px] sm:tracking-[0.12em]">

@@ -42,6 +42,10 @@ import {
   type IntentClipFlags,
 } from '@/lib/scenario3d/animationIntent'
 import type { DecoderTag } from '@/lib/scenario3d/schema'
+import {
+  composeFullscreenFraming,
+  safeFullscreenAspect,
+} from '@/lib/scenario3d/fullscreenComposition'
 
 // Visual upgrade pass: warmer, richer hardwood; deeper, more saturated
 // paint; brighter team colors so jerseys pop against both floor and
@@ -1271,9 +1275,31 @@ function computeAutoTarget(
   // 6% leaves enough breathing room around movement endpoints
   // without burning canvas pixels on empty floor. Pitch stays at
   // 30° so the high-3/4 paint read is preserved.
+  //
+  // V1 Premiumization — the per-aspect padding is now driven by
+  // `composeFullscreenFraming` (see lib/scenario3d/fullscreenComposition).
+  // Callers that pass an explicit `padding` keep the old semantics
+  // (the explicit value wins). When called with the default the
+  // composition helper picks a band-appropriate value: 1.06 stays
+  // for 16:9 desktop (byte-identical to today), tightens to 0.94 on
+  // portrait phone, and drops to 1.02 on ultrawide so the wider
+  // floor envelope is not double-padded.
   pitchDeg = 30,
-  padding = 1.06,
+  padding?: number,
 ): CameraTarget | null {
+  // V1 Premiumization — coerce a non-finite or zero aspect to a sane
+  // 16:9 fallback so the projection math never sees NaN. The browser
+  // can briefly publish (0, 0) or (NaN, NaN) sizes during fullscreen
+  // transitions; without this the camera sometimes ends up at NaN
+  // and the entire frame goes black.
+  const safeAspect = safeFullscreenAspect(
+    Number.isFinite(aspect) && aspect > 0 ? aspect : 0,
+    1,
+  )
+  const aspectForFraming =
+    Number.isFinite(aspect) && aspect > 0 ? aspect : safeAspect
+  const framing = composeFullscreenFraming(aspectForFraming)
+  const effectivePadding = padding ?? framing.padding
   const points: THREE.Vector3[] = []
   for (const p of scene.players) {
     if (Number.isFinite(p.start.x) && Number.isFinite(p.start.z)) {
@@ -1301,14 +1327,16 @@ function computeAutoTarget(
 
   // Floor: always include a minimal "half-court visible" envelope so we
   // never frame so tightly that the user loses sense of where the rim,
-  // wings, and elbows sit relative to the action. Phase K shrinks the
-  // envelope from x=±22 / z=[0,28] to x=±19 / z=[0,24] so scenarios
-  // whose action concentrates near the wing or rim do not get framed
-  // with a wide rim of empty floor. The teaching context — three-point
-  // arc, paint, both elbows — still fits inside ±19 × 24 ft.
-  const HALF_COURT_FLOOR_X = 19
-  const HALF_COURT_FLOOR_Z_MIN = 0
-  const HALF_COURT_FLOOR_Z_MAX = 24
+  // wings, and elbows sit relative to the action. The envelope used to
+  // be a hard-coded x=±19 / z=[0,24] band; V1 Premiumization replaces
+  // that with the aspect-aware safe area from composeFullscreenFraming.
+  // At 16:9 the envelope still resolves to (±19, [0, 24]) so the
+  // existing /train framing is unchanged; at ultrawide we widen to
+  // (±22, [0, 28]) so the auto-fit's horizontal solver has enough
+  // floor to fill the canvas with court instead of black.
+  const HALF_COURT_FLOOR_X = framing.floorXHalfFt
+  const HALF_COURT_FLOOR_Z_MIN = framing.floorZMinFt
+  const HALF_COURT_FLOOR_Z_MAX = framing.floorZMaxFt
   points.push(new THREE.Vector3(-HALF_COURT_FLOOR_X, 0, HALF_COURT_FLOOR_Z_MIN))
   points.push(new THREE.Vector3(HALF_COURT_FLOOR_X, 0, HALF_COURT_FLOOR_Z_MAX))
 
@@ -1317,6 +1345,14 @@ function computeAutoTarget(
   const sizeVec = new THREE.Vector3()
   box.getCenter(center)
   box.getSize(sizeVec)
+  // V1 Premiumization — lift the lookAt slightly so the half-court
+  // composition centres above the floor on wider canvases. Lifts the
+  // visual centre toward the players' shoulders, the basketball-
+  // broadcast convention. Zero on the 16:9 baseline so the existing
+  // composition is preserved.
+  if (framing.lookAtLiftFt !== 0) {
+    center.y += framing.lookAtLiftFt
+  }
 
   const fovRad = (fov * Math.PI) / 180
   const pitch = (pitchDeg * Math.PI) / 180
@@ -1328,8 +1364,8 @@ function computeAutoTarget(
     sizeVec.y * Math.cos(pitch) + sizeVec.z * Math.sin(pitch)
   const verticalFit = projectedV / (2 * Math.tan(fovRad / 2))
   const horizontalFit =
-    sizeVec.x / (2 * Math.tan(fovRad / 2) * Math.max(aspect, 0.1))
-  const distance = Math.max(verticalFit, horizontalFit) * padding
+    sizeVec.x / (2 * Math.tan(fovRad / 2) * Math.max(aspectForFraming, 0.1))
+  const distance = Math.max(verticalFit, horizontalFit) * effectivePadding
 
   const position = new THREE.Vector3(
     center.x,
@@ -1409,11 +1445,25 @@ export class CameraController {
    * Keeps the camera aspect-aware. Called once per parent rAF tick
    * with the current canvas aspect; only triggers a recompute when
    * the aspect actually changes meaningfully.
+   *
+   * V1 Premiumization — non-finite or zero aspects (briefly emitted
+   * by Safari mid-fullscreen transition) are coerced via
+   * `safeFullscreenAspect` to a 16:9 default instead of being
+   * dropped on the floor. The previous early-return left the camera
+   * stuck on the embedded aspect for the duration of the transition,
+   * producing the "court in narrow band, black margins" symptom.
+   * The camera now recomputes against a sane fallback so the next
+   * non-zero size update from the ResizeObserver lands on a
+   * correctly-framed scene.
    */
   setAspect(aspect: number): void {
-    if (!Number.isFinite(aspect) || aspect <= 0) return
-    if (Math.abs(this.aspect - aspect) < 0.001) return
-    this.aspect = aspect
+    const safe = safeFullscreenAspect(
+      Number.isFinite(aspect) && aspect > 0 ? aspect : 0,
+      1,
+    )
+    const next = Number.isFinite(aspect) && aspect > 0 ? aspect : safe
+    if (Math.abs(this.aspect - next) < 0.001) return
+    this.aspect = next
     this.recomputeTarget()
   }
 

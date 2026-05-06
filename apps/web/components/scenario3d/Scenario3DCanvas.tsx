@@ -1852,6 +1852,13 @@ export function Scenario3DCanvas({
           cameraAssist={cameraAssist}
           cameraManualOverride={cameraManualOverride}
           overlayLevel={overlayLevel}
+          // V1 Premiumization — `height === undefined` is set by
+          // Scenario3DView when the outer wrapper is in fullscreen.
+          // The badge uses this signal to relocate from bottom-right
+          // (which collides with the transport pill + choice overlay)
+          // to top-left, where every interactive cluster gives it a
+          // wide berth.
+          isFullscreen={fillFullscreen}
         />
       ) : null}
     </div>

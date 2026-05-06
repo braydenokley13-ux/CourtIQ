@@ -32,27 +32,24 @@ const BADGE_SOURCE = fs.readFileSync(
 )
 
 describe('FilmRoomDebugBadge placement', () => {
-  it('anchors to bottom-right (not top-right) so it never overlaps the camera cluster', () => {
-    expect(BADGE_SOURCE).toMatch(/className="[^"]*\bbottom-2\b/)
-    expect(BADGE_SOURCE).toMatch(/className="[^"]*\bright-2\b/)
-    // Pre-V1 it used `top-2` on the OUTER wrapper. Expanding-from-pill
-    // means we still want the wrapper to be bottom-anchored.
-    expect(BADGE_SOURCE).not.toMatch(/data-film-room-debug-badge="1"[\s\S]{0,200}\btop-2\b/)
+  it('anchors to bottom-right (not top-right) by default so it never overlaps the camera cluster', () => {
+    // Default (non-fullscreen) classes must include the bottom-right anchor.
+    expect(BADGE_SOURCE).toMatch(/bottom-2 right-2 max-w-\[44%\]/)
+    // Pre-V1 it used `top-2` on the OUTER wrapper.
+    expect(BADGE_SOURCE).not.toMatch(/data-film-room-debug-badge="1"[\s\S]{0,200}\btop-2(?!\d)/)
   })
 
-  it('keeps a clear of bottom-left GlbDebugBadge zone (does not also use left-2 anchor)', () => {
-    // Wrapper class string must not include the `left-2` anchor.
-    const wrapperMatch = BADGE_SOURCE.match(
-      /data-film-room-debug-badge="1"[\s\S]*?className="([^"]+)"/,
-    )
-    expect(wrapperMatch, 'wrapper className not found').not.toBeNull()
-    expect(wrapperMatch![1]).not.toMatch(/\bleft-2\b/)
+  it('repositions to top-left in fullscreen so it never crosses the choice overlay or transport pill', () => {
+    // V1 Premiumization — when the canvas is fullscreen the badge
+    // moves to top-3 left-3 and tightens its max-width so it never
+    // crosses either the bottom-anchored choice overlay or the
+    // bottom-center transport pill.
+    expect(BADGE_SOURCE).toMatch(/top-3 left-3 max-w-\[40%\]/)
   })
 
-  it('caps width so it cannot grow over the right half of the canvas', () => {
-    // V1 reduces max-width from 60% to 44% so even the expanded
-    // readout cannot push into the camera cluster on small viewports.
-    expect(BADGE_SOURCE).toMatch(/max-w-\[44%\]/)
+  it('passes isFullscreen through the prop boundary', () => {
+    expect(BADGE_SOURCE).toMatch(/isFullscreen\?:\s*boolean/)
+    expect(BADGE_SOURCE).toMatch(/data-fullscreen-position=\{isFullscreen \? '1' : undefined\}/)
   })
 
   it('exposes a collapse toggle so the badge defaults to a compact pill', () => {

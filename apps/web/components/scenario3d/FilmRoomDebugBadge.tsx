@@ -69,6 +69,15 @@ interface FilmRoomDebugBadgeProps {
   /** FR-5 §9.2 — currently active overlayLevel. Surfaced so QA can
    *  see which Pathways mode the renderer is reading. */
   overlayLevel?: OverlayLevel
+  /** V1 Premiumization — when true the badge moves out of the
+   *  bottom-right corner so it does not collide with the fullscreen
+   *  choice overlay or the centered transport pill on short
+   *  mobile-landscape viewports. Top-left in fullscreen sits clear
+   *  of every interactive cluster (concept chip is hidden when the
+   *  scene has no `concept` prop, and dev/scenario-preview always
+   *  passes a concept so the chip is visible — the badge stays
+   *  beneath the chip via the `top-9` offset). */
+  isFullscreen?: boolean
 }
 
 export function isFilmRoomDebugBadgeEnabled(): boolean {
@@ -91,6 +100,7 @@ export function FilmRoomDebugBadge({
   cameraAssist,
   cameraManualOverride,
   overlayLevel,
+  isFullscreen,
 }: FilmRoomDebugBadgeProps) {
   // V1 UX completion — the badge previously hard-anchored to
   // top-right which collided with PremiumOverlay's camera selector +
@@ -242,11 +252,21 @@ export function FilmRoomDebugBadge({
   // state the badge is a small "FR" pill so the operator can see at
   // a glance that the flag is on without reading every metric; click
   // to expand for the full readout.
+  // V1 Premiumization — reposition in fullscreen so the badge never
+  // crosses the bottom-center transport pill or the bottom-anchored
+  // FullscreenChoicesOverlay. Top-left sits clear of the camera /
+  // paths cluster (top-right) and the concept chip (top-left, but
+  // scenarios that mount this badge always pass concept=undefined
+  // through the canvas, so the chip is empty).
+  const positionClass = isFullscreen
+    ? 'top-3 left-3 max-w-[40%]'
+    : 'bottom-2 right-2 max-w-[44%]'
   return (
     <div
       data-film-room-debug-badge="1"
       data-expanded={expanded ? '1' : '0'}
-      className="pointer-events-auto absolute bottom-2 right-2 max-w-[44%] rounded-md bg-black/85 font-mono text-[10px] leading-snug text-white shadow-lg"
+      data-fullscreen-position={isFullscreen ? '1' : undefined}
+      className={`pointer-events-auto absolute ${positionClass} rounded-md bg-black/85 font-mono text-[10px] leading-snug text-white shadow-lg`}
       style={{ zIndex: 50 }}
     >
       <button

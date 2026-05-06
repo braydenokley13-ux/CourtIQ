@@ -343,6 +343,7 @@ function SummaryContent() {
             passed={passed}
             retryHref={retryHref}
             pathwayHref={buildPathwayDetailHref(pathway.slug)}
+            pathwaySlug={pathway.slug}
           />
         ) : (
           <div className="grid grid-cols-2 gap-3 pt-2">
@@ -432,6 +433,15 @@ function PathwayCtaBlock({
   const upNextLabel = recommended?.label ?? null
   const upNextHref = recommended?.trainHref ?? null
 
+  // V1 Premiumization — show a visible "+X reps" delta when the
+  // current rep contributed a best to the chapter. progress.bestCount
+  // is post-attempt (the API rolls up server-side before /train calls
+  // /complete), so we surface a "best so far" rather than a delta the
+  // page would have to derive separately.
+  const bestRatio = chapterProgress
+    ? `${chapterProgress.bestCount}/${chapterProgress.totalScenarios}`
+    : null
+
   return (
     <div className="space-y-2 rounded-2xl border border-brand/30 bg-brand/5 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -457,6 +467,26 @@ function PathwayCtaBlock({
         </div>
       </div>
 
+      {/* V1 Premiumization — chapter mastery progress bar so the player
+          sees how this rep moved their chapter forward, not just the
+          static percentage chip. Renders only when we have chapter
+          progress; the chip above stays for the bigger pathway %. */}
+      {chapterProgress ? (
+        <div className="rounded-xl border border-hairline bg-bg-2 p-2.5">
+          <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-[1.5px] text-text-dim">
+            <span>{chapter?.title ?? 'Chapter'}</span>
+            {bestRatio ? <span className="tabular-nums text-text">{bestRatio}</span> : null}
+          </div>
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-bg-0">
+            <div
+              className="h-full rounded-full bg-brand transition-[width] duration-500"
+              style={{ width: `${Math.round(chapterProgress.progress * 100)}%` }}
+              aria-label={`Chapter progress ${Math.round(chapterProgress.progress * 100)}%`}
+            />
+          </div>
+        </div>
+      ) : null}
+
       {/* Up next CTA — falls back to the pathway detail link when
           recommendedNext is unavailable (loading, all mastered, etc.). */}
       {loading ? (
@@ -480,6 +510,19 @@ function PathwayCtaBlock({
           <span aria-hidden>→</span>
         </Link>
       )}
+
+      {/* V1 Premiumization — direct deep-link into the per-pathway
+          progress view from the post-rep loop. Sits between the up-
+          next primary CTA and the back-to-pathway link so a returning
+          player can confirm what mastery the rep moved without
+          climbing back through the pathway → progress hop. */}
+      <Link
+        href={`/pathways/${encodeURIComponent(pathway.slug)}/progress`}
+        className="flex items-center justify-between rounded-xl border border-hairline bg-bg-2 px-3 py-2 text-[11px] font-bold uppercase tracking-[1.5px] text-text-dim transition-colors hover:border-brand/40 hover:text-text"
+      >
+        <span>View detailed progress</span>
+        <span aria-hidden>→</span>
+      </Link>
 
       <Link
         href={buildPathwayDetailHref(pathway.slug)}
@@ -574,11 +617,16 @@ function ChallengeActions({
   passed,
   retryHref,
   pathwayHref,
+  pathwaySlug,
 }: {
   mode: ChallengeMode
   passed: boolean
   retryHref: string | null
   pathwayHref: string
+  // V1 Premiumization — slug used to build the per-pathway progress
+  // deep-link below so a passed boss / cleared Final Mix has a one-
+  // tap path into the player's mastery view.
+  pathwaySlug: string
 }) {
   // PTH-5 copy: passed primary CTA → continue pathway / next pathway;
   // failed primary CTA → retry the challenge directly.
@@ -628,6 +676,16 @@ function ChallengeActions({
         className="block rounded-xl bg-bg-2 py-3 text-center font-display text-[12px] font-semibold uppercase tracking-[1.5px] text-text-dim"
       >
         Back to Pathway
+      </Link>
+      {/* V1 Premiumization — direct deep-link into the per-pathway
+          progress view from a challenge result so the player can see
+          exactly how this run moved their chapter mastery (or what
+          still needs work for a retry). */}
+      <Link
+        href={`/pathways/${encodeURIComponent(pathwaySlug)}/progress`}
+        className="block text-center text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim hover:text-text"
+      >
+        View detailed progress →
       </Link>
     </div>
   )
