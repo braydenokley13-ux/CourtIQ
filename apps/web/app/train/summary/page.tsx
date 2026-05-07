@@ -260,14 +260,23 @@ function SummaryContent() {
           </motion.header>
         )}
 
-        {/* Reward grid */}
-        <div className="grid grid-cols-2 gap-3">
-          <RewardStat label="XP earned" value={`+${xp}`} accent="xp" />
-          <RewardStat
-            label="IQ change"
-            value={`${iq > 0 ? '+' : ''}${iq}`}
-            accent={iq >= 0 ? 'iq' : 'heat'}
-          />
+        {/* V3 P11 P4 — reward chrome softened. The dual XP / IQ cards
+            made the post-rep page read like a points screen; XP and IQ
+            still appear inline in the SessionRecap below ("IQ +X — the
+            read is getting faster.") so momentum is preserved without
+            a Vegas-style stat grid. */}
+        <div className="flex items-center justify-center gap-3 rounded-2xl border border-hairline-2 bg-bg-1 px-3 py-2 text-[11px] font-bold tabular-nums">
+          <span className="inline-flex items-center gap-1 text-text-dim">
+            <span className="text-[9px] uppercase tracking-[1.2px] text-text-mute">XP</span>
+            <span className="text-text">+{xp}</span>
+          </span>
+          <span aria-hidden className="h-3 w-px bg-hairline-2" />
+          <span className="inline-flex items-center gap-1 text-text-dim">
+            <span className="text-[9px] uppercase tracking-[1.2px] text-text-mute">IQ</span>
+            <span className={iq >= 0 ? 'text-text' : 'text-heat'}>
+              {iq > 0 ? '+' : ''}{iq}
+            </span>
+          </span>
         </div>
 
         {/* Pathway block — surfaces Continue / Back when /train was
@@ -303,7 +312,7 @@ function SummaryContent() {
             href={`/academy/${nextModule.slug}`}
             className="ciq-lift block rounded-2xl border border-hairline-2 bg-bg-1 p-4"
           >
-            <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-iq">Try next</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-iq">Next read</p>
             <p className="mt-1 font-display text-[16px] font-bold text-text">{nextModule.title}</p>
             <p className="mt-0.5 text-[13px] text-text-dim">
               {nextModule.scenario_count} {nextModule.scenario_count === 1 ? 'play' : 'plays'} ·{' '}
@@ -351,7 +360,7 @@ function SummaryContent() {
               href={pathway ? buildPathwayDetailHref(pathway.slug) : '/academy'}
               className="ciq-press-soft block rounded-xl border border-hairline-2 bg-bg-1 py-3 text-center font-display text-[12px] font-semibold uppercase tracking-[1.5px] text-text-dim transition-colors hover:text-text"
             >
-              {pathway ? `Back to ${pathway.title}` : 'Back to lessons'}
+              {pathway ? 'See the chapters' : 'See the lessons'}
             </Link>
           </div>
         )}
@@ -407,11 +416,11 @@ function PathwayCtaBlock({
   //  - mid-chapter → keep it simple
   let headline: string
   if (chapterMastered && chapter) {
-    headline = `Chapter complete: ${chapter.title}`
+    headline = `${chapter.title} — locked in.`
   } else if (justFinishedChapter && chapter) {
-    headline = `You finished ${chapter.title}`
+    headline = `${chapter.title} — done. One more rep and it sticks.`
   } else {
-    headline = `Pathway · ${pathway.title}`
+    headline = pathway.title
   }
 
   const upNextLabel = recommended?.label ?? null
@@ -431,15 +440,15 @@ function PathwayCtaBlock({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-brand">
-            Pathway progress
+            Where you stand
           </p>
           <p className="mt-1 font-display text-[16px] font-bold leading-tight text-text">
             {headline}
           </p>
           {chapterProgress ? (
             <p className="mt-1 text-[12px] text-text-dim">
-              {chapterProgress.bestCount}/{chapterProgress.totalScenarios} best ·{' '}
-              {Math.round(chapterProgress.progress * 100)}% chapter progress
+              {chapterProgress.bestCount}/{chapterProgress.totalScenarios} clean reads ·{' '}
+              {Math.round(chapterProgress.progress * 100)}% of the chapter
             </p>
           ) : null}
         </div>
@@ -504,7 +513,7 @@ function PathwayCtaBlock({
         href={`/pathways/${encodeURIComponent(pathway.slug)}/progress`}
         className="flex items-center justify-between rounded-xl border border-hairline bg-bg-2 px-3 py-2 text-[11px] font-bold uppercase tracking-[1.5px] text-text-dim transition-colors hover:border-brand/40 hover:text-text"
       >
-        <span>View detailed progress</span>
+        <span>See your reads</span>
         <span aria-hidden>→</span>
       </Link>
 
@@ -512,7 +521,7 @@ function PathwayCtaBlock({
         href={buildPathwayDetailHref(pathway.slug)}
         className="block text-center text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim hover:text-text"
       >
-        Back to {pathway.title}
+        See {pathway.title}
       </Link>
     </div>
   )
@@ -576,7 +585,7 @@ function ChallengeHero({
           passed ? 'text-brand' : 'text-heat',
         ].join(' ')}
       >
-        {eyebrow} · {passed ? 'Passed' : 'Try again'}
+        {eyebrow} · {passed ? 'Cleared' : 'Not yet'}
       </p>
       <p className="mt-2 font-display text-[44px] font-black leading-none tracking-tight text-text">
         {correct}
@@ -659,7 +668,7 @@ function ChallengeActions({
         href={pathwayHref}
         className="block rounded-xl bg-bg-2 py-3 text-center font-display text-[12px] font-semibold uppercase tracking-[1.5px] text-text-dim"
       >
-        Back to Pathway
+        See the chapters
       </Link>
       {/* V1 Premiumization — direct deep-link into the per-pathway
           progress view from a challenge result so the player can see
@@ -669,7 +678,7 @@ function ChallengeActions({
         href={`/pathways/${encodeURIComponent(pathwaySlug)}/progress`}
         className="block text-center text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim hover:text-text"
       >
-        View detailed progress →
+        See your reads →
       </Link>
     </div>
   )
@@ -700,24 +709,24 @@ function SessionRecap({
   // Pick a single coaching headline based on the result band so the
   // first line never feels generic.
   const headline = (() => {
-    if (total === 0) return 'Reps logged.'
+    if (total === 0) return 'Reps in the bank.'
     if (accuracy >= 90) return 'You read it cleanly.'
     if (accuracy >= 70) return 'Sharp read on most of those.'
-    if (accuracy >= 50) return 'Mixed results — the read is forming.'
-    if (accuracy >= 30) return 'Tough one. The read takes reps.'
-    return "Let's run it back. The cue is the unlock."
+    if (accuracy >= 50) return 'The read is starting to show up.'
+    if (accuracy >= 30) return 'Tough set. The read takes reps.'
+    return "Reset and run it back. One rep at a time."
   })()
 
   const iqLine = (() => {
-    if (iq > 0) return `IQ +${iq}. Your reads are tightening.`
-    if (iq < 0) return `IQ ${iq}. Reset, watch the cue, run another.`
-    return `IQ steady. The next rep is where the gain shows up.`
+    if (iq > 0) return `IQ +${iq} — the read is getting faster.`
+    if (iq < 0) return `IQ ${iq}. Reset, watch the cue, go again.`
+    return `IQ steady. The next rep is where the jump shows.`
   })()
 
   const concept = chapterTitle && !isChallenge
-    ? `Mastery on ${chapterTitle} moved with this set.`
+    ? `${chapterTitle} got a little sharper.`
     : isChallenge
-      ? 'Hints-off reps build the real read.'
+      ? 'No labels. Just the play. That is the real read.'
       : null
 
   return (
@@ -738,27 +747,3 @@ function SessionRecap({
   )
 }
 
-function RewardStat({
-  label,
-  value,
-  accent,
-}: {
-  label: string
-  value: string
-  accent: 'xp' | 'iq' | 'heat'
-}) {
-  const color = accent === 'xp' ? 'var(--xp)' : accent === 'iq' ? 'var(--iq)' : 'var(--heat)'
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: [0.2, 0.8, 0.2, 1] }}
-      className="rounded-2xl border border-hairline-2 bg-bg-1 p-4"
-    >
-      <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">{label}</p>
-      <p className="mt-1 font-display text-[28px] font-black tabular-nums" style={{ color }}>
-        {value}
-      </p>
-    </motion.div>
-  )
-}

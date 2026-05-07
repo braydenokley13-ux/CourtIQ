@@ -74,45 +74,6 @@ function greeting(): string {
   return 'Good evening'
 }
 
-function IQDeltaBadge({ delta }: { delta: number }) {
-  const up = delta >= 0
-  return (
-    <span
-      className="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-bold"
-      style={{
-        background: up ? 'rgba(59,227,131,0.12)' : 'rgba(248,113,113,0.12)',
-        color: up ? '#3BE383' : '#F87171',
-        border: `1px solid ${up ? 'rgba(59,227,131,0.25)' : 'rgba(248,113,113,0.25)'}`,
-      }}
-    >
-      {up ? '▲' : '▼'} {Math.abs(delta)}
-    </span>
-  )
-}
-
-function StatCard({ label, value, sub, accent = '#3BE383', delay = 0 }: {
-  label: string
-  value: string | number
-  sub?: string
-  accent?: string
-  delay?: number
-}) {
-  return (
-    <motion.div
-      custom={delay}
-      initial="hidden"
-      animate="show"
-      variants={fadeUp}
-      className="flex flex-col gap-1 rounded-2xl border border-[#1F2937] bg-[#111827] p-4"
-    >
-      <p className="text-[11px] uppercase tracking-[1.5px] text-[#6B7280]">{label}</p>
-      <p className="font-display text-3xl font-black tracking-tight" style={{ color: accent }}>
-        {value}
-      </p>
-      {sub && <p className="text-[11px] text-[#4B5563]">{sub}</p>}
-    </motion.div>
-  )
-}
 
 /**
  * V3 P6 — Return-loop chip.
@@ -434,39 +395,46 @@ export default function HomePage() {
           </motion.button>
         ) : null}
 
-        {/* Big IQ number */}
+        {/* V3 P11 P1 — IQ hero, toned down. The 64px / heavy-glow Vegas
+            treatment reads as XP-leaderboard; we keep the number but
+            give it a quieter premium frame so /home reads as a training
+            space, not a high-score screen. */}
         <motion.div
           custom={1}
           initial="hidden"
           animate="show"
           variants={fadeUp}
-          className="relative mb-5 overflow-hidden rounded-3xl border border-[#1F2937] bg-gradient-to-br from-[#111827] to-[#0D1B2A] p-6"
-          style={{ boxShadow: '0 0 40px rgba(59,227,131,0.06), 0 1px 0 rgba(255,255,255,0.04) inset' }}
+          className="relative mb-4 overflow-hidden rounded-3xl border border-[#1F2937] bg-gradient-to-br from-[#111827] to-[#0D1B2A] p-5"
+          style={{ boxShadow: '0 0 28px rgba(59,227,131,0.04), 0 1px 0 rgba(255,255,255,0.04) inset' }}
         >
-          <p className="mb-1 text-[11px] uppercase tracking-[2px] text-[#6B7280]">Basketball IQ</p>
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[1.8px] text-[#6B7280]">Basketball IQ</p>
           {loading ? (
-            <div className="h-16 w-32 animate-pulse rounded-xl bg-[#1F2937]" />
+            <div className="h-12 w-24 animate-pulse rounded-xl bg-[#1F2937]" />
           ) : (
             <div
-              className="font-display text-[64px] font-black leading-none tracking-[-3px]"
-              style={{ color: '#3BE383', textShadow: '0 0 40px rgba(59,227,131,0.4)' }}
+              className="font-display text-[48px] font-black leading-none tracking-[-2px]"
+              style={{ color: '#3BE383' }}
             >
               <NumberTicker value={iq} format={(n) => Math.round(n).toLocaleString()} />
             </div>
           )}
-          <p className="mt-2 text-[13px] text-[#4B5563]">{data?.rankLabel ?? 'Rookie'} · Level {level}</p>
+          <p className="mt-2 text-[12px] text-[#6B7280]">
+            {data?.rankLabel ?? 'Rookie'}
+            {!loading && (data?.attemptsCount ?? 0) > 0 ? (
+              <>
+                <span className="px-1.5 text-[#374151]">·</span>
+                {streak > 0
+                  ? `${streak}-day streak`
+                  : `${accuracyPct}% reads`}
+              </>
+            ) : null}
+          </p>
 
           {!loading && (
-            <div className="mt-4">
+            <div className="mt-3">
               <XPBar xp={xpInLevel} xpForNextLevel={100} level={level} />
             </div>
           )}
-
-          {/* Decorative glow ring */}
-          <div
-            className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full"
-            style={{ background: 'radial-gradient(circle, rgba(59,227,131,0.12) 0%, transparent 70%)' }}
-          />
         </motion.div>
 
         {/* V3 P6 — return-loop chip. ONE coaching line that names what
@@ -483,34 +451,14 @@ export default function HomePage() {
           />
         ) : null}
 
-        {/* V3 P5 — stat grid hidden until the player has reps under
-            their belt. Cold-start home stays focused on the one
-            action; the grid would only show zeros and add dashboard
-            noise that pulls away from the Pathway CTA. */}
+        {/* V3 P11 P1 — the previous 3-card stat grid (Streak / Accuracy
+            / Sessions) was the loudest dashboard energy on /home. The
+            ReturnFocusChip above already names what the player is
+            training, and the IQ hero now folds streak/accuracy into a
+            calm subtitle, so the grid is gone. Drop a hairline so the
+            Pathway primary card sits in its own breathing room. */}
         {!loading && (data?.attemptsCount ?? 0) > 0 ? (
-          <div className="mb-5 grid grid-cols-3 gap-3">
-            <StatCard
-              label="Streak"
-              value={streak > 0 ? `${streak} 🔥` : '0'}
-              sub={streak === 1 ? 'day' : 'days'}
-              accent="#F59E0B"
-              delay={2}
-            />
-            <StatCard
-              label="Accuracy"
-              value={`${accuracyPct}%`}
-              sub="all-time"
-              accent={accuracyPct >= 75 ? '#3BE383' : '#F59E0B'}
-              delay={3}
-            />
-            <StatCard
-              label="Sessions"
-              value={data?.attemptsCount ? Math.ceil(data.attemptsCount / 5) : 0}
-              sub="completed"
-              accent="#8B7CF8"
-              delay={4}
-            />
-          </div>
+          <div aria-hidden className="mb-4 h-px bg-[#1F2937]/60" />
         ) : null}
 
         {/* V3 P4 — single primary action, Pathway-driven.
@@ -543,11 +491,11 @@ export default function HomePage() {
               className="ciq-press-soft flex items-center justify-between rounded-2xl border border-[#1F2937] bg-[#111827] px-4 py-3 transition-colors hover:border-[#374151]"
             >
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-[#9CA3AF]">
-                  Quick rep
+                <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-[#9CA3AF]">
+                  Off the clock
                 </p>
                 <p className="mt-0.5 text-[13px] font-semibold text-[#F9FAFB]">
-                  Run 5 random plays · ~3 min
+                  Five quick reads. No path. ~3 min.
                 </p>
               </div>
               <span aria-hidden className="text-[18px] text-[#3BE383]">→</span>
@@ -612,57 +560,56 @@ export default function HomePage() {
           </motion.div>
         )}
 
-        {/* Recent Sessions */}
-        <motion.div custom={6} initial="hidden" animate="show" variants={fadeUp}>
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[1.5px] text-[#6B7280]">
-            Recent Sessions
-          </p>
-          <div className="rounded-2xl border border-[#1F2937] bg-[#111827] overflow-hidden">
-            {loading ? (
-              <div className="space-y-0 divide-y divide-[#1F2937]">
-                {[0, 1, 2].map(i => (
-                  <div key={i} className="flex items-center justify-between px-4 py-3">
-                    <div className="h-4 w-28 animate-pulse rounded bg-[#1F2937]" />
-                    <div className="h-4 w-12 animate-pulse rounded bg-[#1F2937]" />
+        {/* V3 P11 P1 — Recent Sessions reframed as coaching narrative.
+            Was a log table (date · X/Y · IQ delta · XP); now a small
+            list of past sets in basketball voice. The IQ delta + XP
+            are gone from the line — those are P4 reward surfaces and
+            shouldn't dominate the daily return moment. */}
+        {!loading && sessions.length > 0 ? (
+          <motion.div custom={6} initial="hidden" animate="show" variants={fadeUp}>
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[1.5px] text-[#6B7280]">
+              Last few sets
+            </p>
+            <div className="space-y-1.5">
+              {sessions.slice(0, 4).map((s) => {
+                const date = new Date(s.started_at)
+                const now = new Date()
+                const diffDays = Math.floor((now.getTime() - date.getTime()) / 86400000)
+                const dateLabel =
+                  diffDays === 0 ? 'Today'
+                  : diffDays === 1 ? 'Yesterday'
+                  : `${diffDays} days ago`
+                const total = s.scenario_ids.length
+                const acc = total > 0 ? Math.round((s.correct_count / total) * 100) : 0
+                const summary =
+                  acc >= 90
+                    ? 'cleanly read'
+                    : acc >= 70
+                      ? 'sharp set'
+                      : acc >= 50
+                        ? 'mixed reads'
+                        : acc > 0
+                          ? 'tough set'
+                          : 'reset'
+                return (
+                  <div
+                    key={s.id}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-transparent px-1 py-1.5"
+                  >
+                    <p className="min-w-0 flex-1 truncate text-[13px] text-[#9CA3AF]">
+                      <span className="text-[#F9FAFB]">{dateLabel}</span>
+                      <span className="px-1.5 text-[#374151]">·</span>
+                      <span>{summary}</span>
+                    </p>
+                    <span className="shrink-0 text-[12px] tabular-nums text-[#6B7280]">
+                      {s.correct_count}/{total}
+                    </span>
                   </div>
-                ))}
-              </div>
-            ) : sessions.length === 0 ? (
-              <div className="px-4 py-8 text-center">
-                <p className="text-[13px] text-[#4B5563]">No sessions yet — start your first one above.</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-[#1F2937]">
-                {sessions.slice(0, 5).map((s) => {
-                  const date = new Date(s.started_at)
-                  const now = new Date()
-                  const diffDays = Math.floor((now.getTime() - date.getTime()) / 86400000)
-                  const dateLabel =
-                    diffDays === 0 ? 'Today'
-                    : diffDays === 1 ? 'Yesterday'
-                    : `${diffDays}d ago`
-                  const total = s.scenario_ids.length
-                  const acc = total > 0 ? Math.round((s.correct_count / total) * 100) : 0
-
-                  return (
-                    <div key={s.id} className="flex items-center justify-between px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <span className="text-[12px] text-[#6B7280]">{dateLabel}</span>
-                        <span className="text-[12px] text-[#4B5563]">
-                          {s.correct_count}/{total} · {acc}%
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <IQDeltaBadge delta={s.iq_delta} />
-                        <span className="text-[11px] text-[#3BE383]">+{s.xp_earned} XP</span>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </motion.div>
+                )
+              })}
+            </div>
+          </motion.div>
+        ) : null}
 
         {/* V3 P7 — slim nav. Two primary tiles (Pathways, Progress) are
             the daily destinations; everything else collapses into a
@@ -717,7 +664,7 @@ export default function HomePage() {
               data-testid="home-intro-replay"
               className="font-semibold uppercase tracking-[1.5px] text-[#6B7280] transition-colors hover:text-[#F9FAFB]"
             >
-              Replay walkthrough
+              Walkthrough
             </button>
           </div>
         </motion.div>

@@ -40,7 +40,9 @@ export function FeedbackPanel({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: [0.2, 0.8, 0.2, 1] }}
+      // V3 P10 P6 — small lead delay so the WinBurst owns the peak
+      // moment before the explanation surfaces.
+      transition={{ duration: 0.25, delay: 0.1, ease: [0.2, 0.8, 0.2, 1] }}
       className="ciq-shell-card relative overflow-hidden border-2 p-4"
       style={{ borderColor: accent }}
     >
@@ -79,7 +81,7 @@ export function FeedbackPanel({
 
       <div className="mt-3 rounded-xl border border-hairline bg-bg-2 p-3">
         <p className="text-[10px] font-bold uppercase tracking-[1.4px] text-text-mute">
-          Why
+          The read
         </p>
         <p className="mt-1 text-[13px] leading-snug text-text">{whyText}</p>
       </div>

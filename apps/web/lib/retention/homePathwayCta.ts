@@ -56,9 +56,9 @@ export function pickHomePathwayCta(input: {
   if (pathway?.pathwayMastered) {
     return {
       band: 'mastered',
-      eyebrow: 'Pathway mastered',
+      eyebrow: 'Foundation mastered',
       primaryLabel: 'Run it back',
-      primarySubline: 'Re-run a chapter to keep the reads sharp.',
+      primarySubline: 'Re-run a chapter — keeps the reads sharp.',
       primaryHref: FOUNDATION_DETAIL_HREF,
     }
   }
@@ -69,16 +69,16 @@ export function pickHomePathwayCta(input: {
       band: 'cold-start',
       eyebrow: 'Start here',
       primaryLabel: 'Start Foundation',
-      primarySubline: 'Build your reads from the ground up. ~25 min total.',
+      primarySubline: 'Four reads. ~25 min total. First read is two taps away.',
       primaryHref: pathway?.recommendedNext?.trainHref ?? FOUNDATION_DETAIL_HREF,
     }
   }
 
   return {
     band: 'continue',
-    eyebrow: 'Continue training',
+    eyebrow: "Today's reps",
     primaryLabel: pathway!.recommendedNext!.label,
-    primarySubline: `Pathway · Complete IQ Foundation · ${progressPct}%`,
+    primarySubline: `Foundation · ${progressPct}% in.`,
     primaryHref: pathway!.recommendedNext!.trainHref,
   }
 }

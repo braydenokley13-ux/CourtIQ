@@ -25,6 +25,9 @@ import {
   type ChallengeMode,
 } from '@/lib/pathways/localChallengeProgress'
 import { getDecoderOneLiner } from '@/lib/decoders/explanations'
+import { getCoachNudge, shouldShowCoachNudge } from '@/lib/decoders/coachNudges'
+import { getFirstRepCues, isFirstRep } from '@/lib/onboarding/firstRep'
+import { shouldShowStreakChip } from '@/lib/rewards/visibility'
 
 type DecoderTag =
   | 'BACKDOOR_WINDOW'
@@ -73,11 +76,11 @@ const DECODER_HANDOFF: Record<
 > = {
   BACKDOOR_WINDOW: {
     teachingPoint:
-      'When your defender blocks the pass, the space behind him is open. Cut there.',
-    lessonConnection: 'Cut behind him when he blocks the pass.',
+      'When the defender denies the pass, the rim is behind him. That space is yours.',
+    lessonConnection: 'His hand goes into the lane — you go behind him.',
     lessonSlug: 'backdoor-window',
     selfReviewChecklist: [
-      'Did I see his hand and foot blocking the pass?',
+      'Did I see his hand drop into the lane?',
       'Did I cut behind him, not in front?',
       'Did I cut hard, like I wanted the layup?',
       'Did I show my hands at the rim?',
@@ -85,8 +88,8 @@ const DECODER_HANDOFF: Record<
   },
   EMPTY_SPACE_CUT: {
     teachingPoint:
-      'When your teammate drives, your job is to fill the space their defender just abandoned.',
-    lessonConnection: 'Cut into the space your teammate just created.',
+      'When help steps to the ball, the spot they leave is wide open. Fill it.',
+    lessonConnection: 'Helper commits — you take his spot.',
     lessonSlug: 'empty-space-cut',
     selfReviewChecklist: [
       'Did I see the helper commit before I cut?',
@@ -96,8 +99,8 @@ const DECODER_HANDOFF: Record<
   },
   SKIP_THE_ROTATION: {
     teachingPoint:
-      'When the defense is rotating, throw the ball to the spot they can’t get to in time.',
-    lessonConnection: 'Beat the rotation with the cross-court pass.',
+      'When two defenders go to the ball, the shooter they left is the one you skip to.',
+    lessonConnection: 'Two on the ball — find the open shooter and skip it.',
     lessonSlug: 'skip-the-rotation',
     selfReviewChecklist: [
       'Did I see the help commit before I skipped?',
@@ -107,8 +110,8 @@ const DECODER_HANDOFF: Record<
   },
   ADVANTAGE_OR_RESET: {
     teachingPoint:
-      'The first move on the catch is the read: either there is an advantage to take, or there isn’t.',
-    lessonConnection: 'If the advantage is there, take it. If not, reset.',
+      'On the catch you decide: take the advantage, or move the ball. Holding it is the worst read.',
+    lessonConnection: 'Out of control = drive. Balanced = swing it.',
     lessonSlug: 'advantage-or-reset',
     selfReviewChecklist: [
       'Did I read the closeout’s feet before I moved?',
@@ -135,22 +138,26 @@ type AttemptFeedback = {
 }
 
 const PRAISE = ['Good read.', 'Nice cut.', 'You got it.', 'You saw it.', 'Smart move.']
-const RECOVER = ['Almost.', 'So close.', 'Not yet.', 'Try again.', 'Reset.']
+const RECOVER = ['Almost.', 'So close.', 'Not yet.', 'Reset and watch.', 'Reset.']
 
-/** Per-decoder micro-praise — names the cue the kid noticed. */
+/** Per-decoder micro-praise — names what shifted on the floor, not
+ *  the player's action. The point is "ohh, THAT'S why the space
+ *  opened" — basketball cause-and-effect, not a pat on the head. */
 const WIN_MICRO_PRAISE: Record<DecoderTag, string> = {
-  BACKDOOR_WINDOW: 'You saw the open space behind the defender.',
-  EMPTY_SPACE_CUT: 'You filled the empty space.',
-  SKIP_THE_ROTATION: 'You beat the rotation.',
-  ADVANTAGE_OR_RESET: 'You read the closeout.',
+  BACKDOOR_WINDOW: 'His hand cut off the pass — the rim opened up behind him.',
+  EMPTY_SPACE_CUT: 'The helper stepped to the ball — his spot was yours.',
+  SKIP_THE_ROTATION: 'Two went to the ball — the weak side was wide open.',
+  ADVANTAGE_OR_RESET: 'He flew at you — you beat his momentum.',
 }
 
-/** Per-decoder coaching micro-note shown under a wrong-answer headline. */
+/** Per-decoder coaching micro-note shown under a wrong-answer headline.
+ *  Tells the player what to watch for next rep — the cue, not the
+ *  prescription. */
 const MISS_MICRO_NOTE: Record<DecoderTag, string> = {
-  BACKDOOR_WINDOW: 'Watch the defender. If he blocks the pass, cut behind him.',
-  EMPTY_SPACE_CUT: 'Cut into the space, not the wing.',
-  SKIP_THE_ROTATION: 'Find the help that already left.',
-  ADVANTAGE_OR_RESET: 'Decide on the catch — attack or reset.',
+  BACKDOOR_WINDOW: 'When his hand drops into the lane, the rim is behind him.',
+  EMPTY_SPACE_CUT: 'Watch the helper. The spot he leaves is the one to fill.',
+  SKIP_THE_ROTATION: 'The defender who left a shooter is the one you skip past.',
+  ADVANTAGE_OR_RESET: 'Read his feet on the catch. Out of control = drive. Balanced = swing it.',
 }
 
 function pick<T>(arr: T[], seed: number): T {
@@ -232,13 +239,13 @@ type PathwayContext = {
 }
 
 const PATHWAY_ERROR_COPY: Record<NonNullable<PathwayContext['error']>, string> = {
-  'pathway-not-found': "We couldn't find that Pathway. Running standard training instead.",
-  'pathway-coming-soon': 'That Pathway is coming soon — running standard training instead.',
-  'chapter-not-found': "We couldn't find that chapter. Running standard training instead.",
-  'node-not-found': "We couldn't find that step. Running standard training instead.",
-  'no-trainable-scenarios': 'No reps available for that step yet. Running standard training instead.',
+  'pathway-not-found': "That Pathway isn't here yet — running a quick set instead.",
+  'pathway-coming-soon': 'That Pathway is on the way — running a quick set instead.',
+  'chapter-not-found': "Can't find that chapter — running a quick set instead.",
+  'node-not-found': "Can't find that step — running a quick set instead.",
+  'no-trainable-scenarios': 'No reps wired up there yet — running a quick set instead.',
   'boss-not-configured':
-    "Boss challenge isn't ready for that chapter yet. Running standard training instead.",
+    "The Boss isn't set for that chapter yet — running a quick set instead.",
 }
 
 function TrainPageInner() {
@@ -275,6 +282,12 @@ function TrainPageInner() {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [pathwayContext, setPathwayContext] = useState<PathwayContext | null>(null)
   const [scenarios, setScenarios] = useState<SessionScenario[]>([])
+  // V3 P9 — total prior attempts. Drives "first rep" cold-start mode
+  // so the player's very first read happens without the dashboard
+  // chrome (decoder pill, one-liner, phase tracker, XP/IQ chips,
+  // difficulty, timer). Stays `null` while loading so we never flash
+  // the chrome and snap it away.
+  const [attemptsCount, setAttemptsCount] = useState<number | null>(null)
   const [idx, setIdx] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<AttemptFeedback | null>(null)
@@ -357,6 +370,17 @@ function TrainPageInner() {
   // Decoder scenarios hold the prompt + choices until 'frozen' fires;
   // legacy scenarios are unchanged (questionReady = true from the start).
   const questionReady = !isDecoder || frozen
+  // V3 P9 — cold-start "first rep" mode. Strips chrome that telegraphs
+  // the answer (decoder pill, "Read · ..." line, phase tracker) and
+  // chrome that competes with the canvas for attention (XP/IQ/streak
+  // chips, difficulty number, response timer). Active only on the
+  // player's very first scenario of their very first session.
+  const firstRep = isFirstRep({
+    attemptsCount,
+    scenarioIndex: idx,
+    isChallengeMode,
+  })
+  const firstRepCues = getFirstRepCues()
 
   useEffect(() => {
     void (async () => {
@@ -368,6 +392,24 @@ function TrainPageInner() {
       }
 
       setUserId(user.id)
+      // V3 P9 — fire profile fetch in parallel with the session start
+      // so the page knows whether this is the player's first ever rep
+      // before the canvas mounts. Soft-fail: if the request fails we
+      // fall back to "not first" (the safer assumption — keep the
+      // dashboard chrome in case we're wrong).
+      void (async () => {
+        try {
+          const profileRes = await fetch(`/api/profile?userId=${user.id}`)
+          if (profileRes.ok) {
+            const body = (await profileRes.json()) as { attemptsCount?: number }
+            setAttemptsCount(typeof body.attemptsCount === 'number' ? body.attemptsCount : 0)
+          } else {
+            setAttemptsCount(0)
+          }
+        } catch {
+          setAttemptsCount(0)
+        }
+      })()
       try {
         // PTH-2: when any pathway/chapter/node param is present,
         // resolve the Pathway training context first. The resolver
@@ -481,9 +523,12 @@ function TrainPageInner() {
     if (!questionReady) return
     if (!timerArmed) return
     if (timeLeft <= 0) return
+    // V3 P9 — zero time pressure on the player's first rep so they can
+    // sit in the freeze and actually look at the play.
+    if (firstRep) return
     const t = setTimeout(() => setTimeLeft((v) => Math.max(0, Number((v - 0.1).toFixed(1)))), 100)
     return () => clearTimeout(t)
-  }, [phase, timeLeft, questionReady, timerArmed])
+  }, [phase, timeLeft, questionReady, timerArmed, firstRep])
 
   useEffect(() => {
     setTimeLeft(8)
@@ -835,27 +880,42 @@ function TrainPageInner() {
             <span aria-hidden>✕</span>
             Quit
           </Link>
-          <div className="flex items-center gap-1.5 text-[11px] font-bold tabular-nums">
-            <span className="inline-flex items-center gap-1 rounded-full border border-hairline-2 bg-bg-2 px-2.5 py-1 text-xp">
-              <span aria-hidden>✦</span>
-              {xp}
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full border border-hairline-2 bg-bg-2 px-2.5 py-1 text-iq">
-              IQ {iq}
-            </span>
-            {streak > 0 ? (
-              <motion.span
-                key={`streak-${streak}`}
-                initial={{ scale: 0.85, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.35, ease: [0.34, 1.56, 0.64, 1] }}
-                className="inline-flex items-center gap-1 rounded-full border border-heat/40 bg-heat/10 px-2.5 py-1 text-heat"
-              >
-                <span aria-hidden>🔥</span>
-                {streak}
-              </motion.span>
-            ) : null}
-          </div>
+          {/* V3 P9 — hide XP/IQ/streak chips on the player's first ever
+              rep. They're zeros (or near-zero) and pull the eye away
+              from the canvas. The first read should feel like film
+              study, not a dashboard. */}
+          {firstRep ? (
+            <div aria-hidden />
+          ) : (
+            // V3 P11 P4 — toned status chips. Was three colored
+            // (gold-XP, purple-IQ, heat-streak) chips that read as a
+            // gamified HUD; now a single muted status row so the
+            // canvas stays the loudest object on the page. The
+            // streak chip still warms when alive, but only past 1.
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold tabular-nums text-text-dim">
+              <span className="inline-flex items-center gap-1 text-text-mute">
+                <span className="text-[9px] uppercase tracking-[1.2px]">IQ</span>
+                <span className="text-text-dim">{iq}</span>
+              </span>
+              <span aria-hidden className="h-3 w-px bg-hairline-2" />
+              <span className="inline-flex items-center gap-1 text-text-mute">
+                <span className="text-[9px] uppercase tracking-[1.2px]">XP</span>
+                <span className="text-text-dim">{xp}</span>
+              </span>
+              {shouldShowStreakChip(streak) ? (
+                <motion.span
+                  key={`streak-${streak}`}
+                  initial={{ scale: 0.92, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.35, ease: [0.34, 1.56, 0.64, 1] }}
+                  className="ml-1 inline-flex items-center gap-1 rounded-full border border-heat/30 bg-heat/5 px-2 py-0.5 text-[10px] font-bold text-heat"
+                >
+                  <span aria-hidden>🔥</span>
+                  {streak}
+                </motion.span>
+              ) : null}
+            </div>
+          )}
         </div>
 
         {/* Question progress */}
@@ -890,28 +950,46 @@ function TrainPageInner() {
 
         {/* Timer / phase line. Difficulty stays on the left as a quiet
             anchor; the right side surfaces a status line that adapts to
-            what the user should be paying attention to right now. */}
-        <div className="flex items-center justify-between text-[11px] uppercase tracking-[1.5px] text-text-dim">
-          <span>Difficulty {current.difficulty}</span>
-          {phase === 'prompt' && questionReady ? (
-            <motion.span
-              key="timer"
-              initial={{ opacity: 0, y: -2 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={timeLeft < 2 ? 'font-bold text-heat' : 'font-bold text-text'}
-            >
-              {timeLeft.toFixed(1)}s
-            </motion.span>
-          ) : phase === 'prompt' && !questionReady ? (
-            <span className="inline-flex items-center gap-1.5 font-bold text-text-dim">
-              <span aria-hidden className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand/60" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand" />
+            what the user should be paying attention to right now.
+            V3 P9 — on the player's first ever rep we drop the
+            difficulty + timer entirely; only the "Watch the play"
+            cue remains during pre-freeze, and the choice cards take
+            over from the freeze beat onward. Zero pressure, no math. */}
+        {firstRep ? (
+          phase === 'prompt' && !questionReady ? (
+            <div className="flex items-center justify-end text-[11px] uppercase tracking-[1.5px] text-text-dim">
+              <span className="inline-flex items-center gap-1.5 font-bold text-text-dim">
+                <span aria-hidden className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand/60" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand" />
+                </span>
+                Watch the play
               </span>
-              Watch the play
-            </span>
-          ) : null}
-        </div>
+            </div>
+          ) : null
+        ) : (
+          <div className="flex items-center justify-between text-[11px] uppercase tracking-[1.5px] text-text-dim">
+            <span>Difficulty {current.difficulty}</span>
+            {phase === 'prompt' && questionReady ? (
+              <motion.span
+                key="timer"
+                initial={{ opacity: 0, y: -2 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={timeLeft < 2 ? 'font-bold text-heat' : 'font-bold text-text'}
+              >
+                {timeLeft.toFixed(1)}s
+              </motion.span>
+            ) : phase === 'prompt' && !questionReady ? (
+              <span className="inline-flex items-center gap-1.5 font-bold text-text-dim">
+                <span aria-hidden className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand/60" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand" />
+                </span>
+                Watch the play
+              </span>
+            ) : null}
+          </div>
+        )}
 
         {/* Phase 6 — module shell panel. Decoder pill, step row, and
             canvas live inside a single glass surface so the canvas reads
@@ -919,7 +997,21 @@ function TrainPageInner() {
             chrome. Decoder scenarios get the full pill+tracker stack;
             legacy scenarios still get the panel + canvas. */}
         <div className="ciq-module-panel space-y-3 p-3">
-          {decoderLabel ? (
+          {firstRep ? (
+            // V3 P9 — first-rep eyebrow. NAMING the decoder before the
+            // freeze would skip past the recognition moment we're
+            // trying to build, so the player only sees a soft "Watch
+            // the play" cue here. The decoder noun is revealed in the
+            // WinBurst / FeedbackPanel after the rep.
+            <div data-testid="train-first-rep-eyebrow" className="space-y-1">
+              <p className="text-[10px] font-bold uppercase tracking-[1.8px] text-brand/80">
+                {firstRepCues.eyebrow}
+              </p>
+              <p className="text-[13px] font-semibold leading-snug text-text">
+                {firstRepCues.framing}
+              </p>
+            </div>
+          ) : decoderLabel ? (
             <div className="space-y-2.5">
               <div className="flex items-center gap-2">
                 {/* Coach's-clipboard label: small DECODER eyebrow over the
@@ -1031,6 +1123,36 @@ function TrainPageInner() {
           </div>
         </div>
 
+        {/* V3 P10 P5 — coach attention nudge. ONE short cue surfaced
+            during the pre-freeze watch phase on the first rep of the
+            session (only). Points at WHERE TO LOOK, never the read.
+            Fades the moment the scene freezes so the read is the
+            player's. Hidden in cold-start and challenge modes. */}
+        <AnimatePresence>
+          {shouldShowCoachNudge({
+            decoderTag,
+            scenarioIndex: idx,
+            isFirstRep: firstRep,
+            isChallengeMode,
+            frozen,
+          }) ? (
+            <motion.p
+              key="coach-nudge"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -2 }}
+              transition={{ duration: 0.32, ease: [0.2, 0.8, 0.2, 1] }}
+              data-testid="train-coach-nudge"
+              className="text-center text-[12px] font-semibold leading-snug text-text-mute"
+            >
+              <span className="font-bold uppercase tracking-[1.4px] text-brand/70">
+                Coach ·
+              </span>{' '}
+              {decoderTag ? getCoachNudge(decoderTag) : null}
+            </motion.p>
+          ) : null}
+        </AnimatePresence>
+
         {/* Prompt — held back until the scene reaches its freeze marker
             for decoder scenarios so the user reads the play before
             reading the question. Animated in so it lands on the freeze
@@ -1043,9 +1165,15 @@ function TrainPageInner() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}
             >
-              <p className="text-[12px] font-semibold leading-snug text-text-dim">
-                {current.prompt}
-              </p>
+              {/* V3 P9 — on the first rep, drop the scenario subline so
+                  the player sees a single, calm question. The decoder
+                  noun gets revealed AFTER the rep, not above the
+                  choices. */}
+              {firstRep ? null : (
+                <p className="text-[12px] font-semibold leading-snug text-text-dim">
+                  {current.prompt}
+                </p>
+              )}
               <p className="mt-1 font-display text-[22px] font-bold leading-tight text-text">
                 What do you do?
               </p>
@@ -1094,11 +1222,21 @@ function TrainPageInner() {
               xpDelta={feedback.xp_delta}
               iqDelta={feedback.iq_delta}
               streak={feedback.streak ?? streak}
-              headline={praise}
+              // V3 P9 — first-rep recognition. NAMING the decoder for
+              // the first time AFTER the player picked the right read
+              // is the satisfaction beat in the V3 emotional arc. The
+              // basketball-language one-liner doubles as the sub.
+              headline={
+                firstRep && decoderTag
+                  ? firstRepCues.recognitionHeadline(DECODER_LABELS[decoderTag])
+                  : praise
+              }
               microPraise={
-                suppressCueHints
-                  ? 'Good rep.'
-                  : WIN_MICRO_PRAISE[decoderTag ?? 'BACKDOOR_WINDOW']
+                firstRep && decoderTag
+                  ? firstRepCues.recognitionSub(getDecoderOneLiner(decoderTag))
+                  : suppressCueHints
+                    ? 'Good rep.'
+                    : WIN_MICRO_PRAISE[decoderTag ?? 'BACKDOOR_WINDOW']
               }
             />
           ) : null}
@@ -1111,13 +1249,23 @@ function TrainPageInner() {
           {feedback ? (
             <FeedbackPanel
               isCorrect={feedback.is_correct}
-              headline={feedback.is_correct ? praise : praise}
+              // V3 P9 — on a missed first rep, name the decoder in the
+              // headline so the player has a noun for the pattern they
+              // just watched in the replay. (Win-case recognition is
+              // owned by the WinBurst above.)
+              headline={
+                firstRep && !feedback.is_correct && decoderTag
+                  ? firstRepCues.recoveryHeadline(DECODER_LABELS[decoderTag])
+                  : praise
+              }
               microNote={
                 feedback.is_correct
                   ? undefined
-                  : suppressCueHints
-                    ? 'Reset and try again.'
-                    : MISS_MICRO_NOTE[decoderTag ?? 'BACKDOOR_WINDOW']
+                  : firstRep && decoderTag
+                    ? getDecoderOneLiner(decoderTag)
+                    : suppressCueHints
+                      ? 'Reset and try again.'
+                      : MISS_MICRO_NOTE[decoderTag ?? 'BACKDOOR_WINDOW']
               }
               whyText={feedback.feedback_text}
               hasReplay={!!scene && scene.answerDemo.length > 0}
@@ -1134,7 +1282,7 @@ function TrainPageInner() {
               transition={{ delay: 0.15 }}
               className="rounded-xl border border-brand/40 bg-brand/5 p-3 text-center text-[13px] font-bold text-brand"
             >
-              New badge unlocked
+              Badge earned.
             </motion.div>
           ) : null}
         </AnimatePresence>
@@ -1143,8 +1291,12 @@ function TrainPageInner() {
             best-read replay. Both panels render only for decoder scenarios
             (legacy fixtures have no decoder_tag and are unchanged).
             PTH-3: suppressed in boss/mixed challenge modes — those panels
-            broadcast the right answer and undermine the test. */}
-        {feedback && isDecoder && decoderTag && !suppressCueHints ? (
+            broadcast the right answer and undermine the test.
+            V3 P9 — also suppressed on the player's first ever rep. The
+            4-question self-review reads like school after a moment that
+            should feel like a rep. The lesson hand-off card stays
+            available from the next rep onward. */}
+        {feedback && isDecoder && decoderTag && !suppressCueHints && !firstRep ? (
           <>
             <DecoderLessonPanel
               decoderName={DECODER_LABELS[decoderTag]}
@@ -1167,12 +1319,15 @@ function TrainPageInner() {
           <motion.button
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35, duration: 0.25 }}
+            // V3 P10 P6 — final beat in the post-rep cascade. Lands
+            // just after the SelfReviewChecklist so the page never
+            // layout-shifts under the player's tap.
+            transition={{ delay: 0.55, duration: 0.25 }}
             whileTap={{ scale: 0.99 }}
             onClick={() => void next()}
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 font-display text-[15px] font-bold uppercase tracking-[1px] text-brand-ink shadow-brand"
           >
-            {idx === scenarios.length - 1 ? 'See your results' : 'Next rep'}
+            {idx === scenarios.length - 1 ? 'See how you did' : 'Next rep'}
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 12h14M13 5l7 7-7 7" />
             </svg>
@@ -1197,7 +1352,7 @@ function TrainPageInner() {
             }
           >
             <div className="flex items-center gap-2 rounded-full border border-heat/40 bg-heat/10 px-4 py-2 font-display text-[13px] font-bold uppercase tracking-[1px] text-heat shadow-heat">
-              Keep going
+              Reset. Next rep.
             </div>
           </motion.div>
         ) : null}

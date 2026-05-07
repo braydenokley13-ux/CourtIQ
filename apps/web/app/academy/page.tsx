@@ -77,7 +77,7 @@ export default async function AcademyPage() {
                 <p className="mt-1 text-[13px] text-text-dim">
                   {featured.scenario_count} {featured.scenario_count === 1 ? 'play' : 'plays'} to try
                   {featured.attempts > 0
-                    ? ` · ${Math.round(featured.rolling_accuracy * 100)}% so far`
+                    ? ` · ${Math.round(featured.rolling_accuracy * 100)}% sharp so far`
                     : ''}
                 </p>
                 <div className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3 font-display text-sm font-bold uppercase tracking-[0.5px] text-brand-ink">
@@ -122,7 +122,7 @@ export default async function AcademyPage() {
                         </p>
                         <p className="mt-1 text-[12px] text-text-dim">
                           {mod.scenario_count} {mod.scenario_count === 1 ? 'play' : 'plays'}
-                          {mod.attempts > 0 ? ` · ${accuracyPct}% right` : ''}
+                          {mod.attempts > 0 ? ` · ${accuracyPct}% sharp` : ''}
                         </p>
                       </div>
                       {!locked ? (
@@ -194,7 +194,7 @@ export default async function AcademyPage() {
                     </p>
                     <p className="mt-1 text-[12px] text-text-dim">
                       {d.attempts > 0
-                        ? `${d.attempts} ${d.attempts === 1 ? 'rep' : 'reps'} · ${pct}% right`
+                        ? `${d.attempts} ${d.attempts === 1 ? 'rep' : 'reps'} · ${pct}% sharp`
                         : 'No reps yet'}
                     </p>
                   </div>
@@ -216,7 +216,7 @@ export default async function AcademyPage() {
             href="/train"
             className="flex-1 rounded-xl bg-brand py-3 text-center font-display text-sm font-bold uppercase tracking-[0.5px] text-brand-ink"
           >
-            Quick 5 plays
+            Five quick reads
           </Link>
           <Link
             href="/home"

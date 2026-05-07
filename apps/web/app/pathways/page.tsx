@@ -136,7 +136,7 @@ export default async function PathwaysHubPage() {
             href="/train"
             className="ciq-press-soft flex-1 rounded-xl border border-hairline-2 bg-bg-1 py-3 text-center font-display text-[13px] font-semibold uppercase tracking-[1.5px] text-text-dim transition-colors hover:text-text"
           >
-            Quick 5 plays
+            Five quick reads
           </Link>
           <Link
             href="/home"
@@ -178,7 +178,7 @@ function ActivePathwayCard({
             className="text-[11px] font-semibold uppercase tracking-[1.5px]"
             style={{ color: accent }}
           >
-            Active Pathway · Trains the {archetypeLabel}
+            Your route · Builds the {archetypeLabel}
           </p>
           <Link href={detailHref} className="block">
             <h2 className="mt-2 font-display text-[22px] font-bold leading-tight text-text hover:underline">

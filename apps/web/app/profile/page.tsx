@@ -124,7 +124,7 @@ export default async function ProfilePage() {
         </div>
 
         <Card>
-          <p className="text-xs uppercase tracking-wide text-text-dim">Concept Strength Radar</p>
+          <p className="text-xs uppercase tracking-wide text-text-dim">Your reads · strengths radar</p>
           <div className="mt-3 flex items-center justify-center"><Radar data={strengthData} /></div>
         </Card>
 

@@ -33,7 +33,10 @@ export function DecoderLessonPanel({
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: [0.2, 0.8, 0.2, 1] }}
+      // V3 P10 P6 — staggered after the FeedbackPanel so the post-rep
+      // sequence (win → why → connect to the move → reflect) breathes
+      // instead of arriving in lockstep.
+      transition={{ duration: 0.25, delay: 0.32, ease: [0.2, 0.8, 0.2, 1] }}
       className="ciq-shell-card relative overflow-hidden border-2 border-brand/40 p-4"
     >
       <div
@@ -52,7 +55,7 @@ export function DecoderLessonPanel({
         </div>
         <div className="min-w-0 flex-1 space-y-1">
           <p className="text-[10px] font-bold uppercase tracking-[1.5px] text-brand">
-            Decoder unlocked
+            You&apos;re seeing it
           </p>
           <p className="font-display text-[16px] font-bold leading-tight text-text">
             {decoderName}
