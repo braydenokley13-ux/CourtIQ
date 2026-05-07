@@ -1,0 +1,148 @@
+{
+  "id": "BDW.denied-wing",
+  "decoder_tag": "BACKDOOR_WINDOW",
+  "category": "OFFENSE",
+  "concept_tags": ["off_ball_movement", "reading_denial"],
+  "sub_concepts": ["backdoor_cut", "denial_read"],
+
+  "tactical": {
+    "cue_atoms": ["hand_in_lane", "foot_in_lane"],
+    "primary_defender_slot": "deny_def",
+    "user_slot_default": "cutter",
+    "teaching_point": "When your defender blocks the pass, the space behind him is open. Cut there.",
+    "common_miss_reason": "Loyalty to the spot. Wings keep fighting for the assigned catch even after the defender has visibly given up the basket to take away the pass.",
+    "why_best_read_works": "The defender is guarding the pass, not the basket. The denial removes the wing catch but opens the layup window behind it — the back-cut punishes the very stance that denied the reversal.",
+    "lesson_connection": "backdoor-window",
+    "difficulty_default": 1
+  },
+
+  "scene": {
+    "type": "denied_wing_backdoor",
+    "court": "half",
+    "camera": "passer_side_three_quarter",
+    "players": [
+      { "slot": "passer", "team": "offense", "role": "ball_handler", "label": "PG", "start": { "x": -9, "z": 14 }, "hasBall": true },
+      { "slot": "cutter", "team": "offense", "role": "off_ball_wing", "label": "You", "start": { "x": 18, "z": 8 } },
+      { "slot": "weak_wing", "team": "offense", "role": "weak_wing", "label": "3", "start": { "x": -18, "z": 9 } },
+      { "slot": "strong_corner", "team": "offense", "role": "strong_corner", "label": "4", "start": { "x": 22, "z": 1 } },
+      { "slot": "on_ball_def", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": -9, "z": 16 } },
+      { "slot": "deny_def", "team": "defense", "role": "denying_wing_defender", "label": "x2", "start": { "x": 15, "z": 10 } },
+      { "slot": "weak_wing_def", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": -15, "z": 10 } },
+      { "slot": "low_man", "team": "defense", "role": "low_man", "label": "x4", "start": { "x": 19, "z": 3 } }
+    ],
+    "ball": { "holderSlot": "passer" },
+    "movements": [
+      {
+        "id": "user_show_hands",
+        "playerSlot": "cutter",
+        "kind": "lift",
+        "to": { "x": 18, "z": 9 },
+        "delayMs": 0,
+        "durationMs": 600
+      },
+      {
+        "id": "deny_step_into_lane",
+        "playerSlot": "deny_def",
+        "kind": "rotation",
+        "to": { "x": 14, "z": 11 },
+        "delayMs": 400,
+        "durationMs": 600
+      }
+    ],
+    "answerDemo": [
+      { "id": "user_jab", "playerSlot": "cutter", "kind": "jab", "to": { "x": 19, "z": 9 }, "delayMs": 0, "durationMs": 250 },
+      { "id": "user_plant_and_go", "playerSlot": "cutter", "kind": "back_cut", "to": { "x": 4, "z": 2 }, "delayMs": 100, "durationMs": 750 },
+      { "id": "passer_lead_pass", "playerSlot": "ball", "kind": "pass", "to": { "x": 4, "z": 2 }, "delayMs": 500, "durationMs": 600 },
+      { "id": "user_catch_at_rim", "playerSlot": "cutter", "kind": "lift", "to": { "x": 4, "z": 2 }, "delayMs": 0, "durationMs": 100 },
+      { "id": "user_finish", "playerSlot": "cutter", "kind": "cut", "to": { "x": 0, "z": 0.5 }, "delayMs": 30, "durationMs": 320 }
+    ],
+    "freezeMarker": { "kind": "atMs", "atMs": 1500 },
+    "wrongDemos": [
+      {
+        "outcome": "v_cut_to_deeper_catch",
+        "caption": "You kept the ball. You missed the open layup.",
+        "movements": [
+          { "id": "user_v_cut", "playerSlot": "cutter", "kind": "cut", "to": { "x": 21, "z": 10 }, "delayMs": 0, "durationMs": 600 },
+          { "id": "passer_late_pass", "playerSlot": "ball", "kind": "pass", "to": { "x": 21, "z": 10 }, "delayMs": 200, "durationMs": 500 }
+        ]
+      },
+      {
+        "outcome": "stand_still",
+        "caption": "The defender stole the pass.",
+        "movements": [
+          { "id": "passer_force_pass", "playerSlot": "ball", "kind": "pass", "to": { "x": 18, "z": 8 }, "delayMs": 0, "durationMs": 450 },
+          { "id": "deny_deflect", "playerSlot": "deny_def", "kind": "rotation", "to": { "x": 16, "z": 9 }, "delayMs": 100, "durationMs": 350 },
+          { "id": "ball_loose", "playerSlot": "ball", "kind": "pass", "to": { "x": 18, "z": 12 }, "delayMs": 300, "durationMs": 350 }
+        ]
+      },
+      {
+        "outcome": "front_cut",
+        "caption": "The defender followed your cut. No layup.",
+        "movements": [
+          { "id": "user_front_cut", "playerSlot": "cutter", "kind": "cut", "to": { "x": 8, "z": 6 }, "delayMs": 0, "durationMs": 800 },
+          { "id": "deny_ride", "playerSlot": "deny_def", "kind": "rotation", "to": { "x": 9, "z": 7 }, "delayMs": 120, "durationMs": 850 }
+        ]
+      }
+    ]
+  },
+
+  "overlays": {
+    "pre": [
+      { "kind": "defender_vision_cone", "onSlot": "deny_def", "targetSlot": "passer" },
+      { "kind": "defender_hand_in_lane", "onSlot": "deny_def" },
+      { "kind": "defender_hip_arrow", "onSlot": "deny_def" }
+    ],
+    "post": [
+      { "kind": "passing_lane_blocked", "fromSlot": "passer", "toSlot": "cutter" },
+      { "kind": "open_space_region", "anchor": { "x": 5, "z": 4 }, "radiusFt": 4 },
+      { "kind": "drive_cut_preview", "onSlot": "cutter", "path": [
+        { "x": 18, "z": 8 },
+        { "x": 19, "z": 9 },
+        { "x": 4, "z": 2 },
+        { "x": 0, "z": 0.5 }
+      ]}
+    ]
+  },
+
+  "choices": [
+    { "outcome": "back_cut_to_rim", "quality": "best", "order": 1 },
+    { "outcome": "v_cut_to_deeper_catch", "quality": "acceptable", "order": 2 },
+    { "outcome": "stand_still", "quality": "wrong", "order": 3 },
+    { "outcome": "front_cut", "quality": "wrong", "order": 4 }
+  ],
+
+  "disguises": {
+    "none": { "removePre": [], "difficultyBump": 0 },
+    "light": {
+      "removePre": [{ "kind": "defender_hip_arrow", "onSlot": "deny_def" }],
+      "difficultyBump": 1
+    },
+    "moderate": {
+      "removePre": [
+        { "kind": "defender_hip_arrow", "onSlot": "deny_def" },
+        { "kind": "defender_vision_cone", "onSlot": "deny_def" }
+      ],
+      "difficultyBump": 1
+    },
+    "heavy": {
+      "removePre": [
+        { "kind": "defender_hip_arrow", "onSlot": "deny_def" },
+        { "kind": "defender_vision_cone", "onSlot": "deny_def" }
+      ],
+      "freezeCompressMs": 600,
+      "difficultyBump": 2
+    }
+  },
+
+  "coach_validation": {
+    "level": "low",
+    "status": "approved",
+    "notes": "Backdoor against denial is universally taught. Template inherits BDW-01 SME approval."
+  },
+
+  "defaults": {
+    "xp_reward": 12,
+    "mastery_weight": 1.0,
+    "render_tier": 1
+  }
+}

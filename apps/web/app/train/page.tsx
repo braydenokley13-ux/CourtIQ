@@ -28,6 +28,11 @@ import { getDecoderOneLiner } from '@/lib/decoders/explanations'
 import { getCoachNudge, shouldShowCoachNudge } from '@/lib/decoders/coachNudges'
 import { getFirstRepCues, isFirstRep } from '@/lib/onboarding/firstRep'
 import { shouldShowStreakChip } from '@/lib/rewards/visibility'
+import {
+  getFirstSessionStep,
+  NORMAL_UI_MODE,
+  type FirstSessionUiMode,
+} from '@/lib/firstSession'
 
 type DecoderTag =
   | 'BACKDOOR_WINDOW'
@@ -46,6 +51,15 @@ type SessionScenario = {
   scene?: unknown
   user_role?: string
   decoder_tag?: DecoderTag | null
+  /** Phase 8 — single-line eyebrow shown above this rep, sourced
+   *  from the spine composer (firstSession / returnLoop / adaptive). */
+  recognition_reason?: string | null
+}
+
+type SessionMeta = {
+  user_iq?: number
+  banner?: string | null
+  mode?: 'training' | 'first_session' | 'return_loop' | 'daily_challenge'
 }
 
 const DECODER_LABELS: Record<DecoderTag, string> = {
@@ -288,6 +302,9 @@ function TrainPageInner() {
   // difficulty, timer). Stays `null` while loading so we never flash
   // the chrome and snap it away.
   const [attemptsCount, setAttemptsCount] = useState<number | null>(null)
+  // Phase 8 — meta returned by /api/session/start. Drives the
+  // return-loop banner + lets the page know which composer ran.
+  const [sessionMeta, setSessionMeta] = useState<SessionMeta | null>(null)
   const [idx, setIdx] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<AttemptFeedback | null>(null)
@@ -300,6 +317,11 @@ function TrainPageInner() {
   const [loadError, setLoadError] = useState<{ code?: string; message?: string } | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [reward, setReward] = useState<{ xp: number; iq: number; correct: boolean; key: number } | null>(null)
+  // Phase 10 — captured at submit so the WinBurst / FeedbackPanel can
+  // surface the firstSession script's per-rep recognitionLine, which
+  // takes (decoderLabel, latencyMs) → string. Reset alongside the
+  // per-scenario state below.
+  const [lastAnswerLatencyMs, setLastAnswerLatencyMs] = useState<number>(0)
   const [sceneCaption, setSceneCaption] = useState<string | undefined>(undefined)
   const [replayCounter, setReplayCounter] = useState(0)
   // Phase G — `frozen` flips true once the JSX ScenarioReplayController
@@ -329,10 +351,29 @@ function TrainPageInner() {
   // since those broadcast the answer. The renderer / scenario data
   // are unchanged — we only suppress the *page-layer* decoder chrome.
   const isChallengeMode = pathwayContext?.isChallenge === true
+  // Phase 9 — per-rep firstSession UI mode. Source of truth is the
+  // Phase 5 script; we honor it whenever the spine composer routed
+  // this session through firstSession (server tells us via
+  // sessionMeta.mode). Challenge sessions (boss / mixed) keep their
+  // own chrome rules and never read this. Outside the first-session
+  // arc the value collapses to NORMAL_UI_MODE so existing
+  // `firstRep`-gated chrome behaves exactly as before. Computed up
+  // here because `hideDecoderPill` (computed below) reads it.
+  const firstSessionStep = useMemo(() => {
+    if (sessionMeta?.mode !== 'first_session') return null
+    if (isChallengeMode) return null
+    return getFirstSessionStep({ attemptsCount, scenarioIndex: idx })
+  }, [sessionMeta?.mode, attemptsCount, idx, isChallengeMode])
+  const uiMode: FirstSessionUiMode = firstSessionStep?.uiMode ?? NORMAL_UI_MODE
+  // Phase 9 — the firstSession script may suppress the decoder pill
+  // on cold-start reps (rep 1, rep 2, rep 4 — the recognition moments
+  // we want unnamed). The challenge-mode + Pathway hide flags still
+  // win when present.
   const hideDecoderPill =
     pathwayContext?.hideDecoderPill === true ||
     pathwayContext?.trainingMode === 'boss-challenge' ||
-    pathwayContext?.trainingMode === 'mixed-reads'
+    pathwayContext?.trainingMode === 'mixed-reads' ||
+    uiMode.suppressDecoderPill
   const suppressCueHints = pathwayContext?.suppressCueHints === true || isChallengeMode
   const decoderLabel = !hideDecoderPill && decoderTag ? DECODER_LABELS[decoderTag] : null
   // FR-7 — translate the Pathway training mode into the renderer-level
@@ -474,7 +515,7 @@ function TrainPageInner() {
           message?: string
           session_run_id?: string
           scenarios?: SessionScenario[]
-          meta?: { user_iq?: number }
+          meta?: SessionMeta
         }
         if (!res.ok) {
           setLoadError({ code: body.error, message: body.message })
@@ -487,6 +528,7 @@ function TrainPageInner() {
         setSessionId(body.session_run_id)
         setScenarios(body.scenarios)
         setIq(body.meta?.user_iq ?? 500)
+        setSessionMeta(body.meta ?? null)
       } catch {
         setLoadError({ code: 'NETWORK_ERROR' })
       } finally {
@@ -538,6 +580,7 @@ function TrainPageInner() {
     setFrozen(false)
     setTimerArmed(false)
     setScenePhase('idle')
+    setLastAnswerLatencyMs(0)
   }, [idx])
 
   // Phase G — react to phase events emitted by the JSX
@@ -618,6 +661,7 @@ function TrainPageInner() {
     setSubmitting(true)
     setSelected(choiceId)
     const spentMs = Math.round((8 - timeLeft) * 1000)
+    setLastAnswerLatencyMs(spentMs)
     try {
       const res = await fetch(`/api/session/${sessionId}/attempt`, {
         method: 'POST',
@@ -868,6 +912,21 @@ function TrainPageInner() {
           </div>
         ) : null}
 
+        {/* Phase 8 — return-loop banner. Sourced from the spine
+            composer's `meta.banner` (e.g. "Picking up where you left
+            off." for next-day, "Welcome back." for lapsed). Only
+            renders when the spine composer chose to surface one —
+            cold-start arc + dormant context skip the banner so the
+            decoder reveal carries the framing instead. */}
+        {sessionMeta?.banner && !pathwayContext ? (
+          <div
+            data-testid="train-return-banner"
+            className="rounded-2xl border border-brand/30 bg-brand/5 px-3 py-2 text-center text-[12px] font-semibold leading-snug text-brand"
+          >
+            {sessionMeta.banner}
+          </div>
+        ) : null}
+
         {/* Header — clear at-a-glance status. XP + IQ live as soft chips
             so the eye doesn't have to parse three different colors when
             the streak is hot. */}
@@ -882,8 +941,11 @@ function TrainPageInner() {
           {/* V3 P9 — hide XP/IQ/streak chips on the player's first ever
               rep. They're zeros (or near-zero) and pull the eye away
               from the canvas. The first read should feel like film
-              study, not a dashboard. */}
-          {firstRep ? (
+              study, not a dashboard.
+              Phase 9 — also honor the firstSession UiMode flag so
+              chips stay hidden across reps 2-4 of the cold-start arc,
+              not just rep 1. */}
+          {firstRep || uiMode.suppressHeaderChips ? (
             <div aria-hidden />
           ) : (
             // V3 P11 P4 — toned status chips. Was three colored
@@ -953,8 +1015,12 @@ function TrainPageInner() {
             V3 P9 — on the player's first ever rep we drop the
             difficulty + timer entirely; only the "Watch the play"
             cue remains during pre-freeze, and the choice cards take
-            over from the freeze beat onward. Zero pressure, no math. */}
-        {firstRep ? (
+            over from the freeze beat onward. Zero pressure, no math.
+            Phase 9 — also drop them whenever the firstSession script
+            tells us to suppress the difficulty tag (reps 1–5 of the
+            cold-start arc — the script keeps difficulty implicit
+            through the entire arc). */}
+        {firstRep || uiMode.suppressDifficultyTag ? (
           phase === 'prompt' && !questionReady ? (
             <div className="flex items-center justify-end text-[11px] uppercase tracking-[1.5px] text-text-dim">
               <span className="inline-flex items-center gap-1.5 font-bold text-text-dim">
@@ -1045,7 +1111,31 @@ function TrainPageInner() {
                   {getDecoderOneLiner(decoderTag)}
                 </p>
               ) : null}
-              {isDecoder ? <PhaseTracker phase={learnPhase} /> : null}
+              {/* Phase 8 — recognition reason eyebrow.
+                  One sentence per rep, sourced from
+                  recognitionSurface.recognitionReason() via the
+                  scenarioService composer. Tells the player WHY this
+                  particular rep is in front of them ("Same read, new
+                  shape", "Quick re-read before the next try"). Only
+                  shown for non-cold-start, non-challenge reps —
+                  challenges intentionally hide this so the player has
+                  to read the cue without help; first-rep already has
+                  its own framing. */}
+              {!firstRep && !suppressCueHints && current?.recognition_reason ? (
+                <p
+                  data-testid="train-recognition-reason"
+                  className="text-[11px] font-semibold leading-snug text-brand/80"
+                >
+                  {current.recognition_reason}
+                </p>
+              ) : null}
+              {/* Phase 9 — honor the firstSession script's suppress
+                  flag for the phase tracker. Reps 1–5 of the cold-
+                  start arc all suppress it (the basketball read is
+                  the focus, not a learning-phase progress bar). */}
+              {isDecoder && !uiMode.suppressPhaseTracker ? (
+                <PhaseTracker phase={learnPhase} />
+              ) : null}
             </div>
           ) : null}
 
@@ -1223,19 +1313,31 @@ function TrainPageInner() {
               streak={feedback.streak ?? streak}
               // V3 P9 — first-rep recognition. NAMING the decoder for
               // the first time AFTER the player picked the right read
-              // is the satisfaction beat in the V3 emotional arc. The
-              // basketball-language one-liner doubles as the sub.
+              // is the satisfaction beat in the V3 emotional arc.
+              // Phase 10 — when the spine routed this session through
+              // firstSession, the script's per-rep recognitionLine
+              // (decoderLabel, latencyMs) → string takes over the
+              // micro-praise slot. Reps 2-5 each get a tuned line
+              // ("Faster this time. You're starting to read the X.",
+              // "X — read in 2.7s.") instead of the static decoder
+              // one-liner. Rep 1 still uses the cold-start cue so the
+              // first-ever decoder reveal lands.
               headline={
                 firstRep && decoderTag
                   ? firstRepCues.recognitionHeadline(DECODER_LABELS[decoderTag])
                   : praise
               }
               microPraise={
-                firstRep && decoderTag
-                  ? firstRepCues.recognitionSub(getDecoderOneLiner(decoderTag))
-                  : suppressCueHints
-                    ? 'Good rep.'
-                    : WIN_MICRO_PRAISE[decoderTag ?? 'BACKDOOR_WINDOW']
+                firstSessionStep && decoderTag && !firstRep
+                  ? firstSessionStep.recognitionLine(
+                      DECODER_LABELS[decoderTag],
+                      lastAnswerLatencyMs,
+                    )
+                  : firstRep && decoderTag
+                    ? firstRepCues.recognitionSub(getDecoderOneLiner(decoderTag))
+                    : suppressCueHints
+                      ? 'Good rep.'
+                      : WIN_MICRO_PRAISE[decoderTag ?? 'BACKDOOR_WINDOW']
               }
             />
           ) : null}
@@ -1268,7 +1370,24 @@ function TrainPageInner() {
               }
               whyText={feedback.feedback_text}
               hasReplay={!!scene && scene.answerDemo.length > 0}
-              onReplay={() => setReplayCounter((n) => n + 1)}
+              // Phase 11 — every replay click increments replay_count
+              // on the attempt row (best-effort POST). Drives the
+              // adaptive `mystery-mode` probe so a player who keeps
+              // re-watching the demo gets a no-hint rep in the next
+              // session. The local counter still drives the canvas's
+              // resetCounter so the demo replays visually.
+              onReplay={() => {
+                setReplayCounter((n) => n + 1)
+                if (sessionId && current?.id) {
+                  void fetch(`/api/session/${sessionId}/replay`, {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify({ scenarioId: current.id }),
+                  }).catch(() => {
+                    // Soft-fail — telemetry, not user-visible state.
+                  })
+                }
+              }}
               onShowMistake={undefined}
             />
           ) : null}
@@ -1303,10 +1422,16 @@ function TrainPageInner() {
               lessonConnection={DECODER_HANDOFF[decoderTag].lessonConnection}
               lessonSlug={DECODER_HANDOFF[decoderTag].lessonSlug}
             />
-            <SelfReviewChecklist
-              scenarioId={current.id}
-              items={DECODER_HANDOFF[decoderTag].selfReviewChecklist}
-            />
+            {/* Phase 9 — the firstSession script keeps the self-review
+                checklist suppressed across reps 1-4 of the cold-start
+                arc; rep 5 turns it back on. Outside the arc this flag
+                is always false so existing chrome is unchanged. */}
+            {uiMode.suppressSelfReviewChecklist ? null : (
+              <SelfReviewChecklist
+                scenarioId={current.id}
+                items={DECODER_HANDOFF[decoderTag].selfReviewChecklist}
+              />
+            )}
           </>
         ) : null}
 

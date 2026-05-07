@@ -19,10 +19,10 @@ vi.mock('@/lib/db/prisma', () => ({
       findFirst: vi.fn(),
       count: vi.fn(),
     },
-    sessionRun: { create: vi.fn() },
+    sessionRun: { create: vi.fn(), findFirst: vi.fn() },
     profile: { findUnique: vi.fn() },
     mastery: { findMany: vi.fn() },
-    attempt: { findMany: vi.fn() },
+    attempt: { findMany: vi.fn(), count: vi.fn() },
   },
 }))
 
@@ -143,6 +143,8 @@ describe('generateSessionBundle — scenarioIds (plural) pin', () => {
     ])
     ;(prisma.mastery.findMany as MockedFn).mockResolvedValue([])
     ;(prisma.attempt.findMany as MockedFn).mockResolvedValue([])
+    ;(prisma.attempt.count as MockedFn).mockResolvedValue(50)
+    ;(prisma.sessionRun.findFirst as MockedFn).mockResolvedValue(null)
     ;(prisma.sessionRun.create as MockedFn).mockResolvedValue({ id: 'sess-3' })
 
     const bundle = await generateSessionBundle('user-1', 5, { scenarioIds: [] })
