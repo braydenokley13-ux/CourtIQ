@@ -988,6 +988,24 @@ function followTarget(scene: Scene3D): CameraTarget | null {
 // 1-to-1 — see that file's docstring for the §8.7 policy. The
 // duplication is small and the test suite asserts both helpers
 // agree (see `cameraPresets.test.ts`).
+/**
+ * P0 stability — aspect band classifier mirroring the boundaries in
+ * `_aspectDeltasForCamera` and `aspectAdjustmentForCanvas`. Returns
+ * `0` for portrait (<0.7), `1` for landscape (0.7..1.5), `2` for
+ * desktop (≥1.5). Used by `CameraController.setAspect` to detect
+ * boundary crossings so it can apply hysteresis and avoid the
+ * step-function jitter near fullscreen-transition viewport sizes.
+ *
+ * Kept as a module-private helper colocated with the bands it
+ * mirrors so any future band re-tune surfaces in one place.
+ */
+function aspectBand(aspect: number): 0 | 1 | 2 {
+  if (!Number.isFinite(aspect) || aspect <= 0) return 1
+  if (aspect < 0.7) return 0
+  if (aspect < 1.5) return 1
+  return 2
+}
+
 function _aspectDeltasForCamera(
   aspect: number,
   mode: CameraMode,
@@ -1590,7 +1608,54 @@ export class CameraController {
     )
     const next = Number.isFinite(aspect) && aspect > 0 ? aspect : safe
     if (Math.abs(this.aspect - next) < 0.005) return
-    this.aspect = next
+    // P0 stability — aspect-band hysteresis. The aspect adjustment
+    // policy (`_aspectDeltasForCamera`) is a step function with hard
+    // bands at 0.7 and 1.5. During a fullscreen transition the
+    // browser briefly publishes a sequence of layout sizes; if the
+    // wrapper's aspect crosses a boundary by even 0.01 (e.g. 0.69 →
+    // 0.71 → 0.69 as Safari settles a notch-aware viewport) the
+    // resulting delta multipliers flip back and forth and the camera
+    // chases each band's target — that's the visible "jitter" near
+    // fullscreen entry/exit.
+    //
+    // Hysteresis: we only allow a band crossing when the new aspect
+    // is well inside the new band (≥ 0.04 past the boundary). Within
+    // the deadband around each boundary, we keep the previously-
+    // applied band by clamping the stored aspect to the same side
+    // of the boundary as before. The aspect-aware auto-fit math
+    // (computeAutoTarget) still sees the real value because it runs
+    // on `next`, not on the band — only the step-function deltas are
+    // stabilised.
+    const HYSTERESIS = 0.04
+    const prevBand = aspectBand(this.aspect)
+    const nextBand = aspectBand(next)
+    let effective = next
+    if (prevBand !== nextBand) {
+      // Crossing a boundary. Compute the boundary distance and only
+      // allow the crossing when we are solidly past it.
+      if (prevBand === 0 && nextBand === 1) {
+        // portrait → landscape across 0.7. Stay portrait unless
+        // next ≥ 0.74.
+        if (next < 0.7 + HYSTERESIS) effective = Math.min(next, 0.69)
+      } else if (prevBand === 1 && nextBand === 0) {
+        // landscape → portrait across 0.7. Stay landscape unless
+        // next ≤ 0.66.
+        if (next > 0.7 - HYSTERESIS) effective = Math.max(next, 0.71)
+      } else if (prevBand === 1 && nextBand === 2) {
+        // landscape → desktop across 1.5. Stay landscape unless
+        // next ≥ 1.54.
+        if (next < 1.5 + HYSTERESIS) effective = Math.min(next, 1.49)
+      } else if (prevBand === 2 && nextBand === 1) {
+        // desktop → landscape across 1.5. Stay desktop unless
+        // next ≤ 1.46.
+        if (next > 1.5 - HYSTERESIS) effective = Math.max(next, 1.51)
+      }
+      // (No portrait↔desktop transition is possible without crossing
+      // both boundaries, and a real layout that vaults across both
+      // boundaries in one event is a genuine viewport change — we
+      // honour it.)
+    }
+    this.aspect = effective
     this.recomputeTarget()
   }
 
