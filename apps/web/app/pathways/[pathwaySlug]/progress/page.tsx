@@ -141,7 +141,7 @@ function CoreSummary({
       style={{ boxShadow: `0 0 40px ${accent}1f, 0 1px 0 rgba(255,255,255,0.04) inset` }}
     >
       <p className="text-[11px] font-bold uppercase tracking-[1.5px] text-text-mute">
-        Your progress
+        Where you stand
       </p>
       <div className="mt-2 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
@@ -183,7 +183,7 @@ function CoreSummary({
       </dl>
 
       {lastActivity ? (
-        <p className="mt-4 text-[11px] text-text-mute">Last challenge run · {lastActivity}</p>
+        <p className="mt-4 text-[11px] text-text-mute">Last challenge · {lastActivity}</p>
       ) : null}
     </header>
   )
@@ -241,7 +241,7 @@ function NextAction({ insights }: { insights: PlayerInsights }) {
   return (
     <section className="rounded-2xl border-2 border-brand/40 bg-gradient-to-br from-bg-1 to-bg-2 p-5">
       <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-brand">
-        Do this next
+        Next focus
       </p>
       <p className="mt-2 font-display text-[20px] font-bold leading-tight text-text">
         {recommendation.label}
@@ -302,7 +302,7 @@ function WeaknessCallout({ weakness }: { weakness: WeaknessInsight | null }) {
         </p>
       ) : null}
       <p className="mt-2 text-[10px] uppercase tracking-[1.5px] text-text-mute">
-        {accuracyPct}% accuracy · {weakness.attempts} reps
+        {accuracyPct}% sharp · {weakness.attempts} reps
       </p>
     </section>
   )
@@ -318,9 +318,9 @@ function DecoderBreakdown({ decoders }: { decoders: readonly DecoderInsight[] })
     <section className="space-y-3">
       <div className="flex items-baseline justify-between">
         <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">
-          Strengths & gaps
+          Your reads
         </p>
-        <p className="text-[10px] uppercase tracking-[1px] text-text-mute">by decoder</p>
+        <p className="text-[10px] uppercase tracking-[1px] text-text-mute">strengths & gaps</p>
       </div>
       <ul className="space-y-2">
         {decoders.map((d) => (
@@ -375,7 +375,7 @@ function DecoderRow({ insight }: { insight: DecoderInsight }) {
         />
       </div>
       <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-[1px] text-text-mute">
-        <span>{accuracyPct === null ? 'No reps' : `${accuracyPct}% accuracy`}</span>
+        <span>{accuracyPct === null ? 'No reps yet' : `${accuracyPct}% sharp`}</span>
         <span>
           {insight.attempts} {insight.attempts === 1 ? 'rep' : 'reps'}
         </span>
@@ -418,7 +418,7 @@ function RecentRow({ row }: { row: RecentChallengeRow }) {
           {row.chapterTitle}
         </p>
         <p className="mt-1 text-[10px] uppercase tracking-[1px] text-text-mute">
-          {row.bestCount}/{row.total} best · {formatLastActivity(row.attemptedAt)}
+          {row.bestCount}/{row.total} clean · {formatLastActivity(row.attemptedAt)}
         </p>
       </div>
       <span className={`text-[11px] font-bold uppercase tracking-[1px] ${resultTone}`}>
