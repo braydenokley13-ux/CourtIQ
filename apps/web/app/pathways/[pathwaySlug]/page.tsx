@@ -104,7 +104,7 @@ function ComingSoonView({ pathway }: { pathway: PathwayConfig }) {
           href="/pathways"
           className="text-[11px] uppercase tracking-[1.5px] text-text-dim hover:text-text"
         >
-          ← All Pathways
+          ← All routes
         </Link>
 
         <header className="space-y-3 rounded-3xl border border-hairline-2 bg-gradient-to-br from-bg-1 to-bg-2 p-6">
@@ -207,7 +207,7 @@ function ActivePathwayView({
           href="/pathways"
           className="text-[11px] uppercase tracking-[1.5px] text-text-dim hover:text-text"
         >
-          ← All Pathways
+          ← All routes
         </Link>
 
         {/* Hero */}
@@ -454,7 +454,7 @@ function ActivePathwayView({
             href="/pathways"
             className="rounded-xl bg-bg-2 px-5 py-3 font-display text-[13px] font-semibold text-text-dim"
           >
-            All Pathways
+            All routes
           </Link>
           <Link
             href="/home"

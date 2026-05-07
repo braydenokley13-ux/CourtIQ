@@ -435,7 +435,7 @@ function FooterNav({ detailHref }: { detailHref: string }) {
         href={detailHref}
         className="rounded-xl bg-bg-2 px-5 py-3 font-display text-[13px] font-semibold text-text-dim"
       >
-        Pathway map
+        See the chapters
       </Link>
       <Link
         href="/home"

@@ -664,7 +664,7 @@ export default function HomePage() {
               data-testid="home-intro-replay"
               className="font-semibold uppercase tracking-[1.5px] text-[#6B7280] transition-colors hover:text-[#F9FAFB]"
             >
-              Replay walkthrough
+              Walkthrough
             </button>
           </div>
         </motion.div>
