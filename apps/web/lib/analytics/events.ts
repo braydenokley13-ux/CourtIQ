@@ -6,7 +6,7 @@ import type { Position, SkillLevel, BadgeFamily } from '@courtiq/core'
  */
 export type EventMap = {
   // Auth & onboarding
-  auth_signup:            { method: 'email' | 'google' }
+  auth_signup:            { method: 'email' | 'google' | 'username' }
   onboarding_completed:   { age: number | 'hidden', position: Position, skill: SkillLevel, goal: string, starting_iq: number }
 
   // Session lifecycle

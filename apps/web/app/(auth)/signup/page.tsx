@@ -19,7 +19,7 @@ const fadeUp = {
   }),
 }
 
-const USERNAME_RE = /^[a-zA-Z0-9_.\-]{3,30}$/
+const USERNAME_RE = /^[a-zA-Z0-9_.-]{3,30}$/
 
 function validateUsername(value: string): string | null {
   if (!USERNAME_RE.test(value)) {
