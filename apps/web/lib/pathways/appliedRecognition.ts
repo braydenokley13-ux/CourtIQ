@@ -46,7 +46,6 @@
 import type { DecoderTag, PathwayArchetype } from './types'
 import type { Observation, ObservationHistory } from './livingBrain'
 import {
-  COOLDOWN_DAYS,
   MAX_USER_FACING_PER_WEEK,
   MIN_SESSIONS_FOR_USER_FACING,
   observationKey,
