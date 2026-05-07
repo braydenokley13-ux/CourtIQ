@@ -456,9 +456,16 @@ export function deriveBrainObservations(
     .map((k) => all.find((o) => o.kind === k && !cooldownActive(history, o.kind, o.decoder, snapshot.asOf)))
     .find(Boolean)
 
+  // One user-facing observation per session, max. The home_card
+  // slot wins precedence; hesitation only surfaces when no home
+  // candidate fired. Pushing both would also let the weekly budget
+  // be bypassed (surfacedThisWeek === MAX still emits two).
   const userFacing: Observation[] = []
-  if (homeCandidate) userFacing.push(homeCandidate)
-  if (hesitation) userFacing.push(hesitation)
+  if (homeCandidate) {
+    userFacing.push(homeCandidate)
+  } else if (hesitation) {
+    userFacing.push(hesitation)
+  }
 
   // Internal includes everything the brain noticed, including
   // candidates the caps suppressed. Routing reads this.

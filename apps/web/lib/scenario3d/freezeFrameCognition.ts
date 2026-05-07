@@ -251,7 +251,11 @@ const SKR_TEMPLATES: ReadonlyArray<FreezeBeatTemplate> = [
     kind: 'advantage',
     at_phase_ms: ADVANTAGE_BEAT_AT_MS,
     primitive_kind: 'open_space_region',
-    anchor: 'open_player',
+    // open_space_region hydrates from a court-point anchor only
+    // (_anchorPoint accepts vacated_zone / open_rim_zone /
+    // closeout_target). The space the skip exposes is the spot the
+    // over-helper vacated, so vacated_zone is the right point.
+    anchor: 'vacated_zone',
     clutter_priority: 3,
     fade_in_ms: DEFAULT_BEAT_FADE_IN_MS,
     fade_out_ms: DEFAULT_BEAT_FADE_OUT_MS,
@@ -468,18 +472,17 @@ function _hydratePrimitive(
       return { kind: 'passing_lane_blocked', from, to }
     }
     case 'drive_cut_preview': {
-      // The cognition module does not author the polyline; the
-      // renderer hydrates a 2-point preview from the player's
-      // active movement segment. If the renderer cannot produce a
-      // path, this beat is skipped.
+      // Cognition module does not author the polyline; the renderer
+      // hydrates a 2-point preview from the player's active segment.
+      // We emit a zero-length placeholder satisfying the schema's
+      // min(2) constraint so the beat survives hydrateFreezeBeats —
+      // the renderer overrides `path` before the overlay scheduler
+      // consumes it. Returning undefined here would silently drop
+      // the action beat for both ESC and AOR.
       const playerId = _anchorPlayerId(t.anchor, a)
       if (!playerId) return undefined
-      // We emit a placeholder zero-length path; the renderer is
-      // expected to replace it with the player's actual segment
-      // before the beat is consumed by the overlay scheduler.
-      // (Schema requires min(2) points — emit two identical to
-      // satisfy the union; the renderer overrides at hydrate time.)
-      return undefined
+      const placeholder: CourtPoint = { x: 0, z: 0 }
+      return { kind: 'drive_cut_preview', playerId, path: [placeholder, placeholder] }
     }
     case 'open_space_region': {
       const anchor = _anchorPoint(t.anchor, a)
