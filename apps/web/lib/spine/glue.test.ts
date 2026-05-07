@@ -14,6 +14,7 @@ import {
   buildFirstSessionCatalog,
   buildReturnCatalog,
   recognitionReasonForReturnSlot,
+  resolveChoiceQuality,
   RETURN_FRESHNESS_DAYS,
   type AttemptWithScenario,
   type ScenarioWithChoices,
@@ -63,6 +64,7 @@ function makeAttempt(
     'decoder_tag' in overrides ? overrides.decoder_tag ?? null : 'BACKDOOR_WINDOW'
   return {
     is_correct: overrides.is_correct ?? true,
+    choice_quality: 'choice_quality' in overrides ? overrides.choice_quality : undefined,
     time_ms: overrides.time_ms ?? 3000,
     created_at: overrides.created_at ?? new Date('2026-05-06T00:00:00Z'),
     scenario: {
@@ -118,6 +120,37 @@ describe('buildDecoderConfidences', () => {
     const aor = result.find((r) => r.decoderTag === 'ADVANTAGE_OR_RESET')!
     // Untested → first-rep, not maintain.
     expect(aor.nextProbe).toBe('first-rep')
+  })
+
+  // ---- Phase 10 — choice_quality denormalization ----
+
+  it('falls back to the legacy proxy when choice_quality is null (legacy rows)', () => {
+    const attempts = [
+      makeAttempt({
+        decoder_tag: 'BACKDOOR_WINDOW',
+        is_correct: true,
+        choice_quality: null,
+        time_ms: 2200,
+      }),
+    ]
+    const result = buildDecoderConfidences(attempts, NOW)
+    const bdw = result.find((r) => r.decoderTag === 'BACKDOOR_WINDOW')!
+    // Correct + null quality → proxy maps to 'best'; the rep counts.
+    expect(bdw.evidence.attempts).toBe(1)
+  })
+
+  it('falls back to the proxy when choice_quality is undefined (older callers)', () => {
+    const attempts = [
+      makeAttempt({
+        decoder_tag: 'BACKDOOR_WINDOW',
+        is_correct: false,
+        // choice_quality omitted entirely
+        time_ms: 6000,
+      }),
+    ]
+    const result = buildDecoderConfidences(attempts, NOW)
+    const bdw = result.find((r) => r.decoderTag === 'BACKDOOR_WINDOW')!
+    expect(bdw.evidence.attempts).toBe(1)
   })
 })
 
@@ -187,6 +220,31 @@ describe('buildReturnCatalog', () => {
       3, // tighter window — 7d > 3d cutoff, so not fresh
     )
     expect(result[0]!.isFresh).toBe(false)
+  })
+})
+
+describe('resolveChoiceQuality', () => {
+  // Phase 10 — the proxy fallback is the contract that lets
+  // pre-migration Attempt rows keep classifying. Each branch is
+  // exercised so a future refactor that drops the fallback (or
+  // promotes the column to NOT NULL) gets caught here.
+  it('uses the denormalized value when one of the three valid enum members is present', () => {
+    expect(resolveChoiceQuality({ is_correct: false, choice_quality: 'best' })).toBe('best')
+    expect(resolveChoiceQuality({ is_correct: false, choice_quality: 'acceptable' })).toBe('acceptable')
+    expect(resolveChoiceQuality({ is_correct: true, choice_quality: 'wrong' })).toBe('wrong')
+  })
+
+  it("falls back to 'best' on a correct attempt with a null choice_quality", () => {
+    expect(resolveChoiceQuality({ is_correct: true, choice_quality: null })).toBe('best')
+  })
+
+  it("falls back to 'wrong' on a wrong attempt with a null choice_quality", () => {
+    expect(resolveChoiceQuality({ is_correct: false, choice_quality: null })).toBe('wrong')
+  })
+
+  it('falls back to the proxy when choice_quality is undefined (older callers)', () => {
+    expect(resolveChoiceQuality({ is_correct: true })).toBe('best')
+    expect(resolveChoiceQuality({ is_correct: false })).toBe('wrong')
   })
 })
 

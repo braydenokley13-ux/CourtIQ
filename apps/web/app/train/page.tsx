@@ -317,6 +317,11 @@ function TrainPageInner() {
   const [loadError, setLoadError] = useState<{ code?: string; message?: string } | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [reward, setReward] = useState<{ xp: number; iq: number; correct: boolean; key: number } | null>(null)
+  // Phase 10 — captured at submit so the WinBurst / FeedbackPanel can
+  // surface the firstSession script's per-rep recognitionLine, which
+  // takes (decoderLabel, latencyMs) → string. Reset alongside the
+  // per-scenario state below.
+  const [lastAnswerLatencyMs, setLastAnswerLatencyMs] = useState<number>(0)
   const [sceneCaption, setSceneCaption] = useState<string | undefined>(undefined)
   const [replayCounter, setReplayCounter] = useState(0)
   // Phase G — `frozen` flips true once the JSX ScenarioReplayController
@@ -575,6 +580,7 @@ function TrainPageInner() {
     setFrozen(false)
     setTimerArmed(false)
     setScenePhase('idle')
+    setLastAnswerLatencyMs(0)
   }, [idx])
 
   // Phase G — react to phase events emitted by the JSX
@@ -655,6 +661,7 @@ function TrainPageInner() {
     setSubmitting(true)
     setSelected(choiceId)
     const spentMs = Math.round((8 - timeLeft) * 1000)
+    setLastAnswerLatencyMs(spentMs)
     try {
       const res = await fetch(`/api/session/${sessionId}/attempt`, {
         method: 'POST',
@@ -1306,19 +1313,31 @@ function TrainPageInner() {
               streak={feedback.streak ?? streak}
               // V3 P9 — first-rep recognition. NAMING the decoder for
               // the first time AFTER the player picked the right read
-              // is the satisfaction beat in the V3 emotional arc. The
-              // basketball-language one-liner doubles as the sub.
+              // is the satisfaction beat in the V3 emotional arc.
+              // Phase 10 — when the spine routed this session through
+              // firstSession, the script's per-rep recognitionLine
+              // (decoderLabel, latencyMs) → string takes over the
+              // micro-praise slot. Reps 2-5 each get a tuned line
+              // ("Faster this time. You're starting to read the X.",
+              // "X — read in 2.7s.") instead of the static decoder
+              // one-liner. Rep 1 still uses the cold-start cue so the
+              // first-ever decoder reveal lands.
               headline={
                 firstRep && decoderTag
                   ? firstRepCues.recognitionHeadline(DECODER_LABELS[decoderTag])
                   : praise
               }
               microPraise={
-                firstRep && decoderTag
-                  ? firstRepCues.recognitionSub(getDecoderOneLiner(decoderTag))
-                  : suppressCueHints
-                    ? 'Good rep.'
-                    : WIN_MICRO_PRAISE[decoderTag ?? 'BACKDOOR_WINDOW']
+                firstSessionStep && decoderTag && !firstRep
+                  ? firstSessionStep.recognitionLine(
+                      DECODER_LABELS[decoderTag],
+                      lastAnswerLatencyMs,
+                    )
+                  : firstRep && decoderTag
+                    ? firstRepCues.recognitionSub(getDecoderOneLiner(decoderTag))
+                    : suppressCueHints
+                      ? 'Good rep.'
+                      : WIN_MICRO_PRAISE[decoderTag ?? 'BACKDOOR_WINDOW']
               }
             />
           ) : null}

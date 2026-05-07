@@ -72,6 +72,11 @@ export async function POST(
         scenario_id: scenario.id,
         choice_id: selectedChoice.id,
         is_correct: selectedChoice.is_correct,
+        // Phase 10 — denormalize the choice's authored quality so the
+        // spine glue (buildDecoderConfidences) can drive band logic
+        // off the real `best | acceptable | wrong` signal. Historical
+        // rows stay null and the glue falls back to its proxy.
+        choice_quality: selectedChoice.quality,
         time_ms: timeMs,
         iq_before: iq.iqBefore,
         iq_after: iq.iqAfter,

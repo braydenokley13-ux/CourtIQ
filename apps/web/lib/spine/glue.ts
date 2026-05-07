@@ -34,9 +34,15 @@ export const ALL_DECODERS: DecoderTag[] = [
 
 /** Lightweight Attempt + Scenario shape the glue accepts. Decoupled
  *  from Prisma's full row types so call sites can pass pared-down
- *  selects without casting. */
+ *  selects without casting.
+ *
+ *  Phase 10 — `choice_quality` is denormalized onto Attempt rows on
+ *  write. Pre-Phase-10 rows have `null` here; the glue falls back to
+ *  the legacy `correct → best, wrong → wrong` proxy when it sees one.
+ */
 export interface AttemptWithScenario {
   is_correct: boolean
+  choice_quality?: 'best' | 'acceptable' | 'wrong' | null
   time_ms: number
   created_at: Date
   scenario: Pick<Scenario, 'decoder_tag' | 'sub_concepts' | 'difficulty'>
@@ -48,10 +54,10 @@ export type ScenarioWithChoices = Scenario & { choices: ScenarioChoice[] }
 /**
  * Build per-decoder DecoderConfidence[] from raw Attempt rows.
  *
- * Choice quality is approximated as `'best' | 'wrong'` because the
- * Attempt table doesn't denormalize ScenarioChoice.quality (Phase 10
- * fix). The approximation only affects the `missed_acceptable` class
- * — band promotion and nextProbe selection are robust to it.
+ * Phase 10 — reads the denormalized `choice_quality` column when
+ * present so band promotion sees the real `best | acceptable |
+ * wrong` signal. Pre-Phase-10 rows (null) fall back to the legacy
+ * `correct → best, wrong → wrong` proxy.
  */
 export function buildDecoderConfidences(
   attempts: readonly AttemptWithScenario[],
@@ -70,7 +76,7 @@ export function buildDecoderConfidences(
       disguise: v.disguise,
       difficulty: a.scenario.difficulty,
       isCorrect: a.is_correct,
-      choiceQuality: a.is_correct ? 'best' : 'wrong',
+      choiceQuality: resolveChoiceQuality(a),
       timeMs: a.time_ms,
       createdAt: a.created_at,
     })
@@ -92,6 +98,23 @@ export function buildDecoderConfidences(
       recentReplayViews: 0,
     })
   })
+}
+
+/**
+ * Pick the ChoiceQuality used by the adaptive classifier. Prefers
+ * the row's denormalized value (Phase 10) and falls back to the
+ * legacy proxy when it's missing — this keeps reads honest while
+ * pre-migration rows phase out naturally.
+ *
+ * Exported so the contract is unit-testable in isolation.
+ */
+export function resolveChoiceQuality(
+  a: Pick<AttemptWithScenario, 'is_correct' | 'choice_quality'>,
+): 'best' | 'acceptable' | 'wrong' {
+  if (a.choice_quality === 'best' || a.choice_quality === 'acceptable' || a.choice_quality === 'wrong') {
+    return a.choice_quality
+  }
+  return a.is_correct ? 'best' : 'wrong'
 }
 
 /** Build the firstSession composer's CatalogScenario[] from LIVE

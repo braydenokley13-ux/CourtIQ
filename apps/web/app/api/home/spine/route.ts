@@ -41,10 +41,18 @@ export async function GET() {
   const todayUtc = new Date(`${todayKey}T00:00:00Z`)
   const tomorrowUtc = new Date(todayUtc.getTime() + 24 * 60 * 60 * 1000)
 
-  const [attempts, liveCount, todaySession, recentDailyDates] = await Promise.all([
+  const [attemptsDescBounded, liveCount, todaySession, recentDailyDates] = await Promise.all([
+    // Phase 10 — bound the unbounded attempts query. The adaptive
+    // band logic only inspects the most recent RECOGNITION_WINDOW=10
+    // admissible attempts per decoder; 200 global rows is ~50 per
+    // decoder which is well past the band-promotion ceiling. Sort
+    // desc + take, then reverse below so the glue still sees
+    // oldest-first (computeDecoderConfidence's slice(-N) depends on
+    // the ordering).
     prisma.attempt.findMany({
       where: { user_id: user.id },
-      orderBy: { created_at: 'asc' },
+      orderBy: { created_at: 'desc' },
+      take: 200,
       include: { scenario: true },
     }),
     prisma.scenario.count({ where: { status: 'LIVE' } }),
@@ -68,6 +76,7 @@ export async function GET() {
     }),
   ])
 
+  const attempts = [...attemptsDescBounded].reverse()
   const decoders = buildDecoderConfidences(attempts, now)
   const ring = decoderRingStrip(decoders)
   const focusLine = todaysFocusLine(decoders)

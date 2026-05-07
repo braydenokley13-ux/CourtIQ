@@ -60,17 +60,22 @@ export async function POST() {
   }
 
   // Compose today's daily.
-  const [allLive, attempts] = await Promise.all([
+  const [allLive, attemptsDesc] = await Promise.all([
     prisma.scenario.findMany({
       where: { status: 'LIVE' },
       include: { choices: true },
     }),
+    // Phase 10 — bound to the last 200 attempts. The daily composer's
+    // transfer-probe swap reads decoder confidences which only need
+    // the recent admissible window per decoder, not lifetime history.
     prisma.attempt.findMany({
       where: { user_id: user.id },
-      orderBy: { created_at: 'asc' },
+      orderBy: { created_at: 'desc' },
+      take: 200,
       include: { scenario: true },
     }),
   ])
+  const attempts = [...attemptsDesc].reverse()
 
   const dailyCatalog: DailyCatalogScenario[] = allLive.map((s) => {
     const v = parseScenarioVariantTags(s.sub_concepts ?? [])

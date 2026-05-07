@@ -139,6 +139,13 @@ model Attempt {
   scenario       Scenario   @relation(fields: [scenario_id], references: [id])
   choice_id      String
   is_correct     Boolean
+  // Phase 10 — denormalizes ScenarioChoice.quality at write time so
+  // the spine glue layer can drive band promotion off the real
+  // `best | acceptable | wrong` signal instead of the coarse
+  // `correct → best, wrong → wrong` proxy. Nullable so historical
+  // rows continue to read as legacy (the glue falls back to the
+  // proxy when null). Forward-only — no backfill required.
+  choice_quality ChoiceQuality?
   time_ms        Int
   iq_before      Int
   iq_after       Int

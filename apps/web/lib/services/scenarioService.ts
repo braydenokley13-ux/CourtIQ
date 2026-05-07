@@ -205,7 +205,7 @@ export async function generateSessionBundle(
 
   // ---- Default selection: hydrate everything once, then route into
   // the right composer.
-  const [profile, allLiveScenarios, recentAttempts, lifetimeCount, lastSession] =
+  const [profile, allLiveScenarios, recentAttemptsDesc, lifetimeCount, lastSession] =
     await Promise.all([
       prisma.profile.findUnique({ where: { user_id: userId } }),
       prisma.scenario.findMany({
@@ -215,9 +215,15 @@ export async function generateSessionBundle(
         },
         include: { choices: true },
       }),
+      // Phase 10 — bound the unbounded attempts query. 200 global
+      // rows comfortably covers the adaptive RECOGNITION_WINDOW=10
+      // per decoder (4 decoders × 10 = 40 admissible). Sort desc +
+      // take, reverse to oldest-first afterwards so the glue's
+      // ordering contract still holds.
       prisma.attempt.findMany({
         where: { user_id: userId },
-        orderBy: { created_at: 'asc' },
+        orderBy: { created_at: 'desc' },
+        take: 200,
         include: { scenario: true },
       }),
       prisma.attempt.count({ where: { user_id: userId } }),
@@ -227,6 +233,11 @@ export async function generateSessionBundle(
         select: { started_at: true },
       }),
     ])
+
+  // The bounded query came back desc; flip to oldest-first so the
+  // adaptive band logic + the legacy weighted bundle's "last 20
+  // concepts" math read the player's history in chronological order.
+  const recentAttempts = [...recentAttemptsDesc].reverse()
 
   const scenarioById = new Map(allLiveScenarios.map((s) => [s.id, s]))
   const decoderConfidences = buildDecoderConfidences(recentAttempts, now)
