@@ -14,6 +14,7 @@ import {
 import { INTRO_HOME_BANNER } from '@/lib/onboarding/introCopy'
 import { deriveReturnFocus, type ReturnFocus } from '@/lib/retention/todayFocus'
 import { pickHomePathwayCta } from '@/lib/retention/homePathwayCta'
+import type { DecoderRingData } from '@/lib/recognitionSurface'
 
 const ease = [0.22, 1, 0.36, 1]
 
@@ -63,6 +64,22 @@ interface PathwayProgressLite {
   pathwayProgress: number
   pathwayMastered: boolean
   recommendedNext: { trainHref: string; label: string } | null
+}
+
+/** Phase 8 — payload from /api/home/spine. Aggregates the recognition
+ *  surface ring + today's-focus line + daily-challenge status so the
+ *  home page can render the spine in one round-trip. */
+interface HomeSpine {
+  decoderRing: DecoderRingData[]
+  focusLine: string | null
+  daily: {
+    available: boolean
+    date: string
+    session_run_id: string | null
+    completed_today: boolean
+    started_today: boolean
+    streak: number
+  }
 }
 
 const FOUNDATION_DETAIL_HREF = '/pathways/complete-iq-foundation'
@@ -232,6 +249,116 @@ function PathwayPrimaryCard({
   )
 }
 
+/** Phase 8 — single decoder ring tile.
+ *  Renders the 3-segment progress ring (recognizing → reflexive →
+ *  mastered) backed by `decoderRingData`. Pure presentation — the
+ *  segment states + status copy come straight from the spine. */
+function DecoderRingTile({ ring }: { ring: DecoderRingData }) {
+  const segs = [ring.segments.recognizing, ring.segments.reflexive, ring.segments.mastered]
+  return (
+    <div
+      aria-label={ring.ariaLabel}
+      className="flex flex-col gap-1.5 rounded-2xl border border-[#1F2937] bg-[#111827] p-3"
+    >
+      <p className="text-[11px] font-semibold leading-tight text-[#F9FAFB]">{ring.label}</p>
+      <div className="flex items-center gap-1">
+        {segs.map((state, i) => (
+          <span
+            key={i}
+            className={[
+              'h-1.5 flex-1 rounded-full transition-colors',
+              state === 'lit'
+                ? 'bg-[#3BE383]'
+                : state === 'progress'
+                  ? ring.showProgressPulse
+                    ? 'animate-pulse bg-[#3BE383]/50'
+                    : 'bg-[#3BE383]/40'
+                  : 'bg-[#1F2937]',
+            ].join(' ')}
+          />
+        ))}
+      </div>
+      <p className="text-[10px] font-semibold uppercase tracking-[1.2px] text-[#3BE383]">
+        {ring.status}
+      </p>
+      <p className="text-[10px] text-[#9CA3AF]">{ring.evidence}</p>
+    </div>
+  )
+}
+
+/** Phase 8 — Daily Challenge card. The "fourth surface" beside
+ *  IQ hero / focus card / decoder ring. Independent from training —
+ *  hits the daily ritual streak, not the training streak. */
+function DailyChallengeCard({
+  daily,
+}: {
+  daily: HomeSpine['daily']
+}) {
+  if (!daily.available) {
+    return (
+      <motion.div
+        custom={3}
+        initial="hidden"
+        animate="show"
+        variants={fadeUp}
+        className="mb-3 rounded-2xl border border-[#1F2937] bg-[#0E1B16] px-4 py-3"
+        data-testid="home-daily-card"
+      >
+        <p className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#6B7280]">
+          Daily — coming soon
+        </p>
+        <p className="mt-0.5 text-[12px] text-[#9CA3AF]">
+          Library is still loading. Check back later.
+        </p>
+      </motion.div>
+    )
+  }
+
+  const completed = daily.completed_today
+  const started = daily.started_today && !completed
+  const eyebrow = completed
+    ? `${daily.streak}-day daily streak`
+    : started
+      ? 'Daily — in progress'
+      : "Today's daily"
+  const title = completed
+    ? 'See your result.'
+    : started
+      ? 'Resume the daily.'
+      : 'Five reads. Mystery Mode.'
+  const ctaHref = completed && daily.session_run_id
+    ? `/daily/result?id=${daily.session_run_id}`
+    : '/daily'
+
+  return (
+    <motion.div
+      custom={3}
+      initial="hidden"
+      animate="show"
+      variants={fadeUp}
+      className="mb-4"
+      data-testid="home-daily-card"
+    >
+      <Link
+        href={ctaHref}
+        className="ciq-lift flex items-center justify-between gap-3 rounded-2xl border border-[#1F2937] bg-[#0E1B16] px-4 py-3 transition-colors hover:border-[#3BE383]/40"
+      >
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#3BE383]">
+            {eyebrow}
+          </p>
+          <p className="mt-0.5 font-display text-[14px] font-bold text-[#F9FAFB]">
+            {title}
+          </p>
+        </div>
+        <span aria-hidden className="text-[18px] text-[#3BE383]">
+          →
+        </span>
+      </Link>
+    </motion.div>
+  )
+}
+
 function CourtLines() {
   return (
     <svg
@@ -256,6 +383,7 @@ export default function HomePage() {
   const [data, setData] = useState<ProfileData | null>(null)
   const [sessions, setSessions] = useState<RecentSession[]>([])
   const [pathway, setPathway] = useState<PathwayProgressLite | null>(null)
+  const [spine, setSpine] = useState<HomeSpine | null>(null)
   const [loading, setLoading] = useState(true)
   // V3 P2 — first-time intro modal. Auto-opens for cold-start players;
   // subsequent loads reopen only when the player explicitly taps the
@@ -279,10 +407,11 @@ export default function HomePage() {
       // Fetch profile + recent sessions + foundation pathway progress
       // in parallel. Pathway endpoint is auth-cookie-based; failing it
       // shouldn't block the rest of the home dashboard.
-      const [profileRes, sessionsRes, pathwayRes] = await Promise.all([
+      const [profileRes, sessionsRes, pathwayRes, spineRes] = await Promise.all([
         fetch(`/api/profile?userId=${user.id}`),
         fetch(`/api/sessions/recent?userId=${user.id}`),
         fetch(`/api/pathways/complete-iq-foundation/progress`),
+        fetch(`/api/home/spine`),
       ])
 
       if (profileRes.ok) {
@@ -293,6 +422,9 @@ export default function HomePage() {
       }
       if (pathwayRes.ok) {
         setPathway(await pathwayRes.json())
+      }
+      if (spineRes.ok) {
+        setSpine(await spineRes.json())
       }
       setLoading(false)
     }
@@ -450,6 +582,61 @@ export default function HomePage() {
             })}
           />
         ) : null}
+
+        {/* Phase 8 — Today's focus card.
+            Single sentence sourced from `todaysFocusLine(decoders)` —
+            names the player's strongest in-progress decoder + the
+            specific next milestone. Hidden when the player has no
+            in-progress decoders (the Pathway CTA below covers that
+            case). Sits ABOVE the decoder ring so the ring lights up
+            against a sentence the player just read. */}
+        {!loading && spine?.focusLine ? (
+          <motion.div
+            custom={2}
+            initial="hidden"
+            animate="show"
+            variants={fadeUp}
+            className="mb-3 rounded-2xl border border-[#1F2937] bg-[#0E1B16] p-3"
+            data-testid="home-todays-focus"
+          >
+            <p className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#3BE383]">
+              Today&apos;s focus
+            </p>
+            <p className="mt-0.5 font-display text-[14px] font-bold leading-snug text-[#F9FAFB]">
+              {spine.focusLine}
+            </p>
+          </motion.div>
+        ) : null}
+
+        {/* Phase 8 — Decoder ring strip.
+            The 3-segment ring is the player's long-term scoreboard.
+            `decoderRingStrip` returns [] when every decoder is still
+            untested — in that case we render nothing and let the
+            first-session arc carry the moment. */}
+        {!loading && spine && spine.decoderRing.length > 0 ? (
+          <motion.div
+            custom={2.5}
+            initial="hidden"
+            animate="show"
+            variants={fadeUp}
+            className="mb-4"
+            data-testid="home-decoder-ring-strip"
+          >
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {spine.decoderRing.map((d) => (
+                <DecoderRingTile key={d.decoder} ring={d} />
+              ))}
+            </div>
+          </motion.div>
+        ) : null}
+
+        {/* Phase 8 — Daily Challenge card.
+            One row, three states:
+              - completed_today  → green, "X-day streak" + "See result"
+              - started, not done → green, "Resume daily"
+              - not started, available → green, "Take today's daily"
+              - unavailable (catalog too thin) → muted "coming soon" */}
+        {!loading && spine ? <DailyChallengeCard daily={spine.daily} /> : null}
 
         {/* V3 P11 P1 — the previous 3-card stat grid (Streak / Accuracy
             / Sessions) was the loudest dashboard energy on /home. The

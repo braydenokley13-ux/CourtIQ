@@ -110,15 +110,22 @@ model ScenarioChoice {
 }
 
 model SessionRun {
-  id            String    @id @default(uuid())
+  id            String      @id @default(uuid())
   user_id       String
-  user          User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  started_at    DateTime  @default(now())
+  user          User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  started_at    DateTime    @default(now())
   ended_at      DateTime?
   scenario_ids  String[]
-  correct_count Int       @default(0)
-  xp_earned     Int       @default(0)
-  iq_delta      Int       @default(0)
+  correct_count Int         @default(0)
+  xp_earned     Int         @default(0)
+  iq_delta      Int         @default(0)
+  // Phase 8 — distinguishes the routing path that produced this
+  // bundle. `training` is the legacy weighted/adaptive composer,
+  // `first_session` runs the Phase 5 cold-start arc, `return_loop`
+  // runs the Phase 6 returning-player composer, `daily_challenge`
+  // runs the Phase 7 mystery-mode bundle (does NOT update mastery
+  // bands or training streak — see /api/daily routes).
+  mode          SessionMode @default(training)
   attempts      Attempt[]
 
   @@index([user_id, started_at])
@@ -282,4 +289,13 @@ enum ChoiceQuality {
 enum MasteryDimension {
   concept
   decoder
+}
+
+// Phase 8 — drives the scenarioService composer split + skips
+// mastery / training-streak side effects on daily_challenge sessions.
+enum SessionMode {
+  training
+  first_session
+  return_loop
+  daily_challenge
 }

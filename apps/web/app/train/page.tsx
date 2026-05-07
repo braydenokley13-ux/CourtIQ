@@ -46,6 +46,15 @@ type SessionScenario = {
   scene?: unknown
   user_role?: string
   decoder_tag?: DecoderTag | null
+  /** Phase 8 — single-line eyebrow shown above this rep, sourced
+   *  from the spine composer (firstSession / returnLoop / adaptive). */
+  recognition_reason?: string | null
+}
+
+type SessionMeta = {
+  user_iq?: number
+  banner?: string | null
+  mode?: 'training' | 'first_session' | 'return_loop' | 'daily_challenge'
 }
 
 const DECODER_LABELS: Record<DecoderTag, string> = {
@@ -288,6 +297,9 @@ function TrainPageInner() {
   // difficulty, timer). Stays `null` while loading so we never flash
   // the chrome and snap it away.
   const [attemptsCount, setAttemptsCount] = useState<number | null>(null)
+  // Phase 8 — meta returned by /api/session/start. Drives the
+  // return-loop banner + lets the page know which composer ran.
+  const [sessionMeta, setSessionMeta] = useState<SessionMeta | null>(null)
   const [idx, setIdx] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<AttemptFeedback | null>(null)
@@ -474,7 +486,7 @@ function TrainPageInner() {
           message?: string
           session_run_id?: string
           scenarios?: SessionScenario[]
-          meta?: { user_iq?: number }
+          meta?: SessionMeta
         }
         if (!res.ok) {
           setLoadError({ code: body.error, message: body.message })
@@ -487,6 +499,7 @@ function TrainPageInner() {
         setSessionId(body.session_run_id)
         setScenarios(body.scenarios)
         setIq(body.meta?.user_iq ?? 500)
+        setSessionMeta(body.meta ?? null)
       } catch {
         setLoadError({ code: 'NETWORK_ERROR' })
       } finally {
@@ -868,6 +881,21 @@ function TrainPageInner() {
           </div>
         ) : null}
 
+        {/* Phase 8 — return-loop banner. Sourced from the spine
+            composer's `meta.banner` (e.g. "Picking up where you left
+            off." for next-day, "Welcome back." for lapsed). Only
+            renders when the spine composer chose to surface one —
+            cold-start arc + dormant context skip the banner so the
+            decoder reveal carries the framing instead. */}
+        {sessionMeta?.banner && !pathwayContext ? (
+          <div
+            data-testid="train-return-banner"
+            className="rounded-2xl border border-brand/30 bg-brand/5 px-3 py-2 text-center text-[12px] font-semibold leading-snug text-brand"
+          >
+            {sessionMeta.banner}
+          </div>
+        ) : null}
+
         {/* Header — clear at-a-glance status. XP + IQ live as soft chips
             so the eye doesn't have to parse three different colors when
             the streak is hot. */}
@@ -1043,6 +1071,24 @@ function TrainPageInner() {
                     Read ·
                   </span>{' '}
                   {getDecoderOneLiner(decoderTag)}
+                </p>
+              ) : null}
+              {/* Phase 8 — recognition reason eyebrow.
+                  One sentence per rep, sourced from
+                  recognitionSurface.recognitionReason() via the
+                  scenarioService composer. Tells the player WHY this
+                  particular rep is in front of them ("Same read, new
+                  shape", "Quick re-read before the next try"). Only
+                  shown for non-cold-start, non-challenge reps —
+                  challenges intentionally hide this so the player has
+                  to read the cue without help; first-rep already has
+                  its own framing. */}
+              {!firstRep && !suppressCueHints && current?.recognition_reason ? (
+                <p
+                  data-testid="train-recognition-reason"
+                  className="text-[11px] font-semibold leading-snug text-brand/80"
+                >
+                  {current.recognition_reason}
                 </p>
               ) : null}
               {isDecoder ? <PhaseTracker phase={learnPhase} /> : null}
