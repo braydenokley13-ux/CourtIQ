@@ -40,10 +40,18 @@ describe('Scenario3DCanvas rendering guarantees', () => {
     expect(canvas).toContain('controllerActive ? null : <RenderHeartbeat />')
   })
 
-  it('keeps pass-arrival camera shake deterministic instead of random jitter', () => {
+  it('hard-disables the pass-arrival shake position offset to eliminate jitter', () => {
+    // P0 stability — the previous deterministic-sine offset still
+    // stacked on top of the controller's eased lerp. We now drain
+    // the motion-controller flag every frame (preserving internal
+    // state) but write no offset to camera.position.
     const canvas = source('Scenario3DCanvas.tsx')
-    expect(canvas).toContain('Smooth deterministic shake')
+    // Random jitter must never come back.
     expect(canvas).not.toContain('Math.random()')
+    // Position-offset writes must stay gone.
+    expect(canvas).not.toContain('cam.position.x +=')
+    expect(canvas).not.toContain('cam.position.y +=')
+    expect(canvas).not.toContain('cam.position.z +=')
   })
 
   it('exposes a ?debug3d=1 self-test that always renders a hero scene', () => {
