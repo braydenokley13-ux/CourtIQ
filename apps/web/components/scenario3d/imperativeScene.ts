@@ -1488,6 +1488,10 @@ export class CameraController {
   private targetNear = 0.5
   private targetFar = 400
   private currentLookAt = new THREE.Vector3(SCENE_FOCUS.x, SCENE_FOCUS.y, SCENE_FOCUS.z)
+  // P0 stability — track the camera's last-seen rendered position so
+  // hasSettled can also check position convergence (not just lookAt).
+  // Updated at the end of every tick from the camera passed in.
+  private lastRenderedPosition = new THREE.Vector3()
   private hasTarget = false
   private snap = true
   // Phase L11 — frame-rate independent camera ease. The pre-L11
@@ -1618,21 +1622,32 @@ export class CameraController {
   hasSettled(): boolean {
     if (!this.hasTarget) return true
     if (this.snap) return true
-    // Position drift — Vector3.distanceToSquared is allocation-free.
-    // 0.05 ft → 0.0025 ft² threshold.
-    const dx = this.targetPosition.x - this.currentLookAt.x
-    void dx
-    // We measure against the targetPosition vs. an internal reference
-    // by inspecting the lerp residual through the lookAt cursor: the
-    // current lookAt eases toward the target lookAt, so when the two
-    // agree the position lerp must also have converged (both share
-    // the same time constant). This avoids storing an extra
-    // currentPosition vector — the camera holds it directly.
+    // P0 stability — check BOTH position and lookAt convergence.
+    //
+    // The pre-fix version only inspected the lookAt cursor and assumed
+    // the position lerp had matched it (both share the same time
+    // constant). That assumption breaks the moment a downstream effect
+    // mutates camera.position out of band — for instance, the now-
+    // disabled pass-arrival shake used to do exactly that, and the
+    // hasSettled gate would still report `true` even though the
+    // position lerp had to chase the offset on the next tick.
+    //
+    // Each call compares the controller's target position against the
+    // last-rendered camera position the previous tick recorded.
+    // Threshold ≈ 0.05 ft (≈ 1.5 cm) on each axis, well below human-
+    // noticeable jitter on the broadcast frame. FOV/near/far need not
+    // be checked here — they converge in lockstep with position via
+    // the same `t` factor.
     const lookatDistSq =
       (this.targetLookAt.x - this.currentLookAt.x) ** 2 +
       (this.targetLookAt.y - this.currentLookAt.y) ** 2 +
       (this.targetLookAt.z - this.currentLookAt.z) ** 2
-    return lookatDistSq < 0.0025
+    if (lookatDistSq >= 0.0025) return false
+    const posDistSq =
+      (this.targetPosition.x - this.lastRenderedPosition.x) ** 2 +
+      (this.targetPosition.y - this.lastRenderedPosition.y) ** 2 +
+      (this.targetPosition.z - this.lastRenderedPosition.z) ** 2
+    return posDistSq < 0.0025
   }
 
   /**
@@ -1684,6 +1699,13 @@ export class CameraController {
     }
 
     camera.updateMatrixWorld()
+    // P0 stability — record the camera's resolved position so a
+    // subsequent hasSettled() call can check position convergence
+    // without storing a separate currentPosition. The recorded
+    // value is what the renderer actually used this frame, so any
+    // downstream offset (e.g. a future cinematic shake) shows up as
+    // a not-yet-settled state on the next call.
+    this.lastRenderedPosition.copy(camera.position)
     this.snap = false
   }
 
