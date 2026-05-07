@@ -5,8 +5,12 @@ import { weeklyDigestEmail } from '@/lib/email/templates/weekly-digest'
 
 // Called by Vercel cron every Sunday at 10:00 UTC.
 export async function GET(request: Request) {
+  const expected = process.env.CRON_SECRET
+  if (!expected) {
+    return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 })
+  }
   const secret = request.headers.get('authorization')?.replace('Bearer ', '')
-  if (secret !== process.env.CRON_SECRET) {
+  if (secret !== expected) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

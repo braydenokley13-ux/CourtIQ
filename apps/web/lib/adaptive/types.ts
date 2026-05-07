@@ -9,6 +9,19 @@
  * sentence a coach would agree with. If it can't, it doesn't ship.
  */
 
+/**
+ * Local decoder-tag union mirroring the four LIVE values on the Prisma
+ * `DecoderTag` enum. Duplicated here (rather than imported from
+ * `@prisma/client`) so this types module stays runtime-free and can be
+ * consumed by client components. Must stay aligned with `enum DecoderTag`
+ * in `packages/db/prisma/schema.prisma`.
+ */
+export type DecoderTag =
+  | 'BACKDOOR_WINDOW'
+  | 'EMPTY_SPACE_CUT'
+  | 'ADVANTAGE_OR_RESET'
+  | 'SKIP_THE_ROTATION'
+
 export type ChoiceQuality = 'best' | 'acceptable' | 'wrong'
 
 export interface AdaptiveAttempt {

@@ -13,7 +13,7 @@
  * either way.
  */
 import type { DecoderConfidence } from '../adaptive/types'
-import { seedDailyChallenge, type DailyCatalogScenario, type DailySeedResult } from './seed'
+import { seedDailyChallenge, type DailyCatalogScenario } from './seed'
 
 export interface ComposeDailyInput {
   utcDate: Date
@@ -63,7 +63,7 @@ export function composeDailyChallenge(input: ComposeDailyInput): DailyChallengeB
   // decoder, if any of today's slots land on it.
   const memorizationDecoder = pickMemorizationDecoder(input.decoderConfidences)
   let swappedSlotIndex: number | null = null
-  let scenarioIds = [...seed.scenarioIds]
+  const scenarioIds = [...seed.scenarioIds]
 
   if (memorizationDecoder) {
     const slotIdx = seed.slotPicks.findIndex(

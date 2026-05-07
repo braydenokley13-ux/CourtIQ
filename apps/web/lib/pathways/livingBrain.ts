@@ -100,6 +100,7 @@ export type ObservationKind =
   | 'anticipation_streak'
   | 'archetype_emerging'
   | 'dormant_decoder'
+  | 'applied_recognition'
 
 export type ObservationSurface =
   /** Home card; user-facing. */
@@ -131,7 +132,11 @@ export const MIN_SESSIONS_FOR_USER_FACING = 6
 /** Per-week user-facing observation cap. Above this, surface=silent. */
 export const MAX_USER_FACING_PER_WEEK = 3
 
-/** Cooldown days per observation kind. Composite key = kind+decoder. */
+/** Cooldown days per observation kind. Composite key = kind+decoder.
+ *  `applied_recognition` is owned by Phase 8 — see `APPLIED_COOLDOWN_DAYS`
+ *  in `appliedRecognition.ts`. The 0-entry here exists only so the
+ *  `Record<ObservationKind, number>` type stays exhaustive; runtime
+ *  cooldown checks for `applied_recognition` go through Phase 8. */
 export const COOLDOWN_DAYS: Record<ObservationKind, number> = {
   growth: 14,
   tendency: 21,
@@ -139,6 +144,7 @@ export const COOLDOWN_DAYS: Record<ObservationKind, number> = {
   anticipation_streak: 7,
   archetype_emerging: 30,
   dormant_decoder: 14,
+  applied_recognition: 0,
 }
 
 /** Once an archetype has been earned, hold it for ≥ this many days
