@@ -154,42 +154,47 @@ function SignupContent() {
     setLoading(true)
     setError(null)
 
-    const syntheticEmail = `${username.trim().toLowerCase()}@users.courtiq.app`
-    const supabase = createClient()
-    const { data, error: authError } = await supabase.auth.signUp({
-      email: syntheticEmail,
-      password,
-      options: {
-        data: {
-          username: username.trim().toLowerCase(),
-          display_name: displayName.trim() || undefined,
-          recovery_email: recoveryEmail.trim() || undefined,
-          onboarded: false,
-        },
-      },
-    })
+    const res = await fetch('/api/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: username.trim(),
+        password,
+        displayName: displayName.trim(),
+        recoveryEmail: recoveryEmail.trim(),
+      }),
+    }).catch(() => null)
 
-    if (authError) {
-      const msg = authError.message
-      if (msg.includes('already registered') || msg.includes('already in use') || msg.includes('already exists')) {
-        setError('Username already taken. Please choose a different one.')
-      } else {
-        setError(msg)
-      }
+    if (!res) {
+      setError('Network error. Please try again.')
+      setLoading(false)
+      return
+    }
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      setError(data.error ?? 'Could not create account. Please try again.')
       setLoading(false)
       return
     }
 
     trackSignup('username')
 
-    if (data.session) {
-      router.push('/onboarding')
-      router.refresh()
-    } else {
-      // Should not happen when email confirmation is disabled, but handle gracefully
-      router.push('/onboarding')
-      router.refresh()
+    const syntheticEmail = `${username.trim().toLowerCase()}@users.courtiq.app`
+    const supabase = createClient()
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: syntheticEmail,
+      password,
+    })
+
+    if (signInError) {
+      setError('Account created, but sign-in failed. Please try logging in.')
+      setLoading(false)
+      return
     }
+
+    router.push('/onboarding')
+    router.refresh()
   }
 
   return (
