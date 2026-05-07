@@ -149,7 +149,6 @@ export const ARCHETYPE_PERSISTENCE_DAYS = 90
 
 /** Minimum aggregate evidence before any archetype can be awarded. */
 const ARCHETYPE_MIN_TOTAL_REPS = 30
-const ARCHETYPE_MIN_DAYS = 14
 const ARCHETYPE_MIN_UNIQUE_SCENARIOS_PER_DECODER = 3
 const ARCHETYPE_STRONG_ACCURACY = 0.7
 const ARCHETYPE_STRONG_ANTICIPATION = 0.4
