@@ -220,7 +220,7 @@ function ActivePathwayView({
               className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px]"
               style={{ color: accent, borderColor: `${accent}55` }}
             >
-              Trains the {archetypeLabel}
+              Builds the {archetypeLabel}
             </span>
             <span className="rounded-full border border-hairline-2 bg-bg-2 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-text-mute">
               ~{pathway.estimatedMinutes} min
@@ -404,10 +404,10 @@ function ActivePathwayView({
         <section className="ciq-stage-in ciq-stage-in-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">
-              Chapters
+              The chapters
             </p>
             <p className="text-[10px] font-semibold uppercase tracking-[1.2px] text-text-mute tabular-nums">
-              {breakdown.chaptersMastered}/{breakdown.totalChapters} mastered
+              {breakdown.chaptersMastered}/{breakdown.totalChapters} locked in
             </p>
           </div>
           {pathway.chapters.map((chapter, i) => (
@@ -788,7 +788,7 @@ function ChapterRow({
           </span>
           {decoderAccPct !== null ? (
             <span className="rounded-full border border-hairline px-2 py-0.5 font-bold text-text-mute">
-              {decoderAccPct}% accuracy
+              {decoderAccPct}% sharp
             </span>
           ) : null}
         </div>
