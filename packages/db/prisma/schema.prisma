@@ -110,15 +110,22 @@ model ScenarioChoice {
 }
 
 model SessionRun {
-  id            String    @id @default(uuid())
+  id            String      @id @default(uuid())
   user_id       String
-  user          User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  started_at    DateTime  @default(now())
+  user          User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  started_at    DateTime    @default(now())
   ended_at      DateTime?
   scenario_ids  String[]
-  correct_count Int       @default(0)
-  xp_earned     Int       @default(0)
-  iq_delta      Int       @default(0)
+  correct_count Int         @default(0)
+  xp_earned     Int         @default(0)
+  iq_delta      Int         @default(0)
+  // Phase 8 — distinguishes the routing path that produced this
+  // bundle. `training` is the legacy weighted/adaptive composer,
+  // `first_session` runs the Phase 5 cold-start arc, `return_loop`
+  // runs the Phase 6 returning-player composer, `daily_challenge`
+  // runs the Phase 7 mystery-mode bundle (does NOT update mastery
+  // bands or training streak — see /api/daily routes).
+  mode          SessionMode @default(training)
   attempts      Attempt[]
 
   @@index([user_id, started_at])
@@ -132,6 +139,20 @@ model Attempt {
   scenario       Scenario   @relation(fields: [scenario_id], references: [id])
   choice_id      String
   is_correct     Boolean
+  // Phase 10 — denormalizes ScenarioChoice.quality at write time so
+  // the spine glue layer can drive band promotion off the real
+  // `best | acceptable | wrong` signal instead of the coarse
+  // `correct → best, wrong → wrong` proxy. Nullable so historical
+  // rows continue to read as legacy (the glue falls back to the
+  // proxy when null). Forward-only — no backfill required.
+  choice_quality ChoiceQuality?
+  // Phase 11 — number of replay-demo views the player triggered on
+  // this rep (Scene replay button in /train). The adaptive band
+  // logic reads recentReplayViews — when it's elevated the routing
+  // layer prefers `mystery-mode` for the next rep so the player
+  // can't grind the demo into a memorized read. Defaults to 0 so
+  // pre-Phase-11 rows count as "no replays seen".
+  replay_count   Int            @default(0)
   time_ms        Int
   iq_before      Int
   iq_after       Int
@@ -282,4 +303,13 @@ enum ChoiceQuality {
 enum MasteryDimension {
   concept
   decoder
+}
+
+// Phase 8 — drives the scenarioService composer split + skips
+// mastery / training-streak side effects on daily_challenge sessions.
+enum SessionMode {
+  training
+  first_session
+  return_loop
+  daily_challenge
 }

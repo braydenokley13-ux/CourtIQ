@@ -1,0 +1,130 @@
+{
+  "id": "AOR.short-closeout-shoot",
+  "decoder_tag": "ADVANTAGE_OR_RESET",
+  "category": "OFFENSE",
+  "concept_tags": ["catch_and_read", "closeout_read"],
+  "sub_concepts": ["shot_off_catch", "closeout_advantage"],
+
+  "tactical": {
+    "cue_atoms": ["short_closeout", "hips_turned_to_ball"],
+    "primary_defender_slot": "closeout_def",
+    "user_slot_default": "shooter",
+    "teaching_point": "On the catch, read the closeout. Short and under control means his cushion is yours — shoot before his hands are up.",
+    "common_miss_reason": "Loyalty to the dribble. Wings catch and put the ball on the floor by reflex even when the defender's cushion already gives them the shot.",
+    "why_best_read_works": "The defender was helping one pass away. Closing out from the help position cannot beat the ball — a catch in the shooting pocket forces the contest before his hands are up. The shot is open precisely because the defender bet on the help.",
+    "lesson_connection": "advantage-or-reset",
+    "difficulty_default": 1
+  },
+
+  "scene": {
+    "type": "catch_and_read_closeout",
+    "court": "half",
+    "camera": "passer_side_three_quarter",
+    "players": [
+      { "slot": "passer", "team": "offense", "role": "ball_handler", "label": "PG", "start": { "x": -8, "z": 14 }, "hasBall": true },
+      { "slot": "shooter", "team": "offense", "role": "wing_shooter", "label": "You", "start": { "x": 16, "z": 9 } },
+      { "slot": "weak_wing", "team": "offense", "role": "weak_wing", "label": "3", "start": { "x": -16, "z": 10 } },
+      { "slot": "strong_corner", "team": "offense", "role": "strong_corner", "label": "4", "start": { "x": 22, "z": 1 } },
+      { "slot": "on_ball_def", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": -8, "z": 16 } },
+      { "slot": "closeout_def", "team": "defense", "role": "wing_defender_helping", "label": "x2", "start": { "x": 6, "z": 5 } },
+      { "slot": "weak_wing_def", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": -14, "z": 11 } },
+      { "slot": "low_man", "team": "defense", "role": "low_man", "label": "x4", "start": { "x": 20, "z": 3 } }
+    ],
+    "ball": { "holderSlot": "passer" },
+    "movements": [
+      { "id": "user_lift_to_catch", "playerSlot": "shooter", "kind": "lift", "to": { "x": 16, "z": 10 }, "delayMs": 0, "durationMs": 600 },
+      { "id": "passer_pass_to_wing", "playerSlot": "ball", "kind": "pass", "to": { "x": 16, "z": 10 }, "delayMs": 350, "durationMs": 700 },
+      { "id": "closeout_to_wing", "playerSlot": "closeout_def", "kind": "closeout", "to": { "x": 14, "z": 8 }, "delayMs": 450, "durationMs": 750 }
+    ],
+    "answerDemo": [
+      { "id": "user_shot_lift", "playerSlot": "shooter", "kind": "lift", "to": { "x": 16, "z": 10 }, "delayMs": 0, "durationMs": 250 },
+      { "id": "user_release_pass", "playerSlot": "ball", "kind": "pass", "to": { "x": 0, "z": 0.5 }, "delayMs": 200, "durationMs": 700 }
+    ],
+    "freezeMarker": { "kind": "atMs", "atMs": 1500 },
+    "wrongDemos": [
+      {
+        "outcome": "rip_and_drive",
+        "caption": "You drove past, but he recovered to contest.",
+        "movements": [
+          { "id": "user_rip", "playerSlot": "shooter", "kind": "rip", "to": { "x": 17, "z": 9 }, "delayMs": 0, "durationMs": 300 },
+          { "id": "user_drive_baseline", "playerSlot": "shooter", "kind": "drive", "to": { "x": 18, "z": 2 }, "delayMs": 100, "durationMs": 700 },
+          { "id": "closeout_recover", "playerSlot": "closeout_def", "kind": "rotation", "to": { "x": 17, "z": 3 }, "delayMs": 200, "durationMs": 700 }
+        ]
+      },
+      {
+        "outcome": "pass_back",
+        "caption": "You passed it back. The shot is gone.",
+        "movements": [
+          { "id": "user_swing_back", "playerSlot": "ball", "kind": "pass", "to": { "x": -8, "z": 14 }, "delayMs": 0, "durationMs": 600 },
+          { "id": "closeout_recover_set", "playerSlot": "closeout_def", "kind": "rotation", "to": { "x": 14, "z": 8 }, "delayMs": 100, "durationMs": 500 }
+        ]
+      },
+      {
+        "outcome": "pump_fake_hold",
+        "caption": "He closed the cushion while you held it.",
+        "movements": [
+          { "id": "user_pump", "playerSlot": "shooter", "kind": "lift", "to": { "x": 16, "z": 10 }, "delayMs": 0, "durationMs": 350 },
+          { "id": "closeout_recover_contest", "playerSlot": "closeout_def", "kind": "closeout", "to": { "x": 16, "z": 9 }, "delayMs": 200, "durationMs": 600 }
+        ]
+      }
+    ]
+  },
+
+  "overlays": {
+    "pre": [
+      { "kind": "defender_vision_cone", "onSlot": "closeout_def", "targetSlot": "shooter" },
+      { "kind": "defender_hip_arrow", "onSlot": "closeout_def" },
+      { "kind": "defender_foot_arrow", "onSlot": "closeout_def" }
+    ],
+    "post": [
+      { "kind": "open_space_region", "anchor": { "x": 16, "z": 10 }, "radiusFt": 3 },
+      { "kind": "timing_pulse", "anchor": { "x": 16, "z": 10 }, "durationMs": 600 },
+      { "kind": "drive_cut_preview", "onSlot": "shooter", "path": [
+        { "x": 16, "z": 10 },
+        { "x": 0, "z": 0.5 }
+      ]}
+    ]
+  },
+
+  "choices": [
+    { "outcome": "shoot",          "quality": "best",       "order": 1 },
+    { "outcome": "rip_and_drive",  "quality": "acceptable", "order": 2 },
+    { "outcome": "pass_back",      "quality": "wrong",      "order": 3 },
+    { "outcome": "pump_fake_hold", "quality": "wrong",      "order": 4 }
+  ],
+
+  "disguises": {
+    "none": { "removePre": [], "difficultyBump": 0 },
+    "light": {
+      "removePre": [{ "kind": "defender_hip_arrow", "onSlot": "closeout_def" }],
+      "difficultyBump": 1
+    },
+    "moderate": {
+      "removePre": [
+        { "kind": "defender_hip_arrow", "onSlot": "closeout_def" },
+        { "kind": "defender_foot_arrow", "onSlot": "closeout_def" }
+      ],
+      "difficultyBump": 1
+    },
+    "heavy": {
+      "removePre": [
+        { "kind": "defender_hip_arrow", "onSlot": "closeout_def" },
+        { "kind": "defender_foot_arrow", "onSlot": "closeout_def" }
+      ],
+      "freezeCompressMs": 600,
+      "difficultyBump": 2
+    }
+  },
+
+  "coach_validation": {
+    "level": "low",
+    "status": "approved",
+    "notes": "Catch-and-shoot off help-side closeout is universally taught. Template inherits AOR-01 SME approval."
+  },
+
+  "defaults": {
+    "xp_reward": 12,
+    "mastery_weight": 1.0,
+    "render_tier": 1
+  }
+}

@@ -1,0 +1,465 @@
+[
+  {
+    "id": "AOR-T1-02",
+    "version": 1,
+    "status": "DRAFT",
+    "title": "TODO: AOR.short-closeout-shoot — short identity line",
+    "category": "OFFENSE",
+    "decoder_tag": "ADVANTAGE_OR_RESET",
+    "concept_tags": [
+      "catch_and_read",
+      "closeout_read"
+    ],
+    "sub_concepts": [
+      "shot_off_catch",
+      "closeout_advantage",
+      "cue:short_closeout",
+      "cue:hips_turned_to_ball",
+      "tpl:AOR.short-closeout-shoot",
+      "sig:mirror|slot:shooter|d:1|disg:light|clk:none"
+    ],
+    "difficulty": 2,
+    "user_role": "wing_shooter",
+    "game_context": "TODO: 4-on-4 half-court setup line. Where the ball started, what the clock says.",
+    "possession_setup": "TODO: where you are, where the ball is, what the defense is doing.",
+    "decision_moment": "TODO: the precise body cue at the freeze.",
+    "visible_cue": "TODO: the single most readable thing the player should look at.",
+    "court_state": {
+      "offense": [
+        {
+          "id": "passer",
+          "x": 330,
+          "y": 140,
+          "role": "ball_handler",
+          "hasBall": true
+        },
+        {
+          "id": "shooter",
+          "x": 90,
+          "y": 90,
+          "role": "wing_shooter",
+          "hasBall": false
+        },
+        {
+          "id": "weak_wing",
+          "x": 410,
+          "y": 100,
+          "role": "weak_wing",
+          "hasBall": false
+        },
+        {
+          "id": "strong_corner",
+          "x": 30,
+          "y": 10,
+          "role": "strong_corner",
+          "hasBall": false
+        }
+      ],
+      "defense": [
+        {
+          "id": "on_ball_def",
+          "x": 330,
+          "y": 160,
+          "role": "on_ball",
+          "hasBall": false
+        },
+        {
+          "id": "closeout_def",
+          "x": 190,
+          "y": 50,
+          "role": "wing_defender_helping",
+          "hasBall": false
+        },
+        {
+          "id": "weak_wing_def",
+          "x": 390,
+          "y": 110,
+          "role": "weak_wing_defender",
+          "hasBall": false
+        },
+        {
+          "id": "low_man",
+          "x": 50,
+          "y": 30,
+          "role": "low_man",
+          "hasBall": false
+        }
+      ],
+      "ball_location": {
+        "x": 330,
+        "y": 140
+      }
+    },
+    "prompt": "TODO: ≤140 chars, imperative, basketball-first voice.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "TODO: variant label for \"shoot\" (best)",
+        "quality": "best",
+        "feedback_text": "TODO: feedback if user picks \"shoot\".",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "TODO: variant label for \"rip_and_drive\" (acceptable)",
+        "quality": "acceptable",
+        "feedback_text": "TODO: feedback if user picks \"rip_and_drive\".",
+        "partial_feedback_text": "TODO: shorter post-rep nudge for \"rip_and_drive\".",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "TODO: variant label for \"pass_back\" (wrong)",
+        "quality": "wrong",
+        "feedback_text": "TODO: feedback if user picks \"pass_back\".",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "TODO: variant label for \"pump_fake_hold\" (wrong)",
+        "quality": "wrong",
+        "feedback_text": "TODO: feedback if user picks \"pump_fake_hold\".",
+        "order": 4
+      }
+    ],
+    "best_read": "TODO: 1–2 sentence player-voice description of the best action (corresponds to template outcome \"shoot\").",
+    "acceptable_reads": [
+      "TODO: explanation of the rip_and_drive branch."
+    ],
+    "bad_reads": [
+      "TODO: short consequence line for each wrong outcome."
+    ],
+    "common_miss_reason": "Loyalty to the dribble. Wings catch and put the ball on the floor by reflex even when the defender's cushion already gives them the shot.",
+    "why_best_read_works": "The defender was helping one pass away. Closing out from the help position cannot beat the ball — a catch in the shooting pocket forces the contest before his hands are up. The shot is open precisely because the defender bet on the help.",
+    "decoder_teaching_point": "On the catch, read the closeout. Short and under control means his cushion is yours — shoot before his hands are up.",
+    "lesson_connection": "advantage-or-reset",
+    "explanation_md": "TODO: **AOR.short-closeout-shoot.** Re-state the cue, then the decision, then the consequence. Tie back to lesson \"advantage-or-reset\".",
+    "feedback": {
+      "correct": "TODO: short praise that names the cue.",
+      "partial": "TODO: short nudge for the acceptable read.",
+      "wrong": "TODO: short coach voice that points at the cue without giving the answer."
+    },
+    "self_review_checklist": [
+      "TODO: yes/no question about the player's body, not the defender's.",
+      "TODO: yes/no about the action.",
+      "TODO: yes/no about the timing.",
+      "TODO: yes/no about the finish."
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "notes": "Catch-and-shoot off help-side closeout is universally taught. Template inherits AOR-01 SME approval."
+    },
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": []
+    },
+    "xp_reward": 12,
+    "mastery_weight": 1,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "catch_and_read_closeout",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        {
+          "id": "passer",
+          "team": "offense",
+          "role": "ball_handler",
+          "label": "PG",
+          "start": {
+            "x": 8,
+            "z": 14
+          },
+          "hasBall": true
+        },
+        {
+          "id": "shooter",
+          "team": "offense",
+          "role": "wing_shooter",
+          "label": "You",
+          "start": {
+            "x": -16,
+            "z": 9
+          },
+          "isUser": true
+        },
+        {
+          "id": "weak_wing",
+          "team": "offense",
+          "role": "weak_wing",
+          "label": "3",
+          "start": {
+            "x": 16,
+            "z": 10
+          }
+        },
+        {
+          "id": "strong_corner",
+          "team": "offense",
+          "role": "strong_corner",
+          "label": "4",
+          "start": {
+            "x": -22,
+            "z": 1
+          }
+        },
+        {
+          "id": "on_ball_def",
+          "team": "defense",
+          "role": "on_ball",
+          "label": "x1",
+          "start": {
+            "x": 8,
+            "z": 16
+          }
+        },
+        {
+          "id": "closeout_def",
+          "team": "defense",
+          "role": "wing_defender_helping",
+          "label": "x2",
+          "start": {
+            "x": -6,
+            "z": 5
+          }
+        },
+        {
+          "id": "weak_wing_def",
+          "team": "defense",
+          "role": "weak_wing_defender",
+          "label": "x3",
+          "start": {
+            "x": 14,
+            "z": 11
+          }
+        },
+        {
+          "id": "low_man",
+          "team": "defense",
+          "role": "low_man",
+          "label": "x4",
+          "start": {
+            "x": -20,
+            "z": 3
+          }
+        }
+      ],
+      "ball": {
+        "start": {
+          "x": 8,
+          "z": 14
+        },
+        "holderId": "passer"
+      },
+      "movements": [
+        {
+          "id": "user_lift_to_catch",
+          "playerId": "shooter",
+          "kind": "lift",
+          "to": {
+            "x": -16,
+            "z": 10
+          },
+          "delayMs": 0,
+          "durationMs": 600
+        },
+        {
+          "id": "passer_pass_to_wing",
+          "playerId": "ball",
+          "kind": "pass",
+          "to": {
+            "x": -16,
+            "z": 10
+          },
+          "delayMs": 350,
+          "durationMs": 700
+        },
+        {
+          "id": "closeout_to_wing",
+          "playerId": "closeout_def",
+          "kind": "closeout",
+          "to": {
+            "x": -14,
+            "z": 8
+          },
+          "delayMs": 450,
+          "durationMs": 750
+        }
+      ],
+      "answerDemo": [
+        {
+          "id": "user_shot_lift",
+          "playerId": "shooter",
+          "kind": "lift",
+          "to": {
+            "x": -16,
+            "z": 10
+          },
+          "delayMs": 0,
+          "durationMs": 250
+        },
+        {
+          "id": "user_release_pass",
+          "playerId": "ball",
+          "kind": "pass",
+          "to": {
+            "x": 0,
+            "z": 0.5
+          },
+          "delayMs": 200,
+          "durationMs": 700
+        }
+      ],
+      "freezeMarker": {
+        "kind": "atMs",
+        "atMs": 1500
+      },
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You drove past, but he recovered to contest.",
+          "movements": [
+            {
+              "id": "user_rip",
+              "playerId": "shooter",
+              "kind": "rip",
+              "to": {
+                "x": -17,
+                "z": 9
+              },
+              "delayMs": 0,
+              "durationMs": 300
+            },
+            {
+              "id": "user_drive_baseline",
+              "playerId": "shooter",
+              "kind": "drive",
+              "to": {
+                "x": -18,
+                "z": 2
+              },
+              "delayMs": 100,
+              "durationMs": 700
+            },
+            {
+              "id": "closeout_recover",
+              "playerId": "closeout_def",
+              "kind": "rotation",
+              "to": {
+                "x": -17,
+                "z": 3
+              },
+              "delayMs": 200,
+              "durationMs": 700
+            }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You passed it back. The shot is gone.",
+          "movements": [
+            {
+              "id": "user_swing_back",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": {
+                "x": 8,
+                "z": 14
+              },
+              "delayMs": 0,
+              "durationMs": 600
+            },
+            {
+              "id": "closeout_recover_set",
+              "playerId": "closeout_def",
+              "kind": "rotation",
+              "to": {
+                "x": -14,
+                "z": 8
+              },
+              "delayMs": 100,
+              "durationMs": 500
+            }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "He closed the cushion while you held it.",
+          "movements": [
+            {
+              "id": "user_pump",
+              "playerId": "shooter",
+              "kind": "lift",
+              "to": {
+                "x": -16,
+                "z": 10
+              },
+              "delayMs": 0,
+              "durationMs": 350
+            },
+            {
+              "id": "closeout_recover_contest",
+              "playerId": "closeout_def",
+              "kind": "closeout",
+              "to": {
+                "x": -16,
+                "z": 9
+              },
+              "delayMs": 200,
+              "durationMs": 600
+            }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        {
+          "kind": "defender_vision_cone",
+          "playerId": "closeout_def",
+          "targetId": "shooter"
+        },
+        {
+          "kind": "defender_foot_arrow",
+          "playerId": "closeout_def"
+        }
+      ],
+      "postAnswerOverlays": [
+        {
+          "kind": "open_space_region",
+          "anchor": {
+            "x": -16,
+            "z": 10
+          },
+          "radiusFt": 3
+        },
+        {
+          "kind": "timing_pulse",
+          "anchor": {
+            "x": -16,
+            "z": 10
+          },
+          "durationMs": 600
+        },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "shooter",
+          "path": [
+            {
+              "x": -16,
+              "z": 10
+            },
+            {
+              "x": 0,
+              "z": 0.5
+            }
+          ]
+        }
+      ]
+    },
+    "_generated": {
+      "template": "AOR.short-closeout-shoot",
+      "signature": "mirror|slot:shooter|d:1|disg:light|clk:none"
+    }
+  }
+]
