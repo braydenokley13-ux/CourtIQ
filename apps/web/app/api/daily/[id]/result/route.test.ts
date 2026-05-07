@@ -136,6 +136,56 @@ describe('GET /api/daily/[id]/result', () => {
     expect(prisma.sessionRun.update).toHaveBeenCalled()
   })
 
+  it('counts a daily streak longer than 60 days correctly (no row cap)', async () => {
+    // Build 90 consecutive completed dailies before today. The
+    // walkback used to hard-cap at 60 rows — assert that's gone by
+    // checking the streak math sees the full history.
+    const today = new Date('2026-08-05T00:00:00Z')
+    const todayKey = '2026-08-05'
+    const priorDays = Array.from({ length: 90 }, (_, i) => {
+      const d = new Date(today.getTime() - (i + 1) * 24 * 60 * 60 * 1000)
+      return { started_at: d }
+    })
+
+    ;(createClient as MockedFn).mockResolvedValue(authedSupabase())
+    ;(prisma.sessionRun.findUnique as MockedFn).mockResolvedValue({
+      id: 'sess',
+      user_id: 'user-1',
+      mode: 'daily_challenge',
+      started_at: today,
+      ended_at: null,
+      attempts: [
+        makeAttempt({ isCorrect: true }),
+        makeAttempt({ isCorrect: true }),
+        makeAttempt({ isCorrect: true }),
+        makeAttempt({ isCorrect: true }),
+        makeAttempt({ isCorrect: true }),
+      ],
+    })
+    // Most recent prior session (yesterday) — keeps tickDailyStreak
+    // on the "extended" branch instead of the first-ever path.
+    const yesterdayDate = new Date('2026-08-04T00:00:00Z')
+    ;(prisma.sessionRun.findFirst as MockedFn).mockResolvedValue({
+      ended_at: new Date('2026-08-04T01:00:00Z'),
+      started_at: yesterdayDate,
+    })
+    ;(prisma.sessionRun.findMany as MockedFn).mockResolvedValue(priorDays)
+    ;(prisma.sessionRun.update as MockedFn).mockResolvedValue({})
+
+    const res = await GET(new Request('http://x/api/daily/sess/result'), params('sess'))
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    // 90 prior consecutive days + today's tick = 91.
+    expect(body.streak.current).toBe(91)
+    expect(body.streak.extended).toBe(true)
+    expect(body.date).toBe(todayKey)
+
+    // Critical: the findMany call must NOT pass `take`. A row cap
+    // would silently truncate streaks beyond it.
+    const findManyCall = (prisma.sessionRun.findMany as MockedFn).mock.calls[0]?.[0]
+    expect(findManyCall?.take).toBeUndefined()
+  })
+
   it('does not re-update a session that was already ended (idempotent)', async () => {
     ;(createClient as MockedFn).mockResolvedValue(authedSupabase())
     ;(prisma.sessionRun.findUnique as MockedFn).mockResolvedValue({

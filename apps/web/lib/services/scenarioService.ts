@@ -205,6 +205,20 @@ export async function generateSessionBundle(
 
   // ---- Default selection: hydrate everything once, then route into
   // the right composer.
+  //
+  // Daily-challenge attempts MUST be excluded from this view of the
+  // player's history. Daily reps are intentional side-mode reads —
+  // they don't update mastery bands or training streaks at write time
+  // (see /api/session/[id]/attempt) and they must not at read time
+  // either. Without the filter a user who hits the daily before ever
+  // opening /train gets `lifetimeCount > 0`, skipping the firstSession
+  // arc and getting routed straight into return-loop. The
+  // `OR session_run is null` branch keeps legacy attempts (pre-Phase-8,
+  // before SessionMode existed) counting as training.
+  // The "last training session at" lookup must apply the same filter
+  // so a daily completion an hour ago doesn't masquerade as a
+  // training session for classifyReturn. Inlined twice (count + find)
+  // because Prisma's where-clause typing rejects a shared `as const`.
   const [profile, allLiveScenarios, recentAttemptsDesc, lifetimeCount, lastSession] =
     await Promise.all([
       prisma.profile.findUnique({ where: { user_id: userId } }),
@@ -221,14 +235,28 @@ export async function generateSessionBundle(
       // take, reverse to oldest-first afterwards so the glue's
       // ordering contract still holds.
       prisma.attempt.findMany({
-        where: { user_id: userId },
+        where: {
+          user_id: userId,
+          OR: [
+            { session_run_id: null },
+            { session_run: { is: { mode: { not: SessionMode.daily_challenge } } } },
+          ],
+        },
         orderBy: { created_at: 'desc' },
         take: 200,
         include: { scenario: true },
       }),
-      prisma.attempt.count({ where: { user_id: userId } }),
+      prisma.attempt.count({
+        where: {
+          user_id: userId,
+          OR: [
+            { session_run_id: null },
+            { session_run: { is: { mode: { not: SessionMode.daily_challenge } } } },
+          ],
+        },
+      }),
       prisma.sessionRun.findFirst({
-        where: { user_id: userId },
+        where: { user_id: userId, mode: { not: SessionMode.daily_challenge } },
         orderBy: { started_at: 'desc' },
         select: { started_at: true },
       }),

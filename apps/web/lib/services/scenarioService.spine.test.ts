@@ -198,6 +198,39 @@ describe('generateSessionBundle — spine routing', () => {
     expect(prisma.mastery.findMany).toHaveBeenCalled()
   })
 
+  it('routes a daily-only player (no training attempts) through firstSession by filtering daily reps out of lifetimeCount', async () => {
+    // The mock doesn't actually evaluate the where clause — but the
+    // query whose result drives `lifetimeCount` is the second
+    // attempt.count call. We assert here that scenarioService passes
+    // a filter that excludes daily_challenge attempts.
+    ;(prisma.profile.findUnique as MockedFn).mockResolvedValue({
+      iq_score: 500,
+      current_streak: 0,
+    })
+    ;(prisma.scenario.findMany as MockedFn).mockResolvedValue(richCatalog())
+    ;(prisma.attempt.findMany as MockedFn).mockResolvedValue([])
+    // The route should call attempt.count with a where clause that
+    // filters out daily_challenge sessions. Stub it to return 0 so
+    // the firstSession arc fires; we still inspect the call args.
+    ;(prisma.attempt.count as MockedFn).mockResolvedValue(0)
+    ;(prisma.sessionRun.findFirst as MockedFn).mockResolvedValue(null)
+    ;(prisma.sessionRun.create as MockedFn).mockResolvedValue({ id: 'sess-fs-daily-only' })
+
+    const bundle = await generateSessionBundle('user-daily-only', 5)
+    expect(bundle.meta.mode).toBe('first_session')
+
+    // Verify the count query passed the daily-exclusion filter.
+    const countCall = (prisma.attempt.count as MockedFn).mock.calls[0]?.[0]
+    expect(countCall?.where).toBeDefined()
+    expect(JSON.stringify(countCall.where)).toContain('daily_challenge')
+    expect(JSON.stringify(countCall.where)).toContain('not')
+
+    // Same filter must apply to the lastSession lookup so a daily
+    // completion an hour ago doesn't read as a "next-day" return.
+    const sessionCall = (prisma.sessionRun.findFirst as MockedFn).mock.calls[0]?.[0]
+    expect(JSON.stringify(sessionCall?.where)).toContain('daily_challenge')
+  })
+
   it('persists SessionMode.training on the pinned scenarioIds (Pathways) path', async () => {
     ;(prisma.scenario.findMany as MockedFn).mockResolvedValueOnce([
       makeScenario({ id: 'BDW-01' }),

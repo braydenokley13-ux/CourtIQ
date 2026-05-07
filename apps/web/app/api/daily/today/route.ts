@@ -68,8 +68,19 @@ export async function POST() {
     // Phase 10 — bound to the last 200 attempts. The daily composer's
     // transfer-probe swap reads decoder confidences which only need
     // the recent admissible window per decoder, not lifetime history.
+    //
+    // Phase 11.1 — exclude daily-challenge attempts so the transfer-
+    // probe swap reads the player's *training* memorization signal,
+    // not their daily history. Daily reps must not feed back into
+    // their own routing.
     prisma.attempt.findMany({
-      where: { user_id: user.id },
+      where: {
+        user_id: user.id,
+        OR: [
+          { session_run_id: null },
+          { session_run: { is: { mode: { not: SessionMode.daily_challenge } } } },
+        ],
+      },
       orderBy: { created_at: 'desc' },
       take: 200,
       include: { scenario: true },

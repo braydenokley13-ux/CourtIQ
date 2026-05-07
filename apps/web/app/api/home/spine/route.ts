@@ -49,8 +49,21 @@ export async function GET() {
     // desc + take, then reverse below so the glue still sees
     // oldest-first (computeDecoderConfidence's slice(-N) depends on
     // the ordering).
+    //
+    // Phase 11.1 — exclude daily-challenge attempts. Daily reps are
+    // intentional Mystery-Mode side-mode reads; promoting decoder
+    // bands off them would contradict the strategy that daily attempts
+    // do NOT update mastery. The decoder ring + focus line on /home
+    // must reflect training history only. The `OR session_run_id is
+    // null` branch keeps pre-Phase-8 attempts visible.
     prisma.attempt.findMany({
-      where: { user_id: user.id },
+      where: {
+        user_id: user.id,
+        OR: [
+          { session_run_id: null },
+          { session_run: { is: { mode: { not: SessionMode.daily_challenge } } } },
+        ],
+      },
       orderBy: { created_at: 'desc' },
       take: 200,
       include: { scenario: true },
@@ -64,6 +77,11 @@ export async function GET() {
       },
       select: { id: true, ended_at: true },
     }),
+    // Phase 11.1 — drop the 60-row cap on the streak history. The
+    // walkback below stops at the first gap; a hard row limit silently
+    // truncates streaks > 60 days. Row count is bounded by the user's
+    // lifetime daily completions (≤ ~365 per year) and the projection
+    // is just `started_at`, so materializing all of them is cheap.
     prisma.sessionRun.findMany({
       where: {
         user_id: user.id,
@@ -72,7 +90,6 @@ export async function GET() {
       },
       orderBy: { started_at: 'desc' },
       select: { started_at: true },
-      take: 60,
     }),
   ])
 

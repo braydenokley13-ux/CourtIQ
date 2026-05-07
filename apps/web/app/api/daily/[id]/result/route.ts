@@ -148,6 +148,13 @@ export async function GET(
  * Walk back from `todayDate` over consecutive UTC days that have a
  * completed daily session. Stops at the first gap. Excludes today
  * (today's tick is computed separately by tickDailyStreak).
+ *
+ * Phase 11.1 — no row cap. The previous `take: 60` silently
+ * truncated streaks > 60 days, so a 90-day streaker would read as
+ * 60. The query is bounded by the user's lifetime daily completions
+ * (≤ ~365 per year) and selects only `started_at`, so materializing
+ * the full set is cheap. The walk still short-circuits at the first
+ * date gap.
  */
 async function dailyStreakSize(userId: string, todayDate: string): Promise<number> {
   const completed = await prisma.sessionRun.findMany({
@@ -158,7 +165,6 @@ async function dailyStreakSize(userId: string, todayDate: string): Promise<numbe
     },
     orderBy: { started_at: 'desc' },
     select: { started_at: true },
-    take: 60,
   })
   const days = new Set(
     completed.map((s) => s.started_at.toISOString().slice(0, 10)),
