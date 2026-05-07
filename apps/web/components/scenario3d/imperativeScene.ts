@@ -1531,8 +1531,26 @@ export class CameraController {
     this.recomputeTarget()
   }
 
-  /** Replaces the underlying scene (e.g. on scenario change). */
+  /** Replaces the underlying scene (e.g. on scenario change).
+   *
+   *  P0 stability — short-circuit when the scene reference is identical
+   *  to the controller's current scene. The Scenario3DCanvas useEffect
+   *  that calls this is keyed on `[visibleScene]`; React's effect
+   *  scheduler may invoke it more than once per logical scene change
+   *  (StrictMode double-invoke, concurrent renders, parent re-renders
+   *  that produce a referentially identical visibleScene). Without this
+   *  guard each redundant call re-issued recomputeTarget, which for
+   *  scene-aware modes (auto / follow / teaching-angle / player-read /
+   *  help-defense / top-down) bumped the target ref even though the
+   *  inputs were byte-identical, restarting the eased lerp from
+   *  whatever intermediate position the camera held. The fix preserves
+   *  the broadcast/tactical/replay no-op behaviour exactly (those
+   *  modes already produce identical targets regardless of scene) and
+   *  collapses the scene-aware case to a single recompute per real
+   *  scene swap.
+   */
   setScene(scene: Scene3D): void {
+    if (scene === this.scene) return
     this.scene = scene
     this.recomputeTarget()
   }
