@@ -404,10 +404,12 @@ function TrainPageInner() {
             const body = (await profileRes.json()) as { attemptsCount?: number }
             setAttemptsCount(typeof body.attemptsCount === 'number' ? body.attemptsCount : 0)
           } else {
-            setAttemptsCount(0)
+            // Fail safe to "returning user" mode so transient fetch errors
+            // don't activate cold-start chrome for existing players.
+            setAttemptsCount(Number.MAX_SAFE_INTEGER)
           }
         } catch {
-          setAttemptsCount(0)
+          setAttemptsCount(Number.MAX_SAFE_INTEGER)
         }
       })()
       try {
@@ -523,12 +525,9 @@ function TrainPageInner() {
     if (!questionReady) return
     if (!timerArmed) return
     if (timeLeft <= 0) return
-    // V3 P9 — zero time pressure on the player's first rep so they can
-    // sit in the freeze and actually look at the play.
-    if (firstRep) return
     const t = setTimeout(() => setTimeLeft((v) => Math.max(0, Number((v - 0.1).toFixed(1)))), 100)
     return () => clearTimeout(t)
-  }, [phase, timeLeft, questionReady, timerArmed, firstRep])
+  }, [phase, timeLeft, questionReady, timerArmed])
 
   useEffect(() => {
     setTimeLeft(8)
