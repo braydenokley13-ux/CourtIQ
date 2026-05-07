@@ -15,10 +15,12 @@ export async function GET(request: Request) {
   weekAgo.setUTCHours(0, 0, 0, 0)
 
   const users = await prisma.user.findMany({
-    where: { email_unsubscribed: false },
+    where: { email_unsubscribed: false, recovery_email: { not: null } },
     select: {
       id: true,
       email: true,
+      username: true,
+      recovery_email: true,
       display_name: true,
       profile: { select: { iq_score: true, current_streak: true } },
       session_runs: {
@@ -59,8 +61,8 @@ export async function GET(request: Request) {
       const weeklyRank = leaderboard.findIndex((e) => e.user_id === user.id) + 1
 
       const { subject, html } = weeklyDigestEmail({
-        name: user.display_name ?? user.email.split('@')[0],
-        email: user.email,
+        name: user.display_name ?? user.username ?? 'Player',
+        email: user.recovery_email!,
         iqStart,
         iqEnd,
         sessionsCompleted: sessions.length,
@@ -70,10 +72,10 @@ export async function GET(request: Request) {
         weeklyRank: weeklyRank > 0 ? weeklyRank : undefined,
         topConcepts: user.masteries.map((m) => m.concept_id),
       })
-      await sendEmail({ to: user.email, subject, html })
+      await sendEmail({ to: user.recovery_email!, subject, html })
       sent++
     } catch (err) {
-      console.error('[cron/weekly-digest] failed for', user.email, err)
+      console.error('[cron/weekly-digest] failed for', user.recovery_email, err)
     }
   }
 

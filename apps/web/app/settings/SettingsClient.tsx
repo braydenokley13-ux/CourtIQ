@@ -117,7 +117,7 @@ export function SettingsClient({
           <h2 className="mb-3 font-display text-[16px] font-bold">Profile</h2>
           <form onSubmit={saveProfile} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="block font-ui text-[12px] font-medium uppercase tracking-wide text-text-dim">Email</label>
+              <label className="block font-ui text-[12px] font-medium uppercase tracking-wide text-text-dim">Username</label>
               <div className="rounded-xl border border-hairline bg-bg-2 px-4 py-3 text-[14px] text-text-dim">{email}</div>
             </div>
             <div className="space-y-1.5">

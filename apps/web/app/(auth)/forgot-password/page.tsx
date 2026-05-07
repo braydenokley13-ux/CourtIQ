@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
 import { PrimaryButton } from '@/components/ui/Button'
 
 const ease = [0.22, 1, 0.36, 1]
@@ -43,7 +42,7 @@ function CourtLines() {
 }
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState('')
+  const [recoveryEmail, setRecoveryEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sent, setSent] = useState(false)
@@ -53,16 +52,21 @@ export default function ForgotPasswordPage() {
     setLoading(true)
     setError(null)
 
-    const supabase = createClient()
-    const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
-    })
-
-    if (authError) {
-      setError(authError.message)
-      setLoading(false)
-    } else {
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recoveryEmail }),
+      })
+      if (!res.ok) {
+        setError('Something went wrong. Please try again.')
+        setLoading(false)
+        return
+      }
       setSent(true)
+    } catch {
+      setError('Something went wrong. Please try again.')
+      setLoading(false)
     }
   }
 
@@ -121,7 +125,6 @@ export default function ForgotPasswordPage() {
         >
           <AnimatePresence mode="wait">
             {sent ? (
-              // ── Success state ────────────────────────────────────────────────
               <motion.div
                 key="sent"
                 initial={{ opacity: 0, scale: 0.96 }}
@@ -138,13 +141,13 @@ export default function ForgotPasswordPage() {
                 <h2 className="mb-2 font-display text-[22px] font-bold text-foreground">Check your email</h2>
                 <p className="font-ui text-sm leading-relaxed text-foreground-dim">
                   If{' '}
-                  <span className="font-semibold text-foreground">{email}</span>{' '}
+                  <span className="font-semibold text-foreground">{recoveryEmail}</span>{' '}
                   is registered, you&apos;ll receive a reset link shortly.
                 </p>
                 <p className="mt-4 font-ui text-[12px] text-foreground-mute">
                   Didn&apos;t receive it? Check your spam folder or{' '}
                   <button
-                    onClick={() => { setSent(false); setEmail('') }}
+                    onClick={() => { setSent(false); setRecoveryEmail('') }}
                     className="text-brand underline underline-offset-2 hover:opacity-80"
                   >
                     try again
@@ -153,7 +156,6 @@ export default function ForgotPasswordPage() {
                 </p>
               </motion.div>
             ) : (
-              // ── Form state ───────────────────────────────────────────────────
               <motion.div key="form" initial={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
                 <div className="mb-5">
                   <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-hairline-2 bg-bg-2">
@@ -164,25 +166,28 @@ export default function ForgotPasswordPage() {
                   </div>
                   <h2 className="mb-1 font-display text-[22px] font-bold text-foreground">Forgot password?</h2>
                   <p className="font-ui text-sm text-foreground-dim">
-                    Enter your email and we&apos;ll send you a reset link.
+                    Enter your recovery email and we&apos;ll send you a reset link.
                   </p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-3">
                   <div className="space-y-1.5">
-                    <label htmlFor="email" className="block font-ui text-[13px] font-medium text-foreground-dim">
-                      Email
+                    <label htmlFor="recoveryEmail" className="block font-ui text-[13px] font-medium text-foreground-dim">
+                      Recovery email
                     </label>
                     <input
-                      id="email"
+                      id="recoveryEmail"
                       type="email"
                       autoComplete="email"
                       required
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
+                      value={recoveryEmail}
+                      onChange={e => setRecoveryEmail(e.target.value)}
                       placeholder="you@example.com"
                       className="block h-[46px] w-full rounded-xl border border-hairline-2 bg-bg-2 px-4 font-ui text-[14px] text-foreground placeholder:text-foreground-mute transition-colors hover:border-hairline focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25"
                     />
+                    <p className="font-ui text-[11px] text-foreground-mute">
+                      This is the email you added when you signed up.
+                    </p>
                   </div>
 
                   <AnimatePresence>

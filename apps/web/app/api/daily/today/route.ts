@@ -124,7 +124,9 @@ export async function POST() {
     create: {
       id: user.id,
       email: user.email ?? `${user.id}@courtiq.local`,
-      display_name: user.user_metadata?.full_name ?? null,
+      username: user.user_metadata?.username ?? user.id,
+      recovery_email: user.user_metadata?.recovery_email ?? null,
+      display_name: user.user_metadata?.display_name ?? user.user_metadata?.full_name ?? null,
     },
     update: { email: user.email ?? undefined },
   })

@@ -45,7 +45,7 @@ export default async function LeaderboardPage() {
   const [users, profiles] = await Promise.all([
     prisma.user.findMany({
       where: { id: { in: idsToLoad } },
-      select: { id: true, display_name: true, email: true },
+      select: { id: true, display_name: true, username: true },
     }),
     prisma.profile.findMany({
       where: { user_id: { in: idsToLoad } },
@@ -61,7 +61,7 @@ export default async function LeaderboardPage() {
     const p = profileMap.get(g.user_id)
     return {
       userId: g.user_id,
-      name: u?.display_name ?? u?.email?.split('@')[0] ?? 'Player',
+      name: u?.display_name ?? u?.username ?? 'Player',
       xp: g._sum.xp_earned ?? 0,
       iq: p?.iq_score ?? 500,
       rank: idx + 1,

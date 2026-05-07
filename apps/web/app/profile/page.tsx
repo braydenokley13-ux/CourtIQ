@@ -61,11 +61,13 @@ export default async function ProfilePage() {
     create: {
       id: userId,
       email: user.email ?? `${userId}@courtiq.local`,
-      display_name: user.user_metadata?.full_name ?? null,
+      username: user.user_metadata?.username ?? userId,
+      recovery_email: user.user_metadata?.recovery_email ?? null,
+      display_name: user.user_metadata?.display_name ?? user.user_metadata?.full_name ?? null,
     },
     update: {
       email: user.email ?? `${userId}@courtiq.local`,
-      display_name: user.user_metadata?.full_name ?? undefined,
+      display_name: user.user_metadata?.display_name ?? user.user_metadata?.full_name ?? undefined,
     },
   })
 

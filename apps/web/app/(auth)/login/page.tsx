@@ -18,29 +18,6 @@ const fadeUp = {
   }),
 }
 
-function GoogleIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
-      <path
-        d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z"
-        fill="#4285F4"
-      />
-      <path
-        d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z"
-        fill="#34A853"
-      />
-      <path
-        d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z"
-        fill="#FBBC05"
-      />
-      <path
-        d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58Z"
-        fill="#EA4335"
-      />
-    </svg>
-  )
-}
-
 function CourtLines() {
   return (
     <svg
@@ -50,23 +27,17 @@ function CourtLines() {
       fill="none"
       aria-hidden
     >
-      {/* Center circle */}
       <circle cx="400" cy="400" r="120" stroke="white" strokeOpacity="0.04" strokeWidth="1" />
       <circle cx="400" cy="400" r="4" fill="white" fillOpacity="0.06" />
-      {/* Three-point arc */}
       <path
         d="M 160 680 L 160 460 A 240 240 0 0 1 640 460 L 640 680"
         stroke="white"
         strokeOpacity="0.04"
         strokeWidth="1"
       />
-      {/* Paint */}
       <rect x="280" y="440" width="240" height="240" stroke="white" strokeOpacity="0.04" strokeWidth="1" />
-      {/* Free-throw circle */}
       <circle cx="400" cy="440" r="72" stroke="white" strokeOpacity="0.04" strokeWidth="1" />
-      {/* Baseline */}
       <line x1="100" y1="680" x2="700" y2="680" stroke="white" strokeOpacity="0.05" strokeWidth="1" />
-      {/* Midcourt line */}
       <line x1="100" y1="400" x2="700" y2="400" stroke="white" strokeOpacity="0.03" strokeWidth="1" />
     </svg>
   )
@@ -91,10 +62,9 @@ function LoginSkeleton() {
 function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
 
@@ -103,35 +73,24 @@ function LoginContent() {
     if (err === 'auth_callback_error') setError('Sign-in failed. Please try again.')
   }, [searchParams])
 
-  async function handleEmailLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError(null)
 
+    const syntheticEmail = `${username.trim().toLowerCase()}@users.courtiq.app`
     const supabase = createClient()
-    const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
+    const { error: authError } = await supabase.auth.signInWithPassword({ email: syntheticEmail, password })
 
     if (authError) {
       setError(authError.message === 'Invalid login credentials'
-        ? 'Wrong email or password. Check your details and try again.'
+        ? 'Wrong username or password. Check your details and try again.'
         : authError.message)
       setLoading(false)
     } else {
       router.push('/home')
       router.refresh()
     }
-  }
-
-  async function handleGoogleLogin() {
-    setGoogleLoading(true)
-    setError(null)
-    const supabase = createClient()
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/home`,
-      },
-    })
   }
 
   return (
@@ -144,11 +103,8 @@ function LoginContent() {
             'radial-gradient(ellipse 70% 55% at 50% 60%, rgba(59,227,131,0.07) 0%, transparent 70%)',
         }}
       />
-
-      {/* Court line decorations */}
       <CourtLines />
 
-      {/* Content */}
       <div className="relative z-10 w-full max-w-[400px]">
         {/* Logo + wordmark */}
         <motion.div
@@ -158,7 +114,6 @@ function LoginContent() {
           animate="show"
           variants={fadeUp}
         >
-          {/* Basketball icon with brand glow */}
           <div className="relative flex h-14 w-14 items-center justify-center">
             <div
               className="absolute inset-0 rounded-full"
@@ -195,47 +150,20 @@ function LoginContent() {
           <h2 className="mb-1 font-display text-[22px] font-bold text-foreground">Welcome back</h2>
           <p className="mb-6 font-ui text-sm text-foreground-dim">Sign in to continue your training.</p>
 
-          {/* Google OAuth */}
-          <motion.button
-            whileTap={{ scale: 0.98, y: 1 }}
-            transition={{ duration: 0.08 }}
-            onClick={handleGoogleLogin}
-            disabled={googleLoading || loading}
-            className="mb-4 flex h-[46px] w-full items-center justify-center gap-3 rounded-xl border border-hairline-2 bg-bg-2 font-ui text-[14px] font-semibold text-foreground transition-colors hover:border-hairline hover:bg-bg-3 disabled:cursor-default disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-bg-0"
-          >
-            {googleLoading ? (
-              <svg className="animate-spin" width={18} height={18} viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity={0.25} strokeWidth={2.5} />
-                <path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" />
-              </svg>
-            ) : (
-              <GoogleIcon />
-            )}
-            Continue with Google
-          </motion.button>
-
-          {/* Divider */}
-          <div className="mb-4 flex items-center gap-3">
-            <div className="h-px flex-1 bg-hairline" />
-            <span className="font-ui text-[11px] uppercase tracking-[1px] text-foreground-mute">or</span>
-            <div className="h-px flex-1 bg-hairline" />
-          </div>
-
-          {/* Email/password form */}
-          <form onSubmit={handleEmailLogin} className="space-y-3">
-            {/* Email */}
+          <form onSubmit={handleLogin} className="space-y-3">
+            {/* Username */}
             <div className="space-y-1.5">
-              <label htmlFor="email" className="block font-ui text-[13px] font-medium text-foreground-dim">
-                Email
+              <label htmlFor="username" className="block font-ui text-[13px] font-medium text-foreground-dim">
+                Username
               </label>
               <input
-                id="email"
-                type="email"
-                autoComplete="email"
+                id="username"
+                type="text"
+                autoComplete="username"
                 required
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                placeholder="your_username"
                 className="block h-[46px] w-full rounded-xl border border-hairline-2 bg-bg-2 px-4 font-ui text-[14px] text-foreground placeholder:text-foreground-mute transition-colors hover:border-hairline focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25"
               />
             </div>
@@ -310,7 +238,7 @@ function LoginContent() {
 
             {/* Submit */}
             <div className="pt-1">
-              <PrimaryButton type="submit" loading={loading} disabled={googleLoading}>
+              <PrimaryButton type="submit" loading={loading}>
                 Sign in
               </PrimaryButton>
             </div>

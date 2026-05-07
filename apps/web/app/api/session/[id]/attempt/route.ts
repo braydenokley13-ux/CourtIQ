@@ -165,19 +165,19 @@ export async function POST(
   if (result.badges.length > 0) {
     const userRecord = await prisma.user.findUnique({
       where: { id: body.userId! },
-      select: { email: true, display_name: true, email_unsubscribed: true, profile: { select: { iq_score: true } } },
+      select: { username: true, recovery_email: true, display_name: true, email_unsubscribed: true, profile: { select: { iq_score: true } } },
     })
-    if (userRecord && !userRecord.email_unsubscribed) {
+    if (userRecord && !userRecord.email_unsubscribed && userRecord.recovery_email) {
       for (const badge of result.badges) {
         const { subject, html } = badgeEarnedEmail({
-          name: userRecord.display_name ?? userRecord.email.split('@')[0],
-          email: userRecord.email,
+          name: userRecord.display_name ?? userRecord.username ?? 'Player',
+          email: userRecord.recovery_email,
           badgeName: badge.slug.split('-').slice(1).map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
           badgeSlug: badge.slug,
           badgeFamily: badge.family,
           currentIQ: result.iq.iqAfter,
         })
-        sendEmail({ to: userRecord.email, subject, html }).catch(err => console.error('[email/badge]', err))
+        sendEmail({ to: userRecord.recovery_email!, subject, html }).catch(err => console.error('[email/badge]', err))
       }
     }
   }

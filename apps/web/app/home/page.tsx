@@ -408,7 +408,7 @@ export default function HomePage() {
         return
       }
 
-      const name = user.user_metadata?.full_name ?? user.email?.split('@')[0] ?? 'Player'
+      const name = user.user_metadata?.display_name ?? user.user_metadata?.full_name ?? user.user_metadata?.username ?? 'Player'
       setUserName(name)
 
       // Fetch profile + recent sessions + foundation pathway progress
