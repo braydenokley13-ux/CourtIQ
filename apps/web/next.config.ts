@@ -15,11 +15,11 @@ const nextConfig: NextConfig = {
     // (`isGlbAthletePreviewActive` and companions) and
     // `docs/qa/production-glb-loading.md`.
     NEXT_PUBLIC_USE_GLB_ATHLETE_PREVIEW:
-      process.env.NEXT_PUBLIC_USE_GLB_ATHLETE_PREVIEW ?? '',
+      process.env.NEXT_PUBLIC_USE_GLB_ATHLETE_PREVIEW ?? '1',
     NEXT_PUBLIC_USE_IMPORTED_CLOSEOUT_CLIP:
-      process.env.NEXT_PUBLIC_USE_IMPORTED_CLOSEOUT_CLIP ?? '',
+      process.env.NEXT_PUBLIC_USE_IMPORTED_CLOSEOUT_CLIP ?? '1',
     NEXT_PUBLIC_USE_IMPORTED_BACK_CUT_CLIP:
-      process.env.NEXT_PUBLIC_USE_IMPORTED_BACK_CUT_CLIP ?? '',
+      process.env.NEXT_PUBLIC_USE_IMPORTED_BACK_CUT_CLIP ?? '1',
   },
 }
 

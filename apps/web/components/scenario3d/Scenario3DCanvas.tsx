@@ -614,6 +614,8 @@ export function Scenario3DCanvas({
       const height = wrapper.clientHeight
       if (width <= 0 || height <= 0) return
       if (width === lastWidth && height === lastHeight) return
+      const prevWidth = lastWidth
+      const prevHeight = lastHeight
       lastWidth = width
       lastHeight = height
       try {
@@ -627,6 +629,23 @@ export function Scenario3DCanvas({
         const persp = cam as THREE.PerspectiveCamera
         persp.aspect = width / height
         persp.updateProjectionMatrix()
+      }
+      // Visual/Motion review — snap the camera to the freshly-recomputed
+      // target on every meaningful layout change (fullscreen toggle,
+      // window resize, post-rotate). Previously the controller eased
+      // toward the new aspect target over ~0.18-0.46 s, which under a
+      // ResizeObserver firing 5-10 times during a fullscreen transition
+      // read as a visible shake. Snapping collapses every transient
+      // lerp into one instant jump per layout step. The first apply
+      // after mount (`prevWidth === -1`) keeps the bootstrap snap that
+      // already happens implicitly via `snapNext()` on construction.
+      if (
+        ctrl &&
+        prevWidth > 0 &&
+        prevHeight > 0 &&
+        (prevWidth !== width || prevHeight !== height)
+      ) {
+        ctrl.snapNext()
       }
       setCanvasSize({ width, height })
     }
