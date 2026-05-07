@@ -1,0 +1,66 @@
+{
+  "id": "BDW-T1-02",
+  "template": "BDW.denied-wing",
+  "status": "LIVE",
+  "version": 1,
+
+  "copy": {
+    "title": "Denied Left-Wing Backdoor",
+    "prompt": "His hand is in your lane. Read his stance.",
+    "game_context": "4-on-4 half-court shell. Ball reversed from the right slot to the left, 12 on the shot clock.",
+    "possession_setup": "The ball is at the right slot. You are the left wing. Your defender is denying the reversal — hand in the lane between you and the ball.",
+    "decision_moment": "Your defender steps into the passing lane and turns his chest toward the ball.",
+    "visible_cue": "Hand in the lane, chest between you and the ball. The lane behind him is empty.",
+    "best_read": "Plant the outside foot and back-cut behind your defender to the front of the rim before low-man can rotate.",
+    "explanation_md": "**Same read, other side.** A denial is a denial — left wing, right wing, top of the key. The cue is his body, not your spot. When his hand is in the lane and his chest is turned to the ball, the layup window is behind him. Plant and go.",
+
+    "feedback": {
+      "correct": "Right read. Same denial, other side. The window opened behind him.",
+      "partial": "Stepping back kept the play alive — you missed the layup the denial just gave you.",
+      "wrong": "Read his body, not your spot. Hand in the lane = cut behind him."
+    },
+
+    "self_review_checklist": [
+      "Did I see his hand in the lane before I moved?",
+      "Did I plant my outside foot to sell the cut?",
+      "Did I cut behind, not in front?",
+      "Did I show my hands at the rim?"
+    ],
+
+    "acceptable_reads": [
+      "Drift wider for a deeper catch — keeps the possession but lets the layup go."
+    ],
+    "bad_reads": [
+      "Hold the wing and call for the ball — defender picks off the entry.",
+      "Front cut — defender stays attached and rides you to the rim."
+    ],
+
+    "choices": {
+      "back_cut_to_rim": {
+        "label": "Plant and cut behind him to the rim.",
+        "feedback_text": "Best read. Hand in the lane means the basket is open. The back-cut takes him out of the play."
+      },
+      "v_cut_to_deeper_catch": {
+        "label": "Drift wider for a deeper catch.",
+        "feedback_text": "Okay. You kept the play alive, but the layup behind him was the better read.",
+        "partial_feedback_text": "Drifting keeps spacing — the better read was the open lane behind the denial."
+      },
+      "stand_still": {
+        "label": "Hold the wing and call for the ball.",
+        "feedback_text": "He's in the lane. Standing still gives him the steal."
+      },
+      "front_cut": {
+        "label": "Cut in front of him toward the ball.",
+        "feedback_text": "Front cuts let him stay attached. Behind him is the open space."
+      }
+    }
+  },
+
+  "variation": {
+    "user_slot": "cutter",
+    "mirror": true,
+    "disguise": "light",
+    "clock_pressure": "shot_clock",
+    "overrides": { "players": [], "movements": [] }
+  }
+}

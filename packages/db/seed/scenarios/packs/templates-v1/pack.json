@@ -1,0 +1,18 @@
+{
+  "id": "pack-templates-v1",
+  "slug": "templates-v1",
+  "title": "Templates v1 / Generated Variants",
+  "description": "Auto-generated from packages/db/seed/scenarios/templates/. Do not edit by hand. Re-run scripts/materialize-templates.ts after changing a template or variant.",
+  "scenarios": [
+    {
+      "id": "BDW-T1-01",
+      "file": "BDW-T1-01.json",
+      "prerequisites": []
+    },
+    {
+      "id": "BDW-T1-02",
+      "file": "BDW-T1-02.json",
+      "prerequisites": []
+    }
+  ]
+}
