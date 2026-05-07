@@ -132,6 +132,29 @@ describe('composeSession — restraint properties', () => {
     for (const tag of plan.middle.decoderOrder) expect(tag).toBe('BACKDOOR_WINDOW')
   })
 
+  it('keeps repCount and decoderOrder in lockstep when the queue is empty (P1 fix)', () => {
+    const plan = composeSession({ ...baseInput, decoderQueue: [] })
+    expect(plan.middle.repCount).toBe(0)
+    expect(plan.middle.decoderOrder).toEqual([])
+    expect(plan.middle.whisperCheckpoints).toEqual([])
+  })
+
+  it('cycles the spaced sequence when padding short queues (P2 fix)', () => {
+    // Standard shape baseline = 8 reps; queue of 2 should cycle, not
+    // collapse to back-to-back streaks of the tail tag.
+    const plan = composeSession({
+      ...baseInput,
+      decoderQueue: ['BACKDOOR_WINDOW', 'EMPTY_SPACE_CUT'],
+    })
+    expect(plan.middle.decoderOrder.length).toBe(plan.middle.repCount)
+    const distinct = new Set(plan.middle.decoderOrder)
+    expect(distinct.size).toBe(2)
+    // Tail must not be the only tag in the back half — the bug
+    // collapsed everything past index 1 into the last tag.
+    const tail = plan.middle.decoderOrder.slice(2)
+    expect(new Set(tail).size).toBeGreaterThan(1)
+  })
+
   it('quiet-chromes the cold open so the first thing the user sees is a play', () => {
     const plan = composeSession({ ...baseInput, isFirstSession: true })
     expect(plan.opening.quietChrome).toBe(true)

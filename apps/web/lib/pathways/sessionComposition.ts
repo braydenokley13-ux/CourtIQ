@@ -339,9 +339,14 @@ export function composeSession(input: SessionComposeInput): SessionPlan {
   // Tired users get one rep less, never more — never extend a session
   // because the user is performing well; that is engagement bait.
   const tiredAdjust = input.fatigue === 'tired' && shape !== 'graded-challenge' ? -1 : 0
-  const repCount = Math.max(1, baseRepCount + tiredAdjust)
+  const baselineReps = Math.max(1, baseRepCount + tiredAdjust)
 
   const spaced = spaceDecoders(input.decoderQueue)
+  // Empty decoder queue means the rotation has nothing to render. The
+  // planner refuses to invent reps in that case so middle.repCount and
+  // middle.decoderOrder.length never diverge — consumers that loop by
+  // repCount can index decoderOrder safely.
+  const repCount = spaced.length === 0 ? 0 : baselineReps
   const decoderOrder = sliceOrPad(spaced, repCount)
 
   const opening: OpeningBeat = {
@@ -367,15 +372,18 @@ export function composeSession(input: SessionComposeInput): SessionPlan {
 }
 
 /** Trim or pad a spaced decoder list so it matches the planned rep
- *  count. Padding repeats the last tag — the plan never invents a
- *  decoder the rotation didn't ask for. */
+ *  count. Padding cycles through the spaced sequence (modulo) so the
+ *  decoder mix the rotation requested is preserved when the queue is
+ *  shorter than the session — repeating only the last tag would
+ *  collapse a multi-decoder session into a long back-to-back streak. */
 function sliceOrPad(spaced: DecoderTag[], repCount: number): DecoderTag[] {
-  if (spaced.length === 0) return []
+  if (repCount <= 0 || spaced.length === 0) return []
   if (spaced.length === repCount) return [...spaced]
   if (spaced.length > repCount) return spaced.slice(0, repCount)
-  const out = [...spaced]
-  const fill = spaced[spaced.length - 1]
-  while (out.length < repCount) out.push(fill)
+  const out: DecoderTag[] = []
+  for (let i = 0; i < repCount; i += 1) {
+    out.push(spaced[i % spaced.length]!)
+  }
   return out
 }
 
