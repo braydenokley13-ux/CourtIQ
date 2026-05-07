@@ -68,10 +68,17 @@ interface PathwayProgressLite {
 
 /** Phase 8 — payload from /api/home/spine. Aggregates the recognition
  *  surface ring + today's-focus line + daily-challenge status so the
- *  home page can render the spine in one round-trip. */
+ *  home page can render the spine in one round-trip.
+ *  Phase 9 — adds fasterCallout: a strictly one-directional "you got
+ *  faster" line that the server confidence-gates (≥ 8 attempts in
+ *  each window) and threshold-gates (≥ 200ms improvement). */
 interface HomeSpine {
   decoderRing: DecoderRingData[]
   focusLine: string | null
+  fasterCallout: {
+    line: string | null
+    improvedMs: number | null
+  }
   daily: {
     available: boolean
     date: string
@@ -581,6 +588,30 @@ export default function HomePage() {
               pathway,
             })}
           />
+        ) : null}
+
+        {/* Phase 9 — fasterCallout. The single most addictive metric
+            in the product. Strictly one-directional: we only render
+            when the line is non-null (≥ 8 admissible attempts in
+            each window AND ≥ 200ms improvement). When the player
+            slowed down or hasn't accumulated enough signal, this
+            block stays empty. */}
+        {!loading && spine?.fasterCallout?.line ? (
+          <motion.div
+            custom={1.8}
+            initial="hidden"
+            animate="show"
+            variants={fadeUp}
+            className="mb-3 rounded-2xl border border-brand/30 bg-brand/5 p-3"
+            data-testid="home-faster-callout"
+          >
+            <p className="text-[10px] font-bold uppercase tracking-[1.5px] text-brand">
+              You got faster
+            </p>
+            <p className="mt-0.5 font-display text-[14px] font-bold leading-snug text-[#F9FAFB]">
+              {spine.fasterCallout.line}
+            </p>
+          </motion.div>
         ) : null}
 
         {/* Phase 8 — Today's focus card.

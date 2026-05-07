@@ -1,26 +1,20 @@
 import type { DecoderTag, Scenario, ScenarioChoice } from '@prisma/client'
 import { SessionMode } from '@prisma/client'
 import { prisma } from '@/lib/db/prisma'
+import { composeFirstSession } from '@/lib/firstSession'
 import {
-  type AdaptiveAttempt,
-  type DecoderConfidence,
-  type NextProbe,
-  computeDecoderConfidence,
-} from '@/lib/adaptive'
-import {
-  type CatalogScenario,
-  composeFirstSession,
-  parseScenarioVariantTags,
-} from '@/lib/firstSession'
-import {
-  type ReturnCatalogScenario,
   classifyReturn,
   composeReturnSession,
   returnBanner,
   type ReturnContext,
-  type ReturnSlot,
 } from '@/lib/returnLoop'
 import { recognitionReason } from '@/lib/recognitionSurface'
+import {
+  buildDecoderConfidences,
+  buildFirstSessionCatalog,
+  buildReturnCatalog,
+  recognitionReasonForReturnSlot,
+} from '@/lib/spine/glue'
 
 interface SanitizedChoice {
   id: string
@@ -127,14 +121,6 @@ export class InvalidScenarioIdsError extends Error {
     this.name = 'InvalidScenarioIdsError'
   }
 }
-
-const RETURN_FRESHNESS_DAYS = 14
-const ALL_DECODERS: DecoderTag[] = [
-  'BACKDOOR_WINDOW',
-  'EMPTY_SPACE_CUT',
-  'SKIP_THE_ROTATION',
-  'ADVANTAGE_OR_RESET',
-] as DecoderTag[]
 
 export async function generateSessionBundle(
   userId: string,
@@ -457,118 +443,3 @@ export async function generateSessionBundle(
   }
 }
 
-// ---- Glue helpers (DB row → spine input). Deliberately inline here
-// rather than promoted to a new pure module — strategy says no new
-// modules unless required for a glue path.
-
-interface RawAttempt {
-  scenario: Scenario
-  choice_id: string
-  is_correct: boolean
-  time_ms: number
-  created_at: Date
-}
-
-function buildDecoderConfidences(
-  attempts: readonly RawAttempt[],
-  now: Date,
-): DecoderConfidence[] {
-  const byDecoder = new Map<string, AdaptiveAttempt[]>()
-  for (const a of attempts) {
-    const tag = a.scenario.decoder_tag
-    if (!tag) continue
-    const variant = parseScenarioVariantTags(a.scenario.sub_concepts ?? [])
-    const list = byDecoder.get(tag) ?? []
-    list.push({
-      decoderTag: tag,
-      templateId: variant.templateId,
-      signature: variant.signature,
-      disguise: variant.disguise,
-      difficulty: a.scenario.difficulty,
-      isCorrect: a.is_correct,
-      // We don't have ScenarioChoice.quality on the lightweight Attempt
-      // include used at /api/session/start — derive a coarse proxy:
-      // correct → 'best', wrong → 'wrong'. acceptable mid-tier reads
-      // are captured by the more thorough adaptive composer in
-      // /api/session/[id]/attempt; the routing layer here only needs a
-      // band signal that isn't catastrophically wrong on cold start.
-      choiceQuality: a.is_correct ? 'best' : 'wrong',
-      timeMs: a.time_ms,
-      createdAt: a.created_at,
-    })
-    byDecoder.set(tag, list)
-  }
-
-  return ALL_DECODERS.map((tag) => {
-    const decoderAttempts = byDecoder.get(tag) ?? []
-    const last = decoderAttempts[decoderAttempts.length - 1]
-    const daysSinceLastAttempt = last
-      ? Math.floor((now.getTime() - last.createdAt.getTime()) / (24 * 60 * 60 * 1000))
-      : Number.POSITIVE_INFINITY
-    return computeDecoderConfidence({
-      decoderTag: tag,
-      attempts: decoderAttempts,
-      daysSinceLastAttempt: Number.isFinite(daysSinceLastAttempt) ? daysSinceLastAttempt : 9999,
-      // Replay views aren't tracked in the Attempt table yet — pass 0
-      // until a future phase wires telemetry. The mystery-mode probe
-      // is still surfaced via the daily challenge composer.
-      recentReplayViews: 0,
-    })
-  })
-}
-
-function buildFirstSessionCatalog(scenarios: readonly ScenarioWithChoices[]): CatalogScenario[] {
-  return scenarios.map((s) => {
-    const v = parseScenarioVariantTags(s.sub_concepts ?? [])
-    return {
-      id: s.id,
-      decoderTag: s.decoder_tag,
-      templateId: v.templateId,
-      signature: v.signature,
-      disguise: v.disguise,
-      mirror: v.mirror,
-      difficulty: s.difficulty,
-    }
-  })
-}
-
-function buildReturnCatalog(
-  scenarios: readonly ScenarioWithChoices[],
-  lastSessionAt: Date | null,
-): ReturnCatalogScenario[] {
-  // "Fresh" = added since (lastSession - RETURN_FRESHNESS_DAYS).
-  // When the user has no prior session we treat nothing as fresh.
-  const freshCutoff = lastSessionAt
-    ? new Date(lastSessionAt.getTime() - RETURN_FRESHNESS_DAYS * 24 * 60 * 60 * 1000)
-    : null
-  return scenarios.map((s) => {
-    const v = parseScenarioVariantTags(s.sub_concepts ?? [])
-    const isFresh = freshCutoff ? s.created_at > freshCutoff : false
-    return {
-      id: s.id,
-      decoderTag: s.decoder_tag,
-      templateId: v.templateId,
-      difficulty: s.difficulty,
-      isFresh,
-    }
-  })
-}
-
-function recognitionReasonForReturnSlot(
-  slot: ReturnSlot | null,
-  conf: DecoderConfidence | undefined,
-): string | null {
-  if (!slot) return null
-  if (slot === 'transfer') return recognitionReason('transfer-probe')
-  if (slot === 'fresh') {
-    // Fresh additions read like a maintenance probe — the player has
-    // no prior history on the rep, so there's no per-decoder signal
-    // to surface.
-    return recognitionReason('maintain')
-  }
-  // Anchor slots — surface the decoder's nextProbe when known so a
-  // 3-recognized-in-a-row player still sees the disguise-up framing
-  // even though the slot is anchor.
-  const probe: NextProbe = conf?.nextProbe ?? 'maintain'
-  return recognitionReason(probe)
-}

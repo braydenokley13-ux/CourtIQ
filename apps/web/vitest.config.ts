@@ -9,7 +9,15 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['lib/**/*.test.ts', 'components/**/*.test.{ts,tsx}'],
+    include: [
+      'lib/**/*.test.ts',
+      'components/**/*.test.{ts,tsx}',
+      // Phase 9 — opt API route handlers in to the test runner so
+      // their thin glue (auth → spine composer → DB write) can be
+      // exercised in isolation. Page components stay out — they
+      // require a DOM environment we don't configure here.
+      'app/api/**/*.test.ts',
+    ],
     globals: false,
   },
 })

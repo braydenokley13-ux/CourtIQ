@@ -1,27 +1,25 @@
 import { NextResponse } from 'next/server'
 import { SessionMode } from '@prisma/client'
-import type { DecoderTag } from '@prisma/client'
 import { prisma } from '@/lib/db/prisma'
 import { createClient } from '@/lib/supabase/server'
 import {
-  type AdaptiveAttempt,
-  type DecoderConfidence,
-  computeDecoderConfidence,
-} from '@/lib/adaptive'
-import { parseScenarioVariantTags } from '@/lib/firstSession'
-import {
   decoderRingStrip,
+  fasterCallout,
+  latencyWindow,
   todaysFocusLine,
 } from '@/lib/recognitionSurface'
-
-const ALL_DECODERS: DecoderTag[] = [
-  'BACKDOOR_WINDOW',
-  'EMPTY_SPACE_CUT',
-  'SKIP_THE_ROTATION',
-  'ADVANTAGE_OR_RESET',
-] as DecoderTag[]
+import { strongestDecoder } from '@/lib/returnLoop'
+import { buildDecoderConfidences } from '@/lib/spine/glue'
+import { parseScenarioVariantTags } from '@/lib/firstSession'
+import type { AdaptiveAttempt } from '@/lib/adaptive'
 
 const MIN_LIVE_FOR_DAILY = 20
+
+/** Phase 9 — fasterCallout windows. We compare the median latency on
+ *  correct attempts in the last 7 days against the 7 days before that.
+ *  Confidence-gated by the callout itself (≥ 8 attempts per window). */
+const FASTER_RECENT_DAYS = 7
+const FASTER_PRIOR_DAYS = 14
 
 /**
  * GET /api/home/spine
@@ -74,6 +72,34 @@ export async function GET() {
   const ring = decoderRingStrip(decoders)
   const focusLine = todaysFocusLine(decoders)
 
+  // Phase 9 — fasterCallout. The strongest in-progress decoder is
+  // named so the line reads as personal ("you read Backdoor Window
+  // 0.4s faster"). The callout itself is confidence-gated; if either
+  // window has < 8 attempts the line comes back null and /home
+  // renders nothing.
+  const adaptiveAttempts: AdaptiveAttempt[] = attempts.map((a) => {
+    const v = parseScenarioVariantTags(a.scenario.sub_concepts ?? [])
+    return {
+      decoderTag: a.scenario.decoder_tag ?? '',
+      templateId: v.templateId,
+      signature: v.signature,
+      disguise: v.disguise,
+      difficulty: a.scenario.difficulty,
+      isCorrect: a.is_correct,
+      choiceQuality: a.is_correct ? 'best' : 'wrong',
+      timeMs: a.time_ms,
+      createdAt: a.created_at,
+    }
+  })
+  const recentStart = new Date(now.getTime() - FASTER_RECENT_DAYS * 24 * 60 * 60 * 1000)
+  const priorStart = new Date(now.getTime() - FASTER_PRIOR_DAYS * 24 * 60 * 60 * 1000)
+  const strongest = strongestDecoder(decoders)
+  const callout = fasterCallout({
+    recent: latencyWindow(adaptiveAttempts, recentStart, now),
+    prior: latencyWindow(adaptiveAttempts, priorStart, recentStart),
+    decoderTag: strongest?.decoderTag ?? null,
+  })
+
   // Daily streak — count consecutive UTC days strictly before today
   // that have a completed daily.
   const completedDays = new Set(
@@ -90,6 +116,10 @@ export async function GET() {
     decoderConfidences: decoders,
     decoderRing: ring,
     focusLine,
+    fasterCallout: {
+      line: callout.line,
+      improvedMs: callout.improvedMs,
+    },
     daily: {
       available: liveCount >= MIN_LIVE_FOR_DAILY,
       date: todayKey,
@@ -106,47 +136,4 @@ function utcDateKey(d: Date): string {
   const month = String(d.getUTCMonth() + 1).padStart(2, '0')
   const day = String(d.getUTCDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
-}
-
-function buildDecoderConfidences(
-  attempts: ReadonlyArray<{
-    scenario: { decoder_tag: DecoderTag | null; sub_concepts: string[]; difficulty: number }
-    is_correct: boolean
-    time_ms: number
-    created_at: Date
-  }>,
-  now: Date,
-): DecoderConfidence[] {
-  const byDecoder = new Map<string, AdaptiveAttempt[]>()
-  for (const a of attempts) {
-    const tag = a.scenario.decoder_tag
-    if (!tag) continue
-    const v = parseScenarioVariantTags(a.scenario.sub_concepts ?? [])
-    const list = byDecoder.get(tag) ?? []
-    list.push({
-      decoderTag: tag,
-      templateId: v.templateId,
-      signature: v.signature,
-      disguise: v.disguise,
-      difficulty: a.scenario.difficulty,
-      isCorrect: a.is_correct,
-      choiceQuality: a.is_correct ? 'best' : 'wrong',
-      timeMs: a.time_ms,
-      createdAt: a.created_at,
-    })
-    byDecoder.set(tag, list)
-  }
-  return ALL_DECODERS.map((tag) => {
-    const decoderAttempts = byDecoder.get(tag) ?? []
-    const last = decoderAttempts[decoderAttempts.length - 1]
-    const days = last
-      ? Math.floor((now.getTime() - last.createdAt.getTime()) / (24 * 60 * 60 * 1000))
-      : 9999
-    return computeDecoderConfidence({
-      decoderTag: tag,
-      attempts: decoderAttempts,
-      daysSinceLastAttempt: days,
-      recentReplayViews: 0,
-    })
-  })
 }

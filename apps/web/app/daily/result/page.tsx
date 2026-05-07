@@ -14,6 +14,7 @@ import Link from 'next/link'
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
+import { track } from '@/lib/analytics/events'
 
 interface DailyResultPayload {
   session_run_id: string
@@ -77,12 +78,14 @@ function DailyResultInner() {
 
   const onCopy = async () => {
     if (!data) return
+    let method: 'clipboard' | 'fallback' = 'clipboard'
     try {
       // Modern clipboard API. Older Safari + insecure contexts fall
       // through to the textarea fallback.
       if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(data.share_string)
       } else {
+        method = 'fallback'
         const ta = document.createElement('textarea')
         ta.value = data.share_string
         ta.setAttribute('readonly', '')
@@ -95,6 +98,15 @@ function DailyResultInner() {
       }
       setCopied(true)
       setCopyError(null)
+      // Phase 9 — fire the daily_shared event so we can measure
+      // share-rate. The strict event map enforces the payload shape.
+      track('daily_shared', {
+        session_run_id: data.session_run_id,
+        date: data.date,
+        hits: data.hits,
+        total: data.total,
+        method,
+      })
       setTimeout(() => setCopied(false), 2500)
     } catch {
       setCopyError("Couldn't copy. Tap the box and copy manually.")

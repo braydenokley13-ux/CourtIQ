@@ -28,6 +28,11 @@ import { getDecoderOneLiner } from '@/lib/decoders/explanations'
 import { getCoachNudge, shouldShowCoachNudge } from '@/lib/decoders/coachNudges'
 import { getFirstRepCues, isFirstRep } from '@/lib/onboarding/firstRep'
 import { shouldShowStreakChip } from '@/lib/rewards/visibility'
+import {
+  getFirstSessionStep,
+  NORMAL_UI_MODE,
+  type FirstSessionUiMode,
+} from '@/lib/firstSession'
 
 type DecoderTag =
   | 'BACKDOOR_WINDOW'
@@ -341,10 +346,29 @@ function TrainPageInner() {
   // since those broadcast the answer. The renderer / scenario data
   // are unchanged — we only suppress the *page-layer* decoder chrome.
   const isChallengeMode = pathwayContext?.isChallenge === true
+  // Phase 9 — per-rep firstSession UI mode. Source of truth is the
+  // Phase 5 script; we honor it whenever the spine composer routed
+  // this session through firstSession (server tells us via
+  // sessionMeta.mode). Challenge sessions (boss / mixed) keep their
+  // own chrome rules and never read this. Outside the first-session
+  // arc the value collapses to NORMAL_UI_MODE so existing
+  // `firstRep`-gated chrome behaves exactly as before. Computed up
+  // here because `hideDecoderPill` (computed below) reads it.
+  const firstSessionStep = useMemo(() => {
+    if (sessionMeta?.mode !== 'first_session') return null
+    if (isChallengeMode) return null
+    return getFirstSessionStep({ attemptsCount, scenarioIndex: idx })
+  }, [sessionMeta?.mode, attemptsCount, idx, isChallengeMode])
+  const uiMode: FirstSessionUiMode = firstSessionStep?.uiMode ?? NORMAL_UI_MODE
+  // Phase 9 — the firstSession script may suppress the decoder pill
+  // on cold-start reps (rep 1, rep 2, rep 4 — the recognition moments
+  // we want unnamed). The challenge-mode + Pathway hide flags still
+  // win when present.
   const hideDecoderPill =
     pathwayContext?.hideDecoderPill === true ||
     pathwayContext?.trainingMode === 'boss-challenge' ||
-    pathwayContext?.trainingMode === 'mixed-reads'
+    pathwayContext?.trainingMode === 'mixed-reads' ||
+    uiMode.suppressDecoderPill
   const suppressCueHints = pathwayContext?.suppressCueHints === true || isChallengeMode
   const decoderLabel = !hideDecoderPill && decoderTag ? DECODER_LABELS[decoderTag] : null
   // FR-7 — translate the Pathway training mode into the renderer-level
@@ -910,8 +934,11 @@ function TrainPageInner() {
           {/* V3 P9 — hide XP/IQ/streak chips on the player's first ever
               rep. They're zeros (or near-zero) and pull the eye away
               from the canvas. The first read should feel like film
-              study, not a dashboard. */}
-          {firstRep ? (
+              study, not a dashboard.
+              Phase 9 — also honor the firstSession UiMode flag so
+              chips stay hidden across reps 2-4 of the cold-start arc,
+              not just rep 1. */}
+          {firstRep || uiMode.suppressHeaderChips ? (
             <div aria-hidden />
           ) : (
             // V3 P11 P4 — toned status chips. Was three colored
@@ -981,8 +1008,12 @@ function TrainPageInner() {
             V3 P9 — on the player's first ever rep we drop the
             difficulty + timer entirely; only the "Watch the play"
             cue remains during pre-freeze, and the choice cards take
-            over from the freeze beat onward. Zero pressure, no math. */}
-        {firstRep ? (
+            over from the freeze beat onward. Zero pressure, no math.
+            Phase 9 — also drop them whenever the firstSession script
+            tells us to suppress the difficulty tag (reps 1–5 of the
+            cold-start arc — the script keeps difficulty implicit
+            through the entire arc). */}
+        {firstRep || uiMode.suppressDifficultyTag ? (
           phase === 'prompt' && !questionReady ? (
             <div className="flex items-center justify-end text-[11px] uppercase tracking-[1.5px] text-text-dim">
               <span className="inline-flex items-center gap-1.5 font-bold text-text-dim">
@@ -1091,7 +1122,13 @@ function TrainPageInner() {
                   {current.recognition_reason}
                 </p>
               ) : null}
-              {isDecoder ? <PhaseTracker phase={learnPhase} /> : null}
+              {/* Phase 9 — honor the firstSession script's suppress
+                  flag for the phase tracker. Reps 1–5 of the cold-
+                  start arc all suppress it (the basketball read is
+                  the focus, not a learning-phase progress bar). */}
+              {isDecoder && !uiMode.suppressPhaseTracker ? (
+                <PhaseTracker phase={learnPhase} />
+              ) : null}
             </div>
           ) : null}
 
@@ -1349,10 +1386,16 @@ function TrainPageInner() {
               lessonConnection={DECODER_HANDOFF[decoderTag].lessonConnection}
               lessonSlug={DECODER_HANDOFF[decoderTag].lessonSlug}
             />
-            <SelfReviewChecklist
-              scenarioId={current.id}
-              items={DECODER_HANDOFF[decoderTag].selfReviewChecklist}
-            />
+            {/* Phase 9 — the firstSession script keeps the self-review
+                checklist suppressed across reps 1-4 of the cold-start
+                arc; rep 5 turns it back on. Outside the arc this flag
+                is always false so existing chrome is unchanged. */}
+            {uiMode.suppressSelfReviewChecklist ? null : (
+              <SelfReviewChecklist
+                scenarioId={current.id}
+                items={DECODER_HANDOFF[decoderTag].selfReviewChecklist}
+              />
+            )}
           </>
         ) : null}
 

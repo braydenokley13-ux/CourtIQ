@@ -8,15 +8,7 @@ import {
   type DailyCatalogScenario,
 } from '@/lib/dailyChallenge'
 import { parseScenarioVariantTags } from '@/lib/firstSession'
-import { computeDecoderConfidence, type AdaptiveAttempt } from '@/lib/adaptive'
-import type { DecoderTag } from '@prisma/client'
-
-const ALL_DECODERS: DecoderTag[] = [
-  'BACKDOOR_WINDOW',
-  'EMPTY_SPACE_CUT',
-  'SKIP_THE_ROTATION',
-  'ADVANTAGE_OR_RESET',
-] as DecoderTag[]
+import { buildDecoderConfidences } from '@/lib/spine/glue'
 
 /** UTC midnight today — used both for the daily seed and to scope
  *  "did the player already start today's daily?" lookups. */
@@ -92,34 +84,7 @@ export async function POST() {
     }
   })
 
-  const decoderConfidences = ALL_DECODERS.map((tag) => {
-    const decoderAttempts: AdaptiveAttempt[] = attempts
-      .filter((a) => a.scenario.decoder_tag === tag)
-      .map((a) => {
-        const v = parseScenarioVariantTags(a.scenario.sub_concepts ?? [])
-        return {
-          decoderTag: tag,
-          templateId: v.templateId,
-          signature: v.signature,
-          disguise: v.disguise,
-          difficulty: a.scenario.difficulty,
-          isCorrect: a.is_correct,
-          choiceQuality: a.is_correct ? 'best' : 'wrong',
-          timeMs: a.time_ms,
-          createdAt: a.created_at,
-        }
-      })
-    const last = decoderAttempts[decoderAttempts.length - 1]
-    const days = last
-      ? Math.floor((now.getTime() - last.createdAt.getTime()) / (24 * 60 * 60 * 1000))
-      : 9999
-    return computeDecoderConfidence({
-      decoderTag: tag,
-      attempts: decoderAttempts,
-      daysSinceLastAttempt: days,
-      recentReplayViews: 0,
-    })
-  })
+  const decoderConfidences = buildDecoderConfidences(attempts, now)
 
   const bundle = composeDailyChallenge({
     utcDate: todayUtc,
