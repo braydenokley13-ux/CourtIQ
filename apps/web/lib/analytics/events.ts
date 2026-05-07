@@ -30,6 +30,13 @@ export type EventMap = {
   share_click:            { surface: string }
   leaderboard_view:       { period: 'weekly', scope: 'global' | 'friends' }
 
+  // Phase 8 — daily challenge lifecycle
+  daily_started:          { session_run_id: string, date: string, seed_key: string, catalog_incomplete: boolean, swapped_slot_index: number | null }
+  daily_completed:        { session_run_id: string, date: string, hits: number, total: number, total_time_ms: number, streak_current: number, streak_extended: boolean, streak_reset: boolean }
+  daily_unavailable:      { reason: 'CATALOG_TOO_THIN' }
+  // Phase 9 — share-string clipboard copy on /daily/result.
+  daily_shared:           { session_run_id: string, date: string, hits: number, total: number, method: 'clipboard' | 'fallback' }
+
   // Monetization (v1+)
   paywall_shown:          { trigger: string }
   subscription_started:   { plan: 'pro_monthly' | 'pro_annual' }

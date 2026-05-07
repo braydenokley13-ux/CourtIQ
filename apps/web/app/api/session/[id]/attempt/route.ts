@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { SessionMode } from '@prisma/client'
 import { prisma } from '@/lib/db/prisma'
 import { applyAttempt } from '@/lib/services/iqService'
 import { award } from '@/lib/services/xpService'
@@ -46,6 +47,12 @@ export async function POST(
   }
 
   const timeMs = Math.max(0, body.timeMs ?? 8000)
+  // Phase 8 — daily-challenge sessions skip mastery + training-streak
+  // + badge side effects so a Mystery-Mode rep can't drive band
+  // promotion or extend a streak the player didn't earn through
+  // training. Attempt + XP + IQ rows still write for analytics +
+  // share-string honesty.
+  const isDaily = session.mode === SessionMode.daily_challenge
   const result = await prisma.$transaction(async (tx) => {
     const iq = await applyAttempt(tx, {
       userId: body.userId!,
@@ -65,6 +72,11 @@ export async function POST(
         scenario_id: scenario.id,
         choice_id: selectedChoice.id,
         is_correct: selectedChoice.is_correct,
+        // Phase 10 — denormalize the choice's authored quality so the
+        // spine glue (buildDecoderConfidences) can drive band logic
+        // off the real `best | acceptable | wrong` signal. Historical
+        // rows stay null and the glue falls back to its proxy.
+        choice_quality: selectedChoice.quality,
         time_ms: timeMs,
         iq_before: iq.iqBefore,
         iq_after: iq.iqAfter,
@@ -81,15 +93,21 @@ export async function POST(
       },
     })
 
-    await updateMastery(tx, {
-      userId: body.userId!,
-      conceptIds: scenario.concept_tags,
-      decoderTag: scenario.decoder_tag,
-      isCorrect: selectedChoice.is_correct,
-    })
+    if (!isDaily) {
+      await updateMastery(tx, {
+        userId: body.userId!,
+        conceptIds: scenario.concept_tags,
+        decoderTag: scenario.decoder_tag,
+        isCorrect: selectedChoice.is_correct,
+      })
+    }
 
-    const streak = await tickStreak(tx, { userId: body.userId! })
-    const badges = await checkAndAward(tx, { userId: body.userId!, sessionId })
+    const streak = isDaily
+      ? { current: 0, previous: 0, extended: false, broken: false }
+      : await tickStreak(tx, { userId: body.userId! })
+    const badges = isDaily
+      ? []
+      : await checkAndAward(tx, { userId: body.userId!, sessionId })
 
     return {
       iq,
