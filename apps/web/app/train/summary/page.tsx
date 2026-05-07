@@ -260,14 +260,23 @@ function SummaryContent() {
           </motion.header>
         )}
 
-        {/* Reward grid */}
-        <div className="grid grid-cols-2 gap-3">
-          <RewardStat label="XP earned" value={`+${xp}`} accent="xp" />
-          <RewardStat
-            label="IQ change"
-            value={`${iq > 0 ? '+' : ''}${iq}`}
-            accent={iq >= 0 ? 'iq' : 'heat'}
-          />
+        {/* V3 P11 P4 — reward chrome softened. The dual XP / IQ cards
+            made the post-rep page read like a points screen; XP and IQ
+            still appear inline in the SessionRecap below ("IQ +X — the
+            read is getting faster.") so momentum is preserved without
+            a Vegas-style stat grid. */}
+        <div className="flex items-center justify-center gap-3 rounded-2xl border border-hairline-2 bg-bg-1 px-3 py-2 text-[11px] font-bold tabular-nums">
+          <span className="inline-flex items-center gap-1 text-text-dim">
+            <span className="text-[9px] uppercase tracking-[1.2px] text-text-mute">XP</span>
+            <span className="text-text">+{xp}</span>
+          </span>
+          <span aria-hidden className="h-3 w-px bg-hairline-2" />
+          <span className="inline-flex items-center gap-1 text-text-dim">
+            <span className="text-[9px] uppercase tracking-[1.2px] text-text-mute">IQ</span>
+            <span className={iq >= 0 ? 'text-text' : 'text-heat'}>
+              {iq > 0 ? '+' : ''}{iq}
+            </span>
+          </span>
         </div>
 
         {/* Pathway block — surfaces Continue / Back when /train was
@@ -738,27 +747,3 @@ function SessionRecap({
   )
 }
 
-function RewardStat({
-  label,
-  value,
-  accent,
-}: {
-  label: string
-  value: string
-  accent: 'xp' | 'iq' | 'heat'
-}) {
-  const color = accent === 'xp' ? 'var(--xp)' : accent === 'iq' ? 'var(--iq)' : 'var(--heat)'
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: [0.2, 0.8, 0.2, 1] }}
-      className="rounded-2xl border border-hairline-2 bg-bg-1 p-4"
-    >
-      <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-text-dim">{label}</p>
-      <p className="mt-1 font-display text-[28px] font-black tabular-nums" style={{ color }}>
-        {value}
-      </p>
-    </motion.div>
-  )
-}

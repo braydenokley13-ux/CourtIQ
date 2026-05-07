@@ -886,21 +886,28 @@ function TrainPageInner() {
           {firstRep ? (
             <div aria-hidden />
           ) : (
-            <div className="flex items-center gap-1.5 text-[11px] font-bold tabular-nums">
-              <span className="inline-flex items-center gap-1 rounded-full border border-hairline-2 bg-bg-2 px-2.5 py-1 text-xp">
-                <span aria-hidden>✦</span>
-                {xp}
+            // V3 P11 P4 — toned status chips. Was three colored
+            // (gold-XP, purple-IQ, heat-streak) chips that read as a
+            // gamified HUD; now a single muted status row so the
+            // canvas stays the loudest object on the page. The
+            // streak chip still warms when alive, but only past 1.
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold tabular-nums text-text-dim">
+              <span className="inline-flex items-center gap-1 text-text-mute">
+                <span className="text-[9px] uppercase tracking-[1.2px]">IQ</span>
+                <span className="text-text-dim">{iq}</span>
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-hairline-2 bg-bg-2 px-2.5 py-1 text-iq">
-                IQ {iq}
+              <span aria-hidden className="h-3 w-px bg-hairline-2" />
+              <span className="inline-flex items-center gap-1 text-text-mute">
+                <span className="text-[9px] uppercase tracking-[1.2px]">XP</span>
+                <span className="text-text-dim">{xp}</span>
               </span>
-              {streak > 0 ? (
+              {streak > 1 ? (
                 <motion.span
                   key={`streak-${streak}`}
-                  initial={{ scale: 0.85, opacity: 0 }}
+                  initial={{ scale: 0.92, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ duration: 0.35, ease: [0.34, 1.56, 0.64, 1] }}
-                  className="inline-flex items-center gap-1 rounded-full border border-heat/40 bg-heat/10 px-2.5 py-1 text-heat"
+                  className="ml-1 inline-flex items-center gap-1 rounded-full border border-heat/30 bg-heat/5 px-2 py-0.5 text-[10px] font-bold text-heat"
                 >
                   <span aria-hidden>🔥</span>
                   {streak}

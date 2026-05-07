@@ -60,60 +60,33 @@ export function WinBurst({
           ) : null}
         </div>
       </div>
-      <div className="relative mt-3 grid grid-cols-3 gap-2">
-        <RewardChip
-          label="XP"
-          value={`+${xpDelta}`}
-          color="var(--xp)"
-          delay={0.15}
-        />
-        <RewardChip
-          label="IQ"
-          value={iqDelta > 0 ? `+${iqDelta}` : `${iqDelta}`}
-          color="var(--iq)"
-          delay={0.25}
-        />
-        <RewardChip
-          label="Streak"
-          value={streak > 0 ? `${streak} 🔥` : '—'}
-          color="var(--heat)"
-          delay={0.35}
-          dim={streak === 0}
-        />
-      </div>
-    </motion.div>
-  )
-}
-
-function RewardChip({
-  label,
-  value,
-  color,
-  delay,
-  dim,
-}: {
-  label: string
-  value: string
-  color: string
-  delay: number
-  dim?: boolean
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8, scale: 0.9 }}
-      animate={{ opacity: dim ? 0.55 : 1, y: 0, scale: 1 }}
-      transition={{ delay, duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
-      className="rounded-xl border border-hairline-2 bg-bg-1/80 px-3 py-2 text-center"
-    >
-      <p
-        className="font-display text-[18px] font-bold leading-tight tabular-nums"
-        style={{ color }}
+      {/* V3 P11 P4 — reward grid softened. The previous three big
+          cards (XP / IQ / Streak) made the win moment feel like a
+          slot-machine payout. We keep the numbers visible — momentum
+          matters — but in a single calm row of muted chips so the
+          headline ("You found the Backdoor Window.") owns the moment
+          and the rewards play sideline. */}
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2, duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+        className="relative mt-3 flex flex-wrap items-center gap-2 text-[11px] font-bold tabular-nums"
       >
-        {value}
-      </p>
-      <p className="text-[9px] font-bold uppercase tracking-[1.2px] text-text-mute">
-        {label}
-      </p>
+        <span className="inline-flex items-center gap-1 rounded-full border border-hairline-2 bg-bg-2 px-2.5 py-1 text-text-dim">
+          <span className="text-[9px] font-bold uppercase tracking-[1.2px] text-text-mute">XP</span>
+          <span className="text-text">+{xpDelta}</span>
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full border border-hairline-2 bg-bg-2 px-2.5 py-1 text-text-dim">
+          <span className="text-[9px] font-bold uppercase tracking-[1.2px] text-text-mute">IQ</span>
+          <span className="text-text">{iqDelta > 0 ? `+${iqDelta}` : iqDelta}</span>
+        </span>
+        {streak > 1 ? (
+          <span className="inline-flex items-center gap-1 rounded-full border border-heat/30 bg-heat/5 px-2.5 py-1 text-heat">
+            <span aria-hidden>🔥</span>
+            {streak} in a row
+          </span>
+        ) : null}
+      </motion.div>
     </motion.div>
   )
 }
