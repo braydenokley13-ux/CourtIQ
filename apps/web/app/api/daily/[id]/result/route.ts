@@ -109,16 +109,20 @@ export async function GET(
         correct_count: result.hits,
       },
     })
-    captureServerEvent('daily_completed', {
-      session_run_id: sessionId,
-      date: dateKey,
-      hits: result.hits,
-      total: result.total,
-      total_time_ms: result.totalTimeMs,
-      streak_current: streak.current,
-      streak_extended: streak.extended,
-      streak_reset: streak.reset,
-    })
+    captureServerEvent(
+      'daily_completed',
+      {
+        session_run_id: sessionId,
+        date: dateKey,
+        hits: result.hits,
+        total: result.total,
+        total_time_ms: result.totalTimeMs,
+        streak_current: streak.current,
+        streak_extended: streak.extended,
+        streak_reset: streak.reset,
+      },
+      user.id,
+    )
   }
 
   return NextResponse.json({

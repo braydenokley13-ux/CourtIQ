@@ -146,6 +146,13 @@ model Attempt {
   // rows continue to read as legacy (the glue falls back to the
   // proxy when null). Forward-only — no backfill required.
   choice_quality ChoiceQuality?
+  // Phase 11 — number of replay-demo views the player triggered on
+  // this rep (Scene replay button in /train). The adaptive band
+  // logic reads recentReplayViews — when it's elevated the routing
+  // layer prefers `mystery-mode` for the next rep so the player
+  // can't grind the demo into a memorized read. Defaults to 0 so
+  // pre-Phase-11 rows count as "no replays seen".
+  replay_count   Int            @default(0)
   time_ms        Int
   iq_before      Int
   iq_after       Int

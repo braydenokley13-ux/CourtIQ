@@ -1370,7 +1370,24 @@ function TrainPageInner() {
               }
               whyText={feedback.feedback_text}
               hasReplay={!!scene && scene.answerDemo.length > 0}
-              onReplay={() => setReplayCounter((n) => n + 1)}
+              // Phase 11 — every replay click increments replay_count
+              // on the attempt row (best-effort POST). Drives the
+              // adaptive `mystery-mode` probe so a player who keeps
+              // re-watching the demo gets a no-hint rep in the next
+              // session. The local counter still drives the canvas's
+              // resetCounter so the demo replays visually.
+              onReplay={() => {
+                setReplayCounter((n) => n + 1)
+                if (sessionId && current?.id) {
+                  void fetch(`/api/session/${sessionId}/replay`, {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify({ scenarioId: current.id }),
+                  }).catch(() => {
+                    // Soft-fail — telemetry, not user-visible state.
+                  })
+                }
+              }}
               onShowMistake={undefined}
             />
           ) : null}

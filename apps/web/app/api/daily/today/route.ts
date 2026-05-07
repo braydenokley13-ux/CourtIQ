@@ -98,7 +98,7 @@ export async function POST() {
   })
 
   if (!bundle.available) {
-    captureServerEvent('daily_unavailable', { reason: 'CATALOG_TOO_THIN' })
+    captureServerEvent('daily_unavailable', { reason: 'CATALOG_TOO_THIN' }, user.id)
     return NextResponse.json(
       {
         error: 'DAILY_UNAVAILABLE',
@@ -126,13 +126,17 @@ export async function POST() {
     },
   })
 
-  captureServerEvent('daily_started', {
-    session_run_id: session.id,
-    date: bundle.date,
-    seed_key: bundle.seedKey,
-    catalog_incomplete: bundle.catalogIncomplete,
-    swapped_slot_index: bundle.swappedSlotIndex,
-  })
+  captureServerEvent(
+    'daily_started',
+    {
+      session_run_id: session.id,
+      date: bundle.date,
+      seed_key: bundle.seedKey,
+      catalog_incomplete: bundle.catalogIncomplete,
+      swapped_slot_index: bundle.swappedSlotIndex,
+    },
+    user.id,
+  )
 
   const scenarios = await loadOrderedScenarios(bundle.scenarioIds)
 

@@ -39,14 +39,25 @@ export const ALL_DECODERS: DecoderTag[] = [
  *  Phase 10 — `choice_quality` is denormalized onto Attempt rows on
  *  write. Pre-Phase-10 rows have `null` here; the glue falls back to
  *  the legacy `correct → best, wrong → wrong` proxy when it sees one.
+ *
+ *  Phase 11 — `replay_count` records how many times the player re-
+ *  watched the demo on this rep. Pre-Phase-11 rows are 0 by column
+ *  default. The glue sums the most recent 5 attempts globally to
+ *  drive the Phase 4 `mystery-mode` probe.
  */
 export interface AttemptWithScenario {
   is_correct: boolean
   choice_quality?: 'best' | 'acceptable' | 'wrong' | null
+  replay_count?: number
   time_ms: number
   created_at: Date
   scenario: Pick<Scenario, 'decoder_tag' | 'sub_concepts' | 'difficulty'>
 }
+
+/** How many of the player's most recent attempts (across all
+ *  decoders) feed into `recentReplayViews`. Matches strategy §4 —
+ *  "the last 5 reps", any decoder, sums replay views. */
+export const REPLAY_VIEW_WINDOW = 5
 
 /** Full Scenario+choices shape the catalog builders accept. */
 export type ScenarioWithChoices = Scenario & { choices: ScenarioChoice[] }
@@ -83,6 +94,15 @@ export function buildDecoderConfidences(
     byDecoder.set(tag, list)
   }
 
+  // Phase 11 — sum replay_count across the most recent
+  // REPLAY_VIEW_WINDOW=5 attempts globally (any decoder). The
+  // adaptive layer flips to mystery-mode when this exceeds its
+  // threshold (default ≥3). The input list is oldest-first by
+  // contract, so .slice(-N) is the trailing window.
+  const recentReplayViews = attempts
+    .slice(-REPLAY_VIEW_WINDOW)
+    .reduce((acc, a) => acc + (a.replay_count ?? 0), 0)
+
   return ALL_DECODERS.map((tag) => {
     const decoderAttempts = byDecoder.get(tag) ?? []
     const last = decoderAttempts[decoderAttempts.length - 1]
@@ -93,9 +113,7 @@ export function buildDecoderConfidences(
       decoderTag: tag,
       attempts: decoderAttempts,
       daysSinceLastAttempt: Number.isFinite(days) ? days : 9999,
-      // Replay-view telemetry isn't tracked yet — see scenarioService
-      // header note. Pass 0 so mystery-mode never spuriously triggers.
-      recentReplayViews: 0,
+      recentReplayViews,
     })
   })
 }

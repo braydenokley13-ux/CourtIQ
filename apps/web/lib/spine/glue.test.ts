@@ -65,6 +65,7 @@ function makeAttempt(
   return {
     is_correct: overrides.is_correct ?? true,
     choice_quality: 'choice_quality' in overrides ? overrides.choice_quality : undefined,
+    replay_count: 'replay_count' in overrides ? overrides.replay_count : undefined,
     time_ms: overrides.time_ms ?? 3000,
     created_at: overrides.created_at ?? new Date('2026-05-06T00:00:00Z'),
     scenario: {
@@ -151,6 +152,82 @@ describe('buildDecoderConfidences', () => {
     const result = buildDecoderConfidences(attempts, NOW)
     const bdw = result.find((r) => r.decoderTag === 'BACKDOOR_WINDOW')!
     expect(bdw.evidence.attempts).toBe(1)
+  })
+
+  // ---- Phase 11 — replay-view telemetry ----
+
+  it('flips the next probe to mystery-mode when replay views accumulate (≥3 across the last 5 reps)', () => {
+    // Build 5 mid-tier attempts to put the player at the
+    // recognizing band, then load the last 3 with replay views.
+    // The adaptive layer's mystery-mode rule wins over disguise-up
+    // / transfer-probe, so the resulting nextProbe pings mystery.
+    const fast = (i: number, replays = 0) =>
+      makeAttempt({
+        decoder_tag: 'BACKDOOR_WINDOW',
+        is_correct: true,
+        choice_quality: 'best',
+        time_ms: 2400,
+        replay_count: replays,
+        sub_concepts: [`tpl:BDW.t${i % 2}`, 'sig:|disg:none|x'],
+        created_at: new Date(NOW.getTime() - (10 - i) * 60_000),
+      })
+    const attempts = [
+      fast(0),
+      fast(1),
+      fast(2, 1),
+      fast(3, 1),
+      fast(4, 2), // total = 4 replay views in the trailing 5
+    ]
+    const result = buildDecoderConfidences(attempts, NOW)
+    const bdw = result.find((r) => r.decoderTag === 'BACKDOOR_WINDOW')!
+    expect(bdw.nextProbe).toBe('mystery-mode')
+  })
+
+  it('treats missing replay_count as 0 so legacy rows do not spuriously trigger mystery-mode', () => {
+    const attempts = Array.from({ length: 5 }, (_, i) =>
+      makeAttempt({
+        decoder_tag: 'BACKDOOR_WINDOW',
+        is_correct: true,
+        choice_quality: 'best',
+        time_ms: 2400,
+        // replay_count omitted entirely
+        sub_concepts: ['tpl:BDW.t', 'sig:|disg:none|x'],
+        created_at: new Date(NOW.getTime() - (10 - i) * 60_000),
+      }),
+    )
+    const result = buildDecoderConfidences(attempts, NOW)
+    const bdw = result.find((r) => r.decoderTag === 'BACKDOOR_WINDOW')!
+    expect(bdw.nextProbe).not.toBe('mystery-mode')
+  })
+
+  it('only counts replay views from the trailing REPLAY_VIEW_WINDOW=5 attempts', () => {
+    // Pile up replay views on OLD attempts (positions 1-5), then 5
+    // clean ones at the end. The trailing window should sum to 0
+    // and mystery-mode should NOT trigger.
+    const old = (i: number) =>
+      makeAttempt({
+        decoder_tag: 'BACKDOOR_WINDOW',
+        is_correct: true,
+        choice_quality: 'best',
+        time_ms: 2400,
+        replay_count: 5,
+        sub_concepts: ['tpl:BDW.t', 'sig:|disg:none|x'],
+        created_at: new Date(NOW.getTime() - (20 - i) * 60_000),
+      })
+    const recent = (i: number) =>
+      makeAttempt({
+        decoder_tag: 'BACKDOOR_WINDOW',
+        is_correct: true,
+        choice_quality: 'best',
+        time_ms: 2400,
+        replay_count: 0,
+        sub_concepts: [`tpl:BDW.t${i % 2}`, 'sig:|disg:none|x'],
+        created_at: new Date(NOW.getTime() - (10 - i) * 60_000),
+      })
+    const attempts = [old(0), old(1), old(2), old(3), old(4), recent(5), recent(6), recent(7), recent(8), recent(9)]
+    const result = buildDecoderConfidences(attempts, NOW)
+    const bdw = result.find((r) => r.decoderTag === 'BACKDOOR_WINDOW')!
+    expect(bdw.nextProbe).not.toBe('mystery-mode')
   })
 })
 
