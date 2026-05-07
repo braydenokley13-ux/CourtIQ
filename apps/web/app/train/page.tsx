@@ -27,6 +27,7 @@ import {
 import { getDecoderOneLiner } from '@/lib/decoders/explanations'
 import { getCoachNudge, shouldShowCoachNudge } from '@/lib/decoders/coachNudges'
 import { getFirstRepCues, isFirstRep } from '@/lib/onboarding/firstRep'
+import { shouldShowStreakChip } from '@/lib/rewards/visibility'
 
 type DecoderTag =
   | 'BACKDOOR_WINDOW'
@@ -901,7 +902,7 @@ function TrainPageInner() {
                 <span className="text-[9px] uppercase tracking-[1.2px]">XP</span>
                 <span className="text-text-dim">{xp}</span>
               </span>
-              {streak > 1 ? (
+              {shouldShowStreakChip(streak) ? (
                 <motion.span
                   key={`streak-${streak}`}
                   initial={{ scale: 0.92, opacity: 0 }}

@@ -1,6 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
+import { shouldShowStreakChip } from '@/lib/rewards/visibility'
 
 interface WinBurstProps {
   /** Re-mount key. Bumping this re-fires the animation. */
@@ -80,7 +81,7 @@ export function WinBurst({
           <span className="text-[9px] font-bold uppercase tracking-[1.2px] text-text-mute">IQ</span>
           <span className="text-text">{iqDelta > 0 ? `+${iqDelta}` : iqDelta}</span>
         </span>
-        {streak > 1 ? (
+        {shouldShowStreakChip(streak) ? (
           <span className="inline-flex items-center gap-1 rounded-full border border-heat/30 bg-heat/5 px-2.5 py-1 text-heat">
             <span aria-hidden>🔥</span>
             {streak} in a row
