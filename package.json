@@ -18,6 +18,7 @@
     "templates:materialize": "pnpm exec tsx scripts/materialize-templates.ts",
     "templates:check": "pnpm exec tsx scripts/materialize-templates.ts --check",
     "templates:lint": "pnpm exec tsx scripts/lint-variants.ts",
+    "templates:scaffold": "pnpm exec tsx scripts/scaffold-variant.ts",
     "seed:scenarios": "pnpm exec tsx scripts/seed-scenarios.ts",
     "seed:lessons": "pnpm exec tsx scripts/seed-lessons.ts",
     "seed:content": "pnpm templates:materialize && pnpm seed:scenarios && pnpm seed:lessons",

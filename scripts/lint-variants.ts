@@ -171,6 +171,23 @@ function lintVariationSignatureUnique(loaded: Loaded[]): Issue[] {
   return issues
 }
 
+function lintTodoProseInLive(loaded: Loaded[]): Issue[] {
+  const issues: Issue[] = []
+  for (const { variants } of loaded) {
+    for (const v of variants) {
+      if (v.status !== 'LIVE') continue
+      const json = JSON.stringify(v.copy)
+      if (json.includes('TODO:')) {
+        issues.push({
+          severity: 'error',
+          message: `Variant ${v.id} is LIVE but still contains TODO: prose. Either fill it in or set status to DRAFT.`,
+        })
+      }
+    }
+  }
+  return issues
+}
+
 async function main(): Promise<void> {
   const loaded = await load()
   console.log(`lint-variants: ${loaded.length} templates loaded`)
@@ -178,6 +195,7 @@ async function main(): Promise<void> {
     ...lintVariationSignatureUnique(loaded),
     ...lintAxisSpread(loaded),
     ...lintCrossTemplateCollision(loaded),
+    ...lintTodoProseInLive(loaded),
   ]
   const cov = lintCoverage(loaded)
   issues.push(...cov.issues)

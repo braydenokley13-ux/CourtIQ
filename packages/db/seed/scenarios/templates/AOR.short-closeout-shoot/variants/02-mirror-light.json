@@ -1,0 +1,62 @@
+{
+  "id": "AOR-T1-02",
+  "template": "AOR.short-closeout-shoot",
+  "status": "DRAFT",
+  "version": 1,
+  "copy": {
+    "title": "TODO: AOR.short-closeout-shoot — short identity line",
+    "prompt": "TODO: ≤140 chars, imperative, basketball-first voice.",
+    "game_context": "TODO: 4-on-4 half-court setup line. Where the ball started, what the clock says.",
+    "possession_setup": "TODO: where you are, where the ball is, what the defense is doing.",
+    "decision_moment": "TODO: the precise body cue at the freeze.",
+    "visible_cue": "TODO: the single most readable thing the player should look at.",
+    "best_read": "TODO: 1–2 sentence player-voice description of the best action (corresponds to template outcome \"shoot\").",
+    "explanation_md": "TODO: **AOR.short-closeout-shoot.** Re-state the cue, then the decision, then the consequence. Tie back to lesson \"advantage-or-reset\".",
+    "feedback": {
+      "correct": "TODO: short praise that names the cue.",
+      "partial": "TODO: short nudge for the acceptable read.",
+      "wrong": "TODO: short coach voice that points at the cue without giving the answer."
+    },
+    "self_review_checklist": [
+      "TODO: yes/no question about the player's body, not the defender's.",
+      "TODO: yes/no about the action.",
+      "TODO: yes/no about the timing.",
+      "TODO: yes/no about the finish."
+    ],
+    "acceptable_reads": [
+      "TODO: explanation of the rip_and_drive branch."
+    ],
+    "bad_reads": [
+      "TODO: short consequence line for each wrong outcome."
+    ],
+    "choices": {
+      "shoot": {
+        "label": "TODO: variant label for \"shoot\" (best)",
+        "feedback_text": "TODO: feedback if user picks \"shoot\"."
+      },
+      "rip_and_drive": {
+        "label": "TODO: variant label for \"rip_and_drive\" (acceptable)",
+        "feedback_text": "TODO: feedback if user picks \"rip_and_drive\".",
+        "partial_feedback_text": "TODO: shorter post-rep nudge for \"rip_and_drive\"."
+      },
+      "pass_back": {
+        "label": "TODO: variant label for \"pass_back\" (wrong)",
+        "feedback_text": "TODO: feedback if user picks \"pass_back\"."
+      },
+      "pump_fake_hold": {
+        "label": "TODO: variant label for \"pump_fake_hold\" (wrong)",
+        "feedback_text": "TODO: feedback if user picks \"pump_fake_hold\"."
+      }
+    }
+  },
+  "variation": {
+    "user_slot": "shooter",
+    "mirror": true,
+    "disguise": "light",
+    "clock_pressure": "none",
+    "overrides": {
+      "players": [],
+      "movements": []
+    }
+  }
+}
