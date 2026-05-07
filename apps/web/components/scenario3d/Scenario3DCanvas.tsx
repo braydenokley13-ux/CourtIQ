@@ -266,6 +266,16 @@ export function Scenario3DCanvas({
   // Subscribes once per mount and pushes state-machine transitions
   // through the parent's `onPhase` callback.
   const stateMachineRef = useRef<ReplayStateMachine | null>(null)
+  // P0 stability — last camera mode the dispatcher pushed into the
+  // controller. The dispatcher useEffect short-circuits when the freshly
+  // picked preset matches this ref, so a re-render that re-runs the
+  // effect with identical inputs (StrictMode double-invoke, concurrent
+  // render, parent re-render) never re-issues setMode. setMode itself
+  // already early-returns on the same mode, but the ref also lets us
+  // skip the policy-call cost and keeps the dispatcher idempotent under
+  // every render schedule. Reset on scene rebuild alongside the
+  // controller it tracks.
+  const lastDispatchedModeRef = useRef<CameraMode | null>(null)
   const consumedChoiceRef = useRef<string | null>(null)
   // Phase B / B4 — buffer a `pickedChoiceId` that arrives before the
   // state machine reaches `frozen`. The subscribe callback below flushes
@@ -1176,8 +1186,40 @@ export function Scenario3DCanvas({
             // current mode's target on the next parent rAF tick, so any
             // delta from fitCameraToScene above is invisible.
             const controller = new CameraController(visibleScene, aspect, CAMERA_FOV)
-            controller.setMode(activeCameraMode)
+            // P0 stability — choose the controller's INITIAL mode from
+            // the dispatcher (decoder + assist + manual-override aware)
+            // so we never paint one frame at the legacy `auto` preset
+            // and then ease over to the dispatched preset on the next
+            // tick. That auto → broadcast ease was the visible "bounce
+            // between targets" the user reports on every scene swap.
+            //
+            // The state machine emits its first `idle` phase the moment
+            // we call `machine.start()` below; the dispatcher useEffect
+            // picks up the same `idle → broadcast` choice and would
+            // re-issue setMode('broadcast') one render later. By doing
+            // the dispatch inline at mount, the controller is born on
+            // the right preset and the eventual useEffect call is a
+            // no-op (setMode early-returns when mode unchanged).
+            const initialPhase: ReplayPhase =
+              visibleScene.freezeAtMs !== null ? 'idle' : 'idle'
+            const initialPreset = pickAssistedCameraMode({
+              decoder: visibleScene.decoderTag ?? null,
+              phase: initialPhase,
+              assist: cameraAssist,
+              manualOverride: cameraManualOverride,
+            })
+            // Manual override (or no-opinion dispatcher) → respect the
+            // explicit prop / URL / dropdown selection.
+            const bornMode: CameraMode =
+              (initialPreset as CameraMode | null) ?? activeCameraMode
+            controller.setMode(bornMode)
             controller.snapNext()
+            // Track the last preset the dispatcher pushed so the
+            // dispatcher useEffect can short-circuit when the picked
+            // value matches the last dispatch — even across renders
+            // where React schedules the effect twice with identical
+            // inputs (StrictMode, concurrent renders, etc.).
+            lastDispatchedModeRef.current = bornMode
             cameraControllerRef.current = controller
           }
 
@@ -1436,6 +1478,10 @@ export function Scenario3DCanvas({
       // at a stale camera/scene/group.
       cameraControllerRef.current = null
       motionControllerRef.current = null
+      // Clear the dispatcher's last-pushed mode so the next mount's
+      // dispatcher useEffect does not see a stale value and skip the
+      // initial setMode for the new controller.
+      lastDispatchedModeRef.current = null
       // Clear any pending shake so a re-mount does not start with a
       // stale offset from the previous scene's last pass arrival.
       shakeRef.current = null
@@ -1497,7 +1543,18 @@ export function Scenario3DCanvas({
       assist: cameraAssist,
       manualOverride: cameraManualOverride,
     })
-    if (picked !== null) ctrl.setMode(picked)
+    if (picked === null) return
+    // P0 stability — short-circuit when the freshly picked preset
+    // matches what the dispatcher last pushed. Without this guard a
+    // re-render that didn't actually change inputs (StrictMode,
+    // concurrent renders, parent re-renders) still triggered the
+    // effect and called setMode → recomputeTarget. setMode itself
+    // early-returns on identical modes, but tracking the dispatch
+    // here also avoids the policy lookup cost and keeps a future
+    // refactor of setMode (e.g., scene-aware recompute) safe.
+    if (lastDispatchedModeRef.current === picked) return
+    lastDispatchedModeRef.current = picked as CameraMode
+    ctrl.setMode(picked as CameraMode)
   }, [
     visibleScene.decoderTag,
     filmRoomReplayPhase,
