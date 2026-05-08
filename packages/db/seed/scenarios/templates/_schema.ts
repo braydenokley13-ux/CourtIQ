@@ -227,6 +227,53 @@ export const templateChoiceSchema = z.object({
 })
 
 // -----------------------------------------------------------------------------
+// Freeze marker, timing overrides, beat spec (Phase 3.1.4)
+// -----------------------------------------------------------------------------
+
+/** Discriminated freeze-marker — `atMs` for absolute placement, or
+ *  `beforeMovementId` to anchor to a movement boundary. The seeder
+ *  schema in scripts/seed-scenarios.ts mirrors this shape. */
+export const freezeMarkerSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('atMs'), atMs: z.number().int().nonnegative().max(60_000) }),
+  z.object({ kind: z.literal('beforeMovementId'), movementId: z.string().min(1) }),
+])
+
+/**
+ * Per-scenario hold targets the runtime applies on top of the module-
+ * level defaults in `freezeFrameCognition.ts`. Every field is optional;
+ * the renderer falls back to the default when a field is absent.
+ *
+ *   - cognitionHoldMs       — replaces FREEZE_COGNITION_HOLD_MS (1400)
+ *   - choiceTrayAtMs        — replaces CHOICE_TRAY_AT_MS (1400)
+ *   - cueRepaintHoldCorrectMs — replaces CUE_REPAINT_HOLD_CORRECT_MS (600)
+ *   - cueRepaintHoldWrongMs   — replaces CUE_REPAINT_HOLD_WRONG_MS (400)
+ *
+ * Floors:
+ *   - cognitionHoldMs has a 1100ms floor (qa-checklist §6 readability).
+ *   - All hold values capped at 4_000ms — anything longer should split
+ *     into a HUNT chained-read instead of stretching one freeze.
+ */
+export const timingOverridesSchema = z.object({
+  cognitionHoldMs: z.number().int().min(1100).max(4_000).optional(),
+  choiceTrayAtMs: z.number().int().min(0).max(4_000).optional(),
+  cueRepaintHoldCorrectMs: z.number().int().min(200).max(4_000).optional(),
+  cueRepaintHoldWrongMs: z.number().int().min(200).max(4_000).optional(),
+})
+
+/**
+ * Pack 2 HUNT chained-read scenarios use two freeze beats. The first
+ * beat resolves; camera holds for ~400ms on the result; the second
+ * beat starts. If `beatSpec` is present, the runtime treats the
+ * scenario as multi-beat: schema requires `firstBeat`; `secondBeat`
+ * is optional so the spec can ship without breaking single-beat
+ * scenarios that opt-in for the data shape.
+ */
+export const beatSpecSchema = z.object({
+  firstBeat: freezeMarkerSchema,
+  secondBeat: freezeMarkerSchema.optional(),
+})
+
+// -----------------------------------------------------------------------------
 // Disguise menu
 // -----------------------------------------------------------------------------
 
@@ -299,13 +346,21 @@ export const templateSchema = z.object({
     ball: z.object({ holderSlot: z.string().min(1) }),
     movements: z.array(templateMovementSchema).max(32).default([]),
     answerDemo: z.array(templateMovementSchema).max(32).default([]),
-    freezeMarker: z
-      .discriminatedUnion('kind', [
-        z.object({ kind: z.literal('atMs'), atMs: z.number().int().nonnegative().max(60_000) }),
-        z.object({ kind: z.literal('beforeMovementId'), movementId: z.string().min(1) }),
-      ])
-      .optional(),
+    freezeMarker: freezeMarkerSchema.optional(),
     wrongDemos: z.array(templateWrongDemoSchema).max(8).default([]),
+    // Phase 3.1.4 — per-scenario timing override block. The blueprint
+    // §2.3 specifies per-difficulty cognition hold targets (D1-D2 =
+    // 1400ms, D3 = 1200, D4 = 1000, D5 = 800). Authors opt in by
+    // setting any subset of these fields; absent fields fall back to
+    // the renderer's module-level constants. The 1100ms floor is
+    // enforced here at parse time so a typo cannot land below the
+    // basketball-readability floor specified in qa-checklist §6.
+    timingOverrides: timingOverridesSchema.optional(),
+    // Phase 3.1.4 — HUNT chained-read scenarios use two freeze beats.
+    // beatSpec.firstBeat is the primary read; beatSpec.secondBeat is
+    // the chained second read. When present, both beats independently
+    // satisfy QA framing rules (qa-checklist §3) and overlay caps.
+    beatSpec: beatSpecSchema.optional(),
   }),
 
   overlays: z.object({

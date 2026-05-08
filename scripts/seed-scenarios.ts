@@ -192,6 +192,21 @@ const freezeMarkerSchema = z.discriminatedUnion('kind', [
   }),
 ]);
 
+// Phase 3.1.4 — per-scenario timing override + multi-beat spec.
+// Mirror of templates/_schema.ts. Cognition hold floor of 1100ms is
+// enforced here at parse time per qa-checklist §6.
+const timingOverridesSchema = z.object({
+  cognitionHoldMs: z.number().int().min(1100).max(4_000).optional(),
+  choiceTrayAtMs: z.number().int().min(0).max(4_000).optional(),
+  cueRepaintHoldCorrectMs: z.number().int().min(200).max(4_000).optional(),
+  cueRepaintHoldWrongMs: z.number().int().min(200).max(4_000).optional(),
+});
+
+const beatSpecSchema = z.object({
+  firstBeat: freezeMarkerSchema,
+  secondBeat: freezeMarkerSchema.optional(),
+});
+
 const wrongDemoSchema = z.object({
   choiceId: z.string().min(1),
   movements: z.array(sceneMovementSchema).max(32),
@@ -276,6 +291,11 @@ const sceneSchema = z
     wrongDemos: z.array(wrongDemoSchema).max(8).default([]),
     preAnswerOverlays: z.array(overlayPrimitiveSchema).max(16).default([]),
     postAnswerOverlays: z.array(overlayPrimitiveSchema).max(16).default([]),
+    // Phase 3.1.4 — per-scenario timing overrides (D≥3 hold targets)
+    // and multi-beat spec (HUNT chained reads). Both optional; absent
+    // = renderer uses module defaults from freezeFrameCognition.ts.
+    timingOverrides: timingOverridesSchema.optional(),
+    beatSpec: beatSpecSchema.optional(),
   })
   .superRefine((scene, ctx) => {
     const userPlayers = scene.players.filter((p) => p.isUser);

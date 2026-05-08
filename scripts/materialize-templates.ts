@@ -468,6 +468,14 @@ function materialize(template: Template, variant: Variant): MaterializedScenario
       wrongDemos,
       preAnswerOverlays,
       postAnswerOverlays,
+      // Phase 3.1.4 — pass through opt-in timing override + multi-beat
+      // spec. Both fields are optional in the template schema; we
+      // forward them only when authored so materialized JSONs stay
+      // diff-stable for templates that don't use them.
+      ...(template.scene.timingOverrides
+        ? { timingOverrides: template.scene.timingOverrides }
+        : {}),
+      ...(template.scene.beatSpec ? { beatSpec: template.scene.beatSpec } : {}),
     },
     _generated: {
       template: template.id,
