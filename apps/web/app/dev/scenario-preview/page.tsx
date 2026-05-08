@@ -16,6 +16,33 @@ export const dynamic = 'force-dynamic'
  * scenarios in < 5 s and inspect both the seed metadata and the
  * live renderer state side-by-side.
  *
+ * URL contract (Pack 2 §3.1.13)
+ * -----------------------------
+ * Stable, deterministic, reproducible-by-paste:
+ *
+ *   /dev/scenario-preview?id=BDW-01     ← canonical (Pack 2)
+ *   /dev/scenario-preview?scenario=BDW-01  ← back-compat alias
+ *   /dev/scenario-preview                ← falls back to QA_MATRIX_IDS[0]
+ *
+ * The `id` parameter is the canonical Pack 2 form and matches the
+ * scenario id used by every other surface (DB, seeder, telemetry).
+ * The legacy `scenario` parameter is preserved so existing links from
+ * Slack / Notion / PRs keep working; it has lower precedence than
+ * `id` when both are present.
+ *
+ * Determinism guarantees
+ * ----------------------
+ *   - No DB read. The page reads JSON files from
+ *     packages/db/seed/scenarios/packs/founder-v0/ at request time;
+ *     same git SHA → same scenario data.
+ *   - No randomness in scenario selection. An invalid / unknown id
+ *     falls back to `QA_MATRIX_IDS[0]` (currently `BDW-01`); this is
+ *     intentionally silent so a typo doesn't 404 a QA session, but
+ *     the chosen id is always reflected in the rendered selector,
+ *     so QA can confirm what they're looking at.
+ *   - Server-side preload of all 20 scenarios so the client selector
+ *     never round-trips for metadata. Same payload every render.
+ *
  * Gating:
  *   - In `NODE_ENV !== 'production'` always served.
  *   - In production, served only when
@@ -131,11 +158,17 @@ export default async function ScenarioPreviewPage({
   }
 
   const params = await searchParams
+  // Pack 2 §3.1.13 — `?id=` is the canonical form. `?scenario=` stays
+  // as a back-compat alias so existing share links keep working.
+  // Precedence: `id` wins when both are present (canonical > legacy).
+  const rawId = params.id
   const rawScenario = params.scenario
   const requested =
-    typeof rawScenario === 'string' && rawScenario.length > 0
-      ? rawScenario
-      : null
+    typeof rawId === 'string' && rawId.length > 0
+      ? rawId
+      : typeof rawScenario === 'string' && rawScenario.length > 0
+        ? rawScenario
+        : null
   const initialId =
     requested && QA_MATRIX_IDS.includes(requested)
       ? requested
