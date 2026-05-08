@@ -510,6 +510,30 @@ const scenarioSchema = z
           path: ['scene', 'wrongDemos'],
           message: 'decoder scenarios require at least one wrongDemos entry.',
         });
+      } else {
+        // Phase 3.1.9 — promoted from "≥1 demo" to "every non-best
+        // choice has its own demo". The blueprint §3.7 requires the
+        // wrong-demo to depict the failure (deflection / missed
+        // window / blocked finish), and a single shared demo cannot
+        // teach four distinct failures. Verified against the founder
+        // pack: every Pack 1 scenario already authors per-choice
+        // demos, so this rule is non-breaking for Pack 1.
+        const demoChoiceIds = new Set(
+          scenario.scene.wrongDemos.map((d) => d.choiceId),
+        );
+        for (const choice of scenario.choices) {
+          const q = deriveQuality(choice);
+          if (q === ChoiceQuality.best) continue;
+          if (!demoChoiceIds.has(choice.id)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['scene', 'wrongDemos'],
+              message:
+                `decoder scenarios require a wrongDemos entry for every non-best choice; ` +
+                `choice "${choice.id}" (quality=${q}) has no matching demo.`,
+            });
+          }
+        }
       }
     }
   });
