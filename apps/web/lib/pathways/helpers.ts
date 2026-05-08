@@ -81,12 +81,20 @@ export function getAllScenarioIdsForPathway(pathway: PathwayConfig): string[] {
 
 /** Decoder color accents — match §7 of the planning doc. The values are
  * Tailwind / CSS-variable token names; consumers can map them to a
- * concrete color via `getAccentColor`. */
+ * concrete color via `getAccentColor`. Pack 2 entries reuse 'heat' as
+ * a placeholder; a dedicated palette assignment is a follow-up once
+ * Pack 2 surfaces have been designed (the planning-doc §7 palette
+ * was scoped to four founders). */
 const DECODER_ACCENT: Record<DecoderTag, PathwayAccentToken> = {
   BACKDOOR_WINDOW: 'brand',
   EMPTY_SPACE_CUT: 'info',
   ADVANTAGE_OR_RESET: 'xp',
   SKIP_THE_ROTATION: 'iq',
+  // TODO(pack-2): assign distinct palette tokens once Pack 2 visual
+  // design lands. Both decoders alias to 'heat' for now so the
+  // existing Pathway / progress surfaces don't crash on Pack 2 reps.
+  READ_THE_COVERAGE: 'heat',
+  HUNT_THE_ADVANTAGE: 'heat',
 }
 
 export function getDecoderAccent(tag: DecoderTag | null): PathwayAccentToken {
@@ -106,15 +114,12 @@ export function getAccentColor(token: PathwayAccentToken): string {
   return ACCENT_HEX[token]
 }
 
-const DECODER_LABEL: Record<DecoderTag, string> = {
-  BACKDOOR_WINDOW: 'Backdoor Window',
-  EMPTY_SPACE_CUT: 'Empty Space Cut',
-  ADVANTAGE_OR_RESET: 'Advantage or Reset',
-  SKIP_THE_ROTATION: 'Skip the Rotation',
-}
+import { decoderLabel as registryDecoderLabel } from '@/lib/decoders/registry'
 
+/** Player-facing decoder label. Routes through the central registry
+ *  so all six decoders (founders + Pack 2) resolve consistently. */
 export function getDecoderLabel(tag: DecoderTag): string {
-  return DECODER_LABEL[tag]
+  return registryDecoderLabel(tag)
 }
 
 const ARCHETYPE_LABEL: Record<string, string> = {

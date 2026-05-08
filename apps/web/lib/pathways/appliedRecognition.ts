@@ -139,7 +139,10 @@ export const ROUTING_PRIORITY_DELTAS = {
 
 // --- copy vocabulary -------------------------------------------------------
 
-const EMERGING_COPY: Record<DecoderTag, string> = {
+// TODO(pack-2): author Pack 2 emerging-recognition copy when DROP /
+// HUNT pedagogy ships. For now this map is founder-only; consumers
+// guard on the presence of an entry before emitting an observation.
+const EMERGING_COPY: Partial<Record<DecoderTag, string>> = {
   BACKDOOR_WINDOW: 'You’re catching backdoor reads in real games.',
   EMPTY_SPACE_CUT: 'You’re seeing empty-space cuts in real games.',
   SKIP_THE_ROTATION: 'You’re catching skip reads in real games.',
@@ -253,10 +256,12 @@ export function deriveAppliedObservations(
   for (const d of snapshot.decoders) {
     const tier = classifyDecoderTier(d)
     if (tier === 'emerging') {
+      const copy = EMERGING_COPY[d.decoder]
+      if (!copy) continue // Pack 2 — TODO(pack-2): emit once copy is authored
       internal.push({
         kind: 'applied_recognition' as Observation['kind'],
         decoder: d.decoder,
-        copy: EMERGING_COPY[d.decoder],
+        copy,
         surface: 'silent',
         tier: 'emerging',
       })
@@ -314,13 +319,16 @@ export function deriveAppliedObservations(
       return a.decoder < b.decoder ? -1 : 1
     })
   if (candidates[0]) {
-    userFacing.push({
-      kind: 'applied_recognition' as Observation['kind'],
-      decoder: candidates[0].decoder,
-      copy: EMERGING_COPY[candidates[0].decoder],
-      surface: 'home_card',
-      tier: 'emerging',
-    })
+    const copy = EMERGING_COPY[candidates[0].decoder]
+    if (copy) {
+      userFacing.push({
+        kind: 'applied_recognition' as Observation['kind'],
+        decoder: candidates[0].decoder,
+        copy,
+        surface: 'home_card',
+        tier: 'emerging',
+      })
+    }
   }
 
   return { userFacing, internal }

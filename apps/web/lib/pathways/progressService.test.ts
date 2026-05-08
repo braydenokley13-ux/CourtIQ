@@ -43,7 +43,10 @@ function makeInput(
   }
 }
 
-const FAMILY_IDS: Record<DecoderTag, string[]> = {
+// Founder-only fixture map. Pack 2 decoders aren't exercised yet;
+// lookups return undefined and the helper falls back to an empty
+// array.
+const FAMILY_IDS: Partial<Record<DecoderTag, string[]>> = {
   BACKDOOR_WINDOW: ['BDW-01', 'BDW-02', 'BDW-03', 'BDW-04', 'BDW-05'],
   EMPTY_SPACE_CUT: ['ESC-01', 'ESC-02', 'ESC-03', 'ESC-04', 'ESC-05'],
   ADVANTAGE_OR_RESET: ['AOR-01', 'AOR-02', 'AOR-03', 'AOR-04', 'AOR-05'],
@@ -51,7 +54,8 @@ const FAMILY_IDS: Record<DecoderTag, string[]> = {
 }
 
 function bestForFamily(tag: DecoderTag): Record<string, LatestAttemptQuality> {
-  return Object.fromEntries(FAMILY_IDS[tag].map((id) => [id, 'best' as LatestAttemptQuality]))
+  const ids = FAMILY_IDS[tag] ?? []
+  return Object.fromEntries(ids.map((id) => [id, 'best' as LatestAttemptQuality]))
 }
 
 describe('derivePathwayProgress — Foundation cold start', () => {
