@@ -91,6 +91,36 @@ to the terminal during the run. Override the target with `BASE_URL=...`.
 
 The first run on a new machine needs `pnpm exec playwright install chromium`.
 
+### Visual regression: preview baselines (no auth required)
+
+Replay-1 makes the basketball pebble texture deterministic per scenario, so
+hash-stable screenshot baselines now actually match across runs. The
+`/dev/scenario-preview` route renders any seed JSON without Supabase auth, so
+baselines can be captured locally without `pnpm qa:auth`.
+
+```bash
+# 1. Start the dev server (no auth env vars needed for /dev routes).
+pnpm dev
+
+# 2. Capture the FIRST baseline for a scenario (writes to
+#    docs/screenshots/<id>/baseline/).
+pnpm qa:preview:baseline --id BDW-T2-01
+
+# 3. Re-run later to compare against the stored manifest. Hard-fails on
+#    any phase-hash mismatch.
+pnpm qa:preview:diff --id BDW-T2-01
+
+# 4. Soft variant for early CI / pre-baseline scenarios — missing
+#    baselines are reported but do NOT fail the run. Real mismatches
+#    still fail loud.
+pnpm qa:preview:diff:soft --id BDW-T2-01
+```
+
+A whole pack can be captured at once with `--pack <slug>` instead of `--id`.
+The script is intentionally **not** wired into the main CI workflow yet because
+no preview baselines exist — once a pack has been baselined, add a CI step
+that runs `pnpm qa:preview:diff` (strict) for that pack.
+
 ---
 
 ## License

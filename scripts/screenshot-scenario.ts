@@ -153,24 +153,41 @@ type Manifest = Record<Phase, PhaseHash>
  *   - A clean run (zero missing, zero mismatches) is exit 0.
  *   - Both signals can fire together; the summary surfaces both
  *     before the script returns.
+ *
+ * Replay-1 — `allowMissingBaseline` opt-in demotes "no baseline" from
+ * fail to warn so a soft CI gate can run before Pack 2 baselines have
+ * been captured. Real hash mismatches still fail loud; only the
+ * missing-baseline branch is relaxed. Default remains strict.
  */
 function summarizeDiffOutcome(args: {
   mismatchCount: number
   missingBaselineIds: ReadonlyArray<string>
+  allowMissingBaseline?: boolean
 }): { exitCode: 0 | 1; summaryLines: string[] } {
   const lines: string[] = []
   const missing = args.missingBaselineIds
+  const allowMissing = args.allowMissingBaseline === true
   if (missing.length > 0) {
     lines.push('')
     lines.push(`${missing.length} scenario(s) without baseline:`)
     for (const id of missing) lines.push(`  - ${id}`)
-    lines.push('Run `pnpm qa:screenshot baseline` for these IDs first.')
+    if (allowMissing) {
+      lines.push(
+        '[soft] ALLOW_MISSING_BASELINE=1 — missing baselines reported but not failing.',
+      )
+      lines.push(
+        'Capture them with `pnpm qa:preview:baseline --id <ID>` when ready.',
+      )
+    } else {
+      lines.push('Run `pnpm qa:screenshot baseline` for these IDs first.')
+    }
   }
   if (args.mismatchCount > 0) {
     lines.push('')
     lines.push(`${args.mismatchCount} mismatch(es). See paths above.`)
   }
-  const failed = missing.length > 0 || args.mismatchCount > 0
+  const missingFails = !allowMissing && missing.length > 0
+  const failed = missingFails || args.mismatchCount > 0
   if (!failed) {
     lines.push('')
     lines.push('clean ✓')
@@ -433,6 +450,7 @@ async function runDiff(
   const { exitCode, summaryLines } = summarizeDiffOutcome({
     mismatchCount,
     missingBaselineIds,
+    allowMissingBaseline: process.env.ALLOW_MISSING_BASELINE === '1',
   })
   for (const line of summaryLines) console.log(line)
   return exitCode
