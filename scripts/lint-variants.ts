@@ -450,6 +450,7 @@ function lintTodoProse(loaded: Loaded[]): Issue[] {
 }
 
 async function main(): Promise<void> {
+  const showCoverage = process.argv.includes('--coverage')
   const loaded = await load()
   const existingPackScenarios = await loadExistingPackScenarios()
   console.log(
@@ -468,7 +469,13 @@ async function main(): Promise<void> {
   const cov = lintCoverage(loaded)
   issues.push(...cov.issues)
 
-  console.log('\n' + cov.matrix)
+  // Coverage matrix is verbose authoring feedback. Print only when
+  // explicitly requested (`pnpm templates:lint --coverage`); CI runs
+  // the lint without the flag for terser logs. Coverage gap warnings
+  // still surface unconditionally as part of `issues` below.
+  if (showCoverage) {
+    console.log('\n' + cov.matrix)
+  }
 
   if (issues.length === 0) {
     console.log('\nlint-variants: clean ✓')
