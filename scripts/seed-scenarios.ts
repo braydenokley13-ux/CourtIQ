@@ -42,6 +42,36 @@ const decoderTagSchema = z.enum([
   'HUNT_THE_ADVANTAGE',
 ]);
 
+// Pack 2 (3.1.1) — controlled concept-tag vocabulary. Mirror of
+// templates/_schema.ts `conceptTagSchema`. Free-form strings allowed a
+// typo to silently mis-route a scenario into a wrong spaced-rep
+// bucket; this enum makes the seeder reject unknown tags. Every new
+// tag must land here AND in templates/_schema.ts in lockstep.
+const conceptTagSchema = z.enum([
+  'catch_and_read',
+  'closeout_read',
+  'off_ball_movement',
+  'passing',
+  'post_play',
+  'reading_denial',
+  'reading_help',
+  'screen_action',
+  'shot_selection',
+  'spacing',
+  'timing',
+  'transition_advantage',
+  'pnr_ball_handler_read',
+  'pnr_screener_read',
+  'screen_defender_coverage_read',
+  'chained_kick_decision',
+  'chained_swing_decision',
+  'closeout_chain',
+  'helper_overcommit_punish',
+  'transition_secondary_break',
+  'transition_stop_ball',
+  'late_clock_mismatch_hunt',
+]);
+
 // Choice schema accepts BOTH legacy (`is_correct: boolean`) and new
 // (`quality: ChoiceQuality`) shapes. At least one must be present;
 // when both are present they must agree (`is_correct === quality !==
@@ -348,7 +378,7 @@ const scenarioSchema = z
     status: z.nativeEnum(ScenarioStatus).default(ScenarioStatus.DRAFT),
     title: z.string().min(1).max(80).optional(),
     category: z.nativeEnum(Category),
-    concept_tags: z.array(z.string().min(1)).min(1),
+    concept_tags: z.array(conceptTagSchema).min(1),
     sub_concepts: z.array(z.string().min(1)).default([]),
     difficulty: z.number().int().min(1).max(5),
     user_role: z.string().min(1),

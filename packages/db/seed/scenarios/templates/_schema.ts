@@ -65,6 +65,51 @@ export const overlayKindSchema = z.enum([
 
 export const choiceQualitySchema = z.enum(['best', 'acceptable', 'wrong'])
 
+// Controlled vocabulary for `concept_tags` (Phase 3.1.1). Pack 2 grows
+// the tag surface area ~4× and a typo would silently route attempts
+// to the wrong spaced-rep bucket. The seeder mirrors this enum so
+// templates and legacy founder fixtures both fail loudly on unknown
+// tags. New tags must land in this list before any scenario using
+// them can seed.
+//
+// Authoring rule: every tag is `lower_snake_case`. Multi-word tags use
+// underscores; family prefixes (`pnr_…`, `transition_…`) make the tag
+// self-grouping in the coverage matrix.
+//
+// Pack 2 expansion targets — see blueprint Phase 3.4:
+//   - `pnr_*` (DROP family: ball-handler / screener reads)
+//   - `chained_*` (HUNT family: kick / swing decisions)
+//   - `transition_*` (TRA-coded scenarios)
+//   - `late_clock_*` and `closeout_chain` (cross-decoder boss territory)
+export const conceptTagSchema = z.enum([
+  // Founder / Pack 1 vocabulary (currently authored across founder-v0).
+  'catch_and_read',
+  'closeout_read',
+  'off_ball_movement',
+  'passing',
+  'post_play',
+  'reading_denial',
+  'reading_help',
+  'screen_action',
+  'shot_selection',
+  'spacing',
+  'timing',
+  'transition_advantage',
+  // Pack 2 — DROP family (PnR ball-handler reads coverage).
+  'pnr_ball_handler_read',
+  'pnr_screener_read',
+  'screen_defender_coverage_read',
+  // Pack 2 — HUNT family (chained second-read).
+  'chained_kick_decision',
+  'chained_swing_decision',
+  'closeout_chain',
+  'helper_overcommit_punish',
+  // Pack 2 — situational / transition.
+  'transition_secondary_break',
+  'transition_stop_ball',
+  'late_clock_mismatch_hunt',
+])
+
 // Cue atoms — controlled vocabulary from the strategy doc taxonomy.
 // Pack 2 (3.1.12) adds DROP / HUNT body-language atoms. Order is
 // stable; new atoms land at the end so existing materialized templates
@@ -227,7 +272,7 @@ export const templateSchema = z.object({
   id: z.string().regex(/^[A-Z]{3,4}\.[a-z][a-z0-9-]*$/, 'template id must be DEC.kebab'),
   decoder_tag: decoderTagSchema,
   category: categorySchema,
-  concept_tags: z.array(z.string().min(1)).min(1),
+  concept_tags: z.array(conceptTagSchema).min(1),
   sub_concepts: z.array(z.string().min(1)).default([]),
 
   tactical: z.object({
