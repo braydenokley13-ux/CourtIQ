@@ -1190,6 +1190,349 @@ dimensions, with no dimension at 0. Scores live in
 
 ---
 
+## Phase 6 — Future Scalability
+
+Pack 2 is the proving ground. This section sketches the path to 300+
+scenarios, multiple sports, community contribution, AI-assisted
+authoring, adaptive difficulty, and weakness-targeted recommendations
+— without throwing away the Pack 2 system.
+
+### 6.1 Scaling to 300+ scenarios (Pack 3 → Pack 6)
+
+The Pack 2 economics show 30 minutes per scenario plus 90 minutes
+per template. Three packs of 75 scenarios each would be 225 more
+scenarios — call it Pack 3 (deeper SKR/AOR/BDW), Pack 4 (deeper
+DROP/HUNT), Pack 5 (transition + situational deepening) — totaling
+**300 scenarios at v1**, the `CONTENT_SYSTEM.md` v1 target.
+
+The system enables this with two unlocks beyond Pack 2:
+
+1. **Coach-review queue UI** (deferred from §3.3). At 300 scenarios,
+   1:1 SME walkthroughs are a ~75-hour bottleneck. The async queue
+   moves SME time to ~25 hours.
+2. **Cross-pack mastery weighting**. The session generator already
+   weights by concept; Pack 3+ asks it to weight by *pack*, so a
+   Pack 1-graduate sees Pack 3 scenarios proportional to the
+   concepts they're weakest on, not just the next pack in sequence.
+
+**No new schema fields are needed for Pack 3.** The schema designed
+for Pack 2 (timingOverrides, beatSpec, decoder enums extended for
+DROP/HUNT) carries through. Pack 6 may need a new render tier (Tier
+2 = animated Rive layer) — that lands in `media_refs[]`, already
+designed-in.
+
+**Decoder count ceiling**: Pack 6 is when we'd consider a 7th
+decoder family. The signal that we *need* a 7th is empirical:
+HUNT scenarios start clustering around a specific tactical core
+(e.g. "second-side action") that doesn't fit the chained-read frame.
+Until that signal arrives, six is plenty.
+
+### 6.2 Multiple sports
+
+Two sport families could share CourtIQ's engine: **soccer** (reading
+defender body lean and angle on the ball-carrier) and **football
+QB reads** (post-snap progression scanning). Both share basketball's
+core loop: a possession plays, a freeze frame surfaces a decision,
+the player picks a read.
+
+**What ports cleanly**:
+- The freeze-frame cognition model (600 ms ramp + 1400 ms hold).
+- The template/variant primitive.
+- The cue-atom controlled vocabulary (re-defined per sport).
+- The decoder taxonomy framing.
+- The mastery model and IQ scoring.
+- The `Scenario` Prisma model with a single `sport: Sport` field
+  added.
+
+**What does not port**:
+- The half-court SVG primitive (`<Court>`).
+- The 12 movement kinds (specific to basketball).
+- The 12 animation intents (specific to basketball).
+- The decoder overlay vocabulary (vision cones, hip arrows are
+  basketball-defender-specific).
+
+**Practical path** (post-Pack 6): refactor `apps/web/lib/scenario3d/`
+into `lib/sport-engine/<sport>/`. Each sport ships its own movement
+kinds, animation intents, and overlay primitives, but reuses the
+freeze cognition, choreography, and overlay-beat framework. The
+sport selector lives at signup (`packages/db/prisma/schema.prisma`
+`User.preferred_sport`).
+
+This is a **strategic question, not a tactical one**. The decision
+to add a sport should follow product-market fit on basketball, not
+precede it.
+
+### 6.3 Community-authored scenarios
+
+`CONTENT_SYSTEM.md` §5.3 sketches a v2 contributor portal. The
+template/variant system is a near-perfect fit because:
+
+- Templates encode tactical truth that requires SME authorship —
+  contributors do **not** author templates.
+- Variants supply prose and axis selections — contributors author
+  variants of an existing template, never new templates.
+- The lint catches collisions, single-axis spreads, and bad prose
+  before any human review.
+- The coach-review queue (§6.1) routes contributor variants to an
+  SME for sign-off.
+
+**Contributor reputation system**: each approved variant earns the
+contributor reputation points. Reputation gates more sensitive
+templates (e.g. cross-decoder boss authoring). Revenue share kicks
+in at a reputation threshold (handled by the platform's commerce
+layer, not by content tooling).
+
+**Anti-spam**: variant authoring requires a paid subscription tier
+or invite-only access. The submission form rejects variants whose
+prose contains TODO markers (already enforced) or whose
+variation-signature collides with an existing variant. SME final
+sign-off is the only humans-needed gate.
+
+### 6.4 AI-assisted authoring
+
+This is the most-likely product accelerator and the most-likely
+quality risk.
+
+**What AI does well**:
+- Drafting prose for variants (title, prompt, feedback, explanation,
+  self-review checklist) given a template and an axis selection.
+- Suggesting cue-atom combinations for new templates from a
+  basketball-decision description ("a ball-handler facing a
+  hard hedge").
+- Generating wrong-demo movement coordinates from a verbal
+  description of the failure ("defender deflects the pass with the
+  trail hand").
+- Writing the launch-narrative scenario.
+- Spotting prose-voice drift across a Pack via embedding similarity
+  to Pack 1's voice.
+
+**What AI does badly** (and where humans must remain in the loop):
+- Judging basketball correctness of the "best" choice. False
+  confidence at correctness checking is the #1 quality risk.
+- Recognizing whether a distractor is plausible vs. straw-man.
+- Recognizing whether a wrong-demo *teaches* the failure or just
+  shows it.
+- Authoring boss variants — cross-decoder cues require taste and
+  basketball intuition.
+- Replicating an authorial voice with the consistency Pack 1 shows.
+
+**Practical integration** (post-Pack 2):
+
+1. **Variant draft assistant**. Authors invoke
+   `pnpm scaffold-variant ... --ai-prose-draft` to seed prose
+   skeletons. The skeleton is marked `ai_drafted: true` in
+   variant frontmatter; SME review knows to scrutinize.
+2. **Wrong-demo movement-coord generator**. Given a verbal failure
+   description, propose `wrongDemos[].movements[]` coordinates
+   bounded by court geometry. SME approves or edits.
+3. **Cue-atom recommender**. Given a template's tactical
+   description, suggest the 1–4 cue atoms that fit. Linter still
+   requires human confirmation.
+4. **Voice-drift detector**. Cron job embeds every Pack scenario's
+   prose; flags variants whose embedding sits >2σ from the Pack 1
+   centroid.
+
+**Forbidden integration**: AI cannot author a `quality: 'best'`
+choice or its `feedback_text` autonomously. The basketball-correct
+answer remains a human decision. AI can *propose*; the SME's
+`approved` is required.
+
+### 6.5 Adaptive difficulty (per player)
+
+The mastery model already tracks rolling accuracy per concept; the
+session generator already weights by mastery band. Adaptive
+difficulty means:
+
+- A player who just hit 90% on AOR D3 **automatically** sees AOR
+  D4 next session.
+- A player who just dropped to 60% on SKR D4 sees SKR D3 to
+  re-stabilize before retrying D4.
+- A player who has plateaued at D3 across all decoders for 7 days
+  sees a "challenge week" where the bundle skews D4.
+
+These behaviors are **service-layer**, not content-layer. The
+existing `scenarioService.generateSessionBundle` already accepts a
+weighting function; we extend it with a `difficultyAdjuster()` that
+reads recent attempts.
+
+**Failure modes to guard against**:
+- Difficulty floor — never serve only D5; always include one D≤3
+  for confidence.
+- Skip dragnet — if a player skips 3 in a row, the next bundle
+  drops a difficulty tier.
+- Streak protection — if a player is on a 7-day streak, the next
+  session opens with a D2 freebie to lock in the streak before
+  pushing harder.
+
+### 6.6 Player-weakness targeting
+
+Adaptive difficulty is global ("you're a D3 player"); weakness
+targeting is local ("your weakness is reading the helper's hips
+on weak-side rotations"). The mastery model carries per-concept
+accuracy; weakness targeting is the inversion of that signal.
+
+**Implementation** (post-Pack 2, service-layer):
+
+1. Per-decoder per-difficulty rolling accuracy (already tracked).
+2. Per-cue-atom rolling accuracy (new — requires the seeder to
+   persist `tactical.cue_atoms[]` from the template into a
+   `Mastery.cue_atom_accuracy` Json column).
+3. Weekly weakness report (new — emails the player + parent +
+   coach if those roles are linked).
+4. Bundle weighting that pulls 2 of 5 scenarios from the player's
+   bottom-quartile cue atom.
+
+**Privacy implication**: cue-atom-level weakness data is more
+sensitive than concept-level. RLS on `Mastery.cue_atom_accuracy`
+must be tighter than on `rolling_accuracy` (concept-level is fine
+to surface to a parent; cue-atom-level should require explicit
+opt-in).
+
+### 6.7 Dynamic decoder recommendations
+
+A coach using CourtIQ for their AAU team would want: "this player
+keeps missing the help-side rotation read; show them more SKR
+disguised at D3." This is a coach-dashboard feature, not a player
+feature.
+
+**Implementation path**:
+
+1. Coach role exists in `User.role` (`packages/db/prisma/schema.prisma`).
+2. Coach links to player via a new `CoachAssignment(coach_id,
+   player_id, role: 'TRAINER' | 'PARENT' | 'COACH')` model.
+3. Coach dashboard at `/coach/<player-id>` (gated to assigned
+   players only) shows the per-decoder, per-difficulty, per-cue-atom
+   accuracy heatmap.
+4. Coach can generate a custom bundle: "5 SKR D3 disguised
+   scenarios", which spins up a `SessionRun` for the player with
+   `mode: 'COACH_PRESCRIBED'` (new enum value).
+5. Player receives a notification; their next session opens with
+   the prescribed bundle.
+
+This is the **B2B wedge** referenced in `CONTENT_SYSTEM.md` §10. It
+is the highest-leverage post-MVP product expansion because every
+coach who adopts CourtIQ pulls in their team.
+
+### 6.8 The system Pack 2 leaves behind
+
+If Pack 2 ships per this plan, here's what the next pack inherits:
+
+- **A 6-decoder, 4-difficulty, 4-category content surface** with
+  proven authoring economics (~30 min/scenario amortized).
+- **A 15-template foundation** that a Pack 3 author can extend by
+  adding 5–10 new templates and authoring variants in parallel.
+- **A hardened compiler/lint pipeline** that catches concept-tag
+  typos, decoder-overlay drift, single-axis variant spreads,
+  cross-pack duplicates, TODO markers, and missing wrong-demos.
+- **A QA pipeline** with per-difficulty accuracy bands, visual
+  regression baseline, and an SME rubric.
+- **A learning-journey graph** (Pack 1 → founder extensions →
+  DROP → HUNT → cross-decoder bosses) ready to be extended.
+- **A documented anti-pattern catalog** so authors don't repeat
+  Pack 2's near-misses.
+- **A roadmap for Tier 2 animation, multi-sport refactor, and
+  contributor portal** that does not require a rewrite.
+
+The single biggest thing Pack 2 leaves behind is **proof that the
+template/variant system scales**. Until Pack 2 ships, that is a
+hypothesis. After it ships, every subsequent pack is engineering,
+not invention.
+
+---
+
+## Appendix A — Glossary of Pack 2 Concepts
+
+| Term | Meaning |
+| --- | --- |
+| **Pack** | A versioned set of scenarios shipped together (`founder-v0` = Pack 1, `templates-v2` = Pack 2). |
+| **Template** | Tactical blueprint encoded once, instantiated as multiple variants. Lives in `packages/db/seed/scenarios/templates/`. |
+| **Variant** | One scenario derived from a template by selecting axes (mirror, slot, disguise, clock, difficulty). |
+| **Decoder** | A named recognition pattern (BDW, ESC, SKR, AOR, DROP, HUNT). |
+| **Cue atom** | The smallest unit of defensive body language a scenario teaches (`hand_in_lane`, `screen_defender_drop`, etc.). |
+| **Disguise** | A template-defined pre-answer cue removal recipe (`none`/`light`/`moderate`/`heavy`) that bumps difficulty. |
+| **Variation signature** | A stable hash over (mirror, slot, difficulty, disguise, clock) that the lint uses to detect duplicates. |
+| **Boss variant** | A handcrafted variant that adds a competing-decoder cue or a chained second movement. One per template max. |
+| **Beat** | A freeze-and-question moment. HUNT chained scenarios have two beats. |
+| **Cognition hold** | The post-freeze window during which overlays paint and the player reads (default 1400 ms; per-difficulty overrides in §3.5). |
+| **Render tier** | Visual fidelity tier. Tier 1 = static SVG; Tier 2 = animated; Tier 3 = video. Pack 2 is Tier 1. |
+
+## Appendix B — Pack 2 Template Inventory (canonical list)
+
+| ID | Decoder | Category | Difficulty floor | Variants | Boss variant |
+| --- | --- | --- | --- | --- | --- |
+| `BDW.top-lock-baseline` | BDW | OFFENSE | 2 | 5 | mirror-as-passer (D4) |
+| `BDW.flare-rejection` | BDW | OFFENSE | 3 | 5 | second-cut chain (D4) |
+| `ESC.weak-corner-drift` | ESC | OFFENSE | 2 | 5 | helper-disguised (D4) |
+| `ESC.dho-replace` | ESC | OFFENSE | 3 | 5 | distractor SKR cue (D4) |
+| `SKR.dribble-at-skip` | SKR | OFFENSE | 3 | 5 | clock + heavy disguise (D5) |
+| `SKR.baseline-x-out` | SKR | OFFENSE | 4 | 5 | distractor AOR cue (D4) |
+| `AOR.flying-baseline` | AOR | OFFENSE | 2 | 5 | helper-rotation distractor (D4) |
+| `AOR.stunt-and-go` | AOR | OFFENSE | 4 | 5 | fake-advantage trap (D4) |
+| `DROP.high-pnr-snake` | DROP | OFFENSE | 3 | 5 | switch-disguise (D4) |
+| `DROP.side-pnr-reject` | DROP | OFFENSE | 3 | 5 | weak coverage (D5) |
+| `HUNT.drive-kick-shoot` | HUNT | OFFENSE | 3 | 4 | second-beat closeout chain (D5) |
+| `HUNT.swing-swing-shoot` | HUNT | OFFENSE | 3 | 4 | next-pass closeout (D4) |
+| `TRA.secondary-drag` | SKR-coded | TRANSITION | 2 | 5 | trailer-vs-rim distractor (D4) |
+| `TRA.stop-ball-decision` | DROP-coded | TRANSITION | 3 | 5 | 3-on-2 with trailer (D4) |
+| `SIT.late-clock-mismatch` | AOR-coded | SITUATIONAL | 3 | 6 | cross-screen counter (D4) |
+
+**Plus**: 1 handcrafted launch-narrative scenario.
+**Total**: 75 scenarios.
+
+## Appendix C — Files this plan modifies
+
+| File | What changes |
+| --- | --- |
+| `packages/db/seed/scenarios/templates/_schema.ts` | Decoder enum extends to DROP, HUNT; cue atoms extend with PnR + chain atoms; timingOverrides field; beatSpec field |
+| `packages/db/prisma/schema.prisma` | `DecoderTag` enum extends; no other schema changes |
+| `scripts/seed-scenarios.ts` | Concept-tag enum validation; wrong-demo required; --allow-unvalidated removed |
+| `scripts/lint-variants.ts` | TODO marker is error; cross-template + cross-pack signature checks; coverage matrix output |
+| `scripts/materialize-templates.ts` | No source-level changes; produces `packs/templates-v2/` |
+| `apps/web/lib/scenario3d/decoderOverlayPresets.ts` | Add DROP, HUNT presets |
+| `apps/web/lib/scenario3d/decoderCameraPresets.ts` | New file mapping decoder → camera preset |
+| `apps/web/lib/scenario3d/freezeFrameCognition.ts` | Read per-scenario `timingOverrides` |
+| `apps/web/lib/scenario3d/imperativeTeachingOverlay.ts` | Enforce decoder-overlay-preset filtering |
+| `apps/web/lib/scenario3d/schema.ts` | Extend `Scene3D` with `timingOverrides` and `beatSpec` |
+| `apps/web/app/dev/scenario-preview/page.tsx` | Stable `?id=…` URL |
+| `.github/workflows/ci.yml` | Add `pnpm templates:lint --check` step |
+| `packages/db/seed/scenarios/templates/<template-id>/template.json` | 15 new template files |
+| `packages/db/seed/scenarios/templates/<template-id>/variants/*.json` | 75 new variant files |
+| `packages/db/seed/lessons/*.json` | 4 new lesson files |
+| `docs/courtiq-pack-2-75-scenario-expansion-blueprint.md` | This document |
+| `docs/qa/pack-2-coverage-snapshot.md` | New, generated at G3 |
+
+## Appendix D — Open questions
+
+These need resolution before G0 sign-off:
+
+1. **Decoder family naming**: are DROP and HUNT the right names? The
+   four founder names are mnemonic-rich (BDW, ESC, SKR, AOR);
+   DROP/HUNT continue the convention. Alternatives considered:
+   COV (coverage), CHN (chain). DROP and HUNT win on
+   pronounceability.
+2. **Cross-decoder boss bound**: 4 is one per founder family.
+   Should DROP and HUNT also ship a boss variant? Recommendation:
+   yes for HUNT (its second beat is a natural distractor), no for
+   DROP at Pack 2 (DROP is too new for boss authoring).
+3. **HUNT chain depth**: 2 beats hard cap. Is there a real Pack 2
+   scenario that wants 3? Recommendation: no; defer to Pack 3+ once
+   we have Pack 2 retention data.
+4. **Render tier 2** (animated): does any Pack 2 scenario justify
+   Tier 2 effort? Recommendation: no. Tier 2 is a Pack 4+ unlock.
+5. **Coach-review queue UI**: ship in Pack 2 (delays G3) or defer
+   to Pack 3? Recommendation: defer; SME walks template-batch
+   reviews for Pack 2.
+6. **Voice style guide**: write a one-page guide capturing Pack 1's
+   voice for Pack 2 authors? Recommendation: yes; ship as
+   `docs/scenario-voice-style-guide.md` before any Pack 2 variant
+   authoring.
+
+---
+
+*End of blueprint. Sign-offs go in PR comments; questions in
+Appendix D get tracked in GitHub issues.*
+
+
 
 
 
