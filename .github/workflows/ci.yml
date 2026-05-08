@@ -67,3 +67,95 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  # Pack 2 §3.1.14 / Replay-1 — visual regression smoke for BDW-T2-01.
+  #
+  # First end-to-end CI exercise of the visual regression pipeline.
+  # Deliberately narrow:
+  #   - one scenario only (BDW-T2-01)
+  #   - preview surface only (no Supabase auth needed)
+  #   - soft mode (ALLOW_MISSING_BASELINE=1) so missing-baseline reports
+  #     are warnings, not failures
+  #   - separate job with continue-on-error so a flaky run never gates
+  #     the existing typecheck/lint/build pipeline
+  #
+  # Goal: prove the install → boot → screenshot → diff → upload chain
+  # survives real CI execution before any pack-wide expansion. Once this
+  # is green for a few consecutive runs, the next phase tightens the
+  # gate (strict mode for committed baselines, more scenarios) — for
+  # now keep blast radius zero.
+  visual-regression-pack2-bdw-t2-01:
+    name: Visual regression smoke (BDW-T2-01, soft)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    needs: ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Start Next dev server
+        run: |
+          # Use NODE_ENV=development to keep dev-only routes
+          # (`/dev/scenario-preview`) reachable without setting
+          # ENABLE_DEV_ROUTES=1; the page guards on
+          # `NODE_ENV !== 'production'` first.
+          nohup pnpm --filter @courtiq/web dev > dev-server.log 2>&1 &
+          echo $! > dev-server.pid
+          # Poll the port up to 180 s. Next dev's first compile of
+          # /dev/scenario-preview is the slow step; the screenshot
+          # script's own goto() timeout handles the route compile,
+          # so once the listening port is up we proceed.
+          for i in $(seq 1 90); do
+            if curl -fsS -o /dev/null http://localhost:3000/api/health 2>/dev/null \
+               || nc -z localhost 3000; then
+              echo "dev server up after ${i}×2 s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "dev server never bound :3000 — log follows"
+          cat dev-server.log
+          exit 1
+
+      - name: Visual regression diff (soft)
+        env:
+          ALLOW_MISSING_BASELINE: '1'
+          BASE_URL: http://localhost:3000
+          # Tighter DOM timeout in CI so a stalled phase wait fails
+          # fast into the wall-clock fallback instead of dragging the
+          # whole job to 8 s × 3 phases.
+          PHASE_DOM_TIMEOUT_MS: '6000'
+        run: pnpm exec tsx scripts/screenshot-scenario.ts diff --id BDW-T2-01 --via preview
+
+      - name: Stop dev server
+        if: always()
+        run: |
+          if [ -f dev-server.pid ]; then
+            kill "$(cat dev-server.pid)" 2>/dev/null || true
+          fi
+
+      - name: Upload visual regression artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-bdw-t2-01
+          path: |
+            docs/screenshots/BDW-T2-01/
+            dev-server.log
+          if-no-files-found: warn
+          retention-days: 14
