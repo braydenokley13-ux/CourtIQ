@@ -216,6 +216,61 @@ async function sha256OfFile(p: string): Promise<string> {
   return createHash('sha256').update(buf).digest('hex')
 }
 
+/**
+ * Pack 2 §3.1.14 / Replay-1 — phase wait selectors.
+ *
+ * The preview surface (`/dev/scenario-preview`) now mirrors the live
+ * ReplayPhase onto `<main data-replay-phase="…">`. The harness prefers
+ * those selectors so `freeze` / `after` capture timing is
+ * deterministic-by-state instead of deterministic-by-wall-clock. If
+ * the attribute never appears (older surface, train route, render
+ * stalled), the wall-clock PHASE_*_DELAY_MS path is the fallback.
+ *
+ *   load   — `'idle'` | `'setup'` | `'playing'` (any "before freeze"
+ *            phase is acceptable; the canvas is up and lighting is
+ *            steady).
+ *   freeze — `'frozen'` (the legacy controller emits this once the
+ *            freeze marker is reached and held).
+ *   after  — `'done'` | `'replaying'` | `'cueRepaint'` (any
+ *            "after-freeze" phase; intro mode lands on `'done'`,
+ *            consequence + replay legs cycle through the others).
+ */
+const PHASE_DOM_MATCH: Record<Phase, ReadonlyArray<string>> = {
+  load: ['idle', 'setup', 'playing'],
+  freeze: ['frozen'],
+  after: ['cueRepaint', 'replaying', 'done'],
+}
+
+const PHASE_DOM_TIMEOUT_MS = Number.parseInt(
+  process.env.PHASE_DOM_TIMEOUT_MS ?? '8000',
+  10,
+)
+
+async function waitForPhaseDom(
+  page: Page,
+  phase: Phase,
+): Promise<'matched' | 'timed-out' | 'no-attribute'> {
+  const accepted = PHASE_DOM_MATCH[phase]
+  try {
+    const result = await page.waitForFunction(
+      (acceptedJson: string) => {
+        const expected = JSON.parse(acceptedJson) as string[]
+        const root = document.querySelector('main[data-replay-phase]')
+        if (!root) return null
+        const cur = root.getAttribute('data-replay-phase')
+        if (!cur) return null
+        return expected.includes(cur) ? cur : false
+      },
+      JSON.stringify(accepted),
+      { timeout: PHASE_DOM_TIMEOUT_MS, polling: 100 },
+    )
+    if (result === null) return 'no-attribute'
+    return 'matched'
+  } catch {
+    return 'timed-out'
+  }
+}
+
 async function captureScenario(
   page: Page,
   id: string,
@@ -238,27 +293,41 @@ async function captureScenario(
     })
 
   const manifest: Manifest = {} as Manifest
-  // Per-phase capture. Wait deltas are pulled from ENV so a future
-  // selector-based wait can replace them without changing the call
-  // sites; the architecture lock above documents this as a known
-  // determinism gap.
+  // Per-phase capture. Each phase first tries to wait on the DOM
+  // signal `data-replay-phase` mirrored from the live ReplayPhase;
+  // only when that attribute is absent (legacy surfaces) or never
+  // reaches an accepted value does the harness fall back to the
+  // wall-clock PHASE_*_DELAY_MS waits. The fallback is documented as
+  // a determinism gap in this script's header.
   const delays: Record<Phase, number> = {
     load: PHASE_LOAD_DELAY_MS,
     freeze: PHASE_FREEZE_DELAY_MS,
     after: PHASE_AFTER_DELAY_MS,
   }
   for (const phase of PHASES) {
-    if (phase !== 'load') {
-      // Each phase delay is RELATIVE to the prior phase's wait so
-      // total wallclock is the sum of the individual delays. This
-      // keeps the 'after' screenshot at PHASE_AFTER_DELAY_MS from
-      // the freeze, not from page load.
-      const prior = phase === 'freeze' ? delays.load : delays.freeze
-      const here = delays[phase]
-      const delta = Math.max(0, here - prior)
-      await page.waitForTimeout(delta)
+    const domOutcome = await waitForPhaseDom(page, phase)
+    if (domOutcome === 'matched') {
+      // A small steady-state nudge so the canvas paints one more
+      // frame at the new phase before we snap. 100 ms is enough for
+      // a 60 fps frame to land; the deterministic basketball texture
+      // and seeded animation tracks make it byte-stable across runs.
+      await page.waitForTimeout(100)
     } else {
-      await page.waitForTimeout(delays.load)
+      if (phase !== 'load') {
+        // Each phase delay is RELATIVE to the prior phase's wait so
+        // total wallclock is the sum of the individual delays. This
+        // keeps the 'after' screenshot at PHASE_AFTER_DELAY_MS from
+        // the freeze, not from page load.
+        const prior = phase === 'freeze' ? delays.load : delays.freeze
+        const here = delays[phase]
+        const delta = Math.max(0, here - prior)
+        await page.waitForTimeout(delta)
+      } else {
+        await page.waitForTimeout(delays.load)
+      }
+      console.log(
+        `    [phase ${phase}] DOM ${domOutcome}; fell back to wall-clock`,
+      )
     }
     const filePath = path.join(outRoot, `${phase}.png`)
     await page.screenshot({ path: filePath, fullPage: true })
