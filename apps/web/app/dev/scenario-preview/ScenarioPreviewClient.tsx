@@ -278,6 +278,15 @@ export function ScenarioPreviewClient({
         fontFamily: 'system-ui, sans-serif',
       }}
       data-fr1-scenario-preview="1"
+      // Pack 2 §3.1.14 / Replay-1 productionization — surface the live
+      // ReplayPhase as a DOM attribute so the visual regression harness
+      // can wait on a deterministic selector (`'frozen'`, `'done'`)
+      // instead of guessing with PHASE_*_DELAY_MS wall-clock timeouts.
+      // Same value `<Scenario3DView onPhase>` already feeds into local
+      // state — the only new behavior is mirroring it to the DOM root
+      // of the preview surface.
+      data-replay-phase={replayPhase}
+      data-replay-scenario={selectedId}
     >
       <header
         style={{
