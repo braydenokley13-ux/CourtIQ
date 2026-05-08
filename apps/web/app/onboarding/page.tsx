@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Court } from '@/components/court'
 import type { CourtState } from '@/components/court'
+import { Scenario3DView } from '@/components/scenario3d/Scenario3DView'
+import { useScenarioSceneData } from '@/lib/scenario3d/useScenarioSceneData'
+import { GLB_ATHLETE_PREVIEW_DEV_OVERRIDE_KEY } from '@/components/scenario3d/imperativeScene'
+import { loadGlbAthleteAsset } from '@/components/scenario3d/glbAthlete'
 import { createClient } from '@/lib/supabase/client'
 import { PrimaryButton } from '@/components/ui/Button'
 import { trackOnboardingCompleted } from '@/features/onboarding/analytics'
@@ -48,6 +52,46 @@ type CalibrationScenario = {
   concept_tags: string[]
   render_tier: number
   choices: Array<{ id: string; label: string; order: number }>
+}
+
+// Deterministic 32-bit string hash (FNV-1a). Used to seed the choice
+// shuffle from the scenario id so a player who navigates back to the
+// same scenario sees the same option order — but the correct choice
+// is no longer always served as A.
+function hashScenarioId(seed: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return h >>> 0
+}
+
+function mulberry32(seed: number): () => number {
+  let s = seed >>> 0
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0
+    let t = s
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+function shuffleChoicesByScenarioId<T extends { order: number }>(
+  choices: ReadonlyArray<T>,
+  scenarioId: string,
+): T[] {
+  const next = [...choices].sort((a, b) => a.order - b.order)
+  if (next.length < 2) return next
+  const rand = mulberry32(hashScenarioId(scenarioId || 'fallback-seed'))
+  for (let i = next.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1))
+    const tmp = next[i]
+    next[i] = next[j]
+    next[j] = tmp
+  }
+  return next
 }
 
 function CourtLines() {
@@ -121,6 +165,22 @@ export default function OnboardingPage() {
       setBootLoading(false)
     })()
   }, [router])
+
+  // Force-enable the GLB athlete preview for the calibration scene so the
+  // real 3D mannequin always loads in dev/preview, even without the
+  // NEXT_PUBLIC_USE_GLB_ATHLETE_PREVIEW build env. The window-global is
+  // ignored when NODE_ENV === 'production', so production still relies on
+  // the env-var path (defaulted to '1' in next.config.ts). Kicking off
+  // loadGlbAthleteAsset() here warms the GLTFLoader cache before the
+  // canvas mounts on step 5, so the very first calibration scenario
+  // renders the GLB figure rather than the procedural cold-cache fallback.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    ;(window as unknown as Record<string, unknown>)[
+      GLB_ATHLETE_PREVIEW_DEV_OVERRIDE_KEY
+    ] = true
+    void loadGlbAthleteAsset()
+  }, [])
 
   function advance() {
     setDirection(1)
@@ -285,9 +345,27 @@ export default function OnboardingPage() {
 
   const currentScenario = scenarios[calibrationIdx]
   const orderedChoices = useMemo(
-    () => [...(currentScenario?.choices ?? [])].sort((a, b) => a.order - b.order),
+    () => shuffleChoicesByScenarioId(currentScenario?.choices ?? [], currentScenario?.id ?? ''),
     [currentScenario],
   )
+  // Memoize the Scene3D input so unrelated state changes (selected,
+  // submitted, submitting) don't recreate the object literal each
+  // render. `useScenarioSceneData` keys its memo on the input
+  // reference; without this, the imperative 3D scene would tear down
+  // and rebuild on every UI tick during answer selection, resetting
+  // the replay timeline and burning a few hundred ms of GPU work.
+  const sceneInput = useMemo(
+    () =>
+      currentScenario
+        ? {
+            id: currentScenario.id,
+            court_state: currentScenario.court_state,
+            concept_tags: currentScenario.concept_tags,
+          }
+        : null,
+    [currentScenario],
+  )
+  const calibrationScene = useScenarioSceneData(sceneInput)
 
   const canAdvance = useMemo(() => {
     if (step === 1) return hideAge || /^\d{4}$/.test(birthYear)
@@ -480,7 +558,21 @@ export default function OnboardingPage() {
                       <span>IQ {startingIq ?? 500}</span>
                     </div>
                     <div className="rounded-2xl border border-hairline-2 overflow-hidden bg-bg-1">
-                      <Court width={360} height={260} courtState={currentScenario.court_state} you="you" />
+                      <Scenario3DView
+                        height={260}
+                        scene={calibrationScene}
+                        concept={currentScenario.concept_tags.join(', ')}
+                        replayMode="intro"
+                        showPaths={false}
+                        fallback={
+                          <Court
+                            width={360}
+                            height={260}
+                            courtState={currentScenario.court_state}
+                            you="you"
+                          />
+                        }
+                      />
                     </div>
                     <p className="text-[14px] text-text-dim">{currentScenario.prompt}</p>
                     <p className="font-display text-[20px] font-bold">What do you do?</p>

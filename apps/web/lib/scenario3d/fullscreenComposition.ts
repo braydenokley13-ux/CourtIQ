@@ -122,21 +122,31 @@ export function composeFullscreenFraming(aspect: number): FullscreenFraming {
   }
 
   if (aspect < 1.5) {
+    // Embedded canvases (calibration / /train at ~280-320 px tall) sit
+    // around aspect 1.2-1.4. The pre-existing 1.06 padding wrapped a
+    // ~6 % grey ring around the action and made the play feel small.
+    // Drop to a no-breathing-room fit so the same auto-fit envelope
+    // fills the canvas tighter without cropping any movement endpoint
+    // (the envelope itself already has the §8.7 safe-area margin
+    // baked in).
     return {
       floorXHalfFt: 19,
       floorZMinFt: 0,
       floorZMaxFt: 24,
-      padding: 1.06,
+      padding: 1.0,
       lookAtLiftFt: 0,
     }
   }
 
   if (aspect < 1.95) {
+    // Desktop 16:9 in-page (non-fullscreen) keeps the 19/0/24
+    // envelope (locked by `composeFullscreenFraming` test) but
+    // tightens padding to fill the visible canvas.
     return {
       floorXHalfFt: 19,
       floorZMinFt: 0,
       floorZMaxFt: 24,
-      padding: 1.04,
+      padding: 1.0,
       lookAtLiftFt: 0.5,
     }
   }
