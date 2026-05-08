@@ -535,3 +535,265 @@ band rather than introducing new families.
 
 ---
 
+## Phase 3 — The Authoring System
+
+The system answers: **how do we author 75 scenarios in 6 weeks
+without sacrificing teaching quality, and leave behind a pipeline
+that produces Pack 3 in 4 weeks and Pack 4 in 2?**
+
+The system is anchored on **templates + variants**, the primitive
+already shipped in `_schema.ts`. Phase 3's job is to harden the
+primitive (Section 3.1), extend it for the new requirements
+(Section 3.2), build the missing tooling (Section 3.3), and codify
+authoring standards (Sections 3.4–3.7) so authors and SMEs operate
+without ambiguity.
+
+### 3.1 Compiler & lint hardening (must precede any Pack 2 authoring)
+
+These are the prerequisites — none ships content; all ship
+guardrails. Each is a small, reversible PR.
+
+| # | Change | File(s) | Why |
+| --- | --- | --- | --- |
+| 3.1.1 | `concept_tag` enum validation in seeder | `scripts/seed-scenarios.ts` | Reject typo'd tags at seed time; Pack 2 multiplies tag count |
+| 3.1.2 | `decoder_overlay_preset` runtime enforcement | `apps/web/lib/scenario3d/decoderOverlayPresets.ts`, `imperativeTeachingOverlay.ts` | Authored overlays must be a subset of the decoder's preset (or a documented exception) |
+| 3.1.3 | `decoderCameraPresets.ts` | new file in `apps/web/lib/scenario3d/` | Scenario `camera` field must match decoder's preset unless overridden in template |
+| 3.1.4 | `Scene3D.timingOverrides` data-driven hold | `apps/web/lib/scenario3d/freezeFrameCognition.ts` + `schema.ts` | Per-difficulty hold targets from §2.3 land as data, not constants |
+| 3.1.5 | TODO-marker lint promoted to error | `scripts/lint-variants.ts` | Block any variant with literal `TODO:` from materializing |
+| 3.1.6 | Templates lint added to CI | `.github/workflows/ci.yml` | `pnpm templates:lint --check` fails the PR on collisions or single-axis spread |
+| 3.1.7 | Cross-template duplicate signature check | `scripts/lint-variants.ts` | Today's lint is template-local; extend to global |
+| 3.1.8 | Cross-pack duplicate signature check | `scripts/lint-variants.ts` | Detect Pack 1 vs Pack 2 visual overlap |
+| 3.1.9 | Wrong-demo authoring required for non-best | `scripts/seed-scenarios.ts` | Promote today's warning to error when `decoder_tag` is set |
+| 3.1.10 | Coach-validation `--allow-unvalidated` removed | `scripts/seed-scenarios.ts` | Pack 2 ships no scenario that bypasses SME |
+| 3.1.11 | DROP & HUNT decoder enums | `_schema.ts`, `prisma/schema.prisma` | Add to `decoderTagSchema` and `DecoderTag` enum, include presets |
+| 3.1.12 | New cue atoms for DROP / HUNT | `_schema.ts` `cueAtomSchema` | Atoms: `screen_defender_drop`, `screen_defender_hedge`, `tag_recovery_late`, `helper_overhelp_chain`, `closeout_chain_first_beat`, `closeout_chain_second_beat` |
+| 3.1.13 | `/dev/scenario-preview?id=…` stable URL | `apps/web/app/dev/scenario-preview/page.tsx` | QA can reproducibly load any scenario without seeding randomness |
+| 3.1.14 | Visual regression harness | `scripts/screenshot-scenario.ts` already exists; expand to a Pack 2 baseline | Catch unintended visual drift across the 75 scenarios |
+
+3.1.1 is the highest priority. A typo in `concept_tags` today is a
+silent spaced-rep bug. Pack 2 multiplies tag surface area by ~4×.
+
+### 3.2 Schema standards (what every scenario carries)
+
+Scenario JSON is the contract between authors and the runtime. The
+existing schema (`scripts/seed-scenarios.ts:338`, `_schema.ts:206`)
+is sound; Pack 2 standards layer on top:
+
+**Required fields (Pack 2 floor)**:
+
+- `id` — `^[A-Z]{3,4}-T\d+-\d{2}$` (template variant) or `^[A-Z]{3}-\d{2}$` (founder-style legacy only)
+- `version: 1` (bump per non-cosmetic edit)
+- `status: 'DRAFT' | 'REVIEW' | 'LIVE' | 'RETIRED'` (Pack 2 ships `LIVE` only)
+- `category: 'OFFENSE' | 'DEFENSE' | 'TRANSITION' | 'SITUATIONAL'`
+- `concept_tags[]` — at least one, all from the enum landed in 3.1.1
+- `decoder_tag` — one of {BDW, ESC, SKR, AOR, DROP, HUNT}
+- `difficulty: 1..5`
+- `user_role` — slug from the role registry; matches a slot in
+  `tactical.user_slot_default`
+- `prompt` — ≤140 chars
+- `choices[]` — 3 or 4, exactly one `quality: 'best'`, every choice
+  has `feedback_text` (and `partial_feedback_text` when
+  `quality: 'acceptable'`)
+- `decoder_teaching_point`
+- `lesson_connection` (slug)
+- `feedback.{correct, partial?, wrong}`
+- `self_review_checklist[]` — 2 to 6 items, each in second person
+- `coach_validation.{level, status, notes?}` — status must equal
+  `'approved'` for `LIVE`
+- `scene` — full scene block with at least one freezeMarker
+
+**Forbidden fields**:
+
+- `is_correct` (legacy boolean) — Pack 2 uses `quality` exclusively;
+  the seeder still derives but new scenarios omit
+- `media_refs[]` non-empty — Pack 2 is render tier 1, no external
+  assets
+- Free-form `camera` strings — must be one of the four preset names
+
+**New fields landed in 3.1.4**:
+
+- `scene.timingOverrides?: { cognitionHoldMs?, choiceTrayAtMs?, cueRepaintHoldWrongMs?, cueRepaintHoldCorrectMs? }`
+- `scene.beatSpec?: { firstBeat: FreezeMarker, secondBeat?: FreezeMarker }`
+  for HUNT chained reads
+
+### 3.3 Tooling we still owe (build before authoring)
+
+| Tool | Status | Why we need it for Pack 2 |
+| --- | --- | --- |
+| `/dev/scenario-preview?id=…` stable URL | Ships in 3.1.13 | QA cycle without `pnpm seed` |
+| Variant scaffolder with axis presets | Exists (`scripts/scaffold-variant.ts`) | Reuse |
+| Prose-bank generator | New | Author cuts prose authoring time ~40%; templates emit a feedback-template skeleton per choice quality |
+| Coach-review queue UI | New (deferred to Phase 4 if Phase 3 budget tight) | Async SME signoff replaces 1:1 walkthroughs |
+| Visual regression baseline | Expand existing `screenshot-scenario.ts` | Pack 2 baseline + cron to detect drift |
+| Decoder-overlay preset linter | Ships in 3.1.2 | Author can't drift from preset |
+| Cross-template signature lint | Ships in 3.1.7 | Catches duplicate templates |
+
+**The prose-bank generator** is the highest-yield tooling investment.
+For each template, the generator emits a JSON skeleton per quality:
+
+```json
+{
+  "quality": "best",
+  "tone": "encouraging",
+  "skeletons": [
+    "Good read. He {cue_atom_short_desc}, so {open_space_short_desc}.",
+    "Right. {cue_atom_short_desc} = {action_short_desc}.",
+    "Yes. {decoder_micro_explainer}."
+  ]
+}
+```
+
+Authors fill the slot variables; the linter checks the slots are
+populated and the prose is unique within the template. This converts
+~40% of prose authoring from a writing task to a slot-filling task.
+
+### 3.4 Naming conventions
+
+**Files** — `_schema.ts` already enforces patterns. Pack 2 adds:
+
+- Template directory: `<DECODER>.<topic-kebab>/` where `<DECODER>` is
+  one of {BDW, ESC, SKR, AOR, DROP, HUNT, TRA, SIT}; topic kebab is
+  `[a-z][a-z0-9-]{2,32}`.
+- Variant filename: `NN-<axes>.json` where `NN = variantId.slice(-2)`
+  and `<axes>` is the axis combination (`base`, `mirror`, `as-<slot>`,
+  `light`, `moderate`, `heavy`, `shot-clock`, `game-clock`, `boss`).
+
+**IDs** — Variant IDs are scenario IDs in the DB. Pattern
+`^[A-Z]{3,4}-T\d+-\d{2}$`. T-number = template generation; Pack 2 is
+T2 (founder is T1). Examples: `BDW-T2-01`, `DROP-T2-04`. NN within a
+template starts at 01.
+
+**Concept tags** — Lower snake case, enum-validated. Pack 2 adds the
+following tags (Phase 3.1.1 wires them in):
+
+- `pnr_ball_handler_read` (DROP family)
+- `pnr_screener_read` (DROP family)
+- `chained_kick_decision` (HUNT family)
+- `chained_swing_decision` (HUNT family)
+- `transition_secondary_break`
+- `transition_stop_ball`
+- `late_clock_mismatch_hunt`
+- `closeout_chain` (HUNT/AOR overlap)
+- `helper_overcommit_punish` (cross-decoder)
+- `screen_defender_coverage_read` (DROP)
+
+**Lesson slugs** — Pack 2 adds `read-the-coverage`,
+`hunt-the-second-read`, `transition-stop-ball`,
+`late-clock-mismatch`. Each lesson lands in
+`packages/db/seed/lessons/<slug>.json`.
+
+### 3.5 Clip timing standards
+
+| Beat | Target | Hard ceiling | Notes |
+| --- | --- | --- | --- |
+| Pre-freeze movements | 1.0–3.0 s | 4.5 s | `docs/scenario-qa-checklist.md` §2 |
+| Cognition hold (D1–D2) | 1400 ms | 1800 ms | Default constant; D2 stays at default |
+| Cognition hold (D3) | 1200 ms | 1500 ms | Phase 3.1.4 override |
+| Cognition hold (D4) | 1000 ms | 1300 ms | Phase 3.1.4 override |
+| Cognition hold (D5) | 800 ms | 1100 ms | Phase 3.1.4 override; floor enforced by lint |
+| Consequence (wrong) leg | 1.5–2.5 s | 3.0 s | qa-checklist §6 |
+| Cue repaint hold (correct) | 600 ms | 800 ms | controller default |
+| Cue repaint hold (wrong) | 800 ms | 1100 ms | controller default |
+| Answer-demo leg | 2.0–3.0 s | 3.5 s | qa-checklist §7 |
+| Total scenario | 6–13 s | 16 s | sanity ceiling — anything longer should split into HUNT chain |
+
+**HUNT chained scenarios** add a second cognition hold (1200 ms at
+D3, 1000 ms at D4). The total scenario therefore grows to 9–18 s.
+This is the only category exempt from the 16 s ceiling.
+
+### 3.6 Camera & overlay standards
+
+**Camera** — Pack 2 adds `decoderCameraPresets.ts` (Phase 3.1.3):
+
+| Decoder | Default preset | Why |
+| --- | --- | --- |
+| BDW | `passer_side_three_quarter` | The cue is body-language on the deny defender; passer-side reads it best |
+| ESC | `teaching_angle` | Vacated paint must be visible |
+| SKR | `top_down` | Whole floor matters; skip arc must read clearly |
+| AOR | `defense` | Closeout body language is the cue |
+| DROP | `top_down` | Coverage call is read off two defenders' positions |
+| HUNT | `teaching_angle` (first beat), `passer_side_three_quarter` (second beat) | The two beats use different cameras |
+
+Templates that override the preset must justify the override in
+`tactical.notes` and pass through a one-line lint check.
+
+**Overlay discipline** (Phase 3.1.2 enforces these at runtime):
+
+- Pre-answer cluster cap by difficulty: D1=3, D2=3, D3=2, D4=2, D5=1
+- Post-answer reveal cap: D1=3, D2=4, D3=4, D4=5, D5=5
+- Pre-answer overlays must be a subset of the decoder's preset
+- Post-answer overlays may add the decoder's reveal kinds; nothing
+  else
+- `label` overlays may not anchor on a player position (the
+  renderer doesn't push them off; per
+  `docs/curriculum/SCENARIO_OVERLAY_SPEC.md`)
+
+### 3.7 Freeze-frame and replay-choreography standards
+
+These are the rules every Pack 2 scenario follows so the player
+experiences a consistent rhythm across all 75:
+
+1. **Cue must be visible at the freeze**. The defender body-language
+   atom (or competing cue, for boss variants) must be fully resolved
+   in the frozen frame. No mid-step ambiguity.
+2. **User marker is held visible**. No half-completed `lift` /
+   `drift` at the freeze instant.
+3. **All five framing elements on screen** (passer, cue defender,
+   user, ball, rim). qa-checklist §3.
+4. **Wrong-demo must show the failure**. A pre-authored wrongDemo
+   must depict the deflection / missed window / blocked finish.
+   Phase 3.1.9 requires this; today's warning becomes an error.
+5. **Best-read replay layers overlays in 600–900 ms**, never
+   instantaneously. Sequence is anchor → support → auxiliary.
+6. **Answer-demo plays from the freeze snapshot.** Idle players do
+   not snap back to authored starts.
+7. **HUNT chained reads use a "look-back" beat between freezes.**
+   The first beat resolves; camera holds for ~400 ms on the result;
+   the second beat starts. The 400 ms transition is not optional —
+   it's the moment the player reads the new defensive shape.
+8. **Reduced-motion behaviour** is checked per qa-checklist §11.
+   No animation chain leaves the user stuck.
+
+### 3.8 Reuse strategy
+
+The expensive parts of a scenario are: court geometry, defensive
+choreography, wrong-demo logic, decoder-overlay rigging. The cheap
+parts are: prose, mirroring, slot swapping. The template/variant
+system is exactly this split.
+
+**What every Pack 2 author should do, in order**:
+
+1. Before authoring a new template, run
+   `pnpm templates:lint --coverage` and confirm the decoder ×
+   difficulty cell is genuinely empty.
+2. If a similar template exists, scaffold a variant
+   (`pnpm templates:scaffold <id>`) and adjust prose only.
+3. Only author a new template if the cue cluster, court geometry,
+   or wrong-demo logic is genuinely novel.
+4. After landing a template, scaffold its 4–6 variants in a single
+   PR. SME reviews the template + all variants together to amortize
+   review cost.
+5. Boss variants are last. They are intentionally late so the
+   author has a full template + standard variants under their belt
+   before designing the trap.
+
+### 3.9 What this gets us
+
+Authoring time per scenario, today vs. Pack 2 system:
+
+| Activity | Today (Pack 1 style) | Pack 2 with system |
+| --- | --- | --- |
+| Court / choreography design | 90 min | 0 min (template reuse) — or 90 min once per template |
+| Wrong-demo authoring | 45 min | 0 min (template reuse) |
+| Prose authoring | 30 min | 18 min (prose-bank assist) |
+| QA / SME review (round-trip) | 30 min | 12 min (review queue) |
+| **Total per scenario** | **195 min** | **30 min** (90 min for template, amortized) |
+
+For 75 scenarios: 195 × 75 = **244 hours** under the Pack 1 model.
+30 × 75 + 90 × 15 (templates) = **2,610 minutes ≈ 43.5 hours** under
+the Pack 2 system. **5.6× speedup, with quality floor encoded in the
+template instead of the author's discipline.**
+
+---
+
+
