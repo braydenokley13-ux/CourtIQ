@@ -483,21 +483,24 @@ const scenarioSchema = z
       });
     }
 
-    // Coach-validation gating (Section 4.6). LIVE + level=high +
-    // status !== 'approved' is rejected unless the operator passes
-    // --allow-unvalidated. medium/low fall through silently here; the
-    // seeder logs warnings for medium at write time.
+    // Phase 3.1.10 — coach-validation gating. LIVE + level=high +
+    // status !== 'approved' is rejected unconditionally. The
+    // `--allow-unvalidated` bypass that previously sat here was
+    // removed once Pack 1 + templates-v1 were audited and confirmed
+    // all-low-approved; Pack 2 ships no scenarios that bypass SME
+    // sign-off (blueprint §4.8 risk: "no scenario that bypasses
+    // SME"). medium/low fall through silently; the seeder still logs
+    // a warning for medium at write time.
     if (
       scenario.status === ScenarioStatus.LIVE &&
       scenario.coach_validation?.level === 'high' &&
-      scenario.coach_validation.status !== 'approved' &&
-      !ALLOW_UNVALIDATED
+      scenario.coach_validation.status !== 'approved'
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['coach_validation', 'status'],
         message:
-          'LIVE scenarios with coach_validation.level=high require status=approved (or pass --allow-unvalidated).',
+          'LIVE scenarios with coach_validation.level=high require status=approved. Move the scenario to REVIEW or get coach sign-off; the --allow-unvalidated bypass was removed in Pack 2 Phase 3.1.10.',
       });
     }
 
@@ -557,10 +560,6 @@ const scenarioSchema = z
       }
     }
   });
-
-// CLI flag — populated in main(). Read inside the schema so the gate is
-// enforced at parse time rather than after upsert.
-let ALLOW_UNVALIDATED = false;
 
 // Each pack ships a `pack.json` manifest declaring an ordered scenario
 // list. Manifests are validated; the seeder reads each scenario file in
@@ -751,10 +750,10 @@ async function upsertScenario(
 }
 
 async function main(): Promise<void> {
-  if (process.argv.includes('--allow-unvalidated')) {
-    ALLOW_UNVALIDATED = true;
-    console.warn('[seed:scenarios] --allow-unvalidated set — coach-validation gating disabled.');
-  }
+  // Pack 2 (Phase 3.1.10) — `--allow-unvalidated` was removed.
+  // Pack 1 audit confirmed every founder + templates-v1 scenario is
+  // level=low + status=approved, so the bypass had no current users.
+  // Future LIVE scenarios with level=high MUST get coach status=approved.
   // Phase B addition. `--dry-run` validates the seed JSONs (Zod parse +
   // cross-field rules) without touching the database. Useful for CI and
   // for confirming fixtures still parse after schema changes when no
