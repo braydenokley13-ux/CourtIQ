@@ -280,8 +280,50 @@ function resolveOverlay(
   }
 }
 
-const BEGINNER_PRE_OVERLAY_CAP = 3
-const BEGINNER_POST_OVERLAY_CAP = 3
+// Pack 2 §3.6 — difficulty-aware authoring overlay caps. The runtime
+// (apps/web/lib/scenario3d/overlayLevel.ts) caps by USER pathway mode
+// (beginner / intermediate / advanced) at render time; that is a
+// DIFFERENT axis from the AUTHOR-DISCIPLINE caps below. The author
+// cap stops a difficulty-3 scenario from shipping a difficulty-1
+// overlay surface area; the user cap drops overlays at render based
+// on the player's earned level. Both must apply.
+//
+// Per the blueprint (§3.6):
+//
+//   Difficulty | pre cap | post cap
+//   --------------------------------
+//        1     |    3    |    3
+//        2     |    3    |    4
+//        3     |    2    |    4
+//        4     |    2    |    5
+//        5     |    1    |    5
+//
+// The cap is a hard ceiling enforced at materialize time; the variant
+// schema's `.max(16)` is the absolute outer bound. Adjusting this table
+// requires re-validating every authored template that lives at the
+// affected difficulty.
+const AUTHORING_OVERLAY_CAPS_BY_DIFFICULTY: Readonly<
+  Record<number, { pre: number; post: number }>
+> = Object.freeze({
+  1: { pre: 3, post: 3 },
+  2: { pre: 3, post: 4 },
+  3: { pre: 2, post: 4 },
+  4: { pre: 2, post: 5 },
+  5: { pre: 1, post: 5 },
+})
+
+function authoringOverlayCap(
+  phase: 'pre' | 'post',
+  difficulty: number,
+): number {
+  const cell = AUTHORING_OVERLAY_CAPS_BY_DIFFICULTY[difficulty]
+  // Conservative fallback for an unknown difficulty: return the D1
+  // (loosest) cap so a typo'd difficulty doesn't silently relax to
+  // unbounded; the difficulty itself is already validated to 1..5
+  // upstream by the variant schema.
+  if (!cell) return phase === 'pre' ? 3 : 3
+  return phase === 'pre' ? cell.pre : cell.post
+}
 
 function materialize(template: Template, variant: Variant): MaterializedScenario {
   const mirror = variant.variation.mirror
@@ -344,14 +386,26 @@ function materialize(template: Template, variant: Variant): MaterializedScenario
     return !removeSet.has(`${o.kind}|${onSlot}`) && !removeSet.has(`${o.kind}|`)
   })
 
-  if (filteredPre.length > BEGINNER_PRE_OVERLAY_CAP) {
+  // Pack 2 §3.6 — cap is per-difficulty, not per-tier. The variant's
+  // effective difficulty (template default + disguise bump + variant
+  // override) decides the ceiling, so a heavier disguise that pushes
+  // a D2 base into D3 inherits the D3 cap.
+  const effectiveDifficultyForCap =
+    variant.variation.difficulty ??
+    Math.min(
+      5,
+      template.tactical.difficulty_default + (disguise?.difficultyBump ?? 0),
+    )
+  const preCap = authoringOverlayCap('pre', effectiveDifficultyForCap)
+  const postCap = authoringOverlayCap('post', effectiveDifficultyForCap)
+  if (filteredPre.length > preCap) {
     throw new Error(
-      `Variant ${variant.id} exceeds beginner pre-overlay cap (${filteredPre.length} > ${BEGINNER_PRE_OVERLAY_CAP}).`,
+      `Variant ${variant.id} exceeds D${effectiveDifficultyForCap} pre-overlay cap (${filteredPre.length} > ${preCap}). See blueprint §3.6.`,
     )
   }
-  if (template.overlays.post.length > BEGINNER_POST_OVERLAY_CAP) {
+  if (template.overlays.post.length > postCap) {
     throw new Error(
-      `Template ${template.id} exceeds beginner post-overlay cap (${template.overlays.post.length} > ${BEGINNER_POST_OVERLAY_CAP}).`,
+      `Template ${template.id} (used by ${variant.id} at D${effectiveDifficultyForCap}) exceeds post-overlay cap (${template.overlays.post.length} > ${postCap}). See blueprint §3.6.`,
     )
   }
 
