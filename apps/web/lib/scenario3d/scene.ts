@@ -124,6 +124,41 @@ export interface Scene3D {
    */
   preAnswerOverlays: OverlayPrimitive[]
   postAnswerOverlays: OverlayPrimitive[]
+  /**
+   * Pack 2 (3.1.2) — overlays rendered during the controller's
+   * `consequence` state. In Pack 1 this is the wrong-demo replay leg
+   * (between the user's pick and the answer-leg cue repaint); in
+   * Pack 2 HUNT scenarios the same overlay set is reused for the
+   * inter-beat unfreeze ("what changed between beat 1 and beat 2").
+   *
+   * Optional in the type so legacy test fixtures continue to construct
+   * `Scene3D` literals without modification; the production loader
+   * paths (`buildScene`, `normaliseAuthoredScene`,
+   * `synthesiseSceneFromCourtState`, `createDefaultScene`,
+   * `preset(...)`) always populate it as `[]` by default. Consumers
+   * MUST treat absence as the empty array — when `.length === 0` the
+   * JSX bridge falls back to the post-answer overlay set so Pack 1
+   * behavior is bit-identical.
+   */
+  consequenceOverlays?: OverlayPrimitive[]
+  /**
+   * Pack 2 (3.1.4) — beat-2 overrides. When the scene authors
+   * `beatSpec.secondBeat`, the second freeze paints these arrays
+   * instead of the primary `preAnswerOverlays` /
+   * `postAnswerOverlays`. Optional for the same reason as
+   * `consequenceOverlays`. Empty here means "reuse primary arrays for
+   * beat 2" so Pack 1 (single-beat) scenes don't carry double payload.
+   */
+  secondBeatPreAnswerOverlays?: OverlayPrimitive[]
+  secondBeatPostAnswerOverlays?: OverlayPrimitive[]
+  /**
+   * Pack 2 (3.1.4) — resolved freeze cue for the *second* beat in HUNT
+   * scenarios, in ms from the start of `movements`. `null` (or absent)
+   * means the scene is single-beat. Authors set this via
+   * `beatSpec.secondBeat`; the loader resolves both `atMs` and
+   * `beforeMovementId` forms.
+   */
+  secondFreezeAtMs?: number | null
   /** True if the scene was synthesised from legacy court_state. */
   synthetic: boolean
   /**
@@ -167,6 +202,10 @@ interface AuthoredScene {
   freezeMarker?: FreezeMarker
   preAnswerOverlays?: OverlayPrimitive[]
   postAnswerOverlays?: OverlayPrimitive[]
+  consequenceOverlays?: OverlayPrimitive[]
+  secondBeatPreAnswerOverlays?: OverlayPrimitive[]
+  secondBeatPostAnswerOverlays?: OverlayPrimitive[]
+  beatSpec?: { firstBeat: FreezeMarker; secondBeat?: FreezeMarker }
   timingOverrides?: TimingOverrides
 }
 
@@ -260,7 +299,21 @@ function normaliseAuthoredScene(id: string, scene: AuthoredScene): Scene3D {
       color: p.color,
     })) ?? []
   const movements = scene.movements ?? []
-  const freezeAtMs = resolveFreezeFromAuthored(players, scene.ball, movements, scene.freezeMarker)
+  // Pack 2 (3.1.4) — `beatSpec` overrides the legacy `freezeMarker`
+  // field. When `beatSpec.firstBeat` is authored, it is the first
+  // (and primary) freeze marker; when `beatSpec.secondBeat` is also
+  // present the loader resolves both. Pack 1 scenes that author the
+  // legacy `freezeMarker` continue to work unchanged because beatSpec
+  // is optional.
+  const firstMarker = scene.beatSpec?.firstBeat ?? scene.freezeMarker
+  const secondMarker = scene.beatSpec?.secondBeat
+  const freezeAtMs = resolveFreezeFromAuthored(players, scene.ball, movements, firstMarker)
+  const secondFreezeAtMs = resolveFreezeFromAuthored(
+    players,
+    scene.ball,
+    movements,
+    secondMarker,
+  )
   return {
     id,
     type: scene.type,
@@ -273,7 +326,11 @@ function normaliseAuthoredScene(id: string, scene: AuthoredScene): Scene3D {
     wrongDemos: scene.wrongDemos ?? [],
     preAnswerOverlays: scene.preAnswerOverlays ?? [],
     postAnswerOverlays: scene.postAnswerOverlays ?? [],
+    consequenceOverlays: scene.consequenceOverlays ?? [],
+    secondBeatPreAnswerOverlays: scene.secondBeatPreAnswerOverlays ?? [],
+    secondBeatPostAnswerOverlays: scene.secondBeatPostAnswerOverlays ?? [],
     freezeAtMs,
+    secondFreezeAtMs,
     synthetic: false,
     ...(scene.timingOverrides ? { timingOverrides: scene.timingOverrides } : {}),
   }
@@ -306,7 +363,11 @@ function resolveFreezeFromAuthored(
     wrongDemos: [],
     preAnswerOverlays: [],
     postAnswerOverlays: [],
+    consequenceOverlays: [],
+    secondBeatPreAnswerOverlays: [],
+    secondBeatPostAnswerOverlays: [],
     freezeAtMs: null,
+    secondFreezeAtMs: null,
     synthetic: false,
   }
   const timeline = buildTimeline(proxyScene, movements)
@@ -374,7 +435,11 @@ function synthesiseSceneFromCourtState(
     wrongDemos: [],
     preAnswerOverlays: [],
     postAnswerOverlays: [],
+    consequenceOverlays: [],
+    secondBeatPreAnswerOverlays: [],
+    secondBeatPostAnswerOverlays: [],
     freezeAtMs: null,
+    secondFreezeAtMs: null,
     synthetic: true,
   }
 }
@@ -397,7 +462,11 @@ export function createDefaultScene(id = 'default_3d_scene'): Scene3D {
     wrongDemos: [],
     preAnswerOverlays: [],
     postAnswerOverlays: [],
+    consequenceOverlays: [],
+    secondBeatPreAnswerOverlays: [],
+    secondBeatPostAnswerOverlays: [],
     freezeAtMs: null,
+    secondFreezeAtMs: null,
     synthetic: true,
   }
 }

@@ -253,6 +253,13 @@ function AuthoredOverlayBridge({
   // level filter on every (scene.id × overlayLevel) change. The filter
   // is pure so the result memo lets the rebuild effect below depend
   // on the filtered shape rather than re-invoking the filter inline.
+  //
+  // Pack 2 (3.1.2) — `consequenceOverlays` is filtered alongside the
+  // pre/post arrays; the filter currently passes consequence through
+  // unchanged (it does not have its own per-tier suppression rule),
+  // so the bridge feeds the raw scene array. When a per-tier rule
+  // lands later, extend `applyOverlayLevel` rather than the bridge.
+  const consequenceOverlays = scene.consequenceOverlays ?? []
   const filtered = useMemo(
     () =>
       applyOverlayLevel({
@@ -269,7 +276,7 @@ function AuthoredOverlayBridge({
       reduced,
       heuristic: false,
     })
-    ctrl.setAuthoredOverlays(filtered.preAnswer, filtered.postAnswer)
+    ctrl.setAuthoredOverlays(filtered.preAnswer, filtered.postAnswer, consequenceOverlays)
     // FR-5 — suppressed levels (Boss / 'none') keep the controller
     // mounted so phase callbacks still no-op cleanly, but with the
     // overlay group hidden so nothing renders.
@@ -288,7 +295,7 @@ function AuthoredOverlayBridge({
     // Rebuild only on scene swap or filter result swap; phase changes
     // flow through setPhase below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scene.id, filtered, overlayLevel])
+  }, [scene.id, filtered, overlayLevel, consequenceOverlays])
 
   useEffect(() => {
     const ctrl = ctrlRef.current
@@ -297,14 +304,24 @@ function AuthoredOverlayBridge({
     // end / best-read pick and the start of answer-leg motion. We
     // re-paint the pre-answer cluster so the cue lands one more
     // time before the read plays.
+    //
+    // Pack 2 (3.1.2) — `consequence` controller phase routes to the
+    // new `'consequence'` overlay phase WHEN the scene authors a
+    // non-empty `consequenceOverlays` set; otherwise it falls back
+    // to `'post'` so Pack 1 wrong-demo legs (which have no
+    // consequence overlays authored) keep their existing visual
+    // treatment bit-identical.
+    const hasConsequenceOverlays = consequenceOverlays.length > 0
     const overlayPhase: OverlayPhase =
       replayPhase === 'frozen' || replayPhase === 'cueRepaint'
         ? 'pre'
-        : replayPhase === 'consequence' ||
-            replayPhase === 'replaying' ||
-            replayPhase === 'done'
-          ? 'post'
-          : 'hidden'
+        : replayPhase === 'consequence'
+          ? hasConsequenceOverlays
+            ? 'consequence'
+            : 'post'
+          : replayPhase === 'replaying' || replayPhase === 'done'
+            ? 'post'
+            : 'hidden'
     ctrl.setPhase(overlayPhase)
 
     // FR-6 — end-of-rep teaching label. Mounts on `done` and
