@@ -1,0 +1,67 @@
+{
+  "id": "BDW-T2-01",
+  "template": "BDW.late-clock-corner-deny",
+  "status": "DRAFT",
+  "version": 1,
+
+  "copy": {
+    "title": "Late-Clock Corner Backdoor",
+    "prompt": "TODO: 1-line decision prompt. Late clock, corner is denied — what now?",
+    "game_context": "TODO: Pack 2 game-context — 4-on-4 half-court, 7 on the shot clock, ball at top of key.",
+    "possession_setup": "TODO: where the ball is, where you are, what the defense is showing.",
+    "decision_moment": "TODO: what beat the player is reading.",
+    "visible_cue": "TODO: x2 cue — hand in the corner-pass lane, hips closed off the rim, low-man hovering at nail.",
+    "best_read": "TODO: rip baseline, plant outside foot, back-cut behind x2 to the front of the rim before x4 rotates.",
+    "explanation_md": "TODO: full markdown explanation. 4–6 lines. Reference the cue, the open space, the lead pass, and the shot-clock buy-back.",
+
+    "feedback": {
+      "correct": "TODO: best-read prose — 1–2 sentences.",
+      "partial": "TODO: acceptable-read prose — 1–2 sentences explaining what was kept and what was missed.",
+      "wrong": "TODO: wrong-read prose — 1 sentence reframing the cue."
+    },
+
+    "self_review_checklist": [
+      "TODO: Did I see x2's hand cutting off the corner pass?",
+      "TODO: Did I rip outside before cutting?",
+      "TODO: Did I cut hard, like I wanted the layup?",
+      "TODO: Did I beat x4's rotation up from the low-man spot?"
+    ],
+
+    "acceptable_reads": [
+      "TODO: V-cut to the wing relief — keeps the play alive but the clock decides next."
+    ],
+    "bad_reads": [
+      "TODO: Force the corner pass — x2's hand deflects.",
+      "TODO: Front-cut into the paint — x4 steps up, the cut dies."
+    ],
+
+    "choices": {
+      "back_cut_baseline_to_rim": {
+        "label": "TODO: Best — baseline back-cut to the rim.",
+        "feedback_text": "TODO: best feedback."
+      },
+      "v_cut_to_relief": {
+        "label": "TODO: Acceptable — v-cut up to the wing relief.",
+        "feedback_text": "TODO: acceptable feedback.",
+        "partial_feedback_text": "TODO: partial feedback for the acceptable choice."
+      },
+      "stand_in_corner": {
+        "label": "TODO: Wrong — stand in the corner and call for it.",
+        "feedback_text": "TODO: wrong-1 feedback."
+      },
+      "front_cut_to_paint": {
+        "label": "TODO: Wrong — front-cut into the paint.",
+        "feedback_text": "TODO: wrong-2 feedback."
+      }
+    }
+  },
+
+  "variation": {
+    "user_slot": "corner_shooter",
+    "mirror": false,
+    "difficulty": 3,
+    "disguise": "none",
+    "clock_pressure": "shot_clock",
+    "overrides": { "players": [], "movements": [] }
+  }
+}

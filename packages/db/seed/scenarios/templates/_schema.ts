@@ -17,11 +17,17 @@ export const courtPointSchema = z.object({
   z: z.number().finite(),
 })
 
+// Pack 2 (3.1.11) adds READ_THE_COVERAGE (DROP) and HUNT_THE_ADVANTAGE
+// (HUNT). Order is significant for snapshot-style outputs (lint coverage
+// matrix), so new entries land at the end. Founder four stay first so
+// existing fixtures that hash decoder order do not drift.
 export const decoderTagSchema = z.enum([
   'BACKDOOR_WINDOW',
   'EMPTY_SPACE_CUT',
   'SKIP_THE_ROTATION',
   'ADVANTAGE_OR_RESET',
+  'READ_THE_COVERAGE',
+  'HUNT_THE_ADVANTAGE',
 ])
 
 export const categorySchema = z.enum(['OFFENSE', 'DEFENSE', 'TRANSITION', 'SITUATIONAL'])
@@ -59,7 +65,58 @@ export const overlayKindSchema = z.enum([
 
 export const choiceQualitySchema = z.enum(['best', 'acceptable', 'wrong'])
 
+// Controlled vocabulary for `concept_tags` (Phase 3.1.1). Pack 2 grows
+// the tag surface area ~4× and a typo would silently route attempts
+// to the wrong spaced-rep bucket. The seeder mirrors this enum so
+// templates and legacy founder fixtures both fail loudly on unknown
+// tags. New tags must land in this list before any scenario using
+// them can seed.
+//
+// Authoring rule: every tag is `lower_snake_case`. Multi-word tags use
+// underscores; family prefixes (`pnr_…`, `transition_…`) make the tag
+// self-grouping in the coverage matrix.
+//
+// Pack 2 expansion targets — see blueprint Phase 3.4:
+//   - `pnr_*` (DROP family: ball-handler / screener reads)
+//   - `chained_*` (HUNT family: kick / swing decisions)
+//   - `transition_*` (TRA-coded scenarios)
+//   - `late_clock_*` and `closeout_chain` (cross-decoder boss territory)
+export const conceptTagSchema = z.enum([
+  // Founder / Pack 1 vocabulary (currently authored across founder-v0).
+  'catch_and_read',
+  'closeout_read',
+  'off_ball_movement',
+  'passing',
+  'post_play',
+  'reading_denial',
+  'reading_help',
+  'screen_action',
+  'shot_selection',
+  'spacing',
+  'timing',
+  'transition_advantage',
+  // Pack 2 — DROP family (PnR ball-handler reads coverage).
+  'pnr_ball_handler_read',
+  'pnr_screener_read',
+  'screen_defender_coverage_read',
+  // Pack 2 — HUNT family (chained second-read).
+  'chained_kick_decision',
+  'chained_swing_decision',
+  'closeout_chain',
+  'helper_overcommit_punish',
+  // Pack 2 — situational / transition.
+  'transition_secondary_break',
+  'transition_stop_ball',
+  'late_clock_mismatch_hunt',
+])
+
 // Cue atoms — controlled vocabulary from the strategy doc taxonomy.
+// Pack 2 (3.1.12) adds DROP / HUNT body-language atoms. Order is
+// stable; new atoms land at the end so existing materialized templates
+// hash identically. Any new atom must be:
+//   - referenced from at least one decoder overlay preset OR template,
+//   - added to the lesson connection that teaches it, and
+//   - covered by a wrong-demo when it is the cue for a 'best' choice.
 export const cueAtomSchema = z.enum([
   'hand_in_lane',
   'foot_in_lane',
@@ -81,6 +138,14 @@ export const cueAtomSchema = z.enum([
   'switch_signal',
   'double_team_dig',
   'x_out_recovery',
+  // Pack 2 — DROP family (PnR coverage reads).
+  'screen_defender_drop',
+  'screen_defender_hedge',
+  'tag_recovery_late',
+  // Pack 2 — HUNT family (chained-decision second reads).
+  'helper_overhelp_chain',
+  'closeout_chain_first_beat',
+  'closeout_chain_second_beat',
 ])
 
 // -----------------------------------------------------------------------------
@@ -162,6 +227,53 @@ export const templateChoiceSchema = z.object({
 })
 
 // -----------------------------------------------------------------------------
+// Freeze marker, timing overrides, beat spec (Phase 3.1.4)
+// -----------------------------------------------------------------------------
+
+/** Discriminated freeze-marker — `atMs` for absolute placement, or
+ *  `beforeMovementId` to anchor to a movement boundary. The seeder
+ *  schema in scripts/seed-scenarios.ts mirrors this shape. */
+export const freezeMarkerSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('atMs'), atMs: z.number().int().nonnegative().max(60_000) }),
+  z.object({ kind: z.literal('beforeMovementId'), movementId: z.string().min(1) }),
+])
+
+/**
+ * Per-scenario hold targets the runtime applies on top of the module-
+ * level defaults in `freezeFrameCognition.ts`. Every field is optional;
+ * the renderer falls back to the default when a field is absent.
+ *
+ *   - cognitionHoldMs       — replaces FREEZE_COGNITION_HOLD_MS (1400)
+ *   - choiceTrayAtMs        — replaces CHOICE_TRAY_AT_MS (1400)
+ *   - cueRepaintHoldCorrectMs — replaces CUE_REPAINT_HOLD_CORRECT_MS (600)
+ *   - cueRepaintHoldWrongMs   — replaces CUE_REPAINT_HOLD_WRONG_MS (400)
+ *
+ * Floors:
+ *   - cognitionHoldMs has a 1100ms floor (qa-checklist §6 readability).
+ *   - All hold values capped at 4_000ms — anything longer should split
+ *     into a HUNT chained-read instead of stretching one freeze.
+ */
+export const timingOverridesSchema = z.object({
+  cognitionHoldMs: z.number().int().min(1100).max(4_000).optional(),
+  choiceTrayAtMs: z.number().int().min(0).max(4_000).optional(),
+  cueRepaintHoldCorrectMs: z.number().int().min(200).max(4_000).optional(),
+  cueRepaintHoldWrongMs: z.number().int().min(200).max(4_000).optional(),
+})
+
+/**
+ * Pack 2 HUNT chained-read scenarios use two freeze beats. The first
+ * beat resolves; camera holds for ~400ms on the result; the second
+ * beat starts. If `beatSpec` is present, the runtime treats the
+ * scenario as multi-beat: schema requires `firstBeat`; `secondBeat`
+ * is optional so the spec can ship without breaking single-beat
+ * scenarios that opt-in for the data shape.
+ */
+export const beatSpecSchema = z.object({
+  firstBeat: freezeMarkerSchema,
+  secondBeat: freezeMarkerSchema.optional(),
+})
+
+// -----------------------------------------------------------------------------
 // Disguise menu
 // -----------------------------------------------------------------------------
 
@@ -207,7 +319,7 @@ export const templateSchema = z.object({
   id: z.string().regex(/^[A-Z]{3,4}\.[a-z][a-z0-9-]*$/, 'template id must be DEC.kebab'),
   decoder_tag: decoderTagSchema,
   category: categorySchema,
-  concept_tags: z.array(z.string().min(1)).min(1),
+  concept_tags: z.array(conceptTagSchema).min(1),
   sub_concepts: z.array(z.string().min(1)).default([]),
 
   tactical: z.object({
@@ -234,13 +346,21 @@ export const templateSchema = z.object({
     ball: z.object({ holderSlot: z.string().min(1) }),
     movements: z.array(templateMovementSchema).max(32).default([]),
     answerDemo: z.array(templateMovementSchema).max(32).default([]),
-    freezeMarker: z
-      .discriminatedUnion('kind', [
-        z.object({ kind: z.literal('atMs'), atMs: z.number().int().nonnegative().max(60_000) }),
-        z.object({ kind: z.literal('beforeMovementId'), movementId: z.string().min(1) }),
-      ])
-      .optional(),
+    freezeMarker: freezeMarkerSchema.optional(),
     wrongDemos: z.array(templateWrongDemoSchema).max(8).default([]),
+    // Phase 3.1.4 — per-scenario timing override block. The blueprint
+    // §2.3 specifies per-difficulty cognition hold targets (D1-D2 =
+    // 1400ms, D3 = 1200, D4 = 1000, D5 = 800). Authors opt in by
+    // setting any subset of these fields; absent fields fall back to
+    // the renderer's module-level constants. The 1100ms floor is
+    // enforced here at parse time so a typo cannot land below the
+    // basketball-readability floor specified in qa-checklist §6.
+    timingOverrides: timingOverridesSchema.optional(),
+    // Phase 3.1.4 — HUNT chained-read scenarios use two freeze beats.
+    // beatSpec.firstBeat is the primary read; beatSpec.secondBeat is
+    // the chained second read. When present, both beats independently
+    // satisfy QA framing rules (qa-checklist §3) and overlay caps.
+    beatSpec: beatSpecSchema.optional(),
   }),
 
   overlays: z.object({
@@ -346,6 +466,78 @@ export const variantSchema = z.object({
   mastery_weight: z.number().positive().optional(),
   render_tier: z.number().int().positive().optional(),
 })
+
+// -----------------------------------------------------------------------------
+// Pack 2 §3.3 — Prose bank
+// -----------------------------------------------------------------------------
+//
+// The prose-bank is a per-template library of slot-fillable feedback
+// skeletons. The bank is data-only at this milestone; runtime variant
+// consumption is deferred to a follow-up phase. The schema landing
+// here gives the scaffolder + future linters a stable parse target.
+//
+// Slot identifiers are validated against `PROSE_BANK_SLOT_IDS` from
+// `_proseBankSlots.ts`. The validation is performed by a superRefine
+// rather than `z.enum` because skeletons are free-text strings that
+// happen to contain `{slot}` tokens; the brace-stripping happens via
+// `findProseBankSlotsIn`.
+//
+// Bank file layout
+// ----------------
+//   <template-dir>/prose-bank.json
+//
+// Bank shape
+// ----------
+//   {
+//     "template": "BDW.denied-wing",
+//     "version": 1,
+//     "entries": [
+//       {
+//         "quality": "best",
+//         "tone": "encouraging",
+//         "skeletons": ["...{cue_atom_short_desc}..."]
+//       }
+//     ]
+//   }
+
+import {
+  PROSE_BANK_TONES,
+  PROSE_BANK_SLOT_ID_SET,
+  findProseBankSlotsIn,
+} from './_proseBankSlots'
+
+export const proseBankEntrySchema = z
+  .object({
+    quality: choiceQualitySchema,
+    tone: z.enum(PROSE_BANK_TONES),
+    skeletons: z.array(z.string().min(1)).min(1).max(8),
+  })
+  .superRefine((entry, ctx) => {
+    for (let i = 0; i < entry.skeletons.length; i++) {
+      const skeleton = entry.skeletons[i] as string
+      const slots = findProseBankSlotsIn(skeleton)
+      for (const slot of slots) {
+        if (!PROSE_BANK_SLOT_ID_SET.has(slot)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['skeletons', i],
+            message: `Unknown prose-bank slot "{${slot}}". See PROSE_BANK_SLOT_IDS in _proseBankSlots.ts.`,
+          })
+        }
+      }
+    }
+  })
+
+export const proseBankSchema = z.object({
+  template: z
+    .string()
+    .regex(/^[A-Z]{3,4}\.[a-z][a-z0-9-]*$/, 'template id must be DEC.kebab'),
+  version: z.number().int().positive().default(1),
+  entries: z.array(proseBankEntrySchema).min(1).max(24),
+})
+
+export type ProseBankEntry = z.infer<typeof proseBankEntrySchema>
+export type ProseBank = z.infer<typeof proseBankSchema>
 
 // -----------------------------------------------------------------------------
 // Inferred types

@@ -29,11 +29,47 @@ const courtStateSchema = z.object({
 // the runtime stay in lockstep.
 const choiceQualitySchema = z.enum(['best', 'acceptable', 'wrong']);
 
+// Mirror of templates/_schema.ts and apps/web/lib/scenario3d/schema.ts.
+// Pack 2 (3.1.11) adds READ_THE_COVERAGE (DROP) + HUNT_THE_ADVANTAGE
+// (HUNT). All three mirrors must move in lockstep — see migration
+// 20260508_add_drop_hunt_decoders for the corresponding DB enum.
 const decoderTagSchema = z.enum([
   'BACKDOOR_WINDOW',
   'EMPTY_SPACE_CUT',
   'SKIP_THE_ROTATION',
   'ADVANTAGE_OR_RESET',
+  'READ_THE_COVERAGE',
+  'HUNT_THE_ADVANTAGE',
+]);
+
+// Pack 2 (3.1.1) — controlled concept-tag vocabulary. Mirror of
+// templates/_schema.ts `conceptTagSchema`. Free-form strings allowed a
+// typo to silently mis-route a scenario into a wrong spaced-rep
+// bucket; this enum makes the seeder reject unknown tags. Every new
+// tag must land here AND in templates/_schema.ts in lockstep.
+const conceptTagSchema = z.enum([
+  'catch_and_read',
+  'closeout_read',
+  'off_ball_movement',
+  'passing',
+  'post_play',
+  'reading_denial',
+  'reading_help',
+  'screen_action',
+  'shot_selection',
+  'spacing',
+  'timing',
+  'transition_advantage',
+  'pnr_ball_handler_read',
+  'pnr_screener_read',
+  'screen_defender_coverage_read',
+  'chained_kick_decision',
+  'chained_swing_decision',
+  'closeout_chain',
+  'helper_overcommit_punish',
+  'transition_secondary_break',
+  'transition_stop_ball',
+  'late_clock_mismatch_hunt',
 ]);
 
 // Choice schema accepts BOTH legacy (`is_correct: boolean`) and new
@@ -156,6 +192,21 @@ const freezeMarkerSchema = z.discriminatedUnion('kind', [
   }),
 ]);
 
+// Phase 3.1.4 — per-scenario timing override + multi-beat spec.
+// Mirror of templates/_schema.ts. Cognition hold floor of 1100ms is
+// enforced here at parse time per qa-checklist §6.
+const timingOverridesSchema = z.object({
+  cognitionHoldMs: z.number().int().min(1100).max(4_000).optional(),
+  choiceTrayAtMs: z.number().int().min(0).max(4_000).optional(),
+  cueRepaintHoldCorrectMs: z.number().int().min(200).max(4_000).optional(),
+  cueRepaintHoldWrongMs: z.number().int().min(200).max(4_000).optional(),
+});
+
+const beatSpecSchema = z.object({
+  firstBeat: freezeMarkerSchema,
+  secondBeat: freezeMarkerSchema.optional(),
+});
+
 const wrongDemoSchema = z.object({
   choiceId: z.string().min(1),
   movements: z.array(sceneMovementSchema).max(32),
@@ -240,6 +291,11 @@ const sceneSchema = z
     wrongDemos: z.array(wrongDemoSchema).max(8).default([]),
     preAnswerOverlays: z.array(overlayPrimitiveSchema).max(16).default([]),
     postAnswerOverlays: z.array(overlayPrimitiveSchema).max(16).default([]),
+    // Phase 3.1.4 — per-scenario timing overrides (D≥3 hold targets)
+    // and multi-beat spec (HUNT chained reads). Both optional; absent
+    // = renderer uses module defaults from freezeFrameCognition.ts.
+    timingOverrides: timingOverridesSchema.optional(),
+    beatSpec: beatSpecSchema.optional(),
   })
   .superRefine((scene, ctx) => {
     const userPlayers = scene.players.filter((p) => p.isUser);
@@ -342,7 +398,7 @@ const scenarioSchema = z
     status: z.nativeEnum(ScenarioStatus).default(ScenarioStatus.DRAFT),
     title: z.string().min(1).max(80).optional(),
     category: z.nativeEnum(Category),
-    concept_tags: z.array(z.string().min(1)).min(1),
+    concept_tags: z.array(conceptTagSchema).min(1),
     sub_concepts: z.array(z.string().min(1)).default([]),
     difficulty: z.number().int().min(1).max(5),
     user_role: z.string().min(1),
@@ -427,21 +483,24 @@ const scenarioSchema = z
       });
     }
 
-    // Coach-validation gating (Section 4.6). LIVE + level=high +
-    // status !== 'approved' is rejected unless the operator passes
-    // --allow-unvalidated. medium/low fall through silently here; the
-    // seeder logs warnings for medium at write time.
+    // Phase 3.1.10 — coach-validation gating. LIVE + level=high +
+    // status !== 'approved' is rejected unconditionally. The
+    // `--allow-unvalidated` bypass that previously sat here was
+    // removed once Pack 1 + templates-v1 were audited and confirmed
+    // all-low-approved; Pack 2 ships no scenarios that bypass SME
+    // sign-off (blueprint §4.8 risk: "no scenario that bypasses
+    // SME"). medium/low fall through silently; the seeder still logs
+    // a warning for medium at write time.
     if (
       scenario.status === ScenarioStatus.LIVE &&
       scenario.coach_validation?.level === 'high' &&
-      scenario.coach_validation.status !== 'approved' &&
-      !ALLOW_UNVALIDATED
+      scenario.coach_validation.status !== 'approved'
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['coach_validation', 'status'],
         message:
-          'LIVE scenarios with coach_validation.level=high require status=approved (or pass --allow-unvalidated).',
+          'LIVE scenarios with coach_validation.level=high require status=approved. Move the scenario to REVIEW or get coach sign-off; the --allow-unvalidated bypass was removed in Pack 2 Phase 3.1.10.',
       });
     }
 
@@ -474,13 +533,33 @@ const scenarioSchema = z
           path: ['scene', 'wrongDemos'],
           message: 'decoder scenarios require at least one wrongDemos entry.',
         });
+      } else {
+        // Phase 3.1.9 — promoted from "≥1 demo" to "every non-best
+        // choice has its own demo". The blueprint §3.7 requires the
+        // wrong-demo to depict the failure (deflection / missed
+        // window / blocked finish), and a single shared demo cannot
+        // teach four distinct failures. Verified against the founder
+        // pack: every Pack 1 scenario already authors per-choice
+        // demos, so this rule is non-breaking for Pack 1.
+        const demoChoiceIds = new Set(
+          scenario.scene.wrongDemos.map((d) => d.choiceId),
+        );
+        for (const choice of scenario.choices) {
+          const q = deriveQuality(choice);
+          if (q === ChoiceQuality.best) continue;
+          if (!demoChoiceIds.has(choice.id)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['scene', 'wrongDemos'],
+              message:
+                `decoder scenarios require a wrongDemos entry for every non-best choice; ` +
+                `choice "${choice.id}" (quality=${q}) has no matching demo.`,
+            });
+          }
+        }
       }
     }
   });
-
-// CLI flag — populated in main(). Read inside the schema so the gate is
-// enforced at parse time rather than after upsert.
-let ALLOW_UNVALIDATED = false;
 
 // Each pack ships a `pack.json` manifest declaring an ordered scenario
 // list. Manifests are validated; the seeder reads each scenario file in
@@ -671,10 +750,10 @@ async function upsertScenario(
 }
 
 async function main(): Promise<void> {
-  if (process.argv.includes('--allow-unvalidated')) {
-    ALLOW_UNVALIDATED = true;
-    console.warn('[seed:scenarios] --allow-unvalidated set — coach-validation gating disabled.');
-  }
+  // Pack 2 (Phase 3.1.10) — `--allow-unvalidated` was removed.
+  // Pack 1 audit confirmed every founder + templates-v1 scenario is
+  // level=low + status=approved, so the bypass had no current users.
+  // Future LIVE scenarios with level=high MUST get coach status=approved.
   // Phase B addition. `--dry-run` validates the seed JSONs (Zod parse +
   // cross-field rules) without touching the database. Useful for CI and
   // for confirming fixtures still parse after schema changes when no

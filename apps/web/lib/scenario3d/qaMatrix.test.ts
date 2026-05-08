@@ -121,6 +121,11 @@ describe('QA_MATRIX', () => {
       EMPTY_SPACE_CUT: 'ESC',
       ADVANTAGE_OR_RESET: 'AOR',
       SKIP_THE_ROTATION: 'SKR',
+      // Pack 2. QA_MATRIX has no DROP/HUNT entries yet; these prefixes
+      // are recorded so the convention check covers Pack 2 once entries
+      // are added.
+      READ_THE_COVERAGE: 'DROP',
+      HUNT_THE_ADVANTAGE: 'HUNT',
     }
     for (const e of QA_MATRIX) {
       expect(e.id.startsWith(`${familyPrefix[e.decoder]}-`)).toBe(true)

@@ -188,7 +188,7 @@ the breadcrumb fires in the console / Sentry replay.
 | ------- | ------------------------------------------------------------- |
 | low     | passes silently                                               |
 | medium  | seeder warning; reviewer signs off in `coach_validation.notes`|
-| high    | LIVE blocked unless `status === 'approved'` (or `--allow-unvalidated` for staging) |
+| high    | LIVE blocked unconditionally unless `status === 'approved'`. Pack 2 §3.1.10 removed the `--allow-unvalidated` bypass — there is no escape hatch. |
 
 Pack 1 status at ship:
 

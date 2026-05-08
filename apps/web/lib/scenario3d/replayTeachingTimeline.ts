@@ -100,6 +100,11 @@ const LABELS: Readonly<Record<DecoderTag, TeachingLabel>> = Object.freeze({
   EMPTY_SPACE_CUT: { text: 'Cut into empty space.', anchorRole: 'cutter' },
   ADVANTAGE_OR_RESET: { text: 'Read the closeout.', anchorRole: 'receiver' },
   SKIP_THE_ROTATION: { text: 'Punish the help.', anchorRole: 'open_player' },
+  // Pack 2 stub. The two new families anchor on roles the founder set
+  // already supports (open_player for DROP's ball-handler proxy, receiver
+  // for HUNT's second-read shooter). Final wording is part of 3.1.2.
+  READ_THE_COVERAGE: { text: 'Read the coverage.', anchorRole: 'open_player' },
+  HUNT_THE_ADVANTAGE: { text: 'Hunt the second read.', anchorRole: 'receiver' },
 })
 
 export function getDecoderTeachingLabel(

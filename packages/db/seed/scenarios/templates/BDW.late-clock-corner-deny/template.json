@@ -1,0 +1,153 @@
+{
+  "id": "BDW.late-clock-corner-deny",
+  "decoder_tag": "BACKDOOR_WINDOW",
+  "category": "OFFENSE",
+  "concept_tags": ["reading_denial", "off_ball_movement", "timing"],
+  "sub_concepts": ["backdoor_cut", "denial_read", "shot_clock_pressure", "baseline_back_cut"],
+
+  "tactical": {
+    "cue_atoms": ["hand_in_lane"],
+    "primary_defender_slot": "deny_def",
+    "user_slot_default": "corner_shooter",
+    "teaching_point": "Late clock + denial = baseline backdoor. The corner is the only catch the defense can't recover to.",
+    "common_miss_reason": "Players hold the corner spot waiting for the swing because the C&S is the natural finish on a swing-rotation. With the clock under 8, the defender knows the swing is coming and pre-commits to the lane. The cutter has to read that pre-commit and punish it before the clock decides for them.",
+    "why_best_read_works": "The denying defender's hand-in-lane stance is closed off to the rim. A baseline back-cut puts the cutter behind the help-side rotation before x4 can rotate up; the lead pass lands at the rim with the shot clock buying the window.",
+    "lesson_connection": "backdoor-window",
+    "difficulty_default": 3
+  },
+
+  "scene": {
+    "type": "late_clock_corner_backdoor",
+    "court": "half",
+    "camera": "passer_side_three_quarter",
+    "players": [
+      { "slot": "passer", "team": "offense", "role": "ball_handler", "label": "PG", "start": { "x": -9, "z": 14 }, "hasBall": true },
+      { "slot": "corner_shooter", "team": "offense", "role": "strong_corner_shooter", "label": "You", "start": { "x": 22, "z": -2 } },
+      { "slot": "weak_wing", "team": "offense", "role": "weak_wing", "label": "3", "start": { "x": -18, "z": 9 } },
+      { "slot": "top_slot", "team": "offense", "role": "top_slot_relief", "label": "4", "start": { "x": 0, "z": 18 } },
+      { "slot": "on_ball_def", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": -9, "z": 16 } },
+      { "slot": "deny_def", "team": "defense", "role": "denying_corner_defender", "label": "x2", "start": { "x": 19, "z": 0 } },
+      { "slot": "weak_wing_def", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": -15, "z": 10 } },
+      { "slot": "low_man", "team": "defense", "role": "low_man", "label": "x4", "start": { "x": 6, "z": 3 } }
+    ],
+    "ball": { "holderSlot": "passer" },
+    "movements": [
+      {
+        "id": "passer_jab_sweep",
+        "playerSlot": "passer",
+        "kind": "jab",
+        "to": { "x": -7, "z": 14 },
+        "delayMs": 0,
+        "durationMs": 400,
+        "caption": "PG jabs into a swing"
+      },
+      {
+        "id": "deny_settle_into_lane",
+        "playerSlot": "deny_def",
+        "kind": "rotation",
+        "to": { "x": 18, "z": 1 },
+        "delayMs": 500,
+        "durationMs": 700,
+        "caption": "x2 pre-commits to the lane"
+      },
+      {
+        "id": "user_show_baseline",
+        "playerSlot": "corner_shooter",
+        "kind": "lift",
+        "to": { "x": 22, "z": -1 },
+        "delayMs": 200,
+        "durationMs": 800
+      }
+    ],
+    "answerDemo": [
+      { "id": "user_jab_show", "playerSlot": "corner_shooter", "kind": "jab", "to": { "x": 23, "z": 0 }, "delayMs": 0, "durationMs": 220 },
+      { "id": "user_baseline_sneak", "playerSlot": "corner_shooter", "kind": "baseline_sneak", "to": { "x": 6, "z": -1 }, "delayMs": 80, "durationMs": 720 },
+      { "id": "user_back_cut_finish", "playerSlot": "corner_shooter", "kind": "back_cut", "to": { "x": 1, "z": 0.5 }, "delayMs": 0, "durationMs": 360 },
+      { "id": "passer_lead_baseline", "playerSlot": "ball", "kind": "pass", "to": { "x": 1, "z": 0.5 }, "delayMs": 480, "durationMs": 540 },
+      { "id": "user_catch_at_rim", "playerSlot": "corner_shooter", "kind": "lift", "to": { "x": 1, "z": 0.5 }, "delayMs": 0, "durationMs": 100 }
+    ],
+    "freezeMarker": { "kind": "atMs", "atMs": 1500 },
+    "wrongDemos": [
+      {
+        "outcome": "v_cut_to_relief",
+        "caption": "You popped to the wing — clock expired, no shot.",
+        "movements": [
+          { "id": "user_v_cut", "playerSlot": "corner_shooter", "kind": "cut", "to": { "x": 19, "z": 6 }, "delayMs": 0, "durationMs": 700 },
+          { "id": "deny_ride_to_wing", "playerSlot": "deny_def", "kind": "rotation", "to": { "x": 18, "z": 6 }, "delayMs": 100, "durationMs": 700 },
+          { "id": "passer_late_swing", "playerSlot": "ball", "kind": "pass", "to": { "x": 19, "z": 6 }, "delayMs": 700, "durationMs": 600 }
+        ]
+      },
+      {
+        "outcome": "stand_in_corner",
+        "caption": "x2 deflected the corner pass.",
+        "movements": [
+          { "id": "passer_force_corner", "playerSlot": "ball", "kind": "pass", "to": { "x": 22, "z": -2 }, "delayMs": 0, "durationMs": 480 },
+          { "id": "deny_deflect", "playerSlot": "deny_def", "kind": "rotation", "to": { "x": 20, "z": -1 }, "delayMs": 80, "durationMs": 300 },
+          { "id": "ball_loose_baseline", "playerSlot": "ball", "kind": "pass", "to": { "x": 25, "z": -3 }, "delayMs": 280, "durationMs": 360 }
+        ]
+      },
+      {
+        "outcome": "front_cut_to_paint",
+        "caption": "x4 rotated up; the cut died in the lane.",
+        "movements": [
+          { "id": "user_front_cut", "playerSlot": "corner_shooter", "kind": "cut", "to": { "x": 8, "z": 5 }, "delayMs": 0, "durationMs": 800 },
+          { "id": "low_man_step_up", "playerSlot": "low_man", "kind": "rotation", "to": { "x": 7, "z": 5 }, "delayMs": 200, "durationMs": 700 }
+        ]
+      }
+    ],
+    "timingOverrides": {
+      "cognitionHoldMs": 1200,
+      "cueRepaintHoldWrongMs": 600
+    }
+  },
+
+  "overlays": {
+    "pre": [
+      { "kind": "defender_hand_in_lane", "onSlot": "deny_def" },
+      { "kind": "defender_hip_arrow", "onSlot": "deny_def" }
+    ],
+    "post": [
+      { "kind": "passing_lane_blocked", "fromSlot": "passer", "toSlot": "corner_shooter" },
+      { "kind": "open_space_region", "anchor": { "x": 4, "z": 0 }, "radiusFt": 4 },
+      { "kind": "drive_cut_preview", "onSlot": "corner_shooter", "path": [
+        { "x": 22, "z": -2 },
+        { "x": 23, "z": 0 },
+        { "x": 6, "z": -1 },
+        { "x": 1, "z": 0.5 }
+      ]},
+      { "kind": "timing_pulse", "anchor": { "x": 1, "z": 0.5 }, "durationMs": 600 }
+    ]
+  },
+
+  "choices": [
+    { "outcome": "back_cut_baseline_to_rim", "quality": "best", "order": 1 },
+    { "outcome": "v_cut_to_relief", "quality": "acceptable", "order": 2 },
+    { "outcome": "stand_in_corner", "quality": "wrong", "order": 3 },
+    { "outcome": "front_cut_to_paint", "quality": "wrong", "order": 4 }
+  ],
+
+  "disguises": {
+    "none": { "removePre": [], "difficultyBump": 0 },
+    "light": {
+      "removePre": [{ "kind": "defender_hip_arrow", "onSlot": "deny_def" }],
+      "difficultyBump": 1
+    },
+    "moderate": {
+      "removePre": [{ "kind": "defender_hip_arrow", "onSlot": "deny_def" }],
+      "freezeCompressMs": 300,
+      "difficultyBump": 1
+    }
+  },
+
+  "coach_validation": {
+    "level": "low",
+    "status": "approved",
+    "notes": "Pack 2 founder extension of BDW.denied-wing into the strong corner at D3. Inherits the BDW lesson's SME approval; the only novel beat is the late-clock + baseline-back-cut combination, which is universally taught. Re-review at variant promotion to LIVE."
+  },
+
+  "defaults": {
+    "xp_reward": 16,
+    "mastery_weight": 1.2,
+    "render_tier": 1
+  }
+}

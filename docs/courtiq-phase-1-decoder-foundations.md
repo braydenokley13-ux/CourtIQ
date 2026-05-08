@@ -418,7 +418,7 @@ const CoachValidationSchema = z.object({
 
 Seed-time gating rules:
 - `level: 'high'` + `status: 'not_needed'` → invalid.
-- Top-level `status: 'LIVE'` + `coachValidation.level: 'high'` + `coachValidation.status !== 'approved'` → **rejected** unless `--allow-unvalidated` flag is passed.
+- Top-level `status: 'LIVE'` + `coachValidation.level: 'high'` + `coachValidation.status !== 'approved'` → **rejected**. (Pack 2 §3.1.10 removed the `--allow-unvalidated` bypass; the gate is unconditional.)
 - `level: 'medium'` produces a seeder warning but does not block.
 - `level: 'low'` passes silently.
 
@@ -1231,7 +1231,7 @@ Enforced at seed time per Section 4.6:
 
 - `level: 'low'` — passes silently.
 - `level: 'medium'` — seeder warning; no block.
-- `level: 'high'` + `status !== 'approved'` + top-level `status: 'LIVE'` — **rejected** unless `--allow-unvalidated` flag is supplied (used only for staging dry-runs).
+- `level: 'high'` + `status !== 'approved'` + top-level `status: 'LIVE'` — **rejected** unconditionally. (Pack 2 §3.1.10 removed the `--allow-unvalidated` bypass once Pack 1 audit confirmed every `level: 'high'` row was already `status: 'approved'`. There is no longer a staging escape hatch.)
 
 Pack 1 status at ship: BDW-01 / ESC-01 / AOR-01 are `low`/`medium` and ship `LIVE`. SKR-01 is `medium` and ships `LIVE`. Optional SKR-02 is `medium`–`high` and stays `DRAFT` until reviewed.
 

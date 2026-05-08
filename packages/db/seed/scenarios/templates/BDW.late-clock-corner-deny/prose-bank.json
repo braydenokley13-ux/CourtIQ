@@ -1,0 +1,67 @@
+{
+  "template": "BDW.late-clock-corner-deny",
+  "version": 1,
+  "entries": [
+    {
+      "quality": "best",
+      "tone": "encouraging",
+      "skeletons": [
+        "Good read. He {cue_atom_short_desc}, so {action_short_desc}.",
+        "Right. {cue_atom_short_desc} = {action_short_desc}.",
+        "Yes. {decoder_micro_explainer}"
+      ]
+    },
+    {
+      "quality": "best",
+      "tone": "neutral",
+      "skeletons": [
+        "{cue_atom_short_desc}; {action_short_desc}.",
+        "{decoder_micro_explainer}"
+      ]
+    },
+    {
+      "quality": "best",
+      "tone": "corrective",
+      "skeletons": [
+        "Better next time, but yes — {cue_atom_short_desc}, so {action_short_desc}."
+      ]
+    },
+    {
+      "quality": "acceptable",
+      "tone": "encouraging",
+      "skeletons": [
+        "OK. You kept the play alive, but the better read was {action_short_desc}.",
+        "Not bad. {partial_choice_short_desc} works; {action_short_desc} was higher EV."
+      ]
+    },
+    {
+      "quality": "acceptable",
+      "tone": "neutral",
+      "skeletons": [
+        "{partial_choice_short_desc} is fine. The higher-EV read was {action_short_desc}."
+      ]
+    },
+    {
+      "quality": "acceptable",
+      "tone": "corrective",
+      "skeletons": [
+        "You missed a tighter read. {cue_atom_short_desc} → {action_short_desc}."
+      ]
+    },
+    {
+      "quality": "wrong",
+      "tone": "neutral",
+      "skeletons": [
+        "{wrong_choice_short_desc} loses the advantage. {decoder_micro_explainer}"
+      ]
+    },
+    {
+      "quality": "wrong",
+      "tone": "corrective",
+      "skeletons": [
+        "Wrong read — {cue_atom_short_desc}, not {wrong_choice_short_desc}.",
+        "{wrong_choice_short_desc} doesn't punish the cue; {action_short_desc} does."
+      ]
+    }
+  ]
+}

@@ -239,6 +239,42 @@ const SKIP_THE_ROTATION: DecoderOverlayPreset = {
   defaultTier: 'beginner',
 }
 
+// Pack 2 stub — DROP / HUNT presets. These ship as type-correct
+// scaffolds with empty overlay arrays; full preset design (cue cluster,
+// post-answer reveal, default tier) lands in 3.1.2 alongside the
+// runtime decoder-preset enforcement guard. Until that ships, no
+// scenario should set `decoder_tag: READ_THE_COVERAGE` /
+// `HUNT_THE_ADVANTAGE` and reach the renderer; the seeder rejects
+// LIVE Pack 2 scenarios with `level=high` + `status≠approved` and the
+// authoring lint blocks them at template review.
+const READ_THE_COVERAGE_PACK2_STUB: DecoderOverlayPreset = {
+  decoder: 'READ_THE_COVERAGE',
+  label: 'Read the Coverage',
+  beat: {
+    whatChanged: 'Pack 2 stub — DROP coverage call read. Authored in 3.1.2.',
+    whatSpaceOpened: 'Pack 2 stub.',
+    whatIsBestRead: 'Pack 2 stub.',
+    whatIsNextBest: 'Pack 2 stub.',
+  },
+  preAnswer: [],
+  postAnswer: [],
+  defaultTier: 'intermediate',
+}
+
+const HUNT_THE_ADVANTAGE_PACK2_STUB: DecoderOverlayPreset = {
+  decoder: 'HUNT_THE_ADVANTAGE',
+  label: 'Hunt the Advantage',
+  beat: {
+    whatChanged: 'Pack 2 stub — HUNT chained second read. Authored in 3.1.2.',
+    whatSpaceOpened: 'Pack 2 stub.',
+    whatIsBestRead: 'Pack 2 stub.',
+    whatIsNextBest: 'Pack 2 stub.',
+  },
+  preAnswer: [],
+  postAnswer: [],
+  defaultTier: 'advanced',
+}
+
 /**
  * Per-decoder overlay preset map. Frozen at module load.
  */
@@ -249,6 +285,8 @@ export const DECODER_OVERLAY_PRESETS: Readonly<
   ADVANTAGE_OR_RESET,
   EMPTY_SPACE_CUT,
   SKIP_THE_ROTATION,
+  READ_THE_COVERAGE: READ_THE_COVERAGE_PACK2_STUB,
+  HUNT_THE_ADVANTAGE: HUNT_THE_ADVANTAGE_PACK2_STUB,
 })
 
 /** Convenience accessor — same shape as a Map.get with a clean fallback. */

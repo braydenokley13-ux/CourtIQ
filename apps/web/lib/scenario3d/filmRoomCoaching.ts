@@ -92,6 +92,22 @@ const COACH_VOICE: Record<DecoderTag, Record<CoachVoiceLevel, string | null>> = 
     minimal: 'Read the closeout.',
     silent: null,
   },
+  // Pack 2 stub. Coach voice for DROP / HUNT will be authored alongside
+  // the decoder presets in 3.1.2; until then `silent: null` ensures any
+  // accidental DROP/HUNT scenario plays without a voice line rather than
+  // dropping a founder coach voice on the wrong family.
+  READ_THE_COVERAGE: {
+    explicit: null,
+    guided: null,
+    minimal: null,
+    silent: null,
+  },
+  HUNT_THE_ADVANTAGE: {
+    explicit: null,
+    guided: null,
+    minimal: null,
+    silent: null,
+  },
 }
 
 /** Returns the coach-voice text for a decoder + level, or `null` if
@@ -132,6 +148,14 @@ const DECODER_SCAN_TARGETS: Record<DecoderTag, ReadonlyArray<ScanTargetTag>> = {
   EMPTY_SPACE_CUT: ['helper_hips', 'vacated_zone'],
   SKIP_THE_ROTATION: ['two_helpers_pulled', 'receiver_hands'],
   ADVANTAGE_OR_RESET: ['closeout_balance', 'closeout_speed'],
+  // Pack 2 stub. DROP would surface screen-defender depth / hip
+  // orientation; HUNT would surface post-rotation defender body
+  // language. The ScanTargetTag union doesn't yet contain those tags
+  // — extending it lands with the full DROP/HUNT preset design.
+  // Empty arrays are safe: the WATCH-phase renderer treats an empty
+  // target list as "no scan emphasis" and just shows the freeze.
+  READ_THE_COVERAGE: [],
+  HUNT_THE_ADVANTAGE: [],
 }
 
 // --- coaching-script config ------------------------------------------------

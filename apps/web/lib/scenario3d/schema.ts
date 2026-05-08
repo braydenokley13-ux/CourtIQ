@@ -56,11 +56,18 @@ const sceneMovementSchema = z.object({
 })
 
 // --- Decoder taxonomy (Section 4.1) --------------------------------------
+// Pack 2 (3.1.11) adds READ_THE_COVERAGE (DROP) and HUNT_THE_ADVANTAGE
+// (HUNT). Mirror of scripts/seed-scenarios.ts and templates/_schema.ts;
+// every consumer of `DecoderTag` (overlay presets, camera presets,
+// freeze-frame cognition) must add a branch for the new tags before any
+// scenario citing them ships.
 export const decoderTagSchema = z.enum([
   'BACKDOOR_WINDOW',
   'EMPTY_SPACE_CUT',
   'SKIP_THE_ROTATION',
   'ADVANTAGE_OR_RESET',
+  'READ_THE_COVERAGE',
+  'HUNT_THE_ADVANTAGE',
 ])
 export type DecoderTag = z.infer<typeof decoderTagSchema>
 
@@ -84,6 +91,29 @@ export const freezeMarkerSchema = z.discriminatedUnion('kind', [
   }),
 ])
 export type FreezeMarker = z.infer<typeof freezeMarkerSchema>
+
+// --- Phase 3.1.4 — per-scenario timing override + multi-beat spec --------
+//
+// Pack 2 D≥3 scenarios opt in to shorter cognition holds; HUNT chained
+// reads opt in to two freeze beats. Both fields are optional everywhere;
+// absent = renderer falls back to the module defaults in
+// freezeFrameCognition.ts. Floors enforced at parse time:
+//   - cognitionHoldMs ≥ 1100ms (qa-checklist §6 readability floor)
+//   - all hold values ≤ 4_000ms (anything longer should split into a
+//     HUNT chain, not a stretched single freeze).
+export const timingOverridesSchema = z.object({
+  cognitionHoldMs: z.number().int().min(1100).max(4_000).optional(),
+  choiceTrayAtMs: z.number().int().min(0).max(4_000).optional(),
+  cueRepaintHoldCorrectMs: z.number().int().min(200).max(4_000).optional(),
+  cueRepaintHoldWrongMs: z.number().int().min(200).max(4_000).optional(),
+})
+export type TimingOverrides = z.infer<typeof timingOverridesSchema>
+
+export const beatSpecSchema = z.object({
+  firstBeat: freezeMarkerSchema,
+  secondBeat: freezeMarkerSchema.optional(),
+})
+export type BeatSpec = z.infer<typeof beatSpecSchema>
 
 // --- Wrong-choice consequence demo (Section 4.4 / 5.5) -------------------
 const wrongDemoSchema = z.object({
@@ -222,6 +252,12 @@ export const sceneSchema = z
     wrongDemos: z.array(wrongDemoSchema).max(8).default([]),
     preAnswerOverlays: z.array(overlayPrimitiveSchema).max(16).default([]),
     postAnswerOverlays: z.array(overlayPrimitiveSchema).max(16).default([]),
+    // Phase 3.1.4 — per-scenario timing override + multi-beat spec.
+    // Mirrored from packages/db/seed/scenarios/templates/_schema.ts.
+    // The renderer wires consumption in 3.1.4 (runtime); the seeder
+    // already validates these fields for shape + floors at parse time.
+    timingOverrides: timingOverridesSchema.optional(),
+    beatSpec: beatSpecSchema.optional(),
   })
   .superRefine((scene, ctx) => {
     const userPlayers = scene.players.filter((p) => p.isUser)
