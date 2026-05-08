@@ -217,7 +217,7 @@ function appliedCooldownActive(
   // cooldown durations. The composite key uses the standard
   // observationKey format with a tier-aware decoder slot for
   // emerging (per-decoder) vs. cross-decoder (consistent/dominant).
-  const key = observationKey('applied_recognition' as Observation['kind'], decoder)
+  const key = observationKey('applied_recognition', decoder)
   const last = history.lastSurfacedByKey[key]
   if (!last) return false
   return daysBetween(asOf, last) < APPLIED_COOLDOWN_DAYS[tier]
@@ -254,7 +254,7 @@ export function deriveAppliedObservations(
     const tier = classifyDecoderTier(d)
     if (tier === 'emerging') {
       internal.push({
-        kind: 'applied_recognition' as Observation['kind'],
+        kind: 'applied_recognition',
         decoder: d.decoder,
         copy: EMERGING_COPY[d.decoder],
         surface: 'silent',
@@ -265,7 +265,7 @@ export function deriveAppliedObservations(
   const overall = classifyOverallTier(snapshot)
   if (overall === 'consistent' || overall === 'dominant') {
     internal.push({
-      kind: 'applied_recognition' as Observation['kind'],
+      kind: 'applied_recognition',
       copy: overall === 'dominant' ? DOMINANT_COPY : CONSISTENT_COPY,
       surface: 'silent',
       tier: overall,
@@ -283,7 +283,7 @@ export function deriveAppliedObservations(
   // Precedence: dominant > consistent > emerging (warmest first).
   if (overall === 'dominant' && !appliedCooldownActive(history, 'dominant', undefined, snapshot.asOf)) {
     userFacing.push({
-      kind: 'applied_recognition' as Observation['kind'],
+      kind: 'applied_recognition',
       copy: DOMINANT_COPY,
       surface: 'home_card',
       tier: 'dominant',
@@ -292,7 +292,7 @@ export function deriveAppliedObservations(
   }
   if (overall === 'consistent' && !appliedCooldownActive(history, 'consistent', undefined, snapshot.asOf)) {
     userFacing.push({
-      kind: 'applied_recognition' as Observation['kind'],
+      kind: 'applied_recognition',
       copy: CONSISTENT_COPY,
       surface: 'home_card',
       tier: 'consistent',
@@ -315,7 +315,7 @@ export function deriveAppliedObservations(
     })
   if (candidates[0]) {
     userFacing.push({
-      kind: 'applied_recognition' as Observation['kind'],
+      kind: 'applied_recognition',
       decoder: candidates[0].decoder,
       copy: EMERGING_COPY[candidates[0].decoder],
       surface: 'home_card',
@@ -360,5 +360,5 @@ export function _appliedKeyForTest(
 ): string {
   // Emerging is per-decoder; consistent/dominant are cross-decoder.
   const d = tier === 'emerging' ? decoder : undefined
-  return observationKey('applied_recognition' as Observation['kind'], d)
+  return observationKey('applied_recognition', d)
 }
