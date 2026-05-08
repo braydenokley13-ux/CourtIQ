@@ -266,6 +266,75 @@ const DECODER_CAMERA_DEFAULTS: Readonly<Record<string, string>> = Object.freeze(
   HUNT_THE_ADVANTAGE: 'teaching_angle',
 })
 
+// ---------------------------------------------------------------------------
+// Phase 3.1.2 — decoder overlay preset conformance lint.
+//
+// Blueprint §3.6 says pre-answer overlays must be a subset of the
+// decoder's preset. The runtime preset map lives in apps/web (web-only
+// import); this lint duplicates the small allowlist by decoder + phase
+// so the script stays decoupled from next.js/react.
+//
+// Severity: warn — a template MAY add a kind outside the preset when
+// a scenario's cue cluster genuinely needs it; the lint just surfaces
+// the diff. Schema-level enforcement of the broader pre-answer kinds
+// allowlist (`PRE_ANSWER_OVERLAY_KINDS`) still fires as a hard error.
+//
+// The preset table mirrors apps/web/lib/scenario3d/decoderOverlayPresets.ts.
+// ---------------------------------------------------------------------------
+
+const PRESET_PRE_ANSWER_KINDS_BY_DECODER: Readonly<Record<string, ReadonlySet<string>>> = Object.freeze({
+  BACKDOOR_WINDOW: new Set([
+    'defender_vision_cone',
+    'defender_hip_arrow',
+    'defender_hand_in_lane',
+  ]),
+  EMPTY_SPACE_CUT: new Set([
+    'defender_vision_cone',
+    'defender_hip_arrow',
+    'help_pulse',
+  ]),
+  SKIP_THE_ROTATION: new Set([
+    'help_pulse',
+    'defender_hip_arrow',
+    'defender_chest_line',
+  ]),
+  ADVANTAGE_OR_RESET: new Set([
+    'defender_vision_cone',
+    'defender_hip_arrow',
+    'defender_foot_arrow',
+  ]),
+  // Pack 2 — DROP / HUNT preset kinds are in flight (scaffolds in
+  // apps/web/lib/scenario3d/decoderOverlayPresets.ts ship as empty
+  // arrays). Until 3.1.2 part 2 fills them in, an empty allowlist
+  // means EVERY pre-answer overlay on a DROP/HUNT template will warn
+  // — that's the correct signal: don't ship Pack 2 templates that
+  // bypass the preset before the preset is designed.
+  READ_THE_COVERAGE: new Set<string>(),
+  HUNT_THE_ADVANTAGE: new Set<string>(),
+})
+
+function lintOverlayPresetConformance(loaded: Loaded[]): Issue[] {
+  const issues: Issue[] = []
+  for (const { template } of loaded) {
+    const allowed = PRESET_PRE_ANSWER_KINDS_BY_DECODER[template.decoder_tag]
+    if (!allowed) continue
+    for (const overlay of template.overlays.pre) {
+      if (!allowed.has(overlay.kind)) {
+        issues.push({
+          severity: 'warn',
+          message:
+            `Template ${template.id}: pre-answer overlay kind "${overlay.kind}" is outside ` +
+            `the ${template.decoder_tag} preset. ` +
+            (allowed.size === 0
+              ? `Pack 2 stub preset is empty — wait for 3.1.2 to fill in DROP/HUNT presets.`
+              : `Allowed: {${Array.from(allowed).sort().join(', ')}}.`),
+        })
+      }
+    }
+  }
+  return issues
+}
+
 function lintCameraPreset(loaded: Loaded[]): Issue[] {
   const issues: Issue[] = []
   for (const { template } of loaded) {
@@ -393,6 +462,7 @@ async function main(): Promise<void> {
     ...lintCrossTemplateCollision(loaded),
     ...lintCrossPackCollision(loaded, existingPackScenarios),
     ...lintCameraPreset(loaded),
+    ...lintOverlayPresetConformance(loaded),
     ...lintTodoProse(loaded),
   ]
   const cov = lintCoverage(loaded)
