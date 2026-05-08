@@ -27,6 +27,7 @@ import {
 } from '../packages/db/seed/scenarios/templates/_schema'
 
 const TEMPLATES_DIR = path.join(process.cwd(), 'packages', 'db', 'seed', 'scenarios', 'templates')
+const PACKS_DIR = path.join(process.cwd(), 'packages', 'db', 'seed', 'scenarios', 'packs')
 
 interface Loaded {
   template: Template
@@ -118,10 +119,128 @@ function lintCrossTemplateCollision(loaded: Loaded[]): Issue[] {
   }
   for (const [key, ids] of buckets) {
     if (ids.length > 1) {
+      // Phase 3.1.7 — promoted from warn → error. Two scenarios that
+      // share (decoder|role|mirror|cue|d) feel like the same rep to a
+      // player; the spaced-rep router cannot tell them apart. Pack 2
+      // ships 75 scenarios across the same six decoders — without a
+      // hard gate the matrix is statistically guaranteed to collide.
+      // To allow a deliberate collision (e.g. an intentional remix
+      // with new prose only), set the variants' user_slot or disguise
+      // to differ; the signature picks them up.
       issues.push({
-        severity: 'warn',
-        message: `Cross-template collision on (decoder|role|mirror|cue|d) = ${key} → ${ids.join(', ')}`,
+        severity: 'error',
+        message: `Cross-template collision on (decoder|role|mirror|cue|d) = ${key} → ${ids.join(', ')}. Differentiate user_slot, disguise, clock_pressure, or cue_atom to break the tie.`,
       })
+    }
+  }
+  return issues
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3.1.8 — cross-pack duplicate signature check.
+//
+// Loads scenario JSONs from `packs/<pack>/` (excluding the
+// auto-generated templates pack) and computes a coarse signature per
+// authored scenario. Any new template variant that lands on the same
+// `(decoder_tag, user_role, difficulty)` triple as an existing pack
+// scenario is flagged. The signature is intentionally coarser than
+// the cross-template check because Pack 1 founder fixtures pre-date
+// the cue_atom + mirror axes.
+// ---------------------------------------------------------------------------
+
+interface ExistingPackScenario {
+  id: string
+  packSlug: string
+  decoder_tag: string | null
+  user_role: string
+  difficulty: number
+}
+
+async function loadExistingPackScenarios(): Promise<ExistingPackScenario[]> {
+  const out: ExistingPackScenario[] = []
+  let entries: Array<{ name: string; isDirectory: () => boolean }>
+  try {
+    entries = (await fs.readdir(PACKS_DIR, { withFileTypes: true })) as never
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return out
+    throw err
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    // Skip the auto-generated `templates-*` packs — they ARE the
+    // variants we're linting, not a separate authoring surface.
+    if (entry.name.startsWith('templates-')) continue
+    const packDir = path.join(PACKS_DIR, entry.name)
+    const manifestPath = path.join(packDir, 'pack.json')
+    let manifestRaw: string
+    try {
+      manifestRaw = await fs.readFile(manifestPath, 'utf8')
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') continue
+      throw err
+    }
+    const manifest = JSON.parse(manifestRaw) as {
+      slug?: string
+      scenarios?: Array<{ id?: string; file?: string }>
+    }
+    const slug = manifest.slug ?? entry.name
+    for (const item of manifest.scenarios ?? []) {
+      if (!item.file) continue
+      const scenarioPath = path.join(packDir, item.file)
+      const raw = await fs.readFile(scenarioPath, 'utf8')
+      const parsed = JSON.parse(raw) as
+        | Array<Record<string, unknown>>
+        | Record<string, unknown>
+      const list = Array.isArray(parsed) ? parsed : [parsed]
+      for (const s of list) {
+        const id = (s.id as string | undefined) ?? item.id ?? '<unknown>'
+        const dt = (s.decoder_tag as string | null | undefined) ?? null
+        const ur = (s.user_role as string | undefined) ?? '<unknown>'
+        const d = (s.difficulty as number | undefined) ?? -1
+        out.push({ id, packSlug: slug, decoder_tag: dt, user_role: ur, difficulty: d })
+      }
+    }
+  }
+  return out
+}
+
+function lintCrossPackCollision(
+  loaded: Loaded[],
+  existingPackScenarios: ExistingPackScenario[],
+): Issue[] {
+  const issues: Issue[] = []
+  // Build a coarse-key map of existing-pack scenarios.
+  const existingByKey = new Map<string, string[]>()
+  for (const s of existingPackScenarios) {
+    if (!s.decoder_tag) continue
+    const key = [s.decoder_tag, s.user_role, s.difficulty].join('|')
+    const arr = existingByKey.get(key) ?? []
+    arr.push(`${s.packSlug}:${s.id}`)
+    existingByKey.set(key, arr)
+  }
+  for (const { template, variants } of loaded) {
+    for (const v of variants) {
+      // Only flag LIVE / REVIEW variants — DRAFT may legitimately re-use
+      // a Pack 1 cell during scaffolding before the author differentiates.
+      if (v.status === 'DRAFT' || v.status === 'RETIRED') continue
+      // Variant id pattern is `^[A-Z]{3,4}-T\d+-\d{2}$` (templateSchema).
+      // T1 = founder generation; founder-v0 cells are deliberately
+      // re-authored as T1 templates, so a T1↔founder-v0 cell match is
+      // expected. The cross-pack rule fires only on T2+ variants.
+      const generationMatch = /-T(\d+)-/.exec(v.id)
+      const generation = generationMatch ? Number.parseInt(generationMatch[1] ?? '0', 10) : 0
+      if (generation < 2) continue
+      const userSlot = v.variation.user_slot ?? template.tactical.user_slot_default
+      const userRole = template.scene.players.find((p) => p.slot === userSlot)?.role ?? userSlot
+      const d = effectiveDifficulty(v, template)
+      const key = [template.decoder_tag, userRole, d].join('|')
+      const collisions = existingByKey.get(key)
+      if (collisions && collisions.length > 0) {
+        issues.push({
+          severity: 'error',
+          message: `Cross-pack collision: variant ${template.id}:${v.id} (${template.decoder_tag}|${userRole}|d${d}) duplicates existing pack scenario(s) ${collisions.join(', ')}. Differentiate user_slot or difficulty.`,
+        })
+      }
     }
   }
   return issues
@@ -226,11 +345,16 @@ function lintTodoProse(loaded: Loaded[]): Issue[] {
 
 async function main(): Promise<void> {
   const loaded = await load()
-  console.log(`lint-variants: ${loaded.length} templates loaded`)
+  const existingPackScenarios = await loadExistingPackScenarios()
+  console.log(
+    `lint-variants: ${loaded.length} templates loaded; ` +
+      `${existingPackScenarios.length} existing pack scenarios scanned for cross-pack collisions.`,
+  )
   const issues: Issue[] = [
     ...lintVariationSignatureUnique(loaded),
     ...lintAxisSpread(loaded),
     ...lintCrossTemplateCollision(loaded),
+    ...lintCrossPackCollision(loaded, existingPackScenarios),
     ...lintTodoProse(loaded),
   ]
   const cov = lintCoverage(loaded)
