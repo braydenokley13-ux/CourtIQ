@@ -50,8 +50,17 @@ export interface ReplayHandle {
 
 /** Phase H — internal leg of the replay flow. The legacy 'intro'/'answer'
  *  modes map onto these; decoder scenarios cycle through all of
- *  intro → consequence (optional) → answer. */
-type ReplayLeg = 'intro' | 'consequence' | 'answer'
+ *  intro → consequence (optional) → answer.
+ *
+ *  Pack 2 (3.1.4) — `interBeat` is the inter-freeze unfreeze leg for
+ *  HUNT scenarios authoring `beatSpec.secondBeat`. While in this leg
+ *  the controller emits phase `'consequence'` (so the canvas overlay
+ *  bridge mounts the scene's `consequenceOverlays`), continues the
+ *  intro timeline past the first freeze, and clamps motion at the
+ *  resolved `secondFreezeAtMs` cap. The cap then triggers a second
+ *  `frozen` entry (beat 2). The user's pick is honored only at the
+ *  final freeze. */
+type ReplayLeg = 'intro' | 'interBeat' | 'consequence' | 'answer'
 
 interface ScenarioReplayControllerProps {
   scene: Scene3D
@@ -67,6 +76,14 @@ interface ScenarioReplayControllerProps {
   onMovement?: (movement: SceneMovement) => void
   /** External handle for parent-driven controls. */
   handleRef?: React.MutableRefObject<ReplayHandle | null>
+  /** Pack 2 (3.1.4) — fires once per beat as the controller enters
+   *  the freeze for that beat. `beatIndex` is 0 for the first freeze
+   *  and 1 for the second freeze in a HUNT chained scenario. The
+   *  canvas bridge consumes this to swap the pre-overlay set on
+   *  beat 2 from `preAnswerOverlays` to
+   *  `secondBeatPreAnswerOverlays`. Pack 1 (single-beat) scenes
+   *  fire only `beatIndex: 0`. */
+  onBeatIndex?: (beatIndex: 0 | 1) => void
   /** Force a one-shot reset on this counter change. From 'done' it
    *  replays the answer leg ("Show me again"); otherwise it restarts
    *  the active leg from t=0. */
@@ -106,6 +123,7 @@ export function ScenarioReplayController({
   handleRef,
   resetCounter,
   pickedChoiceId,
+  onBeatIndex,
 }: ScenarioReplayControllerProps) {
   // Active leg + the timeline / movements driving it. Held in refs so
   // `useFrame` can read them per-tick without re-subscribing, and a
@@ -130,6 +148,20 @@ export function ScenarioReplayController({
    *  `scene.players[*].start`. */
   const snapshotRef = useRef<Map<string, CourtPoint> | null>(null)
   const consumedChoiceRef = useRef<string | null>(null)
+  /** Pack 2 (3.1.4) — beat index for HUNT chained scenes. 0 during
+   *  beat 1 freeze + inter-beat unfreeze; 1 once the controller has
+   *  entered beat 2 freeze. Single-beat scenes never advance past 0.
+   *  Used by the auto-advance machinery and the `pickedChoiceId` gate
+   *  to ensure picks are only honored at the final freeze. */
+  const beatIndexRef = useRef<0 | 1>(0)
+  /** Pack 2 (3.1.4) — wall-clock at which the *first* freeze entered.
+   *  null while not in beat-1 freeze. Used by the auto-advance check
+   *  to detect when the cognition hold has elapsed. */
+  const firstFreezeEnteredAtMsRef = useRef<number | null>(null)
+  /** Pack 2 (3.1.4) — wall-clock at which the *second* freeze entered.
+   *  Reserved for future per-beat instrumentation; written but not yet
+   *  consumed by tests. */
+  const secondFreezeEnteredAtMsRef = useRef<number | null>(null)
 
   // Initial movements + timeline for the controller's first leg. Memoised
   // off `mode` and `scene.id` so swapping scenarios builds a fresh
@@ -173,6 +205,9 @@ export function ScenarioReplayController({
     firedMovementsRef.current.clear()
     snapshotRef.current = null
     consumedChoiceRef.current = null
+    beatIndexRef.current = 0
+    firstFreezeEnteredAtMsRef.current = null
+    secondFreezeEnteredAtMsRef.current = null
   }, [scene.id, mode, initialMovements, initialTimeline])
 
   // resetCounter — restart the active leg, or replay from snapshot if
@@ -195,6 +230,13 @@ export function ScenarioReplayController({
     if (!pickedChoiceId) return
     if (consumedChoiceRef.current === pickedChoiceId) return
     if (phaseRef.current !== 'frozen') return
+    // Pack 2 (3.1.4) — for HUNT chained scenes, only the *final*
+    // freeze accepts a pick. If `secondFreezeAtMs` is authored and we
+    // are still on beat 1, swallow the pick silently — the controller
+    // will auto-advance to beat 2 after the cognition hold.
+    const hasSecondBeat =
+      typeof scene.secondFreezeAtMs === 'number' && scene.secondFreezeAtMs >= 0
+    if (hasSecondBeat && beatIndexRef.current === 0) return
     consumedChoiceRef.current = pickedChoiceId
 
     const wrongDemo = scene.wrongDemos.find((d) => d.choiceId === pickedChoiceId)
@@ -241,6 +283,19 @@ export function ScenarioReplayController({
       ? Math.min(scene.freezeAtMs, initialTimeline.totalMs)
       : null
 
+  // Pack 2 (3.1.4) — second-beat freeze cap for HUNT chained scenes.
+  // null for single-beat scenes (Pack 1). Clamped to the timeline
+  // totalMs so an authoring mistake (secondBeat past timeline end)
+  // collapses to "no second freeze" rather than hanging the controller.
+  // Must be strictly greater than `introFreezeCapMs` to be meaningful.
+  const secondFreezeCapMs =
+    typeof scene.secondFreezeAtMs === 'number' &&
+    scene.secondFreezeAtMs >= 0 &&
+    introFreezeCapMs !== null &&
+    scene.secondFreezeAtMs > introFreezeCapMs
+      ? Math.min(scene.secondFreezeAtMs, initialTimeline.totalMs)
+      : null
+
   useFrame((state) => {
     const nowMs = state.clock.getElapsedTime() * 1000
 
@@ -272,10 +327,16 @@ export function ScenarioReplayController({
     const timeline = timelineRef.current
     const movements = movementsRef.current
     const elapsed = nowMs - startedAtRef.current
+    // Pack 2 (3.1.4) — cap selection now considers the inter-beat leg
+    // for HUNT chained scenes. The intro leg caps at beat-1's
+    // freezeAtMs; the interBeat leg caps at beat-2's secondFreezeAtMs;
+    // every other leg plays its full timeline.
     const cap =
       legRef.current === 'intro' && introFreezeCapMs !== null
         ? introFreezeCapMs
-        : timeline.totalMs
+        : legRef.current === 'interBeat' && secondFreezeCapMs !== null
+          ? secondFreezeCapMs
+          : timeline.totalMs
     const t = Math.max(0, Math.min(elapsed, cap))
 
     // Fire onMovement edges as movements cross their start time.
@@ -325,7 +386,75 @@ export function ScenarioReplayController({
       // from the frozen positions instead of the authored starts.
       snapshotRef.current = samplePositionsAt(scene, timeline, t)
       phaseRef.current = 'frozen'
+      // Pack 2 (3.1.4) — record the wall-clock at beat-1 freeze entry
+      // so the auto-advance check below can detect when the cognition
+      // hold has elapsed. Beat index is 0; emit it for the bridge.
+      firstFreezeEnteredAtMsRef.current = nowMs
+      beatIndexRef.current = 0
       onPhase?.('frozen')
+      onBeatIndex?.(0)
+      return
+    }
+
+    // Pack 2 (3.1.4) — beat-1 → inter-beat auto-advance. While in the
+    // intro leg's frozen state with `secondFreezeCapMs` authored, the
+    // controller waits for the resolved `cognitionHoldMs` to elapse,
+    // then transitions to the `interBeat` leg. The cap lifts from
+    // `introFreezeCapMs` to `secondFreezeCapMs`; `startedAtRef` shifts
+    // forward by the held duration so `t` resumes from `freezeAtMs`
+    // (not from wherever wall-clock points). Phase emission is
+    // `'consequence'` so the canvas bridge mounts
+    // `scene.consequenceOverlays`. Single-beat scenes (no
+    // secondFreezeCapMs) skip this entire block.
+    if (
+      legRef.current === 'intro' &&
+      phaseRef.current === 'frozen' &&
+      beatIndexRef.current === 0 &&
+      secondFreezeCapMs !== null &&
+      firstFreezeEnteredAtMsRef.current !== null
+    ) {
+      const heldMs = nowMs - firstFreezeEnteredAtMsRef.current
+      const timing = resolveFreezeTiming(scene.timingOverrides)
+      if (heldMs >= timing.cognitionHoldMs) {
+        // Shift the timeline anchor forward by the held duration so
+        // the resume point is exactly at beat-1's freezeAtMs (no
+        // teleport). The inter-beat leg uses the same scene.movements
+        // timeline, so resuming from the saved `t` is sufficient.
+        if (startedAtRef.current !== null) {
+          startedAtRef.current += heldMs
+        }
+        legRef.current = 'interBeat'
+        phaseRef.current = 'consequence'
+        firstFreezeEnteredAtMsRef.current = null
+        onPhase?.('consequence')
+        return
+      }
+    }
+
+    // Pack 2 (3.1.4) — beat-2 freeze entry. While in the interBeat leg
+    // with `secondFreezeCapMs` reached, the controller takes a fresh
+    // pose snapshot (so the answer/consequence demos for beat 2 resume
+    // from beat-2 positions, not beat-1) and emits `frozen` again.
+    // Beat index advances to 1 so the `pickedChoiceId` gate accepts
+    // a pick at this freeze.
+    if (
+      legRef.current === 'interBeat' &&
+      secondFreezeCapMs !== null &&
+      elapsed >= secondFreezeCapMs &&
+      phaseRef.current !== 'frozen' &&
+      phaseRef.current !== 'done'
+    ) {
+      snapshotRef.current = samplePositionsAt(scene, timeline, secondFreezeCapMs)
+      // Keep leg='interBeat' so the cap stays at secondFreezeCapMs;
+      // switching back to 'intro' would re-clamp t to beat-1's
+      // introFreezeCapMs and teleport the world back to beat-1
+      // positions. The cap stays at beat-2 until the user picks and
+      // a new timeline is built (consequence or answer leg).
+      phaseRef.current = 'frozen'
+      beatIndexRef.current = 1
+      secondFreezeEnteredAtMsRef.current = nowMs
+      onPhase?.('frozen')
+      onBeatIndex?.(1)
       return
     }
 
