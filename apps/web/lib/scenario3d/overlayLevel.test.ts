@@ -146,6 +146,103 @@ describe('applyOverlayLevel — pre-answer kind allow-list (defense in depth)', 
   })
 })
 
+describe('applyOverlayLevel — F4 mandatory cue floor', () => {
+  // The pre-answer cap at advanced is 1, intermediate is 2, beginner
+  // is 3. Pre-F4 these were direct slices; F4 routes them through
+  // resolveEffectiveOverlayBudget with a floor of 1 for any non-'none'
+  // level. The behavioural difference only surfaces in scenarios where
+  // pathwayCap < 1 OR authoredCount < 1; the latter is the only case
+  // an existing scene exercises today, and the answer must be 0.
+
+  it("'none' (Boss) still emits zero pre-answer overlays even with overlays authored", () => {
+    const r = applyOverlayLevel({
+      preAnswer: PRE,
+      postAnswer: POST,
+      level: 'none',
+    })
+    expect(r.preAnswer).toHaveLength(0)
+    expect(r.postAnswer).toHaveLength(0)
+    // droppedPre reports how many input overlays did not survive the
+    // pipeline. Boss truncates everything, so the dropped count should
+    // equal the input length.
+    expect(r.droppedPre).toBe(PRE.length)
+    expect(r.droppedPost).toBe(POST.length)
+  })
+
+  it('beginner with overlays authored mounts at least 1 pre-answer overlay', () => {
+    const r = applyOverlayLevel({
+      preAnswer: PRE,
+      postAnswer: POST,
+      level: 'beginner',
+    })
+    expect(r.preAnswer.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('advanced with overlays authored mounts exactly 1 pre-answer overlay (the decoder cue)', () => {
+    const r = applyOverlayLevel({
+      preAnswer: PRE,
+      postAnswer: POST,
+      level: 'advanced',
+    })
+    expect(r.preAnswer).toHaveLength(1)
+    // Priority survival — vision_cone wins the tie.
+    expect(r.preAnswer[0]!.kind).toBe('defender_vision_cone')
+  })
+
+  it('intermediate with overlays authored mounts at least 1 pre-answer overlay', () => {
+    const r = applyOverlayLevel({
+      preAnswer: PRE,
+      postAnswer: POST,
+      level: 'intermediate',
+    })
+    expect(r.preAnswer.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('floor does NOT invent overlays when nothing was authored', () => {
+    for (const level of ['beginner', 'intermediate', 'advanced', 'none', 'review'] as const) {
+      const r = applyOverlayLevel({ preAnswer: [], postAnswer: [], level })
+      expect(r.preAnswer).toHaveLength(0)
+      expect(r.postAnswer).toHaveLength(0)
+    }
+  })
+
+  it('floor does NOT invent overlays when every authored pre-overlay is filtered by the kind allow-list', () => {
+    // open_space_region is post-only; the pre-answer kind allow-list
+    // strips it. Authored count is 1, but the post-allow-list count is
+    // 0 — the floor must not lift this back up to 1.
+    const sneaky: OverlayPrimitive[] = [
+      { kind: 'open_space_region', anchor: { x: 0, z: 0 }, radiusFt: 4 },
+    ]
+    const r = applyOverlayLevel({ preAnswer: sneaky, postAnswer: [], level: 'advanced' })
+    expect(r.preAnswer).toHaveLength(0)
+    expect(r.droppedPre).toBe(1)
+  })
+
+  it('priority survival: a body-language-only authored cluster keeps its highest-priority entry under tight cap', () => {
+    // No vision_cone / help_pulse — just body-language cues. Under
+    // advanced (cap=1, floor=1), the highest-priority entry survives.
+    // Among hand_in_lane (priority 1) and hip_arrow (priority 2),
+    // hand_in_lane wins.
+    const bodyOnly: OverlayPrimitive[] = [
+      { kind: 'defender_hip_arrow', playerId: 'x2' },
+      { kind: 'defender_hand_in_lane', playerId: 'x2' },
+      { kind: 'defender_chest_line', playerId: 'x2' },
+    ]
+    const r = applyOverlayLevel({
+      preAnswer: bodyOnly,
+      postAnswer: [],
+      level: 'advanced',
+    })
+    expect(r.preAnswer).toHaveLength(1)
+    expect(r.preAnswer[0]!.kind).toBe('defender_hand_in_lane')
+  })
+
+  it('post-answer floor stays at 0 — none mode emits zero post overlays', () => {
+    const r = applyOverlayLevel({ preAnswer: [], postAnswer: POST, level: 'none' })
+    expect(r.postAnswer).toHaveLength(0)
+  })
+})
+
 describe('applyOverlayLevel — purity', () => {
   it('does not mutate input arrays', () => {
     const pre = [...PRE]

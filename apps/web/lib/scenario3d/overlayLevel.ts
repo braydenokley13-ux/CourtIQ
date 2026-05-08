@@ -229,16 +229,43 @@ export function applyOverlayLevel(input: {
   const { level } = input
   const budget = BUDGETS[level]
 
-  // Pre-answer: kind allow-list → priority sort → cap.
+  // Pack 2 Teaching-Quality F4 — mandatory cue floor policy.
+  //
+  //   - 'none' (Boss Challenge) keeps a hard 0 floor; the whole point
+  //     of Boss mode is that the player gets no scaffolding.
+  //   - All other levels keep a floor of 1 on the pre-answer cluster:
+  //     if the variant authored any pre-answer cue, at least one must
+  //     survive truncation. Combined with the priority sort below, the
+  //     surviving overlay is the highest-priority kind (the decoder
+  //     cue), not whatever happened to be authored first.
+  //   - Post-answer keeps a 0 floor everywhere. The §9.8 reveal-cue
+  //     invariant is upheld by `comparePostAnswerPriority` ranking
+  //     open-space / passing-lane / drive-cut at priority 0; no
+  //     additional floor is needed because non-zero pathway caps
+  //     already preserve the top-priority entry.
+  const preFloor = level === 'none' ? 0 : 1
+  const postFloor = 0
+
+  // Pre-answer: kind allow-list → priority sort → effective budget.
   const preAllowed = filterPreAnswerKinds(input.preAnswer)
   const preSorted = stableSort(preAllowed, comparePreAnswerPriority)
-  const preCapped = takeWithCap(preSorted, budget.preMax)
+  const effectivePreCap = resolveEffectiveOverlayBudget(
+    preSorted.length,
+    budget.preMax,
+    preFloor,
+  )
+  const preCapped = takeWithCap(preSorted, effectivePreCap)
   const droppedPre = input.preAnswer.length - preCapped.length
 
-  // Post-answer: priority sort → cap. No kind allow-list (any kind
-  // is allowed during the reveal).
+  // Post-answer: priority sort → effective budget. No kind allow-list
+  // (any kind is allowed during the reveal).
   const postSorted = stableSort(input.postAnswer, comparePostAnswerPriority)
-  const postCapped = takeWithCap(postSorted, budget.postMax)
+  const effectivePostCap = resolveEffectiveOverlayBudget(
+    postSorted.length,
+    budget.postMax,
+    postFloor,
+  )
+  const postCapped = takeWithCap(postSorted, effectivePostCap)
   const droppedPost = input.postAnswer.length - postCapped.length
 
   return {
