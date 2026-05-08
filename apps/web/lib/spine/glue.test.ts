@@ -13,6 +13,8 @@ import {
   buildDecoderConfidences,
   buildFirstSessionCatalog,
   buildReturnCatalog,
+  decoderTagsFromAttempts,
+  decoderTagsInCatalog,
   recognitionReasonForReturnSlot,
   resolveChoiceQuality,
   RETURN_FRESHNESS_DAYS,
@@ -360,5 +362,114 @@ describe('recognitionReasonForReturnSlot', () => {
     const withConf = recognitionReasonForReturnSlot('anchor', conf)
     const withoutConf = recognitionReasonForReturnSlot('anchor', undefined)
     expect(withConf).not.toBe(withoutConf)
+  })
+})
+
+// Pack 2 progression: the spine glue's `ALL_DECODERS` registry is
+// the founder-only set on purpose — admitting Pack 2 decoders
+// unconditionally would surface "ghost rings" on /home for founders
+// who have never seen a `READ_THE_COVERAGE` / `HUNT_THE_ADVANTAGE`
+// scenario. The two helpers below are the seam Pack 2 routing layers
+// plug into: union ALL_DECODERS with one of these to pick up DROP /
+// HUNT decoders only when they are actually in play.
+describe('ALL_DECODERS registry', () => {
+  it('is the four founder decoders only — Pack 2 tags are admitted via helpers, not the registry', () => {
+    expect([...ALL_DECODERS].sort()).toEqual([
+      'ADVANTAGE_OR_RESET',
+      'BACKDOOR_WINDOW',
+      'EMPTY_SPACE_CUT',
+      'SKIP_THE_ROTATION',
+    ])
+    expect(ALL_DECODERS).not.toContain('READ_THE_COVERAGE')
+    expect(ALL_DECODERS).not.toContain('HUNT_THE_ADVANTAGE')
+  })
+})
+
+describe('decoderTagsFromAttempts', () => {
+  it('returns an empty list when the player has no attempts', () => {
+    expect(decoderTagsFromAttempts([])).toEqual([])
+  })
+
+  it('drops attempts whose scenario has a null decoder_tag (legacy fixtures)', () => {
+    const attempts = [
+      makeAttempt({ decoder_tag: null }),
+      makeAttempt({ decoder_tag: 'BACKDOOR_WINDOW' }),
+    ]
+    expect(decoderTagsFromAttempts(attempts)).toEqual(['BACKDOOR_WINDOW'])
+  })
+
+  it('dedupes repeated decoders, preserving first-seen order', () => {
+    const attempts = [
+      makeAttempt({ decoder_tag: 'BACKDOOR_WINDOW' }),
+      makeAttempt({ decoder_tag: 'EMPTY_SPACE_CUT' }),
+      makeAttempt({ decoder_tag: 'BACKDOOR_WINDOW' }),
+    ]
+    expect(decoderTagsFromAttempts(attempts)).toEqual([
+      'BACKDOOR_WINDOW',
+      'EMPTY_SPACE_CUT',
+    ])
+  })
+
+  it('admits Pack 2 decoders the moment a player attempts one (READ_THE_COVERAGE)', () => {
+    const attempts = [
+      makeAttempt({ decoder_tag: 'BACKDOOR_WINDOW' }),
+      makeAttempt({ decoder_tag: 'READ_THE_COVERAGE' as AttemptWithScenario['scenario']['decoder_tag'] }),
+    ]
+    expect(decoderTagsFromAttempts(attempts)).toContain('READ_THE_COVERAGE')
+  })
+
+  it('admits Pack 2 decoders the moment a player attempts one (HUNT_THE_ADVANTAGE)', () => {
+    const attempts = [
+      makeAttempt({ decoder_tag: 'HUNT_THE_ADVANTAGE' as AttemptWithScenario['scenario']['decoder_tag'] }),
+    ]
+    expect(decoderTagsFromAttempts(attempts)).toEqual(['HUNT_THE_ADVANTAGE'])
+  })
+})
+
+describe('decoderTagsInCatalog', () => {
+  it('returns an empty list for an empty catalog', () => {
+    expect(decoderTagsInCatalog([])).toEqual([])
+  })
+
+  it('drops scenarios whose decoder_tag is null (non-decoder fixtures)', () => {
+    const result = decoderTagsInCatalog([
+      makeScenarioRow({ id: 'a', decoder_tag: null }),
+      makeScenarioRow({ id: 'b', decoder_tag: 'BACKDOOR_WINDOW' }),
+    ])
+    expect(result).toEqual(['BACKDOOR_WINDOW'])
+  })
+
+  it('dedupes repeated decoders, preserving first-seen order', () => {
+    const result = decoderTagsInCatalog([
+      makeScenarioRow({ id: 'a', decoder_tag: 'BACKDOOR_WINDOW' }),
+      makeScenarioRow({ id: 'b', decoder_tag: 'BACKDOOR_WINDOW' }),
+      makeScenarioRow({ id: 'c', decoder_tag: 'EMPTY_SPACE_CUT' }),
+    ])
+    expect(result).toEqual(['BACKDOOR_WINDOW', 'EMPTY_SPACE_CUT'])
+  })
+
+  it('admits Pack 2 decoders when LIVE Pack 2 scenarios exist in the catalog', () => {
+    const result = decoderTagsInCatalog([
+      makeScenarioRow({ id: 'bdw-1', decoder_tag: 'BACKDOOR_WINDOW' }),
+      makeScenarioRow({
+        id: 'rtc-1',
+        decoder_tag: 'READ_THE_COVERAGE' as Scenario['decoder_tag'],
+      }),
+      makeScenarioRow({
+        id: 'hta-1',
+        decoder_tag: 'HUNT_THE_ADVANTAGE' as Scenario['decoder_tag'],
+      }),
+    ])
+    expect(result).toContain('READ_THE_COVERAGE')
+    expect(result).toContain('HUNT_THE_ADVANTAGE')
+  })
+
+  it('returns founder-only tags when the catalog has no Pack 2 LIVE scenarios — no ghost rings', () => {
+    const result = decoderTagsInCatalog([
+      makeScenarioRow({ id: 'a', decoder_tag: 'BACKDOOR_WINDOW' }),
+      makeScenarioRow({ id: 'b', decoder_tag: 'EMPTY_SPACE_CUT' }),
+    ])
+    expect(result).not.toContain('READ_THE_COVERAGE')
+    expect(result).not.toContain('HUNT_THE_ADVANTAGE')
   })
 })
