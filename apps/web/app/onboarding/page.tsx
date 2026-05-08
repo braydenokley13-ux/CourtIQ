@@ -348,15 +348,24 @@ export default function OnboardingPage() {
     () => shuffleChoicesByScenarioId(currentScenario?.choices ?? [], currentScenario?.id ?? ''),
     [currentScenario],
   )
-  const calibrationScene = useScenarioSceneData(
-    currentScenario
-      ? {
-          id: currentScenario.id,
-          court_state: currentScenario.court_state,
-          concept_tags: currentScenario.concept_tags,
-        }
-      : null,
+  // Memoize the Scene3D input so unrelated state changes (selected,
+  // submitted, submitting) don't recreate the object literal each
+  // render. `useScenarioSceneData` keys its memo on the input
+  // reference; without this, the imperative 3D scene would tear down
+  // and rebuild on every UI tick during answer selection, resetting
+  // the replay timeline and burning a few hundred ms of GPU work.
+  const sceneInput = useMemo(
+    () =>
+      currentScenario
+        ? {
+            id: currentScenario.id,
+            court_state: currentScenario.court_state,
+            concept_tags: currentScenario.concept_tags,
+          }
+        : null,
+    [currentScenario],
   )
+  const calibrationScene = useScenarioSceneData(sceneInput)
 
   const canAdvance = useMemo(() => {
     if (step === 1) return hideAge || /^\d{4}$/.test(birthYear)
