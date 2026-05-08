@@ -24,8 +24,10 @@
     "seed:content": "pnpm templates:materialize && pnpm seed:scenarios && pnpm seed:lessons",
     "qa:auth": "pnpm exec tsx scripts/playwright-auth-setup.ts",
     "qa:screenshot": "pnpm exec tsx scripts/screenshot-scenario.ts",
+    "qa:screenshot:baseline": "pnpm exec tsx scripts/screenshot-scenario.ts baseline",
+    "qa:screenshot:diff": "pnpm exec tsx scripts/screenshot-scenario.ts diff",
     "qa:scene:screenshots": "pnpm exec tsx scripts/screenshot-scene-phase-f.ts",
-    "screenshot:bdw": "SCENARIO=BDW-01 pnpm exec tsx scripts/screenshot-scenario.ts"
+    "screenshot:bdw": "pnpm exec tsx scripts/screenshot-scenario.ts diff --id BDW-01"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
