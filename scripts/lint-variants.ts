@@ -388,6 +388,98 @@ function lintCameraPreset(loaded: Loaded[]): Issue[] {
   return issues
 }
 
+// ---------------------------------------------------------------------------
+// Pack 2 §3.2 — disguise progression integrity.
+//
+// Two silent-pass risks the schema cannot catch on its own:
+//
+//   1. Non-monotonic difficulty progression. The disguise menu is
+//      ordered none → light → moderate → heavy by design. If `light`
+//      has a higher difficultyBump than `moderate`, the progression
+//      reads backwards to the spaced-rep router (the variant labelled
+//      "moderate" is actually easier). Schema only bounds each bump in
+//      isolation; the cross-level relationship is invisible to it.
+//
+//   2. removePre targets that don't match any pre overlay. The
+//      materializer's removeSet quietly filters; a typo (`onSlot:
+//      "deny_dev"` instead of `"deny_def"`) silently does nothing,
+//      shipping a "disguise" that doesn't actually disguise. Authors
+//      see the variant pass and assume the harder difficulty is real.
+//      Same family as the screenshot-gate bug: warn-and-pass hides the
+//      defect.
+//
+// Both checks land at severity='error' — every existing template is
+// already conformant (verified at landing), so a new template that
+// trips either rule is almost certainly broken. The error message
+// names the disguise level + the unmatched target so the fix is one
+// edit away.
+// ---------------------------------------------------------------------------
+
+const DISGUISE_LEVELS = ['none', 'light', 'moderate', 'heavy'] as const
+
+function lintDisguiseProgression(loaded: Loaded[]): Issue[] {
+  const issues: Issue[] = []
+  for (const { template } of loaded) {
+    // (1) Monotonic non-decreasing difficultyBump along the menu order.
+    let prevLevel: (typeof DISGUISE_LEVELS)[number] | null = null
+    let prevBump = 0
+    for (const level of DISGUISE_LEVELS) {
+      const cfg = template.disguises[level]
+      if (!cfg) continue
+      const bump = cfg.difficultyBump ?? 0
+      if (prevLevel && bump < prevBump) {
+        issues.push({
+          severity: 'error',
+          message:
+            `Template ${template.id}: disguise progression is non-monotonic — ` +
+            `"${level}" difficultyBump=${bump} is below "${prevLevel}" difficultyBump=${prevBump}. ` +
+            `Order the menu so heavier disguises bump difficulty at least as much as lighter ones.`,
+        })
+      }
+      prevLevel = level
+      prevBump = bump
+    }
+
+    // (2) Every removePre target must match a real pre overlay.
+    //     Match rule mirrors the materializer's removeSet: a target
+    //     with `onSlot` matches the same (kind,onSlot) pair; a target
+    //     without `onSlot` matches any pre overlay of that kind.
+    const preIndex = new Map<string, Set<string>>() // kind → set of onSlots
+    for (const o of template.overlays.pre) {
+      const onSlot = (o as { onSlot?: string }).onSlot ?? ''
+      const slots = preIndex.get(o.kind) ?? new Set<string>()
+      slots.add(onSlot)
+      preIndex.set(o.kind, slots)
+    }
+    for (const level of DISGUISE_LEVELS) {
+      const cfg = template.disguises[level]
+      if (!cfg) continue
+      for (const target of cfg.removePre) {
+        const slots = preIndex.get(target.kind)
+        if (!slots) {
+          issues.push({
+            severity: 'error',
+            message:
+              `Template ${template.id}: disguise "${level}" removes overlay kind "${target.kind}" ` +
+              `but no pre-answer overlay of that kind exists. The disguise is a silent no-op.`,
+          })
+          continue
+        }
+        if (target.onSlot && !slots.has(target.onSlot)) {
+          issues.push({
+            severity: 'error',
+            message:
+              `Template ${template.id}: disguise "${level}" removes "${target.kind}" on slot "${target.onSlot}" ` +
+              `but no matching pre-answer overlay exists (existing onSlots: {${Array.from(slots).filter(Boolean).join(', ') || '—'}}). ` +
+              `The disguise is a silent no-op.`,
+          })
+        }
+      }
+    }
+  }
+  return issues
+}
+
 function lintCoverage(loaded: Loaded[]): { matrix: string; issues: Issue[] } {
   // Decoder × difficulty coverage.
   const cells = new Map<string, number>()
@@ -586,6 +678,7 @@ async function main(): Promise<void> {
     ...lintCrossPackCollision(loaded, existingPackScenarios),
     ...lintCameraPreset(loaded),
     ...lintOverlayPresetConformance(loaded),
+    ...lintDisguiseProgression(loaded),
     ...lintTodoProse(loaded),
     ...lintProseBankCoverage(loaded),
     ...lintUnresolvedSlotTokens(loaded),
