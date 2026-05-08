@@ -24,6 +24,7 @@ import {
   DEFAULT_FREEZE_TIMING,
   FREEZE_COGNITION_HOLD_MS,
   getFreezeBeatTemplates,
+  getFreezeBeatTemplatesAtDifficulty,
   hydrateFreezeBeats,
   LABEL_BEAT_AT_MS,
   resolveFreezeTiming,
@@ -302,6 +303,150 @@ describe('beatSchedule — F5 difficulty-aware offsets', () => {
     expect(beatSchedule('BACKDOOR_WINDOW', 1)).toBe(
       beatSchedule('SKIP_THE_ROTATION', 1),
     )
+  })
+})
+
+describe('getFreezeBeatTemplatesAtDifficulty — F5b template re-stamping', () => {
+  const FOUNDER_DECODERS: ReadonlyArray<DecoderTag> = [
+    'BACKDOOR_WINDOW',
+    'EMPTY_SPACE_CUT',
+    'SKIP_THE_ROTATION',
+    'ADVANTAGE_OR_RESET',
+  ]
+
+  it('legacy getFreezeBeatTemplates is unchanged — Pack 1 cadence preserved for backward compat', () => {
+    for (const dec of FOUNDER_DECODERS) {
+      const tpls = getFreezeBeatTemplates(dec)
+      const cue = tpls.find((t) => t.kind === 'cue')
+      const action = tpls.find((t) => t.kind === 'action')
+      const advantage = tpls.find((t) => t.kind === 'advantage')
+      expect(cue?.at_phase_ms).toBe(CUE_BEAT_AT_MS)
+      expect(action?.at_phase_ms).toBe(ACTION_BEAT_AT_MS)
+      // Legacy advantage stays at 1100 (the constant) so callers reading
+      // getFreezeBeatTemplates do not silently shift their freeze cadence.
+      expect(advantage?.at_phase_ms).toBe(ADVANTAGE_BEAT_AT_MS)
+    }
+  })
+
+  it('returns [] for undefined or unknown decoders (matches legacy contract)', () => {
+    expect(getFreezeBeatTemplatesAtDifficulty(undefined, 1)).toEqual([])
+    expect(getFreezeBeatTemplatesAtDifficulty(undefined, 5)).toEqual([])
+  })
+
+  it('DROP / HUNT Pack 2 stubs return [] at every difficulty', () => {
+    for (const d of [1, 2, 3, 4, 5]) {
+      expect(getFreezeBeatTemplatesAtDifficulty('READ_THE_COVERAGE', d)).toEqual([])
+      expect(getFreezeBeatTemplatesAtDifficulty('HUNT_THE_ADVANTAGE', d)).toEqual([])
+    }
+  })
+
+  it('emits the same beat kinds and order as getFreezeBeatTemplates — re-stamping is offset-only', () => {
+    for (const dec of FOUNDER_DECODERS) {
+      const legacy = getFreezeBeatTemplates(dec).map((t) => t.kind)
+      for (const d of [1, 2, 3, 4, 5]) {
+        const restamped = getFreezeBeatTemplatesAtDifficulty(dec, d).map(
+          (t) => t.kind,
+        )
+        expect(restamped).toEqual(legacy)
+      }
+    }
+  })
+
+  it('D5 cue/action/advantage land at the schedule offsets (100 / 350 / 500)', () => {
+    for (const dec of FOUNDER_DECODERS) {
+      const tpls = getFreezeBeatTemplatesAtDifficulty(dec, 5)
+      const cue = tpls.find((t) => t.kind === 'cue')
+      const action = tpls.find((t) => t.kind === 'action')
+      const advantage = tpls.find((t) => t.kind === 'advantage')
+      expect(cue?.at_phase_ms).toBe(100)
+      expect(action?.at_phase_ms).toBe(350)
+      expect(advantage?.at_phase_ms).toBe(500)
+    }
+  })
+
+  it('D4 cue/action/advantage land at the schedule offsets (150 / 500 / 700)', () => {
+    for (const dec of FOUNDER_DECODERS) {
+      const tpls = getFreezeBeatTemplatesAtDifficulty(dec, 4)
+      const cue = tpls.find((t) => t.kind === 'cue')
+      const action = tpls.find((t) => t.kind === 'action')
+      const advantage = tpls.find((t) => t.kind === 'advantage')
+      expect(cue?.at_phase_ms).toBe(150)
+      expect(action?.at_phase_ms).toBe(500)
+      expect(advantage?.at_phase_ms).toBe(700)
+    }
+  })
+
+  it('D1-D3 cue/action match the legacy constants; advantage is the F5 tightened 1000ms', () => {
+    for (const dec of FOUNDER_DECODERS) {
+      for (const d of [1, 2, 3]) {
+        const tpls = getFreezeBeatTemplatesAtDifficulty(dec, d)
+        const cue = tpls.find((t) => t.kind === 'cue')
+        const action = tpls.find((t) => t.kind === 'action')
+        const advantage = tpls.find((t) => t.kind === 'advantage')
+        expect(cue?.at_phase_ms).toBe(CUE_BEAT_AT_MS)
+        expect(action?.at_phase_ms).toBe(ACTION_BEAT_AT_MS)
+        expect(advantage?.at_phase_ms).toBe(1000)
+      }
+    }
+  })
+
+  it('default-fade templates pick up the schedule-default fade durations at D4/D5', () => {
+    for (const dec of FOUNDER_DECODERS) {
+      const d4 = getFreezeBeatTemplatesAtDifficulty(dec, 4)
+      const d5 = getFreezeBeatTemplatesAtDifficulty(dec, 5)
+      for (const t of d4) {
+        expect(t.fade_in_ms).toBe(250)
+        expect(t.fade_out_ms).toBe(200)
+      }
+      for (const t of d5) {
+        expect(t.fade_in_ms).toBe(200)
+        expect(t.fade_out_ms).toBe(150)
+      }
+    }
+  })
+
+  it('every restamped template satisfies cue < action < advantage (ordering preserved)', () => {
+    for (const dec of FOUNDER_DECODERS) {
+      for (const d of [1, 2, 3, 4, 5]) {
+        const tpls = getFreezeBeatTemplatesAtDifficulty(dec, d)
+        const byKind: Partial<Record<string, number>> = {}
+        for (const t of tpls) byKind[t.kind] = t.at_phase_ms
+        if (
+          byKind.cue !== undefined &&
+          byKind.action !== undefined &&
+          byKind.advantage !== undefined
+        ) {
+          expect(byKind.cue).toBeLessThan(byKind.action)
+          expect(byKind.action).toBeLessThan(byKind.advantage)
+        }
+      }
+    }
+  })
+
+  it('does not mutate the underlying decoder template table — re-stamping returns fresh objects', () => {
+    const before = JSON.stringify(getFreezeBeatTemplates('BACKDOOR_WINDOW'))
+    getFreezeBeatTemplatesAtDifficulty('BACKDOOR_WINDOW', 5)
+    getFreezeBeatTemplatesAtDifficulty('BACKDOOR_WINDOW', 4)
+    const after = JSON.stringify(getFreezeBeatTemplates('BACKDOOR_WINDOW'))
+    expect(after).toBe(before)
+  })
+
+  it('hydrates into schema-valid OverlayBeats at every difficulty (downstream pipeline contract)', () => {
+    for (const dec of FOUNDER_DECODERS) {
+      for (const d of [1, 2, 3, 4, 5]) {
+        const beats = hydrateFreezeBeats(
+          dec,
+          getFreezeBeatTemplatesAtDifficulty(dec, d),
+          FULL_ANCHORS,
+        )
+        expect(beats.length).toBeGreaterThan(0)
+        // Every emitted beat carries an at_phase_ms drawn from the
+        // difficulty-keyed schedule, not the legacy module constants.
+        for (const b of beats) {
+          expect(b.at_phase_ms).toBeGreaterThanOrEqual(0)
+        }
+      }
+    }
   })
 })
 

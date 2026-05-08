@@ -537,12 +537,74 @@ export function resolveFreezeTiming(
 // --- public API ------------------------------------------------------------
 
 /** Returns the canonical freeze-phase template list for a decoder.
- *  Returns `[]` for an undefined decoder. Never throws. */
+ *  Returns `[]` for an undefined decoder. Never throws.
+ *
+ *  Uses the Pack 1 default cadence (cue=200, action=700, advantage=1100,
+ *  fade-in=300). New callers that want F5's difficulty-aware cadence
+ *  should use `getFreezeBeatTemplatesAtDifficulty(decoder, D)` instead.
+ *  This entry point stays stable so existing callers / fixtures do not
+ *  shift offsets under their feet. */
 export function getFreezeBeatTemplates(
   decoder: DecoderTag | undefined,
 ): ReadonlyArray<FreezeBeatTemplate> {
   if (!decoder) return []
   return DECODER_TEMPLATES[decoder] ?? []
+}
+
+/**
+ * F5 — Returns the freeze-phase template list for a decoder with
+ * `at_phase_ms`, `fade_in_ms`, and `fade_out_ms` re-stamped from
+ * `beatSchedule(decoder, effectiveDifficulty)`. Each template's
+ * cue / label / action / advantage `kind` selects the corresponding
+ * offset from the schedule.
+ *
+ * Pure — same inputs always produce the same outputs. Returns `[]`
+ * for an undefined or unknown decoder. Never throws.
+ *
+ * Templates with a `kind` outside the four canonical beats fall back
+ * to their authored `at_phase_ms` (today every template uses one of
+ * the four kinds, so the fallback path is reachable only by future
+ * additions). Authored fade durations on individual templates are
+ * preserved when they differ from the default; the schedule's defaults
+ * only apply when the template was authored against the constants.
+ */
+export function getFreezeBeatTemplatesAtDifficulty(
+  decoder: DecoderTag | undefined,
+  effectiveDifficulty: number,
+): ReadonlyArray<FreezeBeatTemplate> {
+  if (!decoder) return []
+  const base = DECODER_TEMPLATES[decoder] ?? []
+  if (base.length === 0) return base
+  const schedule = beatSchedule(decoder, effectiveDifficulty)
+  return base.map((t) => ({
+    ...t,
+    at_phase_ms: _scheduleOffsetFor(t.kind, schedule, t.at_phase_ms),
+    fade_in_ms:
+      t.fade_in_ms === DEFAULT_BEAT_FADE_IN_MS ? schedule.fadeInMs : t.fade_in_ms,
+    fade_out_ms:
+      t.fade_out_ms === DEFAULT_BEAT_FADE_OUT_MS
+        ? schedule.fadeOutMs
+        : t.fade_out_ms,
+  }))
+}
+
+function _scheduleOffsetFor(
+  kind: FreezeBeatKind,
+  schedule: BeatSchedule,
+  fallback: number,
+): number {
+  switch (kind) {
+    case 'cue':
+      return schedule.cueAtMs
+    case 'label':
+      return schedule.labelAtMs
+    case 'action':
+      return schedule.actionAtMs
+    case 'advantage':
+      return schedule.advantageAtMs
+    default:
+      return fallback
+  }
 }
 
 /**
