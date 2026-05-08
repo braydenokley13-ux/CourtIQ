@@ -314,6 +314,80 @@ const DECODER_TEMPLATES: Record<DecoderTag, ReadonlyArray<FreezeBeatTemplate>> =
   HUNT_THE_ADVANTAGE: HUNT_TEMPLATES_PACK2_STUB,
 }
 
+// --- per-scenario timing resolution (Phase 3.1.4) -------------------------
+//
+// Pack 2 D≥3 scenarios opt in to shorter cognition holds; HUNT chained
+// scenarios opt in to faster cue-repaint cadences. Authors declare the
+// override in `scene.timingOverrides` (validated at parse time with
+// floors). Runtime callers resolve effective timings via
+// `resolveFreezeTiming(scene)` instead of reading the raw module
+// constants — that way the override path is type-checked and the
+// fallback path keeps Pack 1's behavior bit-identical.
+//
+// This helper is intentionally additive: existing callers that read
+// the module constants continue to work unchanged. New callers (or
+// migrated existing callers) gain per-scenario flexibility.
+
+/** Frozen, per-scenario effective timing values. Same shape as the
+ *  module constants but with overrides applied. */
+export interface ResolvedFreezeTiming {
+  cognitionHoldMs: number
+  choiceTrayAtMs: number
+  cueRepaintHoldCorrectMs: number
+  cueRepaintHoldWrongMs: number
+}
+
+/** Default timing config — module constants. Used when a scenario
+ *  authors no `timingOverrides` block. */
+export const DEFAULT_FREEZE_TIMING: ResolvedFreezeTiming = Object.freeze({
+  cognitionHoldMs: FREEZE_COGNITION_HOLD_MS,
+  choiceTrayAtMs: CHOICE_TRAY_AT_MS,
+  // CUE_REPAINT_HOLD_* live in replayTeachingTimeline.ts; we duplicate
+  // the values here as inert defaults so this module is the single
+  // source of truth for "what timing does the renderer use right
+  // now?" Callers that resolve the timing pull from this struct
+  // rather than threading two constants from two modules.
+  cueRepaintHoldCorrectMs: 600,
+  cueRepaintHoldWrongMs: 400,
+})
+
+/**
+ * Per-scenario timing override input. Mirrors the schema's
+ * `timingOverridesSchema` (apps/web/lib/scenario3d/schema.ts) but
+ * loosened to a plain object so this module does not import the
+ * scene schema directly (architecture lock — pure data, no schema
+ * coupling).
+ */
+export interface FreezeTimingOverrideInput {
+  cognitionHoldMs?: number
+  choiceTrayAtMs?: number
+  cueRepaintHoldCorrectMs?: number
+  cueRepaintHoldWrongMs?: number
+}
+
+/**
+ * Resolves an effective timing config from optional per-scenario
+ * overrides. Pure — same input always produces the same output.
+ *
+ * Floors are NOT re-applied here. Schema validation already enforces
+ * the floors at parse time (cognitionHoldMs ≥ 1100, all values ≤
+ * 4_000). Re-applying would silently mask a schema bug; we want a
+ * loud failure if an unvalidated value reaches the renderer.
+ */
+export function resolveFreezeTiming(
+  override?: FreezeTimingOverrideInput,
+): ResolvedFreezeTiming {
+  if (!override) return DEFAULT_FREEZE_TIMING
+  return {
+    cognitionHoldMs: override.cognitionHoldMs ?? DEFAULT_FREEZE_TIMING.cognitionHoldMs,
+    choiceTrayAtMs: override.choiceTrayAtMs ?? DEFAULT_FREEZE_TIMING.choiceTrayAtMs,
+    cueRepaintHoldCorrectMs:
+      override.cueRepaintHoldCorrectMs ?? DEFAULT_FREEZE_TIMING.cueRepaintHoldCorrectMs,
+    cueRepaintHoldWrongMs:
+      override.cueRepaintHoldWrongMs ?? DEFAULT_FREEZE_TIMING.cueRepaintHoldWrongMs,
+  }
+}
+
 // --- public API ------------------------------------------------------------
 
 /** Returns the canonical freeze-phase template list for a decoder.
