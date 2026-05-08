@@ -317,11 +317,22 @@ function authoringOverlayCap(
   difficulty: number,
 ): number {
   const cell = AUTHORING_OVERLAY_CAPS_BY_DIFFICULTY[difficulty]
-  // Conservative fallback for an unknown difficulty: return the D1
-  // (loosest) cap so a typo'd difficulty doesn't silently relax to
-  // unbounded; the difficulty itself is already validated to 1..5
-  // upstream by the variant schema.
-  if (!cell) return phase === 'pre' ? 3 : 3
+  // The variant schema bounds difficulty to 1..5, so a missing cell
+  // means a caller computed an out-of-band difficulty (e.g. an
+  // unbounded `template.tactical.difficulty_default + difficultyBump`
+  // that escaped the Math.min(5, ...) clamp). The previous behaviour
+  // silently returned D1's (loosest) cap, which is the wrong-direction
+  // failure: an out-of-band difficulty would relax the cap. Same
+  // silent-pass family as the screenshot regression gate. Fail loud
+  // so the bad math surfaces at materialize time, not as a downstream
+  // overlay-budget surprise.
+  if (!cell) {
+    throw new Error(
+      `authoringOverlayCap: no cap row for difficulty=${difficulty}. ` +
+        `Difficulty must be 1..5; check the variant schema and any ` +
+        `Math.min(5, …) clamp on disguise difficultyBump.`,
+    )
+  }
   return phase === 'pre' ? cell.pre : cell.post
 }
 
