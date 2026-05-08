@@ -12,11 +12,8 @@ import {
   type Timeline,
 } from '@/lib/scenario3d/timeline'
 import type { CourtPoint } from '@/lib/scenario3d/coords'
-import {
-  CUE_REPAINT_HOLD_CORRECT_MS,
-  CUE_REPAINT_HOLD_WRONG_MS,
-  PRE_CONSEQUENCE_DELAY_MS,
-} from '@/lib/scenario3d/replayTeachingTimeline'
+import { PRE_CONSEQUENCE_DELAY_MS } from '@/lib/scenario3d/replayTeachingTimeline'
+import { resolveFreezeTiming } from '@/lib/scenario3d/freezeFrameCognition'
 
 export type ReplayMode = 'static' | 'intro' | 'answer'
 
@@ -407,13 +404,19 @@ export function ScenarioReplayController({
     lastFiredCaptionRef.current = ''
     firedMovementsRef.current.clear()
 
+    // Phase 3.1.4 runtime — pull per-scenario timing if the authored
+    // scene supplied a timingOverrides block; otherwise the resolver
+    // returns DEFAULT_FREEZE_TIMING (bit-identical to the legacy
+    // CUE_REPAINT_HOLD_* constants). Resolved per-call so a scene
+    // hot-swap during dev does not need a controller remount.
+    const timing = resolveFreezeTiming(scene.timingOverrides)
     if (path === 'wrong') {
-      preDelayMsRef.current = CUE_REPAINT_HOLD_WRONG_MS
+      preDelayMsRef.current = timing.cueRepaintHoldWrongMs
       cueRepaintActiveRef.current = true
       phaseRef.current = 'cueRepaint'
       onPhase?.('cueRepaint')
     } else if (path === 'correct') {
-      preDelayMsRef.current = CUE_REPAINT_HOLD_CORRECT_MS
+      preDelayMsRef.current = timing.cueRepaintHoldCorrectMs
       cueRepaintActiveRef.current = true
       phaseRef.current = 'cueRepaint'
       onPhase?.('cueRepaint')
