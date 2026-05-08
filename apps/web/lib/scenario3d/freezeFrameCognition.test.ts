@@ -11,12 +11,17 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
 
 import {
+  DEFAULT_FREEZE_TIMING,
   getFreezeBeatTemplates,
   hydrateFreezeBeats,
+  resolveFreezeTiming,
   type FreezeBeatAnchors,
 } from './freezeFrameCognition'
+import { buildScene } from './scene'
 
 const FULL_ANCHORS: FreezeBeatAnchors = {
   cue_defender: 'd1',
@@ -103,5 +108,86 @@ describe('hydrateFreezeBeats — SKR advantage anchor (P1 fix)', () => {
     expect(kinds).toContain('help_pulse')
     expect(kinds).toContain('passing_lane_open')
     expect(kinds).toContain('open_space_region')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Phase 3.1.4 runtime — per-scenario timing override resolution.
+//
+// The schema validates floors at parse time (cognitionHoldMs ≥ 1100). We pin
+// three runtime guarantees here:
+//   1. Pack 1 scenarios that author NO timingOverrides resolve to the
+//      module defaults bit-identically.
+//   2. The gold-standard Pack 2 D3 template (BDW.late-clock-corner-deny,
+//      materialized as BDW-T2-01) actually round-trips cognitionHoldMs=1200
+//      and cueRepaintHoldWrongMs=600 through buildScene → resolveFreezeTiming.
+//   3. resolveFreezeTiming(undefined) is a frozen reference equality with
+//      DEFAULT_FREEZE_TIMING (so the no-override fast path is allocation-
+//      free and cannot drift).
+// ---------------------------------------------------------------------------
+
+describe('resolveFreezeTiming — Pack 1/2 round-trip', () => {
+  it('returns DEFAULT_FREEZE_TIMING (===) for the no-override path', () => {
+    expect(resolveFreezeTiming(undefined)).toBe(DEFAULT_FREEZE_TIMING)
+    expect(DEFAULT_FREEZE_TIMING.cognitionHoldMs).toBe(1400)
+    expect(DEFAULT_FREEZE_TIMING.cueRepaintHoldCorrectMs).toBe(600)
+    expect(DEFAULT_FREEZE_TIMING.cueRepaintHoldWrongMs).toBe(400)
+  })
+
+  it('layers a partial override on top of the defaults', () => {
+    const t = resolveFreezeTiming({ cognitionHoldMs: 1200 })
+    expect(t.cognitionHoldMs).toBe(1200)
+    // unspecified fields fall through unchanged
+    expect(t.cueRepaintHoldCorrectMs).toBe(DEFAULT_FREEZE_TIMING.cueRepaintHoldCorrectMs)
+    expect(t.cueRepaintHoldWrongMs).toBe(DEFAULT_FREEZE_TIMING.cueRepaintHoldWrongMs)
+    expect(t.choiceTrayAtMs).toBe(DEFAULT_FREEZE_TIMING.choiceTrayAtMs)
+  })
+
+  it('resolves BDW-T2-01 to its authored cognitionHoldMs=1200, cueRepaintHoldWrongMs=600', async () => {
+    // Materialized output is the source the runtime ingests via buildScene.
+    // Reading the JSON keeps this test in lockstep with whatever the
+    // materializer emits — a regression in the template-pack pipeline shows
+    // up here, not just in the schema.
+    const file = path.resolve(
+      __dirname,
+      '..',
+      '..',
+      '..',
+      '..',
+      'packages',
+      'db',
+      'seed',
+      'scenarios',
+      'packs',
+      'templates-v1',
+      'BDW-T2-01.json',
+    )
+    const raw = await fs.readFile(file, 'utf8')
+    const arr = JSON.parse(raw) as Array<{
+      id: string
+      decoder_tag: string
+      court_state: unknown
+      scene: unknown
+      concept_tags: string[]
+    }>
+    const scenario = arr[0]!
+    expect(scenario.id).toBe('BDW-T2-01')
+    const scene = buildScene({
+      id: scenario.id,
+      court_state: scenario.court_state as never,
+      scene: scenario.scene,
+      decoder_tag: scenario.decoder_tag,
+      concept_tags: scenario.concept_tags,
+    })
+    expect(scene.synthetic).toBe(false)
+    expect(scene.timingOverrides?.cognitionHoldMs).toBe(1200)
+    expect(scene.timingOverrides?.cueRepaintHoldWrongMs).toBe(600)
+    const timing = resolveFreezeTiming(scene.timingOverrides)
+    expect(timing.cognitionHoldMs).toBe(1200)
+    expect(timing.cueRepaintHoldWrongMs).toBe(600)
+    // Overrides not authored by this template still fall through to defaults.
+    expect(timing.cueRepaintHoldCorrectMs).toBe(
+      DEFAULT_FREEZE_TIMING.cueRepaintHoldCorrectMs,
+    )
   })
 })

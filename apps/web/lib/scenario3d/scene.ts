@@ -12,6 +12,7 @@ import {
   type DecoderTag,
   type FreezeMarker,
   type OverlayPrimitive,
+  type TimingOverrides,
 } from './schema'
 import { getPresetForConcept } from './presets'
 import { buildTimeline } from './timeline'
@@ -133,6 +134,16 @@ export interface Scene3D {
    * the renderer falls back to the movement-kind path in that case.
    */
   decoderTag?: DecoderTag
+  /**
+   * Phase 3.1.4 — per-scenario freeze-timing overrides. Validated at
+   * parse time by `timingOverridesSchema`; missing fields fall back
+   * to the renderer's module-level constants in `freezeFrameCognition`.
+   * Only authored scenes (the materialized template pack) currently
+   * carry this; legacy/preset/synthetic paths leave it `undefined`,
+   * which preserves Pack 1 behavior bit-identical via
+   * `resolveFreezeTiming(undefined) === DEFAULT_FREEZE_TIMING`.
+   */
+  timingOverrides?: TimingOverrides
 }
 
 interface AuthoredScene {
@@ -156,6 +167,7 @@ interface AuthoredScene {
   freezeMarker?: FreezeMarker
   preAnswerOverlays?: OverlayPrimitive[]
   postAnswerOverlays?: OverlayPrimitive[]
+  timingOverrides?: TimingOverrides
 }
 
 interface SourceScenario {
@@ -263,6 +275,7 @@ function normaliseAuthoredScene(id: string, scene: AuthoredScene): Scene3D {
     postAnswerOverlays: scene.postAnswerOverlays ?? [],
     freezeAtMs,
     synthetic: false,
+    ...(scene.timingOverrides ? { timingOverrides: scene.timingOverrides } : {}),
   }
 }
 

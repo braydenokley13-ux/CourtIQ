@@ -101,12 +101,29 @@ const DEVICE_SCALE_FACTOR = 1
 
 type Mode = 'baseline' | 'diff'
 type Phase = 'load' | 'freeze' | 'after'
+/**
+ * Pack 2 §3.1.4 — capture surface.
+ *
+ *   train   — `/train?scenario=<id>` (default). Requires Supabase auth
+ *             and a LIVE-status DB row. Used for Pack 1 (founder-v0).
+ *   preview — `/dev/scenario-preview?id=<id>`. Renders any seed JSON
+ *             across both founder-v0 and templates-v1 without auth or
+ *             a DB read. Required for Pack 2 baselines while variants
+ *             are still DRAFT (BDW-T2-01 and similar).
+ *
+ * The screenshot pipeline is otherwise identical — same viewport,
+ * same phase timings, same hash manifest. Capture surface is metadata
+ * the manifest records so a reviewer can tell which path produced the
+ * baseline.
+ */
+type CaptureSurface = 'train' | 'preview'
 
 const PHASES: ReadonlyArray<Phase> = ['load', 'freeze', 'after'] as const
 
 interface CliArgs {
   mode: Mode
   ids: string[]
+  via: CaptureSurface
 }
 
 interface PhaseHash {
@@ -121,8 +138,11 @@ function usage(): never {
   console.error(
     [
       'Usage:',
-      '  pnpm qa:screenshot <baseline|diff> --id <scenario-id>',
-      '  pnpm qa:screenshot <baseline|diff> --pack <pack-slug>',
+      '  pnpm qa:screenshot <baseline|diff> --id <scenario-id> [--via train|preview]',
+      '  pnpm qa:screenshot <baseline|diff> --pack <pack-slug>  [--via train|preview]',
+      '',
+      '  --via train    (default) /train?scenario=<id>; needs auth + LIVE seed',
+      '  --via preview          /dev/scenario-preview?id=<id>; no auth, any pack',
     ].join('\n'),
   )
   process.exit(2)
@@ -135,6 +155,7 @@ function parseArgs(argv: string[]): CliArgs {
   const mode = modeRaw
 
   let ids: string[] | null = null
+  let via: CaptureSurface = 'train'
   for (let i = 1; i < args.length; i++) {
     const flag = args[i]
     const val = args[i + 1]
@@ -146,10 +167,23 @@ function parseArgs(argv: string[]): CliArgs {
       // Defer pack expansion to async — main() will resolve.
       ids = ['__pack__:' + val]
       i++
+    } else if (flag === '--via' && (val === 'train' || val === 'preview')) {
+      via = val
+      i++
+    } else if (flag === '--via') {
+      console.error(`--via must be "train" or "preview" (got "${val ?? ''}")`)
+      process.exit(2)
     }
   }
   if (!ids || ids.length === 0) usage()
-  return { mode, ids }
+  return { mode, ids, via }
+}
+
+function urlFor(id: string, via: CaptureSurface): string {
+  if (via === 'preview') {
+    return `${BASE_URL}/dev/scenario-preview?id=${encodeURIComponent(id)}`
+  }
+  return `${BASE_URL}/train?scenario=${encodeURIComponent(id)}`
 }
 
 async function expandPackIds(ids: string[]): Promise<string[]> {
@@ -181,8 +215,9 @@ async function captureScenario(
   page: Page,
   id: string,
   outRoot: string,
+  via: CaptureSurface,
 ): Promise<Manifest> {
-  const url = `${BASE_URL}/train?scenario=${id}`
+  const url = urlFor(id, via)
   console.log(`  → ${url}`)
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 })
 
@@ -233,8 +268,15 @@ async function captureScenario(
   return manifest
 }
 
-async function runBaseline(ids: string[]): Promise<number> {
-  if (!existsSync(AUTH_FILE)) {
+async function runBaseline(
+  ids: string[],
+  via: CaptureSurface,
+): Promise<number> {
+  // Auth is only required for `--via train`. The /dev/scenario-preview
+  // surface is server-rendered without a Supabase session, so a
+  // missing auth state is fine when capturing Pack 2 DRAFT variants
+  // (which can't reach /train yet anyway).
+  if (via === 'train' && !existsSync(AUTH_FILE)) {
     console.error(`auth state missing at ${AUTH_FILE} (run pnpm qa:auth)`)
     return 1
   }
@@ -242,20 +284,20 @@ async function runBaseline(ids: string[]): Promise<number> {
   const context = await browser.newContext({
     viewport: { ...VIEWPORT },
     deviceScaleFactor: DEVICE_SCALE_FACTOR,
-    storageState: AUTH_FILE,
+    ...(via === 'train' ? { storageState: AUTH_FILE } : {}),
   })
   const page = await context.newPage()
   let exitCode = 0
   try {
     for (const id of ids) {
-      console.log(`baseline ${id}`)
+      console.log(`baseline ${id} (via=${via})`)
       const baseDir = path.join(SCREENSHOTS_ROOT, id, 'baseline')
       await mkdir(baseDir, { recursive: true })
-      const manifest = await captureScenario(page, id, baseDir)
+      const manifest = await captureScenario(page, id, baseDir, via)
       const manifestPath = path.join(baseDir, 'manifest.json')
       await writeFile(
         manifestPath,
-        JSON.stringify({ id, phases: manifest }, null, 2) + '\n',
+        JSON.stringify({ id, via, phases: manifest }, null, 2) + '\n',
       )
       console.log(`  → manifest ${manifestPath}`)
     }
@@ -268,8 +310,11 @@ async function runBaseline(ids: string[]): Promise<number> {
   return exitCode
 }
 
-async function runDiff(ids: string[]): Promise<number> {
-  if (!existsSync(AUTH_FILE)) {
+async function runDiff(
+  ids: string[],
+  via: CaptureSurface,
+): Promise<number> {
+  if (via === 'train' && !existsSync(AUTH_FILE)) {
     console.error(`auth state missing at ${AUTH_FILE} (run pnpm qa:auth)`)
     return 1
   }
@@ -277,14 +322,14 @@ async function runDiff(ids: string[]): Promise<number> {
   const context = await browser.newContext({
     viewport: { ...VIEWPORT },
     deviceScaleFactor: DEVICE_SCALE_FACTOR,
-    storageState: AUTH_FILE,
+    ...(via === 'train' ? { storageState: AUTH_FILE } : {}),
   })
   const page = await context.newPage()
   let mismatchCount = 0
   let missingBaselineCount = 0
   try {
     for (const id of ids) {
-      console.log(`diff ${id}`)
+      console.log(`diff ${id} (via=${via})`)
       const baseDir = path.join(SCREENSHOTS_ROOT, id, 'baseline')
       const actualDir = path.join(SCREENSHOTS_ROOT, id, 'actual')
       const manifestPath = path.join(baseDir, 'manifest.json')
@@ -296,13 +341,18 @@ async function runDiff(ids: string[]): Promise<number> {
       const baselineRaw = await readFile(manifestPath, 'utf8')
       const baseline = JSON.parse(baselineRaw) as {
         id?: string
+        via?: CaptureSurface
         phases?: Manifest
       }
+      // Diff must use the same capture surface that produced the
+      // baseline, otherwise the hashes will never match. If the CLI
+      // disagrees with the manifest, prefer the manifest's record.
+      const effectiveVia = baseline.via ?? via
       // Wipe + recreate actual/ so a previous run's leftover doesn't
       // pollute the comparison.
       await rm(actualDir, { recursive: true, force: true })
       await mkdir(actualDir, { recursive: true })
-      const actual = await captureScenario(page, id, actualDir)
+      const actual = await captureScenario(page, id, actualDir, effectiveVia)
       for (const phase of PHASES) {
         const baseHash = baseline.phases?.[phase]?.sha256
         const actualHash = actual[phase]?.sha256
@@ -357,7 +407,9 @@ async function main(): Promise<void> {
     process.exit(2)
   }
   const exitCode =
-    args.mode === 'baseline' ? await runBaseline(ids) : await runDiff(ids)
+    args.mode === 'baseline'
+      ? await runBaseline(ids, args.via)
+      : await runDiff(ids, args.via)
   process.exit(exitCode)
 }
 
