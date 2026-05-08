@@ -17,6 +17,11 @@ export default defineConfig({
       // exercised in isolation. Page components stay out — they
       // require a DOM environment we don't configure here.
       'app/api/**/*.test.ts',
+      // Pack 2 §3.1.4 — opt the /dev/scenario-preview pack reader in
+      // (the page itself stays out — it's a Next.js Server Component).
+      // The helpers in `_packReader.ts` are pure server-side fs+JSON
+      // logic, so they round-trip cleanly under the `node` env.
+      'app/dev/**/_packReader.test.ts',
     ],
     globals: false,
   },

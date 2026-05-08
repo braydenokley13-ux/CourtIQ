@@ -1,8 +1,11 @@
 import { notFound } from 'next/navigation'
 import { Suspense } from 'react'
-import { promises as fs } from 'node:fs'
-import path from 'node:path'
 import { ScenarioPreviewClient } from './ScenarioPreviewClient'
+import {
+  listAllPackIds,
+  readScenario,
+  resolveRequestedId,
+} from './_packReader'
 import { QA_MATRIX_IDS } from '@/lib/scenario3d/qaMatrix'
 
 export const dynamic = 'force-dynamic'
@@ -59,92 +62,6 @@ export const dynamic = 'force-dynamic'
  */
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
-interface ScenarioRecord {
-  id: string
-  decoder_tag: string | null
-  difficulty: number | null
-  title: string | null
-  prompt: string | null
-  visible_cue: string | null
-  best_read: string | null
-  decoder_teaching_point: string | null
-  explanation_md: string | null
-  user_role: string | null
-  concept_tags: string[]
-  sub_concepts: string[]
-  court_state: unknown
-  scene: unknown
-}
-
-/**
- * Reads a single founder-v0 scenario JSON. Returns `null` if the
- * file is absent or malformed; the caller decides how to surface
- * that to the UI.
- */
-async function readScenario(id: string): Promise<ScenarioRecord | null> {
-  const packPath = path.resolve(
-    process.cwd(),
-    '..',
-    '..',
-    'packages',
-    'db',
-    'seed',
-    'scenarios',
-    'packs',
-    'founder-v0',
-    `${id}.json`,
-  )
-  let raw: string
-  try {
-    raw = await fs.readFile(packPath, 'utf8')
-  } catch {
-    return null
-  }
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    return null
-  }
-  const records = Array.isArray(parsed) ? parsed : [parsed]
-  const found = records.find(
-    (r): r is Record<string, unknown> =>
-      typeof r === 'object' && r !== null && (r as { id?: unknown }).id === id,
-  )
-  if (!found) return null
-  return {
-    id,
-    decoder_tag:
-      typeof found.decoder_tag === 'string' ? found.decoder_tag : null,
-    difficulty:
-      typeof found.difficulty === 'number' ? found.difficulty : null,
-    title: typeof found.title === 'string' ? found.title : null,
-    prompt: typeof found.prompt === 'string' ? found.prompt : null,
-    visible_cue:
-      typeof found.visible_cue === 'string' ? found.visible_cue : null,
-    best_read: typeof found.best_read === 'string' ? found.best_read : null,
-    decoder_teaching_point:
-      typeof found.decoder_teaching_point === 'string'
-        ? found.decoder_teaching_point
-        : null,
-    explanation_md:
-      typeof found.explanation_md === 'string' ? found.explanation_md : null,
-    user_role: typeof found.user_role === 'string' ? found.user_role : null,
-    concept_tags: Array.isArray(found.concept_tags)
-      ? (found.concept_tags as unknown[]).filter(
-          (s): s is string => typeof s === 'string',
-        )
-      : [],
-    sub_concepts: Array.isArray(found.sub_concepts)
-      ? (found.sub_concepts as unknown[]).filter(
-          (s): s is string => typeof s === 'string',
-        )
-      : [],
-    court_state: found.court_state,
-    scene: found.scene,
-  }
-}
-
 export default async function ScenarioPreviewPage({
   searchParams,
 }: {
@@ -169,17 +86,33 @@ export default async function ScenarioPreviewPage({
       : typeof rawScenario === 'string' && rawScenario.length > 0
         ? rawScenario
         : null
-  const initialId =
-    requested && QA_MATRIX_IDS.includes(requested)
-      ? requested
-      : QA_MATRIX_IDS[0]
 
-  // Read every founder-v0 scenario once, server-side. This is fine —
-  // the dev page is gated and there are only 20 entries. Pre-loading
-  // all metadata avoids a per-click round-trip on the client and
-  // keeps the selector snappy.
+  // Pack 2 §3.1.4 — the preview now resolves ids across BOTH the
+  // founder-v0 QA matrix and the materialized template-v1 pack so
+  // /dev/scenario-preview?id=BDW-T2-01 lands on the gold-standard
+  // Pack 2 scenario instead of silently falling back to BDW-01.
+  // QA_MATRIX_IDS still drives the preferred selector ordering and
+  // the default landing scenario.
+  const allIds = await listAllPackIds()
+  const initialId = resolveRequestedId({
+    requested,
+    knownIds: allIds,
+    defaultId: QA_MATRIX_IDS[0]!,
+  })
+
+  // Read every available scenario once, server-side. The dev page is
+  // gated and the union of founder-v0 + templates-v1 is small. Pre-
+  // loading avoids a per-click round-trip on the client.
+  // Selector ordering: QA_MATRIX_IDS first (Pack 1, the matrix that
+  // operators learn by heart), then any extra ids exposed by the
+  // template-v1 pack so a Pack 2 scenario is always reachable from
+  // the dropdown.
+  const orderedIds = [
+    ...QA_MATRIX_IDS,
+    ...allIds.filter((id) => !QA_MATRIX_IDS.includes(id)),
+  ]
   const scenarios = await Promise.all(
-    QA_MATRIX_IDS.map(async (id) => ({ id, record: await readScenario(id) })),
+    orderedIds.map(async (id) => ({ id, record: await readScenario(id) })),
   )
 
   // FR-2 Packet 1 — emit a `<link rel="preload">` for the bundled
