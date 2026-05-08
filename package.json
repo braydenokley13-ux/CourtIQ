@@ -27,6 +27,9 @@
     "qa:screenshot": "pnpm exec tsx scripts/screenshot-scenario.ts",
     "qa:screenshot:baseline": "pnpm exec tsx scripts/screenshot-scenario.ts baseline",
     "qa:screenshot:diff": "pnpm exec tsx scripts/screenshot-scenario.ts diff",
+    "qa:preview:baseline": "pnpm exec tsx scripts/screenshot-scenario.ts baseline --via preview",
+    "qa:preview:diff": "pnpm exec tsx scripts/screenshot-scenario.ts diff --via preview",
+    "qa:preview:diff:soft": "ALLOW_MISSING_BASELINE=1 pnpm exec tsx scripts/screenshot-scenario.ts diff --via preview",
     "qa:scene:screenshots": "pnpm exec tsx scripts/screenshot-scene-phase-f.ts",
     "screenshot:bdw": "pnpm exec tsx scripts/screenshot-scenario.ts diff --id BDW-01"
   },
