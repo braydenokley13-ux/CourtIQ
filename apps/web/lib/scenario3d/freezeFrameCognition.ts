@@ -93,6 +93,152 @@ export const CHOICE_TRAY_AT_MS = 1400
 export const DEFAULT_BEAT_FADE_IN_MS = 300
 export const DEFAULT_BEAT_FADE_OUT_MS = 200
 
+// --- Pack 2 Teaching-Quality F5 — difficulty-aware beat schedule -----------
+//
+// Risk H5 in docs/pack-2-teaching-quality-risk-report.md: with the schema
+// floor of cognitionHoldMs = 1100 and the module constant
+// ADVANTAGE_BEAT_AT_MS = 1100, an override that pulls the cognition hold to
+// the floor opens the choice tray at the same instant the advantage beat
+// starts fading in. The "why this read works" explanation arrives the same
+// instant the player must commit. F5 moves the offsets from a single
+// schedule shared across difficulties to a per-difficulty mapping so D4
+// and D5 (which the blueprint calls for ≤ 1000ms / ≤ 800ms holds) get a
+// compressed beat cadence that always lands the advantage strictly before
+// the choice tray opens.
+//
+// The decoder parameter is reserved for forward compatibility — DROP /
+// HUNT presets may want their own cadence (e.g. HUNT's chained second
+// read needs a tighter first-beat). Today every decoder shares the
+// difficulty-keyed schedule; the parameter shape is locked so a future
+// decoder-specific table can land without changing call sites.
+//
+// Existing callers that read the module constants directly (cue / action /
+// advantage / label `*_BEAT_AT_MS`) still see the default D1-D3 schedule
+// — `getFreezeBeatTemplates(decoder)` is unchanged. New callers that
+// thread `effectiveDifficulty` resolve the per-difficulty schedule via
+// `beatSchedule(decoder, effectiveDifficulty)` or pull templates through
+// `getFreezeBeatTemplatesAtDifficulty(decoder, effectiveDifficulty)`.
+
+/** Resolved per-(decoder, difficulty) freeze-beat schedule. All offsets
+ *  relative to freezeAtMs, in milliseconds. */
+export interface BeatSchedule {
+  cueAtMs: number
+  labelAtMs: number
+  actionAtMs: number
+  advantageAtMs: number
+  /** Default fade-in for beats that do not author their own. */
+  fadeInMs: number
+  /** Default fade-out for beats that do not author their own. */
+  fadeOutMs: number
+}
+
+/** Per-difficulty schedule table.
+ *
+ *  Invariant (H5): `advantageAtMs(D) < schemaFloorHoldMs(D)` for every D
+ *  — the advantage beat must START fading in strictly before the choice
+ *  tray opens, never simultaneously. Today the schema floor is 1100ms
+ *  for every difficulty; F1 will lower it per-difficulty (D≤3=1100,
+ *  D4=1000, D5=800). The schedule below already satisfies the future
+ *  per-difficulty floors so F1 lands without revisiting these numbers.
+ *
+ *  Cadence design (cue → label → action → advantage):
+ *    - D1-D3: 200 / 600 / 700 / 1000 — advantage tightened from the
+ *             legacy 1100 so it lands strictly before the 1100ms floor
+ *             at any difficulty. Default cognition hold (1400ms) keeps
+ *             the surface feel of Pack 1.
+ *    - D4:    150 / 400 / 500 / 700  — fast-read; advantage fires
+ *             300ms ahead of the future 1000ms hold.
+ *    - D5:    100 / 300 / 350 / 500  — flash-read; advantage fires
+ *             300ms ahead of the future 800ms hold.
+ *  Fade-ins shrink at D4/D5 so the visible cadence stays brisk; even
+ *  with shorter fade-ins the advantage's final-opacity moment still
+ *  arrives before the tray at typical (non-floor) holds. Fade-outs
+ *  follow in step so post-beat decay also fits inside the compressed
+ *  envelope. */
+const BEAT_SCHEDULES_BY_DIFFICULTY: Readonly<Record<number, BeatSchedule>> =
+  Object.freeze({
+    1: Object.freeze({
+      cueAtMs: CUE_BEAT_AT_MS,
+      labelAtMs: LABEL_BEAT_AT_MS,
+      actionAtMs: ACTION_BEAT_AT_MS,
+      advantageAtMs: 1000,
+      fadeInMs: DEFAULT_BEAT_FADE_IN_MS,
+      fadeOutMs: DEFAULT_BEAT_FADE_OUT_MS,
+    }),
+    2: Object.freeze({
+      cueAtMs: CUE_BEAT_AT_MS,
+      labelAtMs: LABEL_BEAT_AT_MS,
+      actionAtMs: ACTION_BEAT_AT_MS,
+      advantageAtMs: 1000,
+      fadeInMs: DEFAULT_BEAT_FADE_IN_MS,
+      fadeOutMs: DEFAULT_BEAT_FADE_OUT_MS,
+    }),
+    3: Object.freeze({
+      cueAtMs: CUE_BEAT_AT_MS,
+      labelAtMs: LABEL_BEAT_AT_MS,
+      actionAtMs: ACTION_BEAT_AT_MS,
+      advantageAtMs: 1000,
+      fadeInMs: DEFAULT_BEAT_FADE_IN_MS,
+      fadeOutMs: DEFAULT_BEAT_FADE_OUT_MS,
+    }),
+    4: Object.freeze({
+      cueAtMs: 150,
+      labelAtMs: 400,
+      actionAtMs: 500,
+      advantageAtMs: 700,
+      fadeInMs: 250,
+      fadeOutMs: 200,
+    }),
+    5: Object.freeze({
+      cueAtMs: 100,
+      labelAtMs: 300,
+      actionAtMs: 350,
+      advantageAtMs: 500,
+      fadeInMs: 200,
+      fadeOutMs: 150,
+    }),
+  })
+
+/** Fallback schedule for out-of-band difficulties — the loosest of the
+ *  table. Used by `_clampDifficulty` callers when a non-finite or
+ *  outside-[1,5] value reaches `beatSchedule`. */
+const DEFAULT_BEAT_SCHEDULE: BeatSchedule = BEAT_SCHEDULES_BY_DIFFICULTY[1]!
+
+/** Clamp an effective difficulty to the [1, 5] integer domain. Non-finite
+ *  or out-of-band values fall back to D1 (the loosest, safest schedule). */
+function _clampDifficulty(effectiveDifficulty: number): number {
+  if (!Number.isFinite(effectiveDifficulty)) return 1
+  const rounded = Math.round(effectiveDifficulty)
+  if (rounded < 1) return 1
+  if (rounded > 5) return 5
+  return rounded
+}
+
+/**
+ * Returns the resolved freeze-beat schedule for a (decoder, effectiveD)
+ * pair. Pure — same inputs always produce the same output. The schedule
+ * is decoder-parametrised for forward compatibility; today every decoder
+ * uses the difficulty-keyed table.
+ *
+ * `effectiveDifficulty` is the variant's resolved D after applying any
+ * disguise difficultyBump and the schema clamp (1..5). Out-of-band
+ * inputs collapse to D1 rather than throwing — a renderer that lost
+ * track of difficulty should fall back to the slowest (most readable)
+ * cadence, not crash the freeze.
+ */
+export function beatSchedule(
+  decoder: DecoderTag | undefined,
+  effectiveDifficulty: number,
+): BeatSchedule {
+  // `decoder` is intentionally unused at this milestone — see comment
+  // above. Reading it here keeps the parameter declared so call sites
+  // that thread the decoder don't need to change when a per-decoder
+  // table lands.
+  void decoder
+  const d = _clampDifficulty(effectiveDifficulty)
+  return BEAT_SCHEDULES_BY_DIFFICULTY[d] ?? DEFAULT_BEAT_SCHEDULE
+}
+
 // --- types -----------------------------------------------------------------
 
 export type CognitionPhase =
