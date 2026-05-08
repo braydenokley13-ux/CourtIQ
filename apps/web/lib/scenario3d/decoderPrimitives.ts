@@ -197,6 +197,56 @@ const SKIP_THE_ROTATION: DecoderVisualPrimitives = {
   },
 }
 
+// Pack 2 stub. The visual primitive contract requires every decoder to
+// declare a teaching beat + required intents + authoring requirements.
+// DROP and HUNT are defined here with the minimum-viable scaffold so
+// the type system enforces "every decoder has a record"; the full
+// preset (including any DecoderRole extensions for screen_defender /
+// ball_handler) lands with 3.1.2. Empty `requiredIntents` means the
+// founder-scenario invariant test will not run intent assertions for
+// DROP / HUNT scenarios — and the seeder's coach-validation gate is
+// the production guard that prevents LIVE Pack 2 scenarios shipping
+// before this scaffold is filled in.
+const READ_THE_COVERAGE_PACK2_STUB: DecoderVisualPrimitives = {
+  decoder: 'READ_THE_COVERAGE',
+  label: 'Read the Coverage',
+  beat: {
+    readActor: 'open_player',
+    cueActor: 'helper_defender',
+    readSentence:
+      'Pack 2 stub — DROP coverage read. Full beat designed in 3.1.2.',
+  },
+  requiredIntents: [],
+  requiredAuthoring: {
+    requiresFreezeMarker: true,
+    requiresAnswerDemo: true,
+    requiresUserPlayer: true,
+    requiresOneBallHolder: true,
+    requiredPlayerRoleSubstrings: ['ball_handler'],
+    requiredAnswerDemoKinds: [],
+  },
+}
+
+const HUNT_THE_ADVANTAGE_PACK2_STUB: DecoderVisualPrimitives = {
+  decoder: 'HUNT_THE_ADVANTAGE',
+  label: 'Hunt the Advantage',
+  beat: {
+    readActor: 'receiver',
+    cueActor: 'closeout_defender',
+    readSentence:
+      'Pack 2 stub — HUNT chained second read. Full beat designed in 3.1.2.',
+  },
+  requiredIntents: [],
+  requiredAuthoring: {
+    requiresFreezeMarker: true,
+    requiresAnswerDemo: true,
+    requiresUserPlayer: true,
+    requiresOneBallHolder: true,
+    requiredPlayerRoleSubstrings: ['ball_handler'],
+    requiredAnswerDemoKinds: [],
+  },
+}
+
 /**
  * Per-decoder visual primitive map. Frozen at module load so consumers
  * cannot accidentally mutate the shared reference.
@@ -208,6 +258,8 @@ export const DECODER_VISUAL_PRIMITIVES: Readonly<
   ADVANTAGE_OR_RESET,
   EMPTY_SPACE_CUT,
   SKIP_THE_ROTATION,
+  READ_THE_COVERAGE: READ_THE_COVERAGE_PACK2_STUB,
+  HUNT_THE_ADVANTAGE: HUNT_THE_ADVANTAGE_PACK2_STUB,
 })
 
 /** Convenience accessor — same shape as a Map.get with a clean fallback. */

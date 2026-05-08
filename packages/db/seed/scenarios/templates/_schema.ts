@@ -66,6 +66,12 @@ export const overlayKindSchema = z.enum([
 export const choiceQualitySchema = z.enum(['best', 'acceptable', 'wrong'])
 
 // Cue atoms — controlled vocabulary from the strategy doc taxonomy.
+// Pack 2 (3.1.12) adds DROP / HUNT body-language atoms. Order is
+// stable; new atoms land at the end so existing materialized templates
+// hash identically. Any new atom must be:
+//   - referenced from at least one decoder overlay preset OR template,
+//   - added to the lesson connection that teaches it, and
+//   - covered by a wrong-demo when it is the cue for a 'best' choice.
 export const cueAtomSchema = z.enum([
   'hand_in_lane',
   'foot_in_lane',
@@ -87,6 +93,14 @@ export const cueAtomSchema = z.enum([
   'switch_signal',
   'double_team_dig',
   'x_out_recovery',
+  // Pack 2 — DROP family (PnR coverage reads).
+  'screen_defender_drop',
+  'screen_defender_hedge',
+  'tag_recovery_late',
+  // Pack 2 — HUNT family (chained-decision second reads).
+  'helper_overhelp_chain',
+  'closeout_chain_first_beat',
+  'closeout_chain_second_beat',
 ])
 
 // -----------------------------------------------------------------------------

@@ -271,11 +271,18 @@ const AOR_OFFBALANCE_CLOSEOUT: CuePeak = {
   overlayBeatBias: 'cue',
 }
 
+// Pack 2 stub. DROP / HUNT readability tables are empty until 3.1.2
+// designs the cue-peak schedule for screen-defender depth (DROP) and
+// post-rotation defender body language (HUNT). The Partial<> on the
+// value side already permits empty per-decoder tables — the renderer
+// falls back to neutral readability when a role has no peak entry.
 const DECODER_TABLES: Record<DecoderTag, Partial<Record<DecoderRole, CuePeak>>> = {
   BACKDOOR_WINDOW: BDW_TABLE,
   EMPTY_SPACE_CUT: ESC_TABLE,
   SKIP_THE_ROTATION: SKR_TABLE,
   ADVANTAGE_OR_RESET: AOR_TABLE,
+  READ_THE_COVERAGE: {},
+  HUNT_THE_ADVANTAGE: {},
 }
 
 // --- resolver --------------------------------------------------------------

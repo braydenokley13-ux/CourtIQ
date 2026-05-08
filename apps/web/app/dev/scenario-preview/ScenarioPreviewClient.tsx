@@ -60,6 +60,8 @@ const DECODER_LABEL: Record<DecoderTag, string> = {
   EMPTY_SPACE_CUT: 'Empty-Space Cut',
   ADVANTAGE_OR_RESET: 'Advantage or Reset',
   SKIP_THE_ROTATION: 'Skip the Rotation',
+  READ_THE_COVERAGE: 'Read the Coverage',
+  HUNT_THE_ADVANTAGE: 'Hunt the Advantage',
 }
 
 const FAMILY_ORDER: DecoderTag[] = [
@@ -67,6 +69,8 @@ const FAMILY_ORDER: DecoderTag[] = [
   'EMPTY_SPACE_CUT',
   'ADVANTAGE_OR_RESET',
   'SKIP_THE_ROTATION',
+  'READ_THE_COVERAGE',
+  'HUNT_THE_ADVANTAGE',
 ]
 
 const CHECKLIST_ITEMS: readonly string[] = [

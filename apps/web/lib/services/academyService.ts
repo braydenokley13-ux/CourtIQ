@@ -34,6 +34,8 @@ const DECODER_TITLES: Record<DecoderTag, string> = {
   EMPTY_SPACE_CUT: 'Empty Space Cut',
   SKIP_THE_ROTATION: 'Skip the Rotation',
   ADVANTAGE_OR_RESET: 'Advantage or Reset',
+  READ_THE_COVERAGE: 'Read the Coverage',
+  HUNT_THE_ADVANTAGE: 'Hunt the Advantage',
 }
 
 function deriveDecoderState(attempts: number, accuracy: number): DecoderState {

@@ -296,11 +296,22 @@ const AOR_TEMPLATES: ReadonlyArray<FreezeBeatTemplate> = [
   },
 ]
 
+// Pack 2 stub. DROP and HUNT freeze-beat templates intentionally collapse
+// to the empty-array sentinel until 3.1.2 / 3.1.4 design the full beat
+// schedule (DROP: screen-defender depth + ball-handler attack arrow;
+// HUNT: chained two-beat freeze). The contract at the top of the file
+// already says "missing decoder collapses to an empty list, never throws"
+// — DROP/HUNT exercise that path until their templates land.
+const DROP_TEMPLATES_PACK2_STUB: ReadonlyArray<FreezeBeatTemplate> = []
+const HUNT_TEMPLATES_PACK2_STUB: ReadonlyArray<FreezeBeatTemplate> = []
+
 const DECODER_TEMPLATES: Record<DecoderTag, ReadonlyArray<FreezeBeatTemplate>> = {
   BACKDOOR_WINDOW: BDW_TEMPLATES,
   EMPTY_SPACE_CUT: ESC_TEMPLATES,
   SKIP_THE_ROTATION: SKR_TEMPLATES,
   ADVANTAGE_OR_RESET: AOR_TEMPLATES,
+  READ_THE_COVERAGE: DROP_TEMPLATES_PACK2_STUB,
+  HUNT_THE_ADVANTAGE: HUNT_TEMPLATES_PACK2_STUB,
 }
 
 // --- public API ------------------------------------------------------------
