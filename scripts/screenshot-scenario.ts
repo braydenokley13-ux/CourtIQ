@@ -24,7 +24,12 @@
  *   docs/screenshots/<id>/baseline/load.png       — initial render, network idle
  *   docs/screenshots/<id>/baseline/freeze.png     — freeze marker held
  *   docs/screenshots/<id>/baseline/after.png      — post-freeze answer surface
- *   docs/screenshots/<id>/baseline/manifest.json  — { phase: { sha256, capturedAt, viewport } }
+ *   docs/screenshots/<id>/baseline/manifest.json  — { id, via, phases: { phase: { sha256, viewport } } }
+ *
+ * The committed manifest deliberately omits a capture timestamp so a
+ * re-run from the same SHA produces a byte-identical file when
+ * nothing real changed; the git log of the manifest itself is the
+ * audit trail of when each baseline was rolled.
  *
  *   docs/screenshots/<id>/actual/<phase>.png      — produced by `diff` runs
  *
@@ -137,7 +142,6 @@ interface CliArgs {
 
 interface PhaseHash {
   sha256: string
-  capturedAt: string
   viewport: { width: number; height: number; dpr: number }
 }
 
@@ -328,7 +332,6 @@ async function captureScenario(
     const sha256 = await sha256OfFile(filePath)
     manifest[phase] = {
       sha256,
-      capturedAt: new Date().toISOString(),
       viewport: { ...VIEWPORT, dpr: DEVICE_SCALE_FACTOR },
     }
     console.log(`    ${phase}.png  ${sha256.slice(0, 12)}…`)
