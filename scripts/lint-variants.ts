@@ -246,6 +246,43 @@ function lintCrossPackCollision(
   return issues
 }
 
+// ---------------------------------------------------------------------------
+// Phase 3.1.3 — camera preset drift lint.
+//
+// Per blueprint §3.6, each decoder has a canonical camera preset. We
+// duplicate the (small) map here rather than importing from apps/web
+// because lint-variants is a node script and apps/web exports type-
+// only modules through next.js. The map is identical to
+// `DECODER_CAMERA_PRESETS.firstBeat` in apps/web/lib/scenario3d/
+// decoderCameraPresets.ts.
+// ---------------------------------------------------------------------------
+
+const DECODER_CAMERA_DEFAULTS: Readonly<Record<string, string>> = Object.freeze({
+  BACKDOOR_WINDOW: 'passer_side_three_quarter',
+  EMPTY_SPACE_CUT: 'teaching_angle',
+  SKIP_THE_ROTATION: 'top_down',
+  ADVANTAGE_OR_RESET: 'defense',
+  READ_THE_COVERAGE: 'top_down',
+  HUNT_THE_ADVANTAGE: 'teaching_angle',
+})
+
+function lintCameraPreset(loaded: Loaded[]): Issue[] {
+  const issues: Issue[] = []
+  for (const { template } of loaded) {
+    const expected = DECODER_CAMERA_DEFAULTS[template.decoder_tag]
+    if (!expected) continue
+    if (template.scene.camera !== expected) {
+      issues.push({
+        severity: 'warn',
+        message:
+          `Template ${template.id}: camera "${template.scene.camera}" differs from decoder default "${expected}". ` +
+          `Justify the override in tactical.notes or revert to match.`,
+      })
+    }
+  }
+  return issues
+}
+
 function lintCoverage(loaded: Loaded[]): { matrix: string; issues: Issue[] } {
   // Decoder × difficulty coverage.
   const cells = new Map<string, number>()
@@ -355,6 +392,7 @@ async function main(): Promise<void> {
     ...lintAxisSpread(loaded),
     ...lintCrossTemplateCollision(loaded),
     ...lintCrossPackCollision(loaded, existingPackScenarios),
+    ...lintCameraPreset(loaded),
     ...lintTodoProse(loaded),
   ]
   const cov = lintCoverage(loaded)
