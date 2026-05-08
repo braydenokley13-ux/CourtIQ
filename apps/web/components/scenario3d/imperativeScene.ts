@@ -573,7 +573,12 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   const ballX = ballHolder?.start.x ?? scene.ball.start.x
   const ballZ = ballHolder?.start.z ?? scene.ball.start.z
 
-  const ball = buildBasketball()
+  // Replay-1: derive a stable PRNG seed from the scene id so the
+  // basketball pebble layout is byte-identical across rebuilds of the
+  // same scenario. Visual regression baselines depend on this; without
+  // a seed the texture would silently differ between runs.
+  const ballTextureSeed = basketballTextureSeedFromSceneId(scene.id)
+  const ball = buildBasketball(ballTextureSeed)
   const ballBaseY = BALL_RADIUS + 0.2
   ball.position.set(ballX, ballBaseY, ballZ)
   root.add(ball)
@@ -7637,11 +7642,11 @@ const BALL_SEAM_THICKNESS = 0.014
  * convention — every owned resource is reachable via the returned
  * group's descendants so disposeGroup() cleans it up automatically.
  */
-function buildBasketball(): THREE.Group {
+function buildBasketball(seed: number): THREE.Group {
   const group = new THREE.Group()
   group.name = 'basketball'
 
-  const surfaceTex = generateBasketballSurfaceTexture(384)
+  const surfaceTex = generateBasketballSurfaceTexture(384, seed)
 
   const body = new THREE.Mesh(
     new THREE.SphereGeometry(BALL_RADIUS, 36, 36),
@@ -7743,17 +7748,107 @@ function buildBasketball(): THREE.Group {
 }
 
 /**
+ * Replay-1 — deterministic pebble layout for the basketball surface.
+ *
+ * Each entry is one circle the canvas painter draws on top of the flat
+ * orange base. Two rgba palettes are used (dark micro-spots and warm
+ * highlights); shared shape so the painter can iterate uniformly.
+ */
+export interface BasketballPebbleDot {
+  x: number
+  y: number
+  r: number
+  a: number
+}
+export interface BasketballPebbleSpec {
+  size: number
+  seed: number
+  dark: BasketballPebbleDot[]
+  light: BasketballPebbleDot[]
+}
+
+/**
+ * Builds the fully-deterministic pebble layout for a given seed. Pure
+ * function — no DOM access, no globals — so visual regression tooling
+ * and unit tests can compare specs without a browser.
+ *
+ * The dot counts and rgba ranges are unchanged from the legacy
+ * `Math.random()` path so the on-screen look is preserved; only the
+ * underlying number stream is now seeded.
+ */
+export function computeBasketballPebbleSpec(
+  size: number,
+  seed: number,
+): BasketballPebbleSpec {
+  const rng = mulberry32Local(seed >>> 0)
+  const darkCount = Math.floor(size * size * 0.018)
+  const dark: BasketballPebbleDot[] = new Array(darkCount)
+  for (let i = 0; i < darkCount; i++) {
+    const x = rng() * size
+    const y = rng() * size
+    const r = 0.7 + rng() * 1.3
+    const a = 0.18 + rng() * 0.22
+    dark[i] = { x, y, r, a }
+  }
+  const lightCount = Math.floor(size * size * 0.012)
+  const light: BasketballPebbleDot[] = new Array(lightCount)
+  for (let i = 0; i < lightCount; i++) {
+    const x = rng() * size
+    const y = rng() * size
+    const r = 0.5 + rng() * 1.0
+    const a = 0.08 + rng() * 0.14
+    light[i] = { x, y, r, a }
+  }
+  return { size, seed: seed >>> 0, dark, light }
+}
+
+/**
+ * FNV-1a 32-bit hash for deriving a stable numeric seed from a scene
+ * identifier. Mirrors the helper used by `lib/dailyChallenge/seed.ts`
+ * but kept local to avoid a cross-feature import; the basketball
+ * texture and the daily challenge rotation are independent systems.
+ */
+export function basketballTextureSeedFromSceneId(sceneId: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < sceneId.length; i++) {
+    h ^= sceneId.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return h >>> 0
+}
+
+function mulberry32Local(seed: number): () => number {
+  let s = seed >>> 0
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0
+    let t = s
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/**
  * Procedurally paints a small canvas with a basketball-leather-ish
  * pebble pattern and returns it as a CanvasTexture suitable for
  * MeshStandardMaterial.map. The texture is solid orange with sparse
  * dark micro-spots and lighter highlights so the ball does not read as
  * a perfectly flat sphere even at glancing angles.
  *
+ * Replay-1: pebble placement is now seeded so repeated builds with
+ * the same scene id paint a byte-identical canvas. Visual regression
+ * baselines stay stable across runs; the look is unchanged from the
+ * pre-seeded behavior because dot counts and rgba ranges are
+ * preserved.
+ *
  * Generation runs only on the client (the scene builder is invoked
  * from a useEffect in Scenario3DCanvas), so document.createElement is
  * safe here.
  */
-function generateBasketballSurfaceTexture(size: number): THREE.CanvasTexture {
+function generateBasketballSurfaceTexture(
+  size: number,
+  seed: number,
+): THREE.CanvasTexture {
   const canvas = document.createElement('canvas')
   canvas.width = size
   canvas.height = size
@@ -7762,31 +7857,17 @@ function generateBasketballSurfaceTexture(size: number): THREE.CanvasTexture {
     ctx.fillStyle = BALL_COLOR
     ctx.fillRect(0, 0, size, size)
 
-    // Dark micro-pebble dots — give the surface its leathery look
-    // without a heavy noise pass.
-    const darkCount = Math.floor(size * size * 0.018)
-    for (let i = 0; i < darkCount; i++) {
-      const x = Math.random() * size
-      const y = Math.random() * size
-      const r = 0.7 + Math.random() * 1.3
-      const a = 0.18 + Math.random() * 0.22
-      ctx.fillStyle = `rgba(40, 18, 6, ${a})`
+    const spec = computeBasketballPebbleSpec(size, seed)
+    for (const d of spec.dark) {
+      ctx.fillStyle = `rgba(40, 18, 6, ${d.a})`
       ctx.beginPath()
-      ctx.arc(x, y, r, 0, Math.PI * 2)
+      ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2)
       ctx.fill()
     }
-
-    // Subtle warm highlights — break up the orange so it is not a
-    // single flat tone under directional light.
-    const lightCount = Math.floor(size * size * 0.012)
-    for (let i = 0; i < lightCount; i++) {
-      const x = Math.random() * size
-      const y = Math.random() * size
-      const r = 0.5 + Math.random() * 1.0
-      const a = 0.08 + Math.random() * 0.14
-      ctx.fillStyle = `rgba(255, 200, 130, ${a})`
+    for (const d of spec.light) {
+      ctx.fillStyle = `rgba(255, 200, 130, ${d.a})`
       ctx.beginPath()
-      ctx.arc(x, y, r, 0, Math.PI * 2)
+      ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2)
       ctx.fill()
     }
   }
