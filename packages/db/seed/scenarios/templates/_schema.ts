@@ -468,6 +468,78 @@ export const variantSchema = z.object({
 })
 
 // -----------------------------------------------------------------------------
+// Pack 2 §3.3 — Prose bank
+// -----------------------------------------------------------------------------
+//
+// The prose-bank is a per-template library of slot-fillable feedback
+// skeletons. The bank is data-only at this milestone; runtime variant
+// consumption is deferred to a follow-up phase. The schema landing
+// here gives the scaffolder + future linters a stable parse target.
+//
+// Slot identifiers are validated against `PROSE_BANK_SLOT_IDS` from
+// `_proseBankSlots.ts`. The validation is performed by a superRefine
+// rather than `z.enum` because skeletons are free-text strings that
+// happen to contain `{slot}` tokens; the brace-stripping happens via
+// `findProseBankSlotsIn`.
+//
+// Bank file layout
+// ----------------
+//   <template-dir>/prose-bank.json
+//
+// Bank shape
+// ----------
+//   {
+//     "template": "BDW.denied-wing",
+//     "version": 1,
+//     "entries": [
+//       {
+//         "quality": "best",
+//         "tone": "encouraging",
+//         "skeletons": ["...{cue_atom_short_desc}..."]
+//       }
+//     ]
+//   }
+
+import {
+  PROSE_BANK_TONES,
+  PROSE_BANK_SLOT_ID_SET,
+  findProseBankSlotsIn,
+} from './_proseBankSlots'
+
+export const proseBankEntrySchema = z
+  .object({
+    quality: choiceQualitySchema,
+    tone: z.enum(PROSE_BANK_TONES),
+    skeletons: z.array(z.string().min(1)).min(1).max(8),
+  })
+  .superRefine((entry, ctx) => {
+    for (let i = 0; i < entry.skeletons.length; i++) {
+      const skeleton = entry.skeletons[i] as string
+      const slots = findProseBankSlotsIn(skeleton)
+      for (const slot of slots) {
+        if (!PROSE_BANK_SLOT_ID_SET.has(slot)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['skeletons', i],
+            message: `Unknown prose-bank slot "{${slot}}". See PROSE_BANK_SLOT_IDS in _proseBankSlots.ts.`,
+          })
+        }
+      }
+    }
+  })
+
+export const proseBankSchema = z.object({
+  template: z
+    .string()
+    .regex(/^[A-Z]{3,4}\.[a-z][a-z0-9-]*$/, 'template id must be DEC.kebab'),
+  version: z.number().int().positive().default(1),
+  entries: z.array(proseBankEntrySchema).min(1).max(24),
+})
+
+export type ProseBankEntry = z.infer<typeof proseBankEntrySchema>
+export type ProseBank = z.infer<typeof proseBankSchema>
+
+// -----------------------------------------------------------------------------
 // Inferred types
 // -----------------------------------------------------------------------------
 
