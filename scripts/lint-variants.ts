@@ -371,6 +371,49 @@ function lintOverlayPresetConformance(loaded: Loaded[]): Issue[] {
   return issues
 }
 
+// ---------------------------------------------------------------------------
+// Pack 2 Teaching-Quality F3 — Hard gate on empty preset decoders.
+//
+// Risk H3 (pack-2-teaching-quality-risk-report.md §2): a LIVE D4/D5
+// READ_THE_COVERAGE / HUNT_THE_ADVANTAGE variant can render with zero
+// pre-answer cues today because the decoder presets in
+// `apps/web/lib/scenario3d/decoderOverlayPresets.ts` ship with
+// `preAnswer: []` stubs. The seeder's "level=high needs status=approved"
+// check is a soft gate; it does not stop a REVIEW or LIVE variant whose
+// teaching surface is empty by construction.
+//
+// Policy: any variant on a decoder whose preset preAnswer is empty must
+// stay in DRAFT (or RETIRED). DRAFT lets authoring proceed against the
+// stub; REVIEW/LIVE require the preset to be filled in first.
+// ---------------------------------------------------------------------------
+
+/** A decoder whose preset preAnswer cluster is currently empty (Pack 2 stub). */
+function isEmptyPresetDecoder(decoderTag: string): boolean {
+  const allowed = PRESET_PRE_ANSWER_KINDS_BY_DECODER[decoderTag]
+  return allowed != null && allowed.size === 0
+}
+
+function lintEmptyPresetPromotionGate(loaded: Loaded[]): Issue[] {
+  const issues: Issue[] = []
+  for (const { template, variants } of loaded) {
+    if (!isEmptyPresetDecoder(template.decoder_tag)) continue
+    for (const v of variants) {
+      if (v.status !== 'REVIEW' && v.status !== 'LIVE') continue
+      issues.push({
+        severity: 'error',
+        message:
+          `Variant ${template.id}:${v.id} is ${v.status} but decoder ` +
+          `${template.decoder_tag} ships an empty pre-answer preset. ` +
+          `Promotion past DRAFT would render the freeze with zero teaching cues. ` +
+          `Either keep the variant in DRAFT, or fill in the preset's preAnswer ` +
+          `cluster in apps/web/lib/scenario3d/decoderOverlayPresets.ts (and mirror ` +
+          `the kinds in PRESET_PRE_ANSWER_KINDS_BY_DECODER below).`,
+      })
+    }
+  }
+  return issues
+}
+
 function lintCameraPreset(loaded: Loaded[]): Issue[] {
   const issues: Issue[] = []
   for (const { template } of loaded) {
@@ -678,6 +721,7 @@ async function main(): Promise<void> {
     ...lintCrossPackCollision(loaded, existingPackScenarios),
     ...lintCameraPreset(loaded),
     ...lintOverlayPresetConformance(loaded),
+    ...lintEmptyPresetPromotionGate(loaded),
     ...lintDisguiseProgression(loaded),
     ...lintTodoProse(loaded),
     ...lintProseBankCoverage(loaded),
