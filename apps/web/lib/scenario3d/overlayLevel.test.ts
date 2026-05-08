@@ -7,6 +7,7 @@ import {
   getOverlayBudget,
   getStageInDelayMs,
   isOverlaySuppressed,
+  resolveEffectiveOverlayBudget,
 } from './overlayLevel'
 
 const PRE: OverlayPrimitive[] = [
@@ -210,5 +211,116 @@ describe('getStageInDelayMs', () => {
 describe('DEFAULT_OVERLAY_LEVEL', () => {
   it('defaults to beginner so /train preserves pre-FR-5 behavior', () => {
     expect(DEFAULT_OVERLAY_LEVEL).toBe('beginner')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Pack 2 Teaching-Quality F4 — pure-helper matrix.
+//
+// Covers the full clamp behaviour across the realistic input domain:
+//   authoredCount: 0..5  (D-cap range; D5 authors 1, D1 up to 3)
+//   pathwayCap:   0..3  (none / advanced / intermediate / beginner)
+//   mandatoryCueFloor: 0 and 1
+// = 6 × 4 × 2 = 48 cases enumerated below, with named edge-case asserts
+// for the cases the policy hinges on (Boss preserves zero, advanced
+// preserves the cue floor, empty authored lists never invent).
+// ---------------------------------------------------------------------------
+describe('resolveEffectiveOverlayBudget — F4 pure helper', () => {
+  it('returns 0 when authoredCount is 0 regardless of cap or floor', () => {
+    for (const cap of [0, 1, 2, 3]) {
+      for (const floor of [0, 1]) {
+        expect(resolveEffectiveOverlayBudget(0, cap, floor)).toBe(0)
+      }
+    }
+  })
+
+  it('Boss Challenge (cap=0, floor=0) always returns 0', () => {
+    for (const authored of [0, 1, 2, 3, 4, 5]) {
+      expect(resolveEffectiveOverlayBudget(authored, 0, 0)).toBe(0)
+    }
+  })
+
+  it('cap=0 with floor=1 lifts to floor=1 when authored is non-zero', () => {
+    expect(resolveEffectiveOverlayBudget(3, 0, 1)).toBe(1)
+    // …but not when nothing is authored.
+    expect(resolveEffectiveOverlayBudget(0, 0, 1)).toBe(0)
+  })
+
+  it('advanced (cap=1, floor=1) keeps exactly 1 when overlays exist', () => {
+    expect(resolveEffectiveOverlayBudget(3, 1, 1)).toBe(1)
+    expect(resolveEffectiveOverlayBudget(1, 1, 1)).toBe(1)
+    expect(resolveEffectiveOverlayBudget(0, 1, 1)).toBe(0)
+  })
+
+  it('beginner (cap=3, floor=1) returns min(authored, 3)', () => {
+    expect(resolveEffectiveOverlayBudget(0, 3, 1)).toBe(0)
+    expect(resolveEffectiveOverlayBudget(1, 3, 1)).toBe(1)
+    expect(resolveEffectiveOverlayBudget(2, 3, 1)).toBe(2)
+    expect(resolveEffectiveOverlayBudget(3, 3, 1)).toBe(3)
+    expect(resolveEffectiveOverlayBudget(5, 3, 1)).toBe(3)
+  })
+
+  it('intermediate (cap=2, floor=1) returns min(authored, 2) with floor honoured', () => {
+    expect(resolveEffectiveOverlayBudget(1, 2, 1)).toBe(1)
+    expect(resolveEffectiveOverlayBudget(2, 2, 1)).toBe(2)
+    expect(resolveEffectiveOverlayBudget(5, 2, 1)).toBe(2)
+  })
+
+  it('floor cannot invent overlays past authoredCount', () => {
+    expect(resolveEffectiveOverlayBudget(0, 3, 1)).toBe(0)
+    expect(resolveEffectiveOverlayBudget(0, 2, 1)).toBe(0)
+    expect(resolveEffectiveOverlayBudget(0, 1, 1)).toBe(0)
+  })
+
+  it('clamps non-integer / negative inputs to safe values', () => {
+    expect(resolveEffectiveOverlayBudget(-1, 3, 1)).toBe(0)
+    expect(resolveEffectiveOverlayBudget(2.7, 3, 1)).toBe(2)
+    expect(resolveEffectiveOverlayBudget(3, -2, 1)).toBe(1)
+    expect(resolveEffectiveOverlayBudget(3, 2.4, 1)).toBe(2)
+    expect(resolveEffectiveOverlayBudget(3, 3, -1)).toBe(3)
+  })
+
+  it('accepts Infinity as pathwayCap (review mode) and collapses to authoredCount', () => {
+    expect(resolveEffectiveOverlayBudget(0, Number.POSITIVE_INFINITY, 1)).toBe(0)
+    expect(resolveEffectiveOverlayBudget(3, Number.POSITIVE_INFINITY, 1)).toBe(3)
+    expect(resolveEffectiveOverlayBudget(5, Number.POSITIVE_INFINITY, 0)).toBe(5)
+  })
+
+  it('full matrix enumeration is monotonic non-decreasing in authoredCount', () => {
+    for (const cap of [0, 1, 2, 3]) {
+      for (const floor of [0, 1]) {
+        let prev = -1
+        for (const authored of [0, 1, 2, 3, 4, 5]) {
+          const got = resolveEffectiveOverlayBudget(authored, cap, floor)
+          expect(got).toBeGreaterThanOrEqual(prev)
+          prev = got
+        }
+      }
+    }
+  })
+
+  it('full matrix enumeration is monotonic non-decreasing in pathwayCap', () => {
+    for (const authored of [0, 1, 2, 3, 4, 5]) {
+      for (const floor of [0, 1]) {
+        let prev = -1
+        for (const cap of [0, 1, 2, 3]) {
+          const got = resolveEffectiveOverlayBudget(authored, cap, floor)
+          expect(got).toBeGreaterThanOrEqual(prev)
+          prev = got
+        }
+      }
+    }
+  })
+
+  it('result is always within [0, authoredCount]', () => {
+    for (const authored of [0, 1, 2, 3, 4, 5]) {
+      for (const cap of [0, 1, 2, 3]) {
+        for (const floor of [0, 1]) {
+          const got = resolveEffectiveOverlayBudget(authored, cap, floor)
+          expect(got).toBeGreaterThanOrEqual(0)
+          expect(got).toBeLessThanOrEqual(authored)
+        }
+      }
+    }
   })
 })

@@ -69,6 +69,48 @@ export function getOverlayBudget(level: OverlayLevel): OverlayBudget {
 }
 
 /**
+ * Pack 2 Teaching-Quality F4 — single difficulty axis at runtime.
+ *
+ * Resolves the authored overlay count, the runtime Pathways cap, and a
+ * mandatory cue floor into one effective budget. Used by
+ * `applyOverlayLevel` so the two historically independent axes
+ * (authoring difficulty caps in `materialize-templates.ts` and runtime
+ * Pathways caps here) compose into a single coherent answer per scene.
+ *
+ * Semantics:
+ *   - Never returns more than `authoredCount` — the helper cannot
+ *     invent overlays.
+ *   - Never returns less than `min(authoredCount, mandatoryCueFloor)` —
+ *     the floor is bounded by what was actually authored, so an empty
+ *     authored list still resolves to 0 even if the floor is 1.
+ *   - Otherwise honours `pathwayCap` as the ceiling.
+ *
+ * Inputs are clamped to non-negative integers; `Infinity` for
+ * `pathwayCap` (review mode) is preserved through the math and
+ * collapses to `authoredCount` via the final `Math.min`.
+ *
+ * Policy lives in the caller — this helper is a pure clamp. The
+ * caller decides which floor to pass for which (level, phase). For
+ * `applyOverlayLevel` today: pre-answer uses floor=1 except in
+ * `none` (Boss Challenge) where floor=0; post-answer uses floor=0
+ * everywhere (priority sort already preserves the §9.8 reveal cue
+ * within a non-zero cap).
+ */
+export function resolveEffectiveOverlayBudget(
+  authoredCount: number,
+  pathwayCap: number,
+  mandatoryCueFloor: number,
+): number {
+  const safeAuthoredCount = Math.max(0, Math.floor(authoredCount))
+  const safePathwayCap = Math.max(0, Math.floor(pathwayCap))
+  const safeMandatoryCueFloor = Math.max(0, Math.floor(mandatoryCueFloor))
+
+  const floor = Math.min(safeAuthoredCount, safeMandatoryCueFloor)
+  const cap = Math.max(safePathwayCap, floor)
+  return Math.min(safeAuthoredCount, cap)
+}
+
+/**
  * Pre-answer filter — defense-in-depth. The schema validator already
  * rejects any pre-answer overlay outside `PRE_ANSWER_OVERLAY_KINDS`,
  * but this helper is called by the renderer with arrays that may
