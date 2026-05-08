@@ -155,7 +155,21 @@ export function buildDecoderConfidences(
     .slice(-REPLAY_VIEW_WINDOW)
     .reduce((acc, a) => acc + (a.replay_count ?? 0), 0)
 
-  return ALL_DECODERS.map((tag) => {
+  // Pack 2 admission: founders are ALWAYS represented (so the home
+  // ring renders consistently for every founder-pack player). Pack 2
+  // decoders are added only when the player has actually attempted
+  // one — preventing "ghost rings" for founders who have never seen
+  // a `READ_THE_COVERAGE` / `HUNT_THE_ADVANTAGE` scenario, while
+  // still surfacing confidence the moment they do.
+  const attemptedTags = decoderTagsFromAttempts(attempts)
+  const tagsForConfidence: DecoderTag[] = [...ALL_DECODERS]
+  for (const tag of attemptedTags) {
+    if (!tagsForConfidence.includes(tag)) {
+      tagsForConfidence.push(tag)
+    }
+  }
+
+  return tagsForConfidence.map((tag) => {
     const decoderAttempts = byDecoder.get(tag) ?? []
     const last = decoderAttempts[decoderAttempts.length - 1]
     const days = last

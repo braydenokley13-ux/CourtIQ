@@ -125,6 +125,84 @@ describe('buildDecoderConfidences', () => {
     expect(aor.nextProbe).toBe('first-rep')
   })
 
+  // ---- Pack 2 admission ----
+  // Founders are always represented; Pack 2 decoders only show up
+  // once the player has attempted one. Prevents "ghost rings" on
+  // /home for founder-only players while letting the return-loop's
+  // strongestDecoder + transfer logic see Pack 2 progress.
+
+  it('does NOT include Pack 2 decoders when the player has only founder attempts (no ghost rings)', () => {
+    const attempts = [
+      makeAttempt({ decoder_tag: 'BACKDOOR_WINDOW' }),
+      makeAttempt({ decoder_tag: 'EMPTY_SPACE_CUT' }),
+    ]
+    const result = buildDecoderConfidences(attempts, NOW)
+    const tags = result.map((r) => r.decoderTag)
+    expect(tags).not.toContain('READ_THE_COVERAGE')
+    expect(tags).not.toContain('HUNT_THE_ADVANTAGE')
+  })
+
+  it('includes founders even when the player has zero attempts (consistent home ring)', () => {
+    const result = buildDecoderConfidences([], NOW)
+    const tags = result.map((r) => r.decoderTag).sort()
+    expect(tags).toEqual([...ALL_DECODERS].sort())
+  })
+
+  it('includes READ_THE_COVERAGE the moment the player has at least one DROP attempt', () => {
+    const attempts = [
+      makeAttempt({ decoder_tag: 'BACKDOOR_WINDOW' }),
+      makeAttempt({
+        decoder_tag: 'READ_THE_COVERAGE' as AttemptWithScenario['scenario']['decoder_tag'],
+      }),
+    ]
+    const result = buildDecoderConfidences(attempts, NOW)
+    const drop = result.find((r) => r.decoderTag === 'READ_THE_COVERAGE')
+    expect(drop).toBeTruthy()
+    expect(drop!.evidence.attempts).toBe(1)
+  })
+
+  it('includes HUNT_THE_ADVANTAGE the moment the player has at least one HUNT attempt', () => {
+    const attempts = [
+      makeAttempt({
+        decoder_tag: 'HUNT_THE_ADVANTAGE' as AttemptWithScenario['scenario']['decoder_tag'],
+      }),
+    ]
+    const result = buildDecoderConfidences(attempts, NOW)
+    const hunt = result.find((r) => r.decoderTag === 'HUNT_THE_ADVANTAGE')
+    expect(hunt).toBeTruthy()
+    expect(hunt!.evidence.attempts).toBe(1)
+  })
+
+  it('keeps founders ahead of Pack 2 decoders in the result order (display-stable)', () => {
+    const attempts = [
+      makeAttempt({
+        decoder_tag: 'READ_THE_COVERAGE' as AttemptWithScenario['scenario']['decoder_tag'],
+      }),
+      makeAttempt({ decoder_tag: 'BACKDOOR_WINDOW' }),
+    ]
+    const result = buildDecoderConfidences(attempts, NOW)
+    const tags = result.map((r) => r.decoderTag)
+    // Founders occupy the first 4 slots regardless of attempt order.
+    expect(tags.slice(0, 4)).toEqual([...ALL_DECODERS])
+    // Pack 2 decoder appears after founders.
+    expect(tags.slice(4)).toContain('READ_THE_COVERAGE')
+  })
+
+  it('still dedupes when the same Pack 2 decoder is attempted multiple times', () => {
+    const attempts = [
+      makeAttempt({
+        decoder_tag: 'READ_THE_COVERAGE' as AttemptWithScenario['scenario']['decoder_tag'],
+      }),
+      makeAttempt({
+        decoder_tag: 'READ_THE_COVERAGE' as AttemptWithScenario['scenario']['decoder_tag'],
+      }),
+    ]
+    const result = buildDecoderConfidences(attempts, NOW)
+    const drop = result.filter((r) => r.decoderTag === 'READ_THE_COVERAGE')
+    expect(drop).toHaveLength(1)
+    expect(drop[0]!.evidence.attempts).toBe(2)
+  })
+
   // ---- Phase 10 — choice_quality denormalization ----
 
   it('falls back to the legacy proxy when choice_quality is null (legacy rows)', () => {
