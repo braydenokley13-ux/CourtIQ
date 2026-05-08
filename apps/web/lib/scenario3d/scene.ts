@@ -231,12 +231,21 @@ interface SourceScenario {
  * closed `DecoderTag` set, returning `undefined` for unknown values
  * (legacy scenarios, typos, or scenarios outside the v1 decoder
  * vocabulary). Defensive: never throws.
+ *
+ * Pack 2 (3.1.2/3.1.4) — `READ_THE_COVERAGE` (DROP) and
+ * `HUNT_THE_ADVANTAGE` (HUNT) were added so Pack 2 scenarios with
+ * those decoder_tag values reach the renderer with the correct
+ * tag attached to `Scene3D.decoderTag`. Without this entry, Pack 2
+ * scenarios would silently coerce to `undefined` and fall back to
+ * the movement-kind animation path.
  */
 const _DECODER_TAGS: ReadonlySet<DecoderTag> = new Set<DecoderTag>([
   'BACKDOOR_WINDOW',
   'EMPTY_SPACE_CUT',
   'SKIP_THE_ROTATION',
   'ADVANTAGE_OR_RESET',
+  'READ_THE_COVERAGE',
+  'HUNT_THE_ADVANTAGE',
 ])
 function _coerceDecoderTag(raw: string | undefined): DecoderTag | undefined {
   if (!raw) return undefined

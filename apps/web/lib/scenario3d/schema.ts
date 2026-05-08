@@ -168,7 +168,12 @@ export const overlayPrimitiveSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('help_pulse'),
     playerId: z.string().min(1),
-    role: z.enum(['tag', 'low_man', 'nail', 'stunter', 'overhelp']),
+    // Pack 2 (3.1.2) — `'mismatch'` was added so HUNT scenarios can
+    // highlight the targeted defender after a forced switch / hunt.
+    // The renderer treats `'mismatch'` like other help-pulse roles
+    // (full-opacity post-pick, gentler pre-pick); the role label
+    // surfaces the matchup to the user during the beat-2 freeze.
+    role: z.enum(['tag', 'low_man', 'nail', 'stunter', 'overhelp', 'mismatch']),
   }),
   z.object({
     kind: z.literal('drive_cut_preview'),
