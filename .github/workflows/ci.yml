@@ -43,5 +43,27 @@ jobs:
       - name: Prisma validate
         run: pnpm prisma:validate
 
+      # Pack 2 (Phase 3.1.6) — content gates.
+      #
+      # 1. Materialize check fails on any drift between
+      #    template+variant sources and packs/templates-v1/*.json. A
+      #    drift means the materialized JSONs are stale; running
+      #    `pnpm templates:materialize` regenerates them.
+      # 2. Variants lint fails on duplicate signatures, TODO prose in
+      #    LIVE/REVIEW variants, cross-template / cross-pack collisions.
+      # 3. Seed dry-run validates every fixture against the Zod schema
+      #    (concept_tag enum, decoder enum, choice quality, wrongDemo
+      #    coverage, coach_validation gating). DATABASE_URL is set at
+      #    the workflow `env` block so the seeder script compiles, but
+      #    --dry-run never opens a connection.
+      - name: Templates materialize check
+        run: pnpm templates:check
+
+      - name: Templates variants lint
+        run: pnpm templates:lint
+
+      - name: Seed scenarios dry-run
+        run: pnpm seed:scenarios -- --dry-run
+
       - name: Build
         run: pnpm build
