@@ -63,7 +63,7 @@
       { "id": "user_jab_show", "playerSlot": "corner_shooter", "kind": "jab", "to": { "x": 23, "z": 0 }, "delayMs": 0, "durationMs": 220 },
       { "id": "user_baseline_sneak", "playerSlot": "corner_shooter", "kind": "baseline_sneak", "to": { "x": 6, "z": -1 }, "delayMs": 80, "durationMs": 720 },
       { "id": "user_back_cut_finish", "playerSlot": "corner_shooter", "kind": "back_cut", "to": { "x": 1, "z": 0.5 }, "delayMs": 0, "durationMs": 360 },
-      { "id": "passer_lead_baseline", "playerSlot": "ball", "kind": "pass", "to": { "x": 1, "z": 0.5 }, "delayMs": 480, "durationMs": 540 },
+      { "id": "passer_lead_baseline", "playerSlot": "ball", "kind": "pass", "to": { "x": 1, "z": 0.5 }, "delayMs": 840, "durationMs": 540 },
       { "id": "user_catch_at_rim", "playerSlot": "corner_shooter", "kind": "lift", "to": { "x": 1, "z": 0.5 }, "delayMs": 0, "durationMs": 100 }
     ],
     "freezeMarker": { "kind": "atMs", "atMs": 1500 },
