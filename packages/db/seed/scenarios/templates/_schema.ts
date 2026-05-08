@@ -17,11 +17,17 @@ export const courtPointSchema = z.object({
   z: z.number().finite(),
 })
 
+// Pack 2 (3.1.11) adds READ_THE_COVERAGE (DROP) and HUNT_THE_ADVANTAGE
+// (HUNT). Order is significant for snapshot-style outputs (lint coverage
+// matrix), so new entries land at the end. Founder four stay first so
+// existing fixtures that hash decoder order do not drift.
 export const decoderTagSchema = z.enum([
   'BACKDOOR_WINDOW',
   'EMPTY_SPACE_CUT',
   'SKIP_THE_ROTATION',
   'ADVANTAGE_OR_RESET',
+  'READ_THE_COVERAGE',
+  'HUNT_THE_ADVANTAGE',
 ])
 
 export const categorySchema = z.enum(['OFFENSE', 'DEFENSE', 'TRANSITION', 'SITUATIONAL'])

@@ -29,11 +29,17 @@ const courtStateSchema = z.object({
 // the runtime stay in lockstep.
 const choiceQualitySchema = z.enum(['best', 'acceptable', 'wrong']);
 
+// Mirror of templates/_schema.ts and apps/web/lib/scenario3d/schema.ts.
+// Pack 2 (3.1.11) adds READ_THE_COVERAGE (DROP) + HUNT_THE_ADVANTAGE
+// (HUNT). All three mirrors must move in lockstep — see migration
+// 20260508_add_drop_hunt_decoders for the corresponding DB enum.
 const decoderTagSchema = z.enum([
   'BACKDOOR_WINDOW',
   'EMPTY_SPACE_CUT',
   'SKIP_THE_ROTATION',
   'ADVANTAGE_OR_RESET',
+  'READ_THE_COVERAGE',
+  'HUNT_THE_ADVANTAGE',
 ]);
 
 // Choice schema accepts BOTH legacy (`is_correct: boolean`) and new

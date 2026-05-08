@@ -18,6 +18,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import {
+  decoderTagSchema,
   templateSchema,
   variantSchema,
   variationSignature,
@@ -136,16 +137,23 @@ function lintCoverage(loaded: Loaded[]): { matrix: string; issues: Issue[] } {
       cells.set(key, (cells.get(key) ?? 0) + 1)
     }
   }
-  const decoders = ['BACKDOOR_WINDOW', 'EMPTY_SPACE_CUT', 'SKIP_THE_ROTATION', 'ADVANTAGE_OR_RESET']
+  // Derive decoders from the Zod enum so Pack 2 / Pack 3 additions surface
+  // automatically. Hardcoding the founder four meant a new decoder was a
+  // silent coverage gap until the matrix was updated by hand.
+  const decoders = decoderTagSchema.options
   const lines: string[] = ['Decoder × difficulty coverage:']
   lines.push('  ' + ['', 'D1', 'D2', 'D3', 'D4', 'D5'].join('\t'))
   const issues: Issue[] = []
+  // Pack 2 (3.1.11) — DROP / HUNT decoders are gated to D≥3 by design.
+  // Reporting D1 / D2 gaps for them would be a false positive, so the
+  // floor difficulty for the gap warning is decoder-specific.
+  const D_GE_3_ONLY: ReadonlySet<string> = new Set(['READ_THE_COVERAGE', 'HUNT_THE_ADVANTAGE'])
   for (const dec of decoders) {
     const row = [dec]
     for (let d = 1; d <= 5; d++) {
       const n = cells.get(`${dec}|${d}`) ?? 0
       row.push(String(n))
-      if (d <= 2 && n === 0) {
+      if (d <= 2 && n === 0 && !D_GE_3_ONLY.has(dec)) {
         issues.push({ severity: 'warn', message: `Coverage gap: ${dec} has no D${d} variant.` })
       }
     }

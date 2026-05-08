@@ -56,11 +56,18 @@ const sceneMovementSchema = z.object({
 })
 
 // --- Decoder taxonomy (Section 4.1) --------------------------------------
+// Pack 2 (3.1.11) adds READ_THE_COVERAGE (DROP) and HUNT_THE_ADVANTAGE
+// (HUNT). Mirror of scripts/seed-scenarios.ts and templates/_schema.ts;
+// every consumer of `DecoderTag` (overlay presets, camera presets,
+// freeze-frame cognition) must add a branch for the new tags before any
+// scenario citing them ships.
 export const decoderTagSchema = z.enum([
   'BACKDOOR_WINDOW',
   'EMPTY_SPACE_CUT',
   'SKIP_THE_ROTATION',
   'ADVANTAGE_OR_RESET',
+  'READ_THE_COVERAGE',
+  'HUNT_THE_ADVANTAGE',
 ])
 export type DecoderTag = z.infer<typeof decoderTagSchema>
 

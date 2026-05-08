@@ -292,6 +292,10 @@ enum DecoderTag {
   EMPTY_SPACE_CUT
   SKIP_THE_ROTATION
   ADVANTAGE_OR_RESET
+  // Pack 2 (3.1.11) — READ_THE_COVERAGE = DROP family, HUNT_THE_ADVANTAGE = HUNT
+  // family. Migration: 20260508_add_drop_hunt_decoders.
+  READ_THE_COVERAGE
+  HUNT_THE_ADVANTAGE
 }
 
 enum ChoiceQuality {
