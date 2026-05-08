@@ -14,7 +14,7 @@ CourtIQ is a "playable film room" basketball IQ trainer, not a video game.
 Each scenario is a tiny, deterministic, replayable possession that teaches
 **one** specific defensive or offensive read. Pack 1 (`founder-v0`) shipped
 20 hand-authored scenarios across the four founder decoders (BDW, ESC, SKR,
-AOR), all at difficulty 1 on render tier 1. This document is the
+AOR), all at render tier 1 spanning difficulty 1–3. This document is the
 architectural plan for **Pack 2** — 75 additional scenarios — and the
 authoring system, QA, and roadmap that make Pack 3+ a production line
 instead of a heroic effort.
@@ -22,6 +22,69 @@ instead of a heroic effort.
 The plan is intentionally **system-first**, not list-first. We do not name 75
 scenarios in this document; we design the system that produces them and
 prove the system can hit 75 without compromising teaching quality.
+
+---
+
+## Contents
+
+- [Executive Summary](#executive-summary)
+- [Phase 1 — Audit Findings](#phase-1--audit-findings)
+  - 1.1 What CourtIQ already does well
+  - 1.2 Where Pack 1 is the wrong shape for Pack 2
+  - 1.3 Anti-patterns and technical debt
+  - 1.4 Authoring bottlenecks (top 3)
+  - 1.5 Educational gaps
+  - 1.6 Repetition risk
+  - 1.7 Out of scope for Pack 2
+- [Phase 2 — Design the 75-Scenario Expansion](#phase-2--design-the-75-scenario-expansion)
+  - 2.1 Two new decoder families (DROP, HUNT)
+  - 2.2 Decoder coverage matrix
+  - 2.3 Difficulty ladder
+  - 2.4 Player learning journey
+  - 2.5 Scenario inventory by category
+  - 2.6 The "first hour" experience
+  - 2.7 Onboarding to advanced — the long arc
+- [Phase 3 — The Authoring System](#phase-3--the-authoring-system)
+  - 3.1 Compiler & lint hardening (14 items)
+  - 3.2 Schema standards
+  - 3.3 Tooling we still owe
+  - 3.4 Naming conventions
+  - 3.5 Clip timing standards
+  - 3.6 Camera & overlay standards
+  - 3.7 Freeze-frame and replay-choreography standards
+  - 3.8 Reuse strategy
+  - 3.9 Authoring economics (5.6× speedup)
+- [Phase 4 — Implementation Roadmap](#phase-4--implementation-roadmap)
+  - 4.1 Branch & PR strategy
+  - 4.2 Six milestone gates (G0–G5)
+  - 4.3 Parallelization
+  - 4.4 Automation vs. human review
+  - 4.5 QA strategy
+  - 4.6 Validation / testing checklist
+  - 4.7 Rollout sequence
+  - 4.8 Risks & mitigations
+  - 4.9 Done definition for Pack 2
+- [Phase 5 — Scenario Quality Rubric](#phase-5--scenario-quality-rubric)
+  - 5.1 What makes a great scenario
+  - 5.2 What makes a bad scenario (anti-patterns)
+  - 5.3 Cognitive overload risks
+  - 5.4 Repetition risks at the player layer
+  - 5.5 "Fake difficulty" traps
+  - 5.6 Over-coaching risks
+  - 5.7 Rubric scoring (0–3 per dimension)
+- [Phase 6 — Future Scalability](#phase-6--future-scalability)
+  - 6.1 Scaling to 300+ scenarios
+  - 6.2 Multiple sports
+  - 6.3 Community-authored scenarios
+  - 6.4 AI-assisted authoring
+  - 6.5 Adaptive difficulty
+  - 6.6 Player-weakness targeting
+  - 6.7 Dynamic decoder recommendations
+  - 6.8 The system Pack 2 leaves behind
+- [Appendix A — Glossary](#appendix-a--glossary-of-pack-2-concepts)
+- [Appendix B — Canonical 15-template inventory](#appendix-b--pack-2-template-inventory-canonical-list)
+- [Appendix C — Files this plan modifies](#appendix-c--files-this-plan-modifies)
+- [Appendix D — Open questions](#appendix-d--open-questions)
 
 ---
 
