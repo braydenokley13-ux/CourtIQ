@@ -66,8 +66,14 @@ pnpm qa:screenshot diff --pack founder-v0
 pnpm qa:screenshot diff --id BDW-T2-01 --via preview
 ```
 
-Exit 0 = clean, 1 = mismatch. Mismatches print both file paths so a
-reviewer can open them side-by-side in the GitHub diff UI.
+Exit 0 = clean. Exit 1 fires on either (a) any phase-hash mismatch
+or (b) any scenario without a committed baseline manifest. The
+missing-baseline case is treated as a hard failure — a regression
+gate cannot certify a scenario it never compared, so a silent pass
+would let drift through CI undetected. Mismatches print both file
+paths so a reviewer can open them side-by-side in the GitHub diff
+UI; missing-baseline IDs are listed so the operator can re-run
+`pnpm qa:screenshot baseline` against the exact set.
 
 ## Why this isn't in CI today
 

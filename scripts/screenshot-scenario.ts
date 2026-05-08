@@ -58,7 +58,11 @@
  * Exit codes
  * ----------
  *   0 — clean (baseline written, or diff matched everywhere)
- *   1 — diff found mismatches OR baseline write failed OR setup error
+ *   1 — diff found mismatches OR a baseline manifest was missing OR
+ *       baseline write failed OR setup error. A missing baseline in
+ *       diff mode is treated as a hard failure: the regression gate
+ *       cannot certify a scenario it never compared, so a silent
+ *       pass would let drift through CI undetected.
  *   2 — invalid arguments
  *
  * Architecture lock (read once, never violate):
@@ -133,6 +137,46 @@ interface PhaseHash {
 }
 
 type Manifest = Record<Phase, PhaseHash>
+
+/**
+ * Pure helper: given the tallies a `diff` run produced, decide the
+ * exit code and the human-readable summary. Extracted so the gate's
+ * failure semantics live in one auditable place — and so the rule
+ * "missing baseline ⇒ non-zero exit" can be reasoned about without
+ * spinning up Playwright.
+ *
+ * The contract is:
+ *   - Any missing baseline is a hard failure (exit 1) and the IDs are
+ *     listed so the operator can run `qa:screenshot baseline` against
+ *     the exact set.
+ *   - Any phase-hash mismatch is also a hard failure (exit 1).
+ *   - A clean run (zero missing, zero mismatches) is exit 0.
+ *   - Both signals can fire together; the summary surfaces both
+ *     before the script returns.
+ */
+function summarizeDiffOutcome(args: {
+  mismatchCount: number
+  missingBaselineIds: ReadonlyArray<string>
+}): { exitCode: 0 | 1; summaryLines: string[] } {
+  const lines: string[] = []
+  const missing = args.missingBaselineIds
+  if (missing.length > 0) {
+    lines.push('')
+    lines.push(`${missing.length} scenario(s) without baseline:`)
+    for (const id of missing) lines.push(`  - ${id}`)
+    lines.push('Run `pnpm qa:screenshot baseline` for these IDs first.')
+  }
+  if (args.mismatchCount > 0) {
+    lines.push('')
+    lines.push(`${args.mismatchCount} mismatch(es). See paths above.`)
+  }
+  const failed = missing.length > 0 || args.mismatchCount > 0
+  if (!failed) {
+    lines.push('')
+    lines.push('clean ✓')
+  }
+  return { exitCode: failed ? 1 : 0, summaryLines: lines }
+}
 
 function usage(): never {
   console.error(
@@ -326,7 +370,7 @@ async function runDiff(
   })
   const page = await context.newPage()
   let mismatchCount = 0
-  let missingBaselineCount = 0
+  const missingBaselineIds: string[] = []
   try {
     for (const id of ids) {
       console.log(`diff ${id} (via=${via})`)
@@ -335,7 +379,7 @@ async function runDiff(
       const manifestPath = path.join(baseDir, 'manifest.json')
       if (!existsSync(manifestPath)) {
         console.log(`  [missing-baseline] no baseline at ${manifestPath}`)
-        missingBaselineCount++
+        missingBaselineIds.push(id)
         continue
       }
       const baselineRaw = await readFile(manifestPath, 'utf8')
@@ -386,17 +430,12 @@ async function runDiff(
     return 1
   }
   await browser.close()
-  if (missingBaselineCount > 0) {
-    console.log(
-      `\n${missingBaselineCount} scenario(s) without baseline. Run \`pnpm qa:screenshot baseline\` first.`,
-    )
-  }
-  if (mismatchCount > 0) {
-    console.log(`\n${mismatchCount} mismatch(es). See paths above.`)
-    return 1
-  }
-  console.log('\nclean ✓')
-  return 0
+  const { exitCode, summaryLines } = summarizeDiffOutcome({
+    mismatchCount,
+    missingBaselineIds,
+  })
+  for (const line of summaryLines) console.log(line)
+  return exitCode
 }
 
 async function main(): Promise<void> {
