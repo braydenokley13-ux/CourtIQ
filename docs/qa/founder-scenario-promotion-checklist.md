@@ -24,7 +24,7 @@ A scenario does not become LIVE because the code passes — it becomes LIVE beca
 A LIVE scenario:
 
 - ships in the founder pack to every player who reaches its position in the progression,
-- can be assigned to a lesson without an extra `--allow-unvalidated` flag,
+- can be assigned to a lesson with no escape-hatch flags (Pack 2 §3.1.10 removed `--allow-unvalidated`),
 - is a load-bearing example for `decoder_teaching_point` copy and `lesson_connection` modules,
 - gets exercised by the existing CI suite on every PR.
 
@@ -182,7 +182,7 @@ This is a much heavier action. Use it only if a runtime regression makes every f
 
 The seeder enforces:
 - `coach_validation.level: 'high'` + `coach_validation.status: 'not_needed'` → reject.
-- `status: 'LIVE'` + `coach_validation.level: 'high'` + `coach_validation.status !== 'approved'` → reject (unless `--allow-unvalidated`).
+- `status: 'LIVE'` + `coach_validation.level: 'high'` + `coach_validation.status !== 'approved'` → reject. **No bypass exists** — Pack 2 §3.1.10 removed the `--allow-unvalidated` flag once Pack 1 audit confirmed every `level: 'high'` scenario was already `status: 'approved'`. Future LIVE high-level scenarios must move through the SME review queue.
 
 Founder scenarios all use `level: 'low'`, so the `LIVE + low + approved` combo is the supported promotion shape. Rolling back to `LIVE + low + needed` is also accepted by the seeder, but the test gate added in P3.3 rejects it — keep `status` and `coach_validation.status` flipped together.
 
