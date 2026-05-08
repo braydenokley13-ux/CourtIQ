@@ -19,9 +19,11 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import {
   decoderTagSchema,
+  proseBankSchema,
   templateSchema,
   variantSchema,
   variationSignature,
+  type ProseBank,
   type Template,
   type Variant,
 } from '../packages/db/seed/scenarios/templates/_schema'
@@ -32,6 +34,12 @@ const PACKS_DIR = path.join(process.cwd(), 'packages', 'db', 'seed', 'scenarios'
 interface Loaded {
   template: Template
   variants: Variant[]
+  /** Pack 2 §3.3 — optional per-template prose bank. Loaded lazily;
+   *  `null` means the file is absent (the template hasn't authored a
+   *  bank yet). The lint surfaces missing-bank cases as warnings. */
+  proseBank: ProseBank | null
+  /** Path to the template directory (for error messages). */
+  templateDir: string
 }
 
 async function load(): Promise<Loaded[]> {
@@ -57,9 +65,37 @@ async function load(): Promise<Loaded[]> {
     const variants = await Promise.all(
       files.map(async (f) => variantSchema.parse(JSON.parse(await fs.readFile(f, 'utf8')))),
     )
-    out.push({ template, variants })
+    const proseBank = await tryLoadProseBank(dir, template.id)
+    out.push({ template, variants, proseBank, templateDir: dir })
   }
   return out
+}
+
+/**
+ * Pack 2 §3.3 — load the optional `<template-dir>/prose-bank.json`.
+ * Returns `null` when absent; throws if present-but-malformed (a typo
+ * in a slot identifier or an unknown quality must fail loudly so the
+ * author sees it before merging the bank).
+ */
+async function tryLoadProseBank(
+  dir: string,
+  templateId: string,
+): Promise<ProseBank | null> {
+  const bankPath = path.join(dir, 'prose-bank.json')
+  let raw: string
+  try {
+    raw = await fs.readFile(bankPath, 'utf8')
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null
+    throw err
+  }
+  const parsed = proseBankSchema.parse(JSON.parse(raw))
+  if (parsed.template !== templateId) {
+    throw new Error(
+      `Prose bank ${path.relative(process.cwd(), bankPath)} declares template "${parsed.template}" but lives under "${templateId}".`,
+    )
+  }
+  return parsed
 }
 
 interface Issue {
@@ -449,6 +485,92 @@ function lintTodoProse(loaded: Loaded[]): Issue[] {
   return issues
 }
 
+// ---------------------------------------------------------------------------
+// Pack 2 §3.3 — Prose-bank lint skeleton (warn-first).
+//
+// Three discrete checks. None are runtime-load-bearing yet — variant
+// runtime consumption is still data-only — but landing the lint now
+// keeps authors honest while the bank shape stabilises.
+//
+//   1. lintProseBankCoverage — per-template, every choice quality
+//      declared by the template (best/acceptable/wrong) should have
+//      at least one prose-bank entry covering it. If the template
+//      has no prose-bank.json, this is a single per-template warning,
+//      NOT a fanout per choice — keeps the warning count flat.
+//
+//   2. lintUnresolvedSlotTokens — variant copy must not ship literal
+//      `{slot}` tokens. The runtime today doesn't expand them; an
+//      author who copies a skeleton straight out of the bank without
+//      filling its slots will leak `{cue_atom_short_desc}` into the
+//      UI. Severity tiered by status:
+//         LIVE   → error (cannot ship literal braces to users)
+//         REVIEW → error (SME-ready means prose is ready)
+//         DRAFT  → warn  (scaffolder leaves TODOs; author will iterate)
+//
+//   3. The schema itself (proseBankSchema.superRefine) already errors
+//      on unknown slot identifiers, so a typo is caught at parse time,
+//      not here.
+//
+// "Detect missing required slot fills" / "unchanged placeholder prose
+// in REVIEW/LIVE" are the two visible authoring hazards; this lint
+// addresses both at the variant boundary.
+// ---------------------------------------------------------------------------
+
+function lintProseBankCoverage(loaded: Loaded[]): Issue[] {
+  const issues: Issue[] = []
+  for (const { template, proseBank, variants } of loaded) {
+    // If the template has any non-DRAFT variants but no bank, surface
+    // a single warn-level reminder. DRAFT-only templates can defer the
+    // bank — the gold-standard workflow is: scaffold variant DRAFT →
+    // author bank → fill prose → promote to REVIEW.
+    const hasNonDraft = variants.some((v) => v.status !== 'DRAFT' && v.status !== 'RETIRED')
+    if (!proseBank) {
+      if (hasNonDraft) {
+        issues.push({
+          severity: 'warn',
+          message: `Template ${template.id}: missing prose-bank.json; required before any variant promotes past DRAFT.`,
+        })
+      }
+      continue
+    }
+    const required = new Set(template.choices.map((c) => c.quality))
+    const have = new Set(proseBank.entries.map((e) => e.quality))
+    for (const q of required) {
+      if (!have.has(q)) {
+        issues.push({
+          severity: 'warn',
+          message: `Template ${template.id}: prose-bank has no entry for quality "${q}" (template declares a "${q}" choice). Add at least one skeleton.`,
+        })
+      }
+    }
+  }
+  return issues
+}
+
+const SLOT_TOKEN_LITERAL = /\{[a-z][a-z0-9_]*\}/g
+
+function lintUnresolvedSlotTokens(loaded: Loaded[]): Issue[] {
+  const issues: Issue[] = []
+  for (const { variants } of loaded) {
+    for (const v of variants) {
+      if (v.status === 'RETIRED') continue
+      const json = JSON.stringify(v.copy)
+      const matches = json.match(SLOT_TOKEN_LITERAL)
+      if (!matches || matches.length === 0) continue
+      const uniq = [...new Set(matches)].sort()
+      const sample = uniq.slice(0, 4).join(', ')
+      const more = uniq.length > 4 ? ` (+${uniq.length - 4} more)` : ''
+      const msg = `Variant ${v.id}: unresolved prose-bank slot tokens in copy → ${sample}${more}. Replace with concrete prose before promoting.`
+      if (v.status === 'LIVE' || v.status === 'REVIEW') {
+        issues.push({ severity: 'error', message: msg })
+      } else {
+        issues.push({ severity: 'warn', message: msg })
+      }
+    }
+  }
+  return issues
+}
+
 async function main(): Promise<void> {
   const showCoverage = process.argv.includes('--coverage')
   const loaded = await load()
@@ -465,6 +587,8 @@ async function main(): Promise<void> {
     ...lintCameraPreset(loaded),
     ...lintOverlayPresetConformance(loaded),
     ...lintTodoProse(loaded),
+    ...lintProseBankCoverage(loaded),
+    ...lintUnresolvedSlotTokens(loaded),
   ]
   const cov = lintCoverage(loaded)
   issues.push(...cov.issues)
