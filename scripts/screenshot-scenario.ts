@@ -77,6 +77,7 @@ import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
+import { summarizeDiffOutcome } from '../apps/web/lib/visualRegression/diffSummary'
 
 const ROOT = process.cwd()
 const AUTH_FILE = path.resolve(ROOT, '.auth/courtiq-user.json')
@@ -137,63 +138,6 @@ interface PhaseHash {
 }
 
 type Manifest = Record<Phase, PhaseHash>
-
-/**
- * Pure helper: given the tallies a `diff` run produced, decide the
- * exit code and the human-readable summary. Extracted so the gate's
- * failure semantics live in one auditable place — and so the rule
- * "missing baseline ⇒ non-zero exit" can be reasoned about without
- * spinning up Playwright.
- *
- * The contract is:
- *   - Any missing baseline is a hard failure (exit 1) and the IDs are
- *     listed so the operator can run `qa:screenshot baseline` against
- *     the exact set.
- *   - Any phase-hash mismatch is also a hard failure (exit 1).
- *   - A clean run (zero missing, zero mismatches) is exit 0.
- *   - Both signals can fire together; the summary surfaces both
- *     before the script returns.
- *
- * Replay-1 — `allowMissingBaseline` opt-in demotes "no baseline" from
- * fail to warn so a soft CI gate can run before Pack 2 baselines have
- * been captured. Real hash mismatches still fail loud; only the
- * missing-baseline branch is relaxed. Default remains strict.
- */
-function summarizeDiffOutcome(args: {
-  mismatchCount: number
-  missingBaselineIds: ReadonlyArray<string>
-  allowMissingBaseline?: boolean
-}): { exitCode: 0 | 1; summaryLines: string[] } {
-  const lines: string[] = []
-  const missing = args.missingBaselineIds
-  const allowMissing = args.allowMissingBaseline === true
-  if (missing.length > 0) {
-    lines.push('')
-    lines.push(`${missing.length} scenario(s) without baseline:`)
-    for (const id of missing) lines.push(`  - ${id}`)
-    if (allowMissing) {
-      lines.push(
-        '[soft] ALLOW_MISSING_BASELINE=1 — missing baselines reported but not failing.',
-      )
-      lines.push(
-        'Capture them with `pnpm qa:preview:baseline --id <ID>` when ready.',
-      )
-    } else {
-      lines.push('Run `pnpm qa:screenshot baseline` for these IDs first.')
-    }
-  }
-  if (args.mismatchCount > 0) {
-    lines.push('')
-    lines.push(`${args.mismatchCount} mismatch(es). See paths above.`)
-  }
-  const missingFails = !allowMissing && missing.length > 0
-  const failed = missingFails || args.mismatchCount > 0
-  if (!failed) {
-    lines.push('')
-    lines.push('clean ✓')
-  }
-  return { exitCode: failed ? 1 : 0, summaryLines: lines }
-}
 
 function usage(): never {
   console.error(
