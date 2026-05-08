@@ -179,16 +179,44 @@ function lintVariationSignatureUnique(loaded: Loaded[]): Issue[] {
   return issues
 }
 
-function lintTodoProseInLive(loaded: Loaded[]): Issue[] {
+/**
+ * Phase 3.1.5 — promote TODO markers from a LIVE-only error to a
+ * staged rule:
+ *   - LIVE   with TODO  →  error  (blocks merge)
+ *   - REVIEW with TODO  →  error  (REVIEW means SME-ready; TODOs are
+ *                                  authoring debt that must clear
+ *                                  before review — see blueprint §3.1)
+ *   - DRAFT  with TODO  →  warn   (scaffolder writes TODOs intentionally)
+ *   - RETIRED with TODO →  ignore (retired prose is read-only)
+ *
+ * TODO detection scans `copy` recursively (already covered by
+ * JSON.stringify) AND flags TODOs anywhere in the variant — including
+ * `variation.overrides`, choice prose, etc.
+ */
+function lintTodoProse(loaded: Loaded[]): Issue[] {
   const issues: Issue[] = []
   for (const { variants } of loaded) {
     for (const v of variants) {
-      if (v.status !== 'LIVE') continue
-      const json = JSON.stringify(v.copy)
-      if (json.includes('TODO:')) {
+      if (v.status === 'RETIRED') continue
+      const json = JSON.stringify(v)
+      if (!json.includes('TODO:')) continue
+
+      if (v.status === 'LIVE') {
         issues.push({
           severity: 'error',
-          message: `Variant ${v.id} is LIVE but still contains TODO: prose. Either fill it in or set status to DRAFT.`,
+          message: `Variant ${v.id} is LIVE but still contains TODO: prose. Promotion to LIVE requires every TODO be resolved.`,
+        })
+      } else if (v.status === 'REVIEW') {
+        issues.push({
+          severity: 'error',
+          message: `Variant ${v.id} is REVIEW (SME-ready) but contains TODO: prose. Resolve the TODOs before submitting for SME review.`,
+        })
+      } else {
+        // DRAFT — TODOs are expected. Surface as a warning so authors
+        // see the count without it blocking merge of an in-flight branch.
+        issues.push({
+          severity: 'warn',
+          message: `Variant ${v.id} (DRAFT) contains TODO: prose — fill in before promoting to REVIEW.`,
         })
       }
     }
@@ -203,7 +231,7 @@ async function main(): Promise<void> {
     ...lintVariationSignatureUnique(loaded),
     ...lintAxisSpread(loaded),
     ...lintCrossTemplateCollision(loaded),
-    ...lintTodoProseInLive(loaded),
+    ...lintTodoProse(loaded),
   ]
   const cov = lintCoverage(loaded)
   issues.push(...cov.issues)

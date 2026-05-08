@@ -136,6 +136,20 @@ function enforceTemplateInvariants(template: Template, variants: Variant[]): voi
         `Variant ${v.id} user_slot "${v.variation.user_slot}" not in template ${template.id}.`,
       )
     }
+
+    // Phase 3.1.5 — defence in depth. lint-variants is the primary
+    // gate, but a materialize call can be invoked directly (e.g. from
+    // `pnpm seed:content` or a future CI dry-run). Refuse to emit a
+    // pack JSON for a LIVE / REVIEW variant carrying TODO: prose so the
+    // gap cannot be back-doored by skipping the lint step.
+    if (v.status === 'LIVE' || v.status === 'REVIEW') {
+      const json = JSON.stringify(v)
+      if (json.includes('TODO:')) {
+        throw new Error(
+          `Variant ${v.id} (${v.status}) still contains TODO: prose; refusing to materialize. Resolve the TODOs or set status to DRAFT.`,
+        )
+      }
+    }
   }
 
   // Repetition lint: no two variants with identical signature.
