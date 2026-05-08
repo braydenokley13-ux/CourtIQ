@@ -78,6 +78,10 @@ import { mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 import { summarizeDiffOutcome } from '../apps/web/lib/visualRegression/diffSummary'
+import {
+  PHASE_DOM_MATCH,
+  type VisualPhase,
+} from '../apps/web/lib/visualRegression/phaseDomSelector'
 
 const ROOT = process.cwd()
 const AUTH_FILE = path.resolve(ROOT, '.auth/courtiq-user.json')
@@ -105,7 +109,7 @@ const VIEWPORT = { width: 1440, height: 900 } as const
 const DEVICE_SCALE_FACTOR = 1
 
 type Mode = 'baseline' | 'diff'
-type Phase = 'load' | 'freeze' | 'after'
+type Phase = VisualPhase
 /**
  * Pack 2 §3.1.4 — capture surface.
  *
@@ -219,28 +223,18 @@ async function sha256OfFile(p: string): Promise<string> {
 /**
  * Pack 2 §3.1.14 / Replay-1 — phase wait selectors.
  *
- * The preview surface (`/dev/scenario-preview`) now mirrors the live
+ * The preview surface (`/dev/scenario-preview`) mirrors the live
  * ReplayPhase onto `<main data-replay-phase="…">`. The harness prefers
  * those selectors so `freeze` / `after` capture timing is
  * deterministic-by-state instead of deterministic-by-wall-clock. If
  * the attribute never appears (older surface, train route, render
  * stalled), the wall-clock PHASE_*_DELAY_MS path is the fallback.
  *
- *   load   — `'idle'` | `'setup'` | `'playing'` (any "before freeze"
- *            phase is acceptable; the canvas is up and lighting is
- *            steady).
- *   freeze — `'frozen'` (the legacy controller emits this once the
- *            freeze marker is reached and held).
- *   after  — `'done'` | `'replaying'` | `'cueRepaint'` (any
- *            "after-freeze" phase; intro mode lands on `'done'`,
- *            consequence + replay legs cycle through the others).
+ * The phase ↔ ReplayPhase token mapping lives in
+ * `apps/web/lib/visualRegression/phaseDomSelector.ts` so it can be
+ * unit-tested in the node env (the harness imports it as a pure
+ * constant; Playwright still owns the live attribute read).
  */
-const PHASE_DOM_MATCH: Record<Phase, ReadonlyArray<string>> = {
-  load: ['idle', 'setup', 'playing'],
-  freeze: ['frozen'],
-  after: ['cueRepaint', 'replaying', 'done'],
-}
-
 const PHASE_DOM_TIMEOUT_MS = Number.parseInt(
   process.env.PHASE_DOM_TIMEOUT_MS ?? '8000',
   10,
@@ -248,7 +242,7 @@ const PHASE_DOM_TIMEOUT_MS = Number.parseInt(
 
 async function waitForPhaseDom(
   page: Page,
-  phase: Phase,
+  phase: VisualPhase,
 ): Promise<'matched' | 'timed-out' | 'no-attribute'> {
   const accepted = PHASE_DOM_MATCH[phase]
   try {
