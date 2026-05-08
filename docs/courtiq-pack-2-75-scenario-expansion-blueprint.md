@@ -1003,5 +1003,193 @@ Pack 2 is shipped when **all** of the following are true:
 
 ---
 
+## Phase 5 — Scenario Quality Rubric
+
+QA gates catch broken scenarios. A rubric catches *boring* scenarios
+— scenarios that pass every check yet teach nothing memorable. This
+section is what every author and SME consults before authoring a
+new variant.
+
+### 5.1 What makes a great CourtIQ scenario
+
+A great scenario satisfies every one of these, in order:
+
+1. **One read, one decoder.** The scenario teaches exactly one
+   recognition pattern. If the freeze frame contains two equally
+   important cues, the scenario is two scenarios.
+2. **The cue is visible, not narrated.** The defender's body
+   language, position, momentum, or balance carries the information.
+   The prompt does not name the cue ("his hips are open"); the
+   scenario shows it.
+3. **The wrong choice is plausible.** Distractors are real reads a
+   real player would consider. Straw-man choices that no one would
+   pick teach nothing.
+4. **The wrong-demo teaches the failure.** The consequence playback
+   shows *why* the wrong choice fails — the deflection, the missed
+   window, the rotation that closed it. A wrong-demo that is just
+   "missed shot" fails this test.
+5. **The replay reveals the space.** The post-answer overlay set
+   anchors on the open space the read created — vacated paint,
+   skip-pass corridor, baseline lane. The reveal answers "where did
+   the advantage live?" not "what should I have done?"
+6. **The teaching point is one sentence.** "When his eyes leave,
+   your feet move." "Top-lock high → baseline low." If the teaching
+   point requires a paragraph, the scenario is too complex.
+7. **A 12-year-old can read it.** The prompt and choice copy work
+   without basketball jargon a youth player wouldn't have. Vernacular
+   is OK ("rip", "back-cut", "skip"); jargon is not ("ICE the side
+   PnR", "X-out the second-side rotation").
+8. **The replay payoff is visceral.** A successful read produces a
+   layup, a clean shot, an open swing. The visual outcome rewards
+   the cognitive work.
+9. **Difficulty is mechanical, not editorial.** D3 means a cue is
+   disguised, the clock is ticking, or a distractor is present —
+   not "the prompt is harder to read."
+10. **The scenario fits the freeze envelope.** Pre-freeze in 1.0–3.0
+    seconds, freeze in ≤2.3 seconds, consequence in 1.5–2.5 seconds,
+    answer in 2.0–3.0 seconds. Total ≤ 13 seconds (HUNT chains
+    excluded; capped at 18 seconds).
+
+### 5.2 What makes a bad CourtIQ scenario
+
+These are the **anti-patterns**. If a scenario hits any of them, it
+goes back to draft.
+
+1. **Two-decoder ambiguity at D2.** The freeze contains a BDW cue
+   and an ESC cue, both with valid actions. Acceptable at D4 as a
+   boss variant; never at D2.
+2. **The "best" choice is best because the others are illegal.**
+   "Cut to the rim / Stand still / Run out of bounds / Pass to the
+   ref." Three of the four are non-options.
+3. **The wrong-demo is silent.** Choice c2 fires; nothing visibly
+   happens; the answer replay starts. The player learns nothing
+   from the wrong choice.
+4. **The freeze is unreadable on phone.** Six labels, two arrows,
+   three vision cones, an open-space region, and a help-pulse all
+   on the same frame. The qa-checklist clutter cap exists for this.
+5. **The cue is the prompt.** "Your defender has his hand in the
+   lane. What do you do?" The prompt narrates what the freeze should
+   be showing.
+6. **The replay restates the prompt.** The post-answer reveal shows
+   the cue cluster again instead of revealing the space the cue
+   *opened*.
+7. **The decoder-teaching-point is two sentences with "and".** "When
+   his eyes leave, your feet move, **and** make sure to show your
+   hands." The "and" is an extra concept; cut it or make a second
+   scenario.
+8. **D3 is just D2 with smaller text.** Real difficulty came from
+   §2.3's four levers; if a scenario claims D3 without using one of
+   those levers, it is mis-tagged.
+9. **The boss variant is a riddle.** The competing-decoder cue is
+   so subtle that only the author can see it. Boss variants must
+   be solvable by a player who has seen the parent template at D3
+   five times.
+10. **Prose voice drifts from Pack 1.** Pack 1 has a recognizable
+    voice: short sentences, second person, no exclamation marks in
+    the prompt, present tense, closing line that names the body
+    part to watch. Drift makes the product feel inconsistent.
+11. **The scenario punishes the player for the system's failure.**
+    The cue is technically present but only renders for 80 ms before
+    the freeze; the freeze frame is 5° off-camera; the choice text
+    truncates on iPhone-SE. These are bugs, not difficulty.
+12. **The mirror variant is the only "new" variant.** A template
+    whose 5 variants are 4 mirrors of the same setup is a single
+    scenario marketed as five.
+
+### 5.3 Cognitive overload risks
+
+Pack 2 is the first pack where these become real:
+
+| Risk | Symptom | Mitigation |
+| --- | --- | --- |
+| Too many overlay primitives at the freeze | Player reads labels instead of bodies | Pre-answer cluster cap by difficulty (§3.6); SME flag at preview |
+| Two decoders at the freeze (boss exception) | D3+ scenarios feel frustrating, not hard | Restrict competing cues to D4 boss variants only |
+| Long prompts | Eye time competes with cue time | Prompt ≤140 chars; recommended ≤90 |
+| Cue chain depth >2 | Working-memory overflow for ages 10–14 | Cap HUNT chains at 2 freezes; defer 3-beat scenarios to Pack 3+ |
+| Clock pressure on D2 | Pack 1 graduates have not internalized clock yet | Reserve clock pressure for D3+ |
+| Long self-review checklists | Players skip them entirely | Keep checklists at 4 items; one-line each |
+
+### 5.4 Repetition risks at the player layer
+
+The lint catches duplicate variants. The *player experience* layer is
+different: even non-duplicate variants can feel like duplicates if
+the session generator stacks them. Three risks:
+
+1. **Streak dilution**. Five mirrored variants of one template in a
+   session feels like one possession played five times. Mitigation:
+   `scenarioService.generateSessionBundle` should diversify by
+   template, not by scenario id.
+2. **Decoder fatigue**. Five SKR scenarios in a row teaches "skip"
+   but exhausts the decoder. Mitigation: max two scenarios per
+   decoder per 5-scenario bundle.
+3. **Difficulty whiplash**. D2 → D5 → D2 → D4 reads as random.
+   Mitigation: bundle difficulty curves rise then plateau (e.g.
+   D2 → D2 → D3 → D3 → D4) — a small change to the existing weight
+   function.
+
+These three are runtime-tuning issues, not authoring issues. They
+appear here because they look like quality issues to the player.
+
+### 5.5 "Fake difficulty" traps to avoid
+
+A scenario must be hard for a basketball reason, not a UX reason.
+The difference matters because UX-driven difficulty erodes trust.
+
+| Trap | Why it's fake | What to do instead |
+| --- | --- | --- |
+| Shrinking the cue from 200 ms to 80 ms | Punishes vision acuity, not basketball | Disguise the cue (§3.6 disguise levels) |
+| Hiding the cue defender behind a label | Punishes pixel-hunting | Move the label; never hide the actor |
+| Adding a third irrelevant defender to clutter the frame | Punishes attention-management | Remove or reposition defenders, don't add noise |
+| Truncating choice text below readability | Punishes parsing | Rewrite the choice |
+| Removing the freezeMarker so the player picks before the cue lands | Punishes timing the system, not the read | Use freeze compression with a documented floor |
+| Adding a competing-decoder cue at D2 | Punishes a player for not knowing what they haven't been taught | Reserve competing cues for D4 boss variants |
+
+### 5.6 Over-coaching risks
+
+The opposite failure is **over-coaching** — making the read so
+explicit that the player isn't reading, just reciting. Symptoms:
+
+1. The prompt names the cue ("Defender hand is in the lane —").
+2. The pre-answer overlay points an arrow at the open space (this is
+   why `drive_cut_preview` and `open_space_region` are post-answer
+   only — already enforced at the schema level).
+3. The "best" choice repeats the prompt ("Cut behind because his
+   hand is in the lane"). The choice should be the action, not the
+   reason.
+4. The teaching point names the answer rather than the recognition.
+   "Cut behind the defender" vs. "When the pass is blocked, the
+   space behind it is open."
+5. Multiple correct choices that all rephrase each other ("Cut
+   behind", "Back-cut", "Cut to the rim"). The player can't pick
+   wrong, so they don't read.
+
+**Pack 1 failure mode worth naming**: AOR-03 ("No advantage —
+reset") is an *intentional* low-payoff scenario teaching the
+non-shot read. It earns its place pedagogically but performs
+poorly because the resolution is "swing the ball" — anti-climax.
+Pack 2's reset variants (AOR.flying-baseline includes one) must
+make the reset feel like a *choice* rather than a non-action.
+
+### 5.7 Rubric scoring (used during SME review)
+
+Every scenario is scored 0–3 on each of the following, by the SME
+during template-batch review:
+
+| Dimension | 0 | 1 | 2 | 3 |
+| --- | --- | --- | --- | --- |
+| Cue clarity | Cue not visible | Cue visible but cluttered | Cue clear | Cue is the most natural thing the eye lands on |
+| Distractor plausibility | Straw-men | One real, two straw-men | Two real distractors | All three distractors are real reads |
+| Wrong-demo teaches failure | No wrong demo | Wrong demo plays but unclear | Wrong demo shows the failure | Wrong demo *and* a caption that names the failure |
+| Replay payoff | No payoff | Layup attempted | Clean finish | Clean finish + visceral reveal of the open space |
+| Prose discipline | Prose drifts from voice | Voice consistent but prompt over-wordy | Tight | Sounds like a Pack 1 scenario authored by the same hand |
+| Difficulty correctness | Wrong tier | Off by one | Tier matches mechanical lever | Tier emerges naturally; player feels the lever |
+
+**Threshold to ship**: every scenario averages ≥2.0 across the six
+dimensions, with no dimension at 0. Scores live in
+`coach_validation.notes` and are persisted on `LIVE`.
+
+---
+
+
 
 
