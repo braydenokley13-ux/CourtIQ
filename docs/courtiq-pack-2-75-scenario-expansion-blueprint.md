@@ -796,4 +796,212 @@ template instead of the author's discipline.**
 
 ---
 
+## Phase 4 — Implementation Roadmap
+
+This is the build sequence. Ordering optimizes for: (a) cheap
+prerequisites first, (b) high-risk items behind feature flags,
+(c) parallelizable streams identified explicitly, (d) every PR is
+small enough to revert, (e) every milestone has a measurable gate.
+
+### 4.1 Branch & PR strategy
+
+- **Trunk**: `main`.
+- **Phase 1 work-stream branch**: `pack-2/phase-1-compiler` —
+  hardening PRs (3.1.1 through 3.1.14) merge into this branch in
+  small chunks, each with its own reviewer. Branch merges to `main`
+  only when the 14 items are green.
+- **Phase 2 work-stream branch**: `pack-2/phase-2-templates` —
+  templates (15 of them) author here. Each template is its own PR.
+- **Phase 3 work-stream branch**: `pack-2/phase-3-variants` —
+  variant authoring after templates merge.
+- **Phase 4 work-stream branch**: `pack-2/phase-4-rollout` — feature
+  flag flips, instrumentation, launch.
+
+We use **stacked PRs** for templates (template PR → variant PRs that
+depend on it) so the author can keep working while the template
+review is in flight.
+
+**Branch hygiene rules** (already standard in the repo):
+- Never push to `main` without a green PR.
+- Never `git push --force` to a shared branch.
+- Hooks are not skipped; if `pre-commit` fails, fix the issue.
+- One migration per PR.
+
+### 4.2 Milestone sequence (six gates)
+
+| Gate | Name | Definition of Done | Blocking criteria |
+| --- | --- | --- | --- |
+| **G0** | Plan adopted | This document is reviewed by content lead, basketball SME, and an engineer; sign-offs in PR comments | Anyone disputes a decoder family, ladder, or matrix cell |
+| **G1** | Compiler hardened | 14 items in §3.1 merged to `main`; all CI green; Pack 1 regression pass clean (every founder-v0 scenario still seeds and renders) | Any Pack 1 scenario regresses |
+| **G2** | Templates landed | 15 templates merged to `main` with SME approval; `pnpm templates:lint --coverage` shows a populated matrix; visual baseline captured | Any template has unresolved SME notes |
+| **G3** | Variants authored | 75 scenarios in `LIVE` status; CI green; lint clean; coach validation `approved` for every `LIVE` scenario; visual regression baseline shows no unintended drift | Any scenario fails the QA checklist |
+| **G4** | Beta soft-launch | Pack 2 behind a feature flag; 5–10 internal players play full sessions; bugs filed | Crash rate >0; misread accuracy <10% on D2 |
+| **G5** | GA | Flag flipped on production; PostHog dashboard shows attempts on at least 50 of the 75 scenarios within 7 days; per-scenario accuracy and skip rate within targets (Section 4.5) | Any scenario flagged by the live-monitor heuristic |
+
+### 4.3 Parallelization
+
+Items that **can** run concurrently:
+
+- All 14 compiler/lint items in §3.1 are mostly independent. The
+  longest-blocked is 3.1.4 (Scene3D.timingOverrides) since it
+  touches the renderer. Parallel-friendly groups:
+  - Group A (seeder): 3.1.1, 3.1.5, 3.1.7, 3.1.8, 3.1.9, 3.1.10, 3.1.11, 3.1.12
+  - Group B (runtime): 3.1.2, 3.1.3, 3.1.4, 3.1.13, 3.1.14
+  - Group C (CI): 3.1.6 — depends on Group A items landing
+- Template authoring (Phase 2 of the build, after G1):
+  Eight founder-extension templates can author in parallel because
+  they share no files. The four new-family templates land after the
+  decoder enums (3.1.11) and presets (3.1.2) are in.
+- Variant authoring: Within a template, all 4–6 variants can
+  parallelize across authors. SME review batches per template.
+- Lessons: The four new lesson JSONs (`read-the-coverage`,
+  `hunt-the-second-read`, `transition-stop-ball`,
+  `late-clock-mismatch`) author in parallel with templates.
+
+Items that **must** run sequentially:
+
+1. 3.1.11 (DROP / HUNT decoder enums) → blocks all DROP / HUNT
+   templates.
+2. 3.1.2 (decoder-overlay preset enforcement) → blocks any template
+   that ships overlays outside the preset.
+3. 3.1.4 (timing overrides) → blocks any D3+ template that needs
+   shorter cognition holds.
+4. 3.1.6 (templates lint in CI) → blocks G2; without it, variant
+   collisions ship undetected.
+5. Template materialization → variant scaffolding → variant authoring
+   per template.
+
+### 4.4 Automation vs. human review
+
+**Automated** (CI / lint / seeder / materializer):
+- Schema validation (every field, every type, cross-refs).
+- Variation signature uniqueness (template-local + cross-template +
+  cross-pack after 3.1.7/3.1.8).
+- Single-axis spread detection (lint warning).
+- Decoder/difficulty coverage matrix gap report.
+- TODO-marker presence (lint error after 3.1.5).
+- Pre-answer overlay allowlist (already enforced; 3.1.2 extends to
+  decoder preset).
+- Camera preset match (Phase 3.1.3).
+- Cognition hold floor enforcement (Phase 3.1.4 lint rule).
+- Visual regression diff (3.1.14).
+
+**Human-only** (no automation will replace these for Pack 2):
+- Basketball correctness of the "best" choice.
+- Plausibility of distractor choices.
+- Pedagogical clarity of the prompt for a 12-year-old.
+- Whether the wrong-demo *teaches* the failure rather than just
+  showing a missed shot.
+- Whether the boss variant's competing-decoder cue is genuinely
+  ambiguous to a player who has not yet mastered both decoders.
+- Whether prose voice matches the existing Pack 1 voice (we noted
+  Pack 1 has a recognizable closing-line pattern: "Watch his body,
+  not your spot.").
+
+The async coach-review queue (deferred tooling from §3.3) is the
+v1.5 unlock. For Pack 2, SMEs walk a per-template review with the
+content lead present.
+
+### 4.5 QA strategy
+
+**Per-scenario QA** uses `docs/scenario-qa-checklist.md` unchanged.
+Every Pack 2 scenario must pass every applicable item before its
+`status` flips to `LIVE`. New items added for Pack 2:
+
+- HUNT chained reads: both freeze beats independently pass §3
+  framing, §4 overlay discipline, §6 consequence playback, §7 best-
+  read reveal.
+- DROP camera preset: top-down framing must show all 5 defenders.
+- Cross-decoder boss variants: the competing-decoder distractor cue
+  must be visible at the freeze, and the wrong-demo must show
+  *why* the competing-decoder answer fails in this context.
+- Per-difficulty cognition hold: the lint floor (1100 ms) and
+  declared override is what the runtime actually uses.
+
+**Pack-level QA** runs at G3:
+
+1. **Coverage matrix snapshot**. `pnpm templates:lint --coverage`
+   output gets committed to the repo as
+   `docs/qa/pack-2-coverage-snapshot.md`.
+2. **Visual regression**. `screenshot-scenario.ts` captures the
+   freeze frame for all 75 scenarios; PR comment shows diffs against
+   any prior baseline. Drift on Pack 1 scenarios is investigated
+   before Pack 2 ships.
+3. **Live-bundle dry run**. A scripted session generator pulls 100
+   sample bundles via `scenarioService.generateSessionBundle`. Pack
+   2 scenarios must appear in the expected ratios (mastery-band
+   weighting); no scenario is starved.
+4. **Accuracy targets per difficulty band**:
+
+| Difficulty | Expected accuracy band (cold play) | Skip-rate ceiling |
+| --- | --- | --- |
+| 2 | 65–85% | 8% |
+| 3 | 45–65% | 12% |
+| 4 | 30–50% | 18% |
+| 5 | 25–40% | 22% |
+
+   Scenarios that fall outside their band after 50 LIVE attempts
+   are flagged for re-balance per `CONTENT_SYSTEM.md` §4.2.
+
+### 4.6 Validation / testing checklist
+
+| Layer | What to validate | How |
+| --- | --- | --- |
+| Schema | New decoder tags, cue atoms, timingOverrides field, beatSpec | `pnpm seed:scenarios -- --dry-run` per template |
+| Materializer | 15 templates × variants → 75 scenarios in `packs/templates-v2/` | `pnpm templates:materialize --check` |
+| Lint | No TODO markers, no signature collisions, no axis-spread warns | `pnpm templates:lint` exits 0 |
+| Renderer | Pack 1 still seeds and renders; Pack 2 freeze frame and replay legs play deterministically | `pnpm test`, `pnpm dev`, walk every scenario via `/dev/scenario-preview?id=…` |
+| Service | Session bundle returns Pack 2 scenarios in expected weight; spaced-rep due dates re-queue Pack 2 scenarios on miss | bundle-replay test fixture (Phase 4 deliverable) |
+| Mastery | DROP / HUNT mastery rows update on attempt; gating prerequisites unlock as expected | mastery-replay test fixture |
+| Determinism | Same scenario twice → identical movement timeline + identical phase emissions | `replayDeterminism.test.ts` extended to Pack 2 sample |
+| Mobile | iPhone-SE-class viewport, all 75 scenarios fit, single-thumb reachable | `docs/scenario-qa-checklist.md` §12 |
+| Reduced motion | All overlay reveals downgrade gracefully | qa-checklist §11 |
+| WebGL fallback | 2D `<Court>` renders Pack 2 scenarios; choices and feedback still surface | qa-checklist §13 |
+
+### 4.7 Rollout sequence
+
+1. **Internal alpha (G3 → G4)**: 5 engineers + 2 SMEs play 30
+   minutes a day for one week. Goals: catch ambiguous prompts,
+   broken consequences, mobile layout regressions.
+2. **Closed beta (G4)**: 30 invited players (mix of 12-year-olds,
+   16-year-olds, and adult coaches). Two-week play window. PostHog
+   captures every attempt; daily standup reviews accuracy outliers.
+3. **Public soft-launch (G5)**: feature flag flipped to 100% on a
+   weekday morning. PostHog dashboard pinned on the team monitor.
+   On-call rotation: one engineer + one content person.
+4. **Cadence after launch**: weekly accuracy & skip-rate review;
+   monthly content cadence (per `CONTENT_SYSTEM.md` §6) starts
+   producing Pack 3 templates.
+
+### 4.8 Risks & mitigations
+
+| Risk | Likelihood | Impact | Mitigation |
+| --- | --- | --- | --- |
+| HUNT chained-read scenarios feel laggy on low-end mobile | M | H | Frame-budget audit at G2; degrade second beat to a static cue card on tier-low devices |
+| DROP overlays clutter the top-down camera at D2 | M | M | Cap pre-answer cue cluster at 2 for DROP D2 (one notch tighter than the global cap) |
+| SME bottleneck stretches G3 | H | H | Recruit second SME at G1; review queue UI deferred until v1.5 but template-batch reviews start at G2 |
+| Template lint regressions silently slip | M | H | 3.1.6 (CI gate) is a hard prerequisite; G1 cannot land without it |
+| Pack 2 scenarios accidentally duplicate Pack 1 | L | M | 3.1.8 (cross-pack signature check) catches at lint time |
+| Cognition-hold floor enforcement breaks Pack 1 | L | H | Pack 1 keeps the default 1400 ms; only Pack 2 D3+ scenarios opt in via `timingOverrides` |
+| Decoder-overlay enforcement (3.1.2) regresses Pack 1 | M | H | Run a Pack 1 visual regression pass after 3.1.2 lands; allow per-scenario `enforceDecoderPreset: false` opt-out for the 1 founder scenario that genuinely needs it (AOR-01 has 6 pre-answer entries today) |
+| Coach validation `--allow-unvalidated` removal blocks an in-flight Pack 1 fix | L | M | Audit Pack 1 first; bring all `level: 'high'` scenarios to `status: 'approved'` before removing the flag |
+
+### 4.9 Done definition for Pack 2
+
+Pack 2 is shipped when **all** of the following are true:
+
+- 75 scenarios in `LIVE` status across the 6-decoder × 4-difficulty
+  matrix as planned in §2.2.
+- 15 templates merged with SME approval.
+- All scenarios pass the QA checklist + visual regression baseline.
+- `pnpm templates:lint --coverage` shows the planned matrix shape.
+- The feature flag is at 100% on production and has been for ≥7 days.
+- PostHog has captured ≥1 attempt on ≥50 of the 75 scenarios within
+  those 7 days.
+- The Pack 1 founder pack still seeds, renders, and is unaffected
+  by Pack 2 changes.
+
+---
+
+
 
