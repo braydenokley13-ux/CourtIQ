@@ -28,6 +28,11 @@
       "id": "BDW-T2-01",
       "file": "BDW-T2-01.json",
       "prerequisites": []
+    },
+    {
+      "id": "BDW-T2-02",
+      "file": "BDW-T2-02.json",
+      "prerequisites": []
     }
   ]
 }
