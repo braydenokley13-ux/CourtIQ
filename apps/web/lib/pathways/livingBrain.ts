@@ -100,6 +100,7 @@ export type ObservationKind =
   | 'anticipation_streak'
   | 'archetype_emerging'
   | 'dormant_decoder'
+  | 'applied_recognition'
 
 export type ObservationSurface =
   /** Home card; user-facing. */
@@ -139,6 +140,7 @@ export const COOLDOWN_DAYS: Record<ObservationKind, number> = {
   anticipation_streak: 7,
   archetype_emerging: 30,
   dormant_decoder: 14,
+  applied_recognition: 14,
 }
 
 /** Once an archetype has been earned, hold it for ≥ this many days

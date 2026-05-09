@@ -19,7 +19,9 @@ export default async function SettingsPage() {
     create: {
       id: user.id,
       email: user.email ?? `${user.id}@courtiq.local`,
-      display_name: user.user_metadata?.full_name ?? null,
+      username: user.user_metadata?.username ?? user.id,
+      recovery_email: user.user_metadata?.recovery_email ?? null,
+      display_name: user.user_metadata?.display_name ?? user.user_metadata?.full_name ?? null,
     },
     update: {
       email: user.email ?? `${user.id}@courtiq.local`,
@@ -29,7 +31,7 @@ export default async function SettingsPage() {
   const record = await prisma.user.findUnique({
     where: { id: user.id },
     select: {
-      email: true,
+      username: true,
       display_name: true,
       email_unsubscribed: true,
       position: true,
@@ -39,7 +41,7 @@ export default async function SettingsPage() {
 
   return (
     <SettingsClient
-      email={record?.email ?? user.email ?? ''}
+      email={record?.username ?? user.user_metadata?.username ?? ''}
       displayName={record?.display_name ?? ''}
       emailUnsubscribed={record?.email_unsubscribed ?? false}
       position={record?.position ?? null}

@@ -11,6 +11,8 @@ generator client {
 model User {
   id                  String      @id @default(uuid())
   email               String      @unique
+  username            String?     @unique
+  recovery_email      String?
   display_name        String?
   birthdate           DateTime?
   position            Position?

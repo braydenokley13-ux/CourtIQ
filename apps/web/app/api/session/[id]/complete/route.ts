@@ -43,13 +43,13 @@ export async function POST(
     try {
       const userRecord = await prisma.user.findUnique({
         where: { id: body.userId! },
-        select: { email: true, display_name: true, email_unsubscribed: true, profile: { select: { iq_score: true, current_streak: true } } },
+        select: { username: true, recovery_email: true, display_name: true, email_unsubscribed: true, profile: { select: { iq_score: true, current_streak: true } } },
       })
       if (!userRecord) return
-      if (userRecord.email_unsubscribed) return
+      if (userRecord.email_unsubscribed || !userRecord.recovery_email) return
       const { subject, html } = sessionCompleteEmail({
-        name: userRecord.display_name ?? userRecord.email.split('@')[0],
-        email: userRecord.email,
+        name: userRecord.display_name ?? userRecord.username ?? 'Player',
+        email: userRecord.recovery_email,
         correctCount: ended.correct_count,
         totalScenarios: ended.scenario_ids.length,
         xpEarned: ended.xp_earned,
@@ -57,7 +57,7 @@ export async function POST(
         iqAfter: userRecord.profile?.iq_score ?? 500,
         streakDays: userRecord.profile?.current_streak ?? 0,
       })
-      await sendEmail({ to: userRecord.email, subject, html })
+      await sendEmail({ to: userRecord.recovery_email, subject, html })
     } catch (err) {
       console.error('[email/session-complete]', err)
     }

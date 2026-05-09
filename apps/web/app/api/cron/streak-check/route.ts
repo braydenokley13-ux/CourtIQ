@@ -18,13 +18,15 @@ export async function GET(request: Request) {
   const usersAtRisk = await prisma.user.findMany({
     where: {
       email_unsubscribed: false,
+      recovery_email: { not: null },
       profile: { current_streak: { gt: 0 } },
       streaks: {
         none: { date: { gte: todayStart } },
       },
     },
     select: {
-      email: true,
+      username: true,
+      recovery_email: true,
       display_name: true,
       profile: { select: { current_streak: true } },
     },
@@ -34,14 +36,14 @@ export async function GET(request: Request) {
   for (const user of usersAtRisk) {
     try {
       const { subject, html } = streakAtRiskEmail({
-        name: user.display_name ?? user.email.split('@')[0],
-        email: user.email,
+        name: user.display_name ?? user.username ?? 'Player',
+        email: user.recovery_email!,
         streakDays: user.profile?.current_streak ?? 1,
       })
-      await sendEmail({ to: user.email, subject, html })
+      await sendEmail({ to: user.recovery_email!, subject, html })
       sent++
     } catch (err) {
-      console.error('[cron/streak-check] failed for', user.email, err)
+      console.error('[cron/streak-check] failed for', user.recovery_email, err)
     }
   }
 

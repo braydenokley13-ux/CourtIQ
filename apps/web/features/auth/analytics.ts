@@ -7,7 +7,7 @@
  */
 import { track, identify, resetIdentity } from '@/lib/analytics/events'
 
-export function trackSignup(method: 'email' | 'google'): void {
+export function trackSignup(method: 'email' | 'google' | 'username'): void {
   track('auth_signup', { method })
 }
 
