@@ -249,12 +249,20 @@ export const freezeMarkerSchema = z.discriminatedUnion('kind', [
  *   - cueRepaintHoldWrongMs   — replaces CUE_REPAINT_HOLD_WRONG_MS (400)
  *
  * Floors:
- *   - cognitionHoldMs has a 1100ms floor (qa-checklist §6 readability).
+ *   - cognitionHoldMs ≥ 800ms (the absolute floor across every
+ *     difficulty — see `ABSOLUTE_COGNITION_HOLD_FLOOR_MS` in
+ *     freezeFrameCognition.ts). Pack 2 Teaching-Quality F1: the
+ *     per-difficulty narrowing (D1-D3=1100, D4=1000, D5=800) is
+ *     enforced in the materializer (scripts/materialize-templates.ts)
+ *     against the variant's effective difficulty
+ *     (`cognitionHoldFloorForDifficulty`). The schema only enforces
+ *     the absolute floor so a template can be parsed in isolation
+ *     before its variants are joined.
  *   - All hold values capped at 4_000ms — anything longer should split
  *     into a HUNT chained-read instead of stretching one freeze.
  */
 export const timingOverridesSchema = z.object({
-  cognitionHoldMs: z.number().int().min(1100).max(4_000).optional(),
+  cognitionHoldMs: z.number().int().min(800).max(4_000).optional(),
   choiceTrayAtMs: z.number().int().min(0).max(4_000).optional(),
   cueRepaintHoldCorrectMs: z.number().int().min(200).max(4_000).optional(),
   cueRepaintHoldWrongMs: z.number().int().min(200).max(4_000).optional(),
