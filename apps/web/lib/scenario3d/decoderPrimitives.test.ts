@@ -55,6 +55,21 @@ const FOUNDER_DIR = path.resolve(
   'founder-v0',
 )
 
+describe('Pack 2 (Phase β) — READ_THE_COVERAGE primitive entry', () => {
+  it('declares a non-stub teaching beat with screen-defender cue', () => {
+    const drop = getDecoderVisualPrimitives('READ_THE_COVERAGE')
+    expect(drop.label).toBe('Read the Coverage')
+    // Voice rule: not the placeholder "Pack 2 stub" sentence anymore.
+    expect(drop.beat.readSentence).not.toMatch(/stub/i)
+    expect(drop.beat.readSentence).toMatch(/screen|drop|pocket|recover/i)
+    // Authoring requirements include the screen-defender role substring
+    // — this is the lint anchor for LINT-DROP-02.
+    expect(drop.requiredAuthoring.requiredPlayerRoleSubstrings).toEqual(
+      expect.arrayContaining(['ball_handler', 'screen_defender']),
+    )
+  })
+})
+
 const FOUNDER_DECODERS: readonly DecoderTag[] = [
   'BACKDOOR_WINDOW',
   'ADVANTAGE_OR_RESET',

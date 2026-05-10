@@ -32,6 +32,7 @@ import {
   type OverlayLevel,
 } from '@/lib/scenario3d/overlayLevel'
 import { getDecoderTeachingLabel } from '@/lib/scenario3d/replayTeachingTimeline'
+import { ALL_KNOWN_DECODERS, DECODER_LABELS } from '@/lib/decoders/registry'
 
 export interface PreviewScenario {
   id: string
@@ -55,23 +56,15 @@ interface ScenarioPreviewClientProps {
   scenarios: PreviewScenario[]
 }
 
-const DECODER_LABEL: Record<DecoderTag, string> = {
-  BACKDOOR_WINDOW: 'Backdoor Window',
-  EMPTY_SPACE_CUT: 'Empty-Space Cut',
-  ADVANTAGE_OR_RESET: 'Advantage or Reset',
-  SKIP_THE_ROTATION: 'Skip the Rotation',
-  READ_THE_COVERAGE: 'Read the Coverage',
-  HUNT_THE_ADVANTAGE: 'Hunt the Advantage',
-}
+// Display label for the family chip — sourced from the central
+// decoder registry so adding a new decoder elsewhere automatically
+// flows through here.
+const DECODER_LABEL: Record<DecoderTag, string> = DECODER_LABELS
 
-const FAMILY_ORDER: DecoderTag[] = [
-  'BACKDOOR_WINDOW',
-  'EMPTY_SPACE_CUT',
-  'ADVANTAGE_OR_RESET',
-  'SKIP_THE_ROTATION',
-  'READ_THE_COVERAGE',
-  'HUNT_THE_ADVANTAGE',
-]
+// Display order for the family list. Founders first, then Pack 2.
+// The dev preview's `?` deep-link order matches this for stable
+// snapshot tests.
+const FAMILY_ORDER: readonly DecoderTag[] = ALL_KNOWN_DECODERS
 
 const CHECKLIST_ITEMS: readonly string[] = [
   'Cue visible at freeze',

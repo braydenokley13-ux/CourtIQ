@@ -93,6 +93,16 @@ export function ScenarioScene3D({
     setReplayPhase(next)
     onPhase?.(next)
   }
+  // Pack 2 (3.1.4) — beat index for HUNT chained scenes. The bridge
+  // swaps the pre-overlay set on beat 2 from `preAnswerOverlays` to
+  // `secondBeatPreAnswerOverlays` when this transitions 0 → 1. Pack 1
+  // scenes never advance past 0; they see no behavior change.
+  const [beatIndex, setBeatIndex] = useState<0 | 1>(0)
+  // Reset beat index whenever the scene swaps; prevents a stale beat-2
+  // overlay set from leaking into a fresh scenario load.
+  useEffect(() => {
+    setBeatIndex(0)
+  }, [scene.id])
 
   // When the scene changes, drop stale refs so the new player set has a
   // fresh map.
@@ -135,17 +145,21 @@ export function ScenarioScene3D({
         onPhase={handlePhase}
         resetCounter={resetCounter}
         pickedChoiceId={pickedChoiceId}
+        onBeatIndex={setBeatIndex}
       />
 
       {/* Phase H — authored pre/post overlay bridge. Mounts a heuristic-free
           TeachingOverlayController inside the JSX scene tree so decoder
           scenarios on the full path get layered post-answer reveals.
           FR-5 — `overlayLevel` controls how much of the authored cluster
-          actually mounts. */}
+          actually mounts.
+          Pack 2 (3.1.4) — `beatIndex` is forwarded so the bridge can
+          swap pre-overlays for HUNT beat 2. */}
       <AuthoredOverlayBridge
         scene={scene}
         replayPhase={replayPhase}
         overlayLevel={overlayLevel}
+        beatIndex={beatIndex}
       />
 
       {showPaths && activeMovements.length > 0
@@ -232,10 +246,16 @@ function AuthoredOverlayBridge({
   scene,
   replayPhase,
   overlayLevel,
+  beatIndex = 0,
 }: {
   scene: Scene3D
   replayPhase: ReplayPhase
   overlayLevel: OverlayLevel
+  /** Pack 2 (3.1.4) — when 1, the bridge mounts
+   *  `secondBeatPreAnswerOverlays` / `secondBeatPostAnswerOverlays`
+   *  in place of the primary overlay arrays. Pack 1 scenes always
+   *  pass 0 (and the secondBeat arrays are empty anyway). */
+  beatIndex?: 0 | 1
 }) {
   const root = useThree((s) => s.scene as unknown as THREE.Group)
   const ctrlRef = useRef<TeachingOverlayController | null>(null)
@@ -253,18 +273,48 @@ function AuthoredOverlayBridge({
   // level filter on every (scene.id × overlayLevel) change. The filter
   // is pure so the result memo lets the rebuild effect below depend
   // on the filtered shape rather than re-invoking the filter inline.
+  //
+  // Pack 2 (3.1.2) — `consequenceOverlays` is filtered alongside the
+  // pre/post arrays; the filter currently passes consequence through
+  // unchanged (it does not have its own per-tier suppression rule),
+  // so the bridge feeds the raw scene array. When a per-tier rule
+  // lands later, extend `applyOverlayLevel` rather than the bridge.
+  // Memoized so the rebuild effect's dep array stays stable across
+  // renders that don't change the underlying scene field.
+  const consequenceOverlays = useMemo(
+    () => scene.consequenceOverlays ?? [],
+    [scene.consequenceOverlays],
+  )
+
+  // Pack 2 (3.1.4) — pick the active pre/post overlay set based on
+  // beat index. On beat 2, prefer the secondBeat arrays when authored;
+  // fall back to the primary arrays when the secondBeat arrays are
+  // empty so authors can opt into "beat 2 reuses beat 1 overlays".
+  const activePreAnswer = useMemo(() => {
+    const secondBeatPreAnswer = scene.secondBeatPreAnswerOverlays ?? []
+    return beatIndex === 1 && secondBeatPreAnswer.length > 0
+      ? secondBeatPreAnswer
+      : scene.preAnswerOverlays
+  }, [beatIndex, scene.secondBeatPreAnswerOverlays, scene.preAnswerOverlays])
+  const activePostAnswer = useMemo(() => {
+    const secondBeatPostAnswer = scene.secondBeatPostAnswerOverlays ?? []
+    return beatIndex === 1 && secondBeatPostAnswer.length > 0
+      ? secondBeatPostAnswer
+      : scene.postAnswerOverlays
+  }, [beatIndex, scene.secondBeatPostAnswerOverlays, scene.postAnswerOverlays])
+
   const filtered = useMemo(
     () =>
       applyOverlayLevel({
-        preAnswer: scene.preAnswerOverlays,
-        postAnswer: scene.postAnswerOverlays,
+        preAnswer: activePreAnswer,
+        postAnswer: activePostAnswer,
         level: overlayLevel,
         // Pack 2 Teaching-Quality F6 — promote the decoder's primary
         // cue kind through the priority sort so a tight cap (advanced
         // = 1) cannot drop the cue identifying the decoder.
         decoderTag: scene.decoderTag,
       }),
-    [overlayLevel, scene.preAnswerOverlays, scene.postAnswerOverlays, scene.decoderTag],
+    [overlayLevel, activePreAnswer, activePostAnswer, scene.decoderTag],
   )
 
   useEffect(() => {
@@ -273,7 +323,7 @@ function AuthoredOverlayBridge({
       reduced,
       heuristic: false,
     })
-    ctrl.setAuthoredOverlays(filtered.preAnswer, filtered.postAnswer)
+    ctrl.setAuthoredOverlays(filtered.preAnswer, filtered.postAnswer, consequenceOverlays)
     // FR-5 — suppressed levels (Boss / 'none') keep the controller
     // mounted so phase callbacks still no-op cleanly, but with the
     // overlay group hidden so nothing renders.
@@ -292,7 +342,7 @@ function AuthoredOverlayBridge({
     // Rebuild only on scene swap or filter result swap; phase changes
     // flow through setPhase below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scene.id, filtered, overlayLevel])
+  }, [scene.id, filtered, overlayLevel, consequenceOverlays])
 
   useEffect(() => {
     const ctrl = ctrlRef.current
@@ -301,14 +351,24 @@ function AuthoredOverlayBridge({
     // end / best-read pick and the start of answer-leg motion. We
     // re-paint the pre-answer cluster so the cue lands one more
     // time before the read plays.
+    //
+    // Pack 2 (3.1.2) — `consequence` controller phase routes to the
+    // new `'consequence'` overlay phase WHEN the scene authors a
+    // non-empty `consequenceOverlays` set; otherwise it falls back
+    // to `'post'` so Pack 1 wrong-demo legs (which have no
+    // consequence overlays authored) keep their existing visual
+    // treatment bit-identical.
+    const hasConsequenceOverlays = consequenceOverlays.length > 0
     const overlayPhase: OverlayPhase =
       replayPhase === 'frozen' || replayPhase === 'cueRepaint'
         ? 'pre'
-        : replayPhase === 'consequence' ||
-            replayPhase === 'replaying' ||
-            replayPhase === 'done'
-          ? 'post'
-          : 'hidden'
+        : replayPhase === 'consequence'
+          ? hasConsequenceOverlays
+            ? 'consequence'
+            : 'post'
+          : replayPhase === 'replaying' || replayPhase === 'done'
+            ? 'post'
+            : 'hidden'
     ctrl.setPhase(overlayPhase)
 
     // FR-6 — end-of-rep teaching label. Mounts on `done` and

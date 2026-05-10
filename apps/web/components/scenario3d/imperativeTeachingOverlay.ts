@@ -189,8 +189,10 @@ interface AnimatedFadeIn {
   durationMs: number
   startMs: number | null
   /** Which authored-overlay group this fade belongs to; set by
-   *  `setPhase` so only the visible phase's animations animate. */
-  phase: 'pre' | 'post'
+   *  `setPhase` so only the visible phase's animations animate.
+   *  Pack 2 (3.1.2) — `'consequence'` was added for HUNT inter-beat
+   *  bridge overlays and Pack 1 wrong-demo consequence overlays. */
+  phase: 'pre' | 'consequence' | 'post'
   /** FR-5 §9.7 — per-primitive stage-in delay relative to phase
    *  enter. Defaults to 0 for legacy callers; `setAuthoredOverlays`
    *  patches this with `getStageInDelayMs(primitiveIndex)` so the
@@ -212,13 +214,26 @@ interface AnimatedBuildOut {
   arrowheadTargetOpacity: number
   durationMs: number
   startMs: number | null
-  phase: 'pre' | 'post'
+  phase: 'pre' | 'consequence' | 'post'
   /** FR-5 §9.7 — per-primitive stage-in delay relative to phase
    *  enter. See `AnimatedFadeIn.delayMs`. */
   delayMs?: number
 }
 
-export type OverlayPhase = 'pre' | 'post' | 'hidden'
+/**
+ * The visibility-flippable overlay phase the renderer toggles between
+ * as the controller walks `idle → frozen → consequence → cueRepaint
+ * → replaying → done`. Only one of `pre` / `consequence` / `post` is
+ * visible at a time; `hidden` parks all three.
+ *
+ * Pack 2 (3.1.2) — `'consequence'` was added so the `consequence`
+ * overlay set authored on the scene (or compiled from
+ * `OverlayBeatPhase: 'consequence'` beats) renders as a distinct
+ * cluster rather than collapsing onto the post-answer set. Scenes
+ * that author no `consequenceOverlays` continue to flip directly
+ * from `pre` → `post`, preserving Pack 1 behavior bit-identical.
+ */
+export type OverlayPhase = 'pre' | 'consequence' | 'post' | 'hidden'
 
 /**
  * Lightweight imperative teaching overlay. Owns its own THREE objects
@@ -234,13 +249,19 @@ export class TeachingOverlayController {
   private animatedRings: AnimatedRing[] = []
   private animatedHalos: AnimatedHalo[] = []
   private reduced: boolean
-  // Phase E — authored-overlay sub-groups. Both default hidden; the
-  // canvas calls setPhase('pre' | 'post' | 'hidden') to flip which set
-  // is visible. Visibility-flip rather than teardown keeps GPU
-  // allocations stable across the freeze → consequence → replaying
-  // legs of the state machine.
+  // Phase E — authored-overlay sub-groups. All default hidden; the
+  // canvas calls setPhase('pre' | 'consequence' | 'post' | 'hidden')
+  // to flip which set is visible. Visibility-flip rather than teardown
+  // keeps GPU allocations stable across the freeze → consequence →
+  // cueRepaint → replaying legs of the state machine.
+  //
+  // Pack 2 (3.1.2) — `consequenceGroup` is a third sibling of
+  // `preAnswerGroup` / `postAnswerGroup`. It mounts overlays authored
+  // on `scene.consequenceOverlays`; an empty consequence overlay
+  // array leaves the group inert (no fades scheduled, never visible).
   private preAnswerGroup: THREE.Group
   private postAnswerGroup: THREE.Group
+  private consequenceGroup: THREE.Group
   private animatedFades: AnimatedFadeIn[] = []
   private animatedBuilds: AnimatedBuildOut[] = []
   // Phase E — per-help-pulse handles. Pulse a halo + a label sprite at
@@ -305,8 +326,13 @@ export class TeachingOverlayController {
     this.postAnswerGroup = new THREE.Group()
     this.postAnswerGroup.name = 'authored-post-answer-overlays'
     this.postAnswerGroup.visible = false
+    // Pack 2 (3.1.2) — third sibling for consequence-phase overlays.
+    this.consequenceGroup = new THREE.Group()
+    this.consequenceGroup.name = 'authored-consequence-overlays'
+    this.consequenceGroup.visible = false
     this.group.add(this.preAnswerGroup)
     this.group.add(this.postAnswerGroup)
+    this.group.add(this.consequenceGroup)
 
     // Phase 3 — focus / feedback marks layer. Both groups stay visible
     // by default; per-player marks toggle visibility implicitly by
@@ -355,6 +381,7 @@ export class TeachingOverlayController {
   setAuthoredOverlays(
     preAnswer: readonly OverlayPrimitive[],
     postAnswer: readonly OverlayPrimitive[],
+    consequence: readonly OverlayPrimitive[] = [],
   ): void {
     this.disposeAuthored()
     // V2-D — reorder anchors → supports → auxiliaries before staging
@@ -364,8 +391,14 @@ export class TeachingOverlayController {
     // §9.7 stage-in timing (40 / 120 / 220 ms) stays intact.
     const stagedPre = reorderForChoreography(preAnswer)
     const stagedPost = reorderForChoreography(postAnswer)
+    const stagedConsequence = reorderForChoreography(consequence)
     this.buildAndStageAuthoredPhase(stagedPre, this.preAnswerGroup, 'pre')
     this.buildAndStageAuthoredPhase(stagedPost, this.postAnswerGroup, 'post')
+    this.buildAndStageAuthoredPhase(
+      stagedConsequence,
+      this.consequenceGroup,
+      'consequence',
+    )
   }
 
   /** FR-5 §9.7 — builds each primitive in turn and patches every
@@ -379,7 +412,7 @@ export class TeachingOverlayController {
   private buildAndStageAuthoredPhase(
     primitives: readonly OverlayPrimitive[],
     target: THREE.Group,
-    phase: 'pre' | 'post',
+    phase: 'pre' | 'consequence' | 'post',
   ): void {
     for (let i = 0; i < primitives.length; i += 1) {
       const fadeStart = this.animatedFades.length
@@ -407,7 +440,8 @@ export class TeachingOverlayController {
     this.phase = phase
     this.preAnswerGroup.visible = phase === 'pre'
     this.postAnswerGroup.visible = phase === 'post'
-    if (phase === 'pre' || phase === 'post') {
+    this.consequenceGroup.visible = phase === 'consequence'
+    if (phase === 'pre' || phase === 'consequence' || phase === 'post') {
       this.startFadesForPhase(phase, nowMs)
     }
   }
@@ -735,7 +769,7 @@ export class TeachingOverlayController {
    *  swap arrays without leaking. The heuristic-derived overlays in
    *  the parent group are left intact. */
   private disposeAuthored(): void {
-    for (const grp of [this.preAnswerGroup, this.postAnswerGroup]) {
+    for (const grp of [this.preAnswerGroup, this.postAnswerGroup, this.consequenceGroup]) {
       grp.traverse((obj) => {
         const mesh = obj as THREE.Mesh & { geometry?: THREE.BufferGeometry }
         if (mesh.geometry && typeof mesh.geometry.dispose === 'function') {
@@ -761,7 +795,7 @@ export class TeachingOverlayController {
   /** Phase E — stamps `startMs` on every fade-in / build-out animation
    *  belonging to the active phase. Called by `setPhase` so the next
    *  tick begins the primitives' fade-in timing from t=0. */
-  private startFadesForPhase(phase: 'pre' | 'post', nowMs: number): void {
+  private startFadesForPhase(phase: 'pre' | 'consequence' | 'post', nowMs: number): void {
     for (const f of this.animatedFades) {
       if (f.phase === phase && f.startMs === null) f.startMs = nowMs
     }
@@ -1115,7 +1149,7 @@ export class TeachingOverlayController {
    */
   private buildAuthoredPrimitive(
     target: THREE.Group,
-    phase: 'pre' | 'post',
+    phase: 'pre' | 'consequence' | 'post',
     primitive: OverlayPrimitive,
   ): void {
     switch (primitive.kind) {
@@ -1203,7 +1237,7 @@ export class TeachingOverlayController {
    *  pulse beyond the existing animatedRings layer. */
   private buildVisionCone(
     target: THREE.Group,
-    phase: 'pre' | 'post',
+    phase: 'pre' | 'consequence' | 'post',
     playerId: string,
     targetId?: string,
   ): void {
@@ -1250,7 +1284,7 @@ export class TeachingOverlayController {
    *  the foot arrow reads as smaller. */
   private buildBodyArrow(
     target: THREE.Group,
-    phase: 'pre' | 'post',
+    phase: 'pre' | 'consequence' | 'post',
     playerId: string,
     height: number,
     color: string,
@@ -1314,7 +1348,7 @@ export class TeachingOverlayController {
    *  defender at chest height, indicating the chest plane. */
   private buildChestLine(
     target: THREE.Group,
-    phase: 'pre' | 'post',
+    phase: 'pre' | 'consequence' | 'post',
     playerId: string,
   ): void {
     const player = this.playerById(playerId)
@@ -1361,7 +1395,7 @@ export class TeachingOverlayController {
    *  vertical bar plus a horizontal arc piece. */
   private buildHandInLane(
     target: THREE.Group,
-    phase: 'pre' | 'post',
+    phase: 'pre' | 'consequence' | 'post',
     playerId: string,
   ): void {
     const player = this.playerById(playerId)
@@ -1423,7 +1457,7 @@ export class TeachingOverlayController {
    *  authored anchor. Subtle, brand-accent low alpha. */
   private buildOpenSpaceRegion(
     target: THREE.Group,
-    phase: 'pre' | 'post',
+    phase: 'pre' | 'consequence' | 'post',
     anchor: { x: number; z: number },
     radiusFt: number,
   ): void {
@@ -1479,7 +1513,7 @@ export class TeachingOverlayController {
    *  table above. */
   private buildHelpPulse(
     target: THREE.Group,
-    phase: 'pre' | 'post',
+    phase: 'pre' | 'consequence' | 'post',
     playerId: string,
     role: 'tag' | 'low_man' | 'nail' | 'stunter' | 'overhelp',
   ): void {
@@ -1501,9 +1535,12 @@ export class TeachingOverlayController {
     ring.position.set(player.start.x, PATH_Y + 0.02, player.start.z)
     target.add(ring)
 
-    // Pre-answer is gentler (lower base opacity); post-answer carries
-    // the full role label and a stronger pulse.
-    const baseOpacity = phase === 'post' ? 0.7 : 0.4
+    // Pre-answer is gentler (lower base opacity); post-answer and
+    // consequence carry the full role label and a stronger pulse.
+    // Pack 2 (3.1.2) — `consequence` is post-pick like `post`, so it
+    // shares the post visual treatment (full opacity + role label).
+    const isPostLike = phase === 'post' || phase === 'consequence'
+    const baseOpacity = isPostLike ? 0.7 : 0.4
     this.animatedFades.push({
       material: ringMat,
       targetOpacity: baseOpacity,
@@ -1517,7 +1554,7 @@ export class TeachingOverlayController {
       baseOpacity,
     })
 
-    if (phase === 'post') {
+    if (isPostLike) {
       const sprite = this.buildLabelSprite(role.replace('_', ' '))
       sprite.position.set(player.start.x, 1.9, player.start.z)
       target.add(sprite)
@@ -1539,7 +1576,7 @@ export class TeachingOverlayController {
    *  point on completion. */
   private buildDriveCutPreview(
     target: THREE.Group,
-    phase: 'pre' | 'post',
+    phase: 'pre' | 'consequence' | 'post',
     playerId: string,
     path: ReadonlyArray<{ x: number; z: number }>,
   ): void {
@@ -1596,7 +1633,7 @@ export class TeachingOverlayController {
    *  two endpoints (player ids or the literal `'ball'`). */
   private buildPassingLane(
     target: THREE.Group,
-    phase: 'pre' | 'post',
+    phase: 'pre' | 'consequence' | 'post',
     fromId: string,
     toId: string,
     color: string,
@@ -1636,7 +1673,7 @@ export class TeachingOverlayController {
    *  canvas-sprite renderer; opacity fades in like any defender cue. */
   private buildAuthoredLabel(
     target: THREE.Group,
-    phase: 'pre' | 'post',
+    phase: 'pre' | 'consequence' | 'post',
     anchor: { x: number; z: number },
     text: string,
   ): void {

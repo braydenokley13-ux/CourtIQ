@@ -33,7 +33,11 @@ function preset(
     wrongDemos: [],
     preAnswerOverlays: [],
     postAnswerOverlays: [],
+    consequenceOverlays: [],
+    secondBeatPreAnswerOverlays: [],
+    secondBeatPostAnswerOverlays: [],
     freezeAtMs: null,
+    secondFreezeAtMs: null,
     synthetic: false,
   }
 }

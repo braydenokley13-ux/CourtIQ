@@ -81,8 +81,15 @@ const BASE_PRESETS = new Set<CameraMode>(['broadcast', 'auto', 'follow'])
 export function getCameraTransitionEaseS(
   from: CameraMode,
   to: CameraMode,
+  context?: CameraTransitionContext,
 ): number {
   if (!isCameraMode(from) || !isCameraMode(to)) return LEGACY_CAMERA_EASE_S
+  // Pack 2 (3.1.4) — chained-freeze bridge overrides the legacy
+  // identity behaviour: beat 1 → beat 2 with the same preset returns
+  // a deliberate settle ease so the second freeze reads as composed.
+  if (context?.chainedFreezeBridge && from === to) {
+    return clamp(CHAINED_FREEZE_BRIDGE_EASE_S)
+  }
   if (from === to) return LEGACY_CAMERA_EASE_S
 
   // Top-down lifts (overhead reveal). Any → top-down or top-down →
@@ -112,6 +119,16 @@ export function getCameraTransitionEaseS(
 /**
  * Bucket label the transition table maps to. Surfaced separately so
  * tests can pin the policy without depending on the exact τ value.
+ *
+ * Pack 2 (3.1.4) — `chained-freeze-bridge` was added for HUNT
+ * scenarios where the camera bridges from beat 1 to beat 2 across
+ * the inter-beat unfreeze. When both freezes use the same camera
+ * preset (the common case), `from === to` would otherwise collapse
+ * to `instant` (legacy 0.18s, no perceivable transition); the
+ * bridge kind elevates the same-preset case to a deliberate ~0.36s
+ * settle so the second freeze reads as a re-arrival rather than a
+ * blink. Callers signal HUNT context by passing
+ * `{ chainedFreezeBridge: true }` to the pure helpers below.
  */
 export type CameraTransitionKind =
   | 'instant'
@@ -120,12 +137,38 @@ export type CameraTransitionKind =
   | 'teach-pivot'
   | 'teach-out'
   | 'top-down-lift'
+  | 'chained-freeze-bridge'
+
+export interface CameraTransitionContext {
+  /** Pack 2 (3.1.4) — set true when the camera is bridging from a
+   *  HUNT first-beat freeze to a second-beat freeze. Lets the helper
+   *  return a deliberate settle ease even when both beats use the
+   *  same preset. Default false (= legacy behavior). */
+  chainedFreezeBridge?: boolean
+}
+
+/**
+ * Pack 2 (3.1.4) — ease constant for the chained-freeze bridge. Sits
+ * between `teach-pivot` (0.32s) and `teach-in` (0.40s): the camera is
+ * not moving between presets but it IS holding through a beat
+ * transition, so the ease should read as composed. Tuning rationale
+ * lives in the design doc (HUNT_DECODER_DESIGN.md §3.3).
+ */
+const CHAINED_FREEZE_BRIDGE_EASE_S = 0.36
 
 export function getCameraTransitionKind(
   from: CameraMode,
   to: CameraMode,
+  context?: CameraTransitionContext,
 ): CameraTransitionKind {
   if (!isCameraMode(from) || !isCameraMode(to)) return 'incidental'
+  // Pack 2 (3.1.4) — chained-freeze bridge takes precedence over the
+  // identity case so beat 1 → beat 2 with the same preset still reads
+  // as a deliberate cut. Non-identity bridges (e.g. teaching-angle →
+  // player-read-angle on beat 2) fall through to the existing
+  // teach-pivot path; the bridge label is reserved for the same-preset
+  // case where the legacy table would have returned `instant`.
+  if (context?.chainedFreezeBridge && from === to) return 'chained-freeze-bridge'
   if (from === to) return 'instant'
   if (TOP_DOWN_PRESETS.has(to) || TOP_DOWN_PRESETS.has(from)) {
     return 'top-down-lift'

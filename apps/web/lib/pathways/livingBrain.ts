@@ -238,35 +238,35 @@ export function recognizeArchetype(
 
 // --- copy vocabulary -------------------------------------------------------
 
-const DECODER_LABEL_BY_TAG: Record<DecoderTag, string> = {
+const DECODER_LABEL_BY_TAG: Partial<Record<DecoderTag, string>> = {
   BACKDOOR_WINDOW: 'BDW',
   EMPTY_SPACE_CUT: 'ESC',
   SKIP_THE_ROTATION: 'SKR',
   ADVANTAGE_OR_RESET: 'AOR',
 }
 
-const GROWTH_COPY: Record<DecoderTag, string> = {
+const GROWTH_COPY: Partial<Record<DecoderTag, string>> = {
   BACKDOOR_WINDOW: 'Reading BDW earlier than two weeks ago.',
   EMPTY_SPACE_CUT: 'Catching ESC reads quicker than before.',
   SKIP_THE_ROTATION: 'Skip reads are sharpening up.',
   ADVANTAGE_OR_RESET: 'Closeout reads are climbing.',
 }
 
-const TENDENCY_COPY: Record<DecoderTag, string> = {
+const TENDENCY_COPY: Partial<Record<DecoderTag, string>> = {
   BACKDOOR_WINDOW: 'You catch denial defenders early.',
   EMPTY_SPACE_CUT: 'You see help defenders move before most.',
   SKIP_THE_ROTATION: 'You read over-rotations cleanly.',
   ADVANTAGE_OR_RESET: 'You read closeout balance well.',
 }
 
-const HESITATION_COPY: Record<DecoderTag, string> = {
+const HESITATION_COPY: Partial<Record<DecoderTag, string>> = {
   BACKDOOR_WINDOW: 'BDW is taking you a beat longer right now.',
   EMPTY_SPACE_CUT: 'ESC is settling slower lately.',
   SKIP_THE_ROTATION: 'Skip reads are taking longer to land.',
   ADVANTAGE_OR_RESET: 'AOR is taking you a beat longer right now.',
 }
 
-const DORMANT_COPY: Record<DecoderTag, string> = {
+const DORMANT_COPY: Partial<Record<DecoderTag, string>> = {
   BACKDOOR_WINDOW: 'BDW hasn’t come up in a while.',
   EMPTY_SPACE_CUT: 'ESC reads have been quiet lately.',
   SKIP_THE_ROTATION: 'Skip reads have been on the shelf.',
@@ -341,21 +341,18 @@ export function _internalCandidates(snapshot: BrainSignalSnapshot): Observation[
   for (const d of snapshot.decoders) {
     // dormant_decoder
     if (d.daysSinceLastRep >= DORMANT_DAYS_THRESHOLD) {
-      out.push({
-        kind: 'dormant_decoder',
-        decoder: d.decoder,
-        copy: DORMANT_COPY[d.decoder],
-        surface: 'home_card',
-      })
+      const copy = DORMANT_COPY[d.decoder]
+      // Pack 2 — TODO(pack-2): author copy variants and drop this guard.
+      if (copy) {
+        out.push({ kind: 'dormant_decoder', decoder: d.decoder, copy, surface: 'home_card' })
+      }
     }
     // growth
     if (d.growthSlopePerDay !== null && d.growthSlopePerDay >= GROWTH_SLOPE_THRESHOLD) {
-      out.push({
-        kind: 'growth',
-        decoder: d.decoder,
-        copy: GROWTH_COPY[d.decoder],
-        surface: 'home_card',
-      })
+      const copy = GROWTH_COPY[d.decoder]
+      if (copy) {
+        out.push({ kind: 'growth', decoder: d.decoder, copy, surface: 'home_card' })
+      }
     }
     // tendency
     if (
@@ -363,12 +360,10 @@ export function _internalCandidates(snapshot: BrainSignalSnapshot): Observation[
       d.anticipationRate >= TENDENCY_ANTICIPATION_THRESHOLD &&
       d.attempts >= 10
     ) {
-      out.push({
-        kind: 'tendency',
-        decoder: d.decoder,
-        copy: TENDENCY_COPY[d.decoder],
-        surface: 'home_card',
-      })
+      const copy = TENDENCY_COPY[d.decoder]
+      if (copy) {
+        out.push({ kind: 'tendency', decoder: d.decoder, copy, surface: 'home_card' })
+      }
     }
     // hesitation — post-session only, never home
     if (
@@ -376,12 +371,10 @@ export function _internalCandidates(snapshot: BrainSignalSnapshot): Observation[
       d.medianHesitationMs >= HESITATION_MS_THRESHOLD &&
       d.attempts >= 5
     ) {
-      out.push({
-        kind: 'hesitation',
-        decoder: d.decoder,
-        copy: HESITATION_COPY[d.decoder],
-        surface: 'post_session',
-      })
+      const copy = HESITATION_COPY[d.decoder]
+      if (copy) {
+        out.push({ kind: 'hesitation', decoder: d.decoder, copy, surface: 'post_session' })
+      }
     }
   }
 
@@ -497,7 +490,9 @@ export function recordAnticipationStreak(args: {
   }
 }
 
-/** Test/debug — exposes the decoder-label table for assertions. */
+/** Test/debug — exposes the decoder-label table for assertions.
+ *  Pack 2 decoders have no abbreviation today; falls back to the
+ *  raw tag so callers can still pattern-match without crashing. */
 export function _decoderLabel(tag: DecoderTag): string {
-  return DECODER_LABEL_BY_TAG[tag]
+  return DECODER_LABEL_BY_TAG[tag] ?? tag
 }

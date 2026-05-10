@@ -33,12 +33,10 @@ import {
   NORMAL_UI_MODE,
   type FirstSessionUiMode,
 } from '@/lib/firstSession'
-
-type DecoderTag =
-  | 'BACKDOOR_WINDOW'
-  | 'EMPTY_SPACE_CUT'
-  | 'SKIP_THE_ROTATION'
-  | 'ADVANTAGE_OR_RESET'
+import {
+  isKnownDecoderTag,
+  type DecoderTag,
+} from '@/lib/decoders/registry'
 
 type SessionScenario = {
   id: string
@@ -62,31 +60,47 @@ type SessionMeta = {
   mode?: 'training' | 'first_session' | 'return_loop' | 'daily_challenge'
 }
 
-const DECODER_LABELS: Record<DecoderTag, string> = {
+/** /train uses an article-prefixed form for two founder decoders
+ *  ("The Backdoor Window", "The Empty-Space Cut") in post-rep
+ *  headlines and on the decoder pill. The other founders + Pack 2
+ *  decoders read naturally without a leading article. Exhaustive
+ *  Record on the central registry — adding a future decoder forces
+ *  an authoring decision. */
+const DECODER_HEADLINE: Record<DecoderTag, string> = {
   BACKDOOR_WINDOW: 'The Backdoor Window',
   EMPTY_SPACE_CUT: 'The Empty-Space Cut',
   SKIP_THE_ROTATION: 'Skip the Rotation',
   ADVANTAGE_OR_RESET: 'Advantage or Reset',
+  READ_THE_COVERAGE: 'Read the Coverage',
+  HUNT_THE_ADVANTAGE: 'Hunt the Advantage',
 }
 
 /**
  * Phase I — per-decoder lesson hand-off + self-review copy. Mirrors
  * Section 7.10 / 7.12 of the planning doc for `BACKDOOR_WINDOW`; the
- * other three are placeholders that ship alongside their pack content
- * in Phase K so the lesson panel works the moment a scenario is added.
+ * other three founder entries ship alongside their pack content in
+ * Phase K so the lesson panel works the moment a scenario is added.
  *
  * `lessonSlug` must match a `module_slug` in `packages/db/seed/lessons/`
  * — Phase I seeds all four (`backdoor-window`, `empty-space-cut`,
  * `skip-the-rotation`, `advantage-or-reset`).
+ *
+ * Pack 2 decoders are intentionally NOT here — pedagogy authoring
+ * for READ_THE_COVERAGE / HUNT_THE_ADVANTAGE belongs to a separate
+ * workstream. The lesson hand-off panel + self-review checklist are
+ * gated on this map, so a Pack 2 rep simply skips both surfaces
+ * (the player still gets the win/miss micro-note and feedback panel).
  */
-const DECODER_HANDOFF: Record<
-  DecoderTag,
-  {
-    teachingPoint: string
-    lessonConnection: string
-    lessonSlug: string
-    selfReviewChecklist: readonly string[]
-  }
+const DECODER_HANDOFF: Partial<
+  Record<
+    DecoderTag,
+    {
+      teachingPoint: string
+      lessonConnection: string
+      lessonSlug: string
+      selfReviewChecklist: readonly string[]
+    }
+  >
 > = {
   BACKDOOR_WINDOW: {
     teachingPoint:
@@ -156,22 +170,31 @@ const RECOVER = ['Almost.', 'So close.', 'Not yet.', 'Reset and watch.', 'Reset.
 
 /** Per-decoder micro-praise — names what shifted on the floor, not
  *  the player's action. The point is "ohh, THAT'S why the space
- *  opened" — basketball cause-and-effect, not a pat on the head. */
+ *  opened" — basketball cause-and-effect, not a pat on the head.
+ *  Exhaustive on `DecoderTag`: a Pack 2 win must NOT silently fall
+ *  back to BDW copy. */
 const WIN_MICRO_PRAISE: Record<DecoderTag, string> = {
   BACKDOOR_WINDOW: 'His hand cut off the pass — the rim opened up behind him.',
   EMPTY_SPACE_CUT: 'The helper stepped to the ball — his spot was yours.',
   SKIP_THE_ROTATION: 'Two went to the ball — the weak side was wide open.',
   ADVANTAGE_OR_RESET: 'He flew at you — you beat his momentum.',
+  READ_THE_COVERAGE: 'He hung in the drop — the pull-up sat right in front of you.',
+  HUNT_THE_ADVANTAGE: 'First read pulled help — the second window came open.',
 }
 
 /** Per-decoder coaching micro-note shown under a wrong-answer headline.
  *  Tells the player what to watch for next rep — the cue, not the
- *  prescription. */
+ *  prescription. Exhaustive on `DecoderTag`: a Pack 2 miss must NOT
+ *  silently fall back to BDW copy. */
 const MISS_MICRO_NOTE: Record<DecoderTag, string> = {
   BACKDOOR_WINDOW: 'When his hand drops into the lane, the rim is behind him.',
   EMPTY_SPACE_CUT: 'Watch the helper. The spot he leaves is the one to fill.',
   SKIP_THE_ROTATION: 'The defender who left a shooter is the one you skip past.',
   ADVANTAGE_OR_RESET: 'Read his feet on the catch. Out of control = drive. Balanced = swing it.',
+  READ_THE_COVERAGE:
+    "Read his coverage call before you commit. Drop = pull up; switch = attack the new matchup.",
+  HUNT_THE_ADVANTAGE:
+    "First read isn't always the play. Punish the help that came to stop it.",
 }
 
 function pick<T>(arr: T[], seed: number): T {
@@ -179,16 +202,19 @@ function pick<T>(arr: T[], seed: number): T {
 }
 
 
-// Defensive runtime guard for the decoder tag returned by the API. Unknown
-// values fall through to legacy behaviour (no decoder UI) and emit a
-// console breadcrumb — Sentry's nextjs integration auto-collects
-// console.warn/error calls into its breadcrumb trail.
+// Defensive runtime guard for the decoder tag returned by the API.
+// Unknown values fall through to legacy behaviour (no decoder UI) and
+// emit a console breadcrumb — Sentry's nextjs integration auto-collects
+// console.warn/error calls into its breadcrumb trail. Membership is
+// checked against the central decoder registry so Pack 2 tags
+// (READ_THE_COVERAGE, HUNT_THE_ADVANTAGE) are accepted without
+// duplicating the registry here.
 function resolveDecoderTag(
   scenarioId: string | undefined,
   raw: DecoderTag | string | null,
 ): DecoderTag | null {
   if (!raw) return null
-  if (raw in DECODER_LABELS) return raw as DecoderTag
+  if (isKnownDecoderTag(raw)) return raw
   if (typeof console !== 'undefined') {
     console.warn('[train] unknown decoder_tag — treating as legacy', {
       scenarioId,
@@ -375,7 +401,9 @@ function TrainPageInner() {
     pathwayContext?.trainingMode === 'mixed-reads' ||
     uiMode.suppressDecoderPill
   const suppressCueHints = pathwayContext?.suppressCueHints === true || isChallengeMode
-  const decoderLabel = !hideDecoderPill && decoderTag ? DECODER_LABELS[decoderTag] : null
+  const decoderHeadlineText =
+    !hideDecoderPill && decoderTag ? DECODER_HEADLINE[decoderTag] : null
+  const decoderHandoff = decoderTag ? DECODER_HANDOFF[decoderTag] : null
   // FR-7 — translate the Pathway training mode into the renderer-level
   // overlayLevel + cameraAssist pair. Memoised on the trainingMode
   // identity so every scenario swap inside the same chapter reuses
@@ -1076,7 +1104,7 @@ function TrainPageInner() {
                 {firstRepCues.framing}
               </p>
             </div>
-          ) : decoderLabel ? (
+          ) : decoderHeadlineText ? (
             <div className="space-y-2.5">
               <div className="flex items-center gap-2">
                 {/* Coach's-clipboard label: small DECODER eyebrow over the
@@ -1092,7 +1120,7 @@ function TrainPageInner() {
                       Decoder
                     </span>
                     <span className="text-[12px] font-bold tracking-[0.2px] text-text">
-                      {decoderLabel}
+                      {decoderHeadlineText}
                     </span>
                   </span>
                 </span>
@@ -1324,20 +1352,22 @@ function TrainPageInner() {
               // first-ever decoder reveal lands.
               headline={
                 firstRep && decoderTag
-                  ? firstRepCues.recognitionHeadline(DECODER_LABELS[decoderTag])
+                  ? firstRepCues.recognitionHeadline(DECODER_HEADLINE[decoderTag])
                   : praise
               }
               microPraise={
                 firstSessionStep && decoderTag && !firstRep
                   ? firstSessionStep.recognitionLine(
-                      DECODER_LABELS[decoderTag],
+                      DECODER_HEADLINE[decoderTag],
                       lastAnswerLatencyMs,
                     )
                   : firstRep && decoderTag
                     ? firstRepCues.recognitionSub(getDecoderOneLiner(decoderTag))
                     : suppressCueHints
                       ? 'Good rep.'
-                      : WIN_MICRO_PRAISE[decoderTag ?? 'BACKDOOR_WINDOW']
+                      : decoderTag
+                        ? WIN_MICRO_PRAISE[decoderTag]
+                        : 'Good rep.'
               }
             />
           ) : null}
@@ -1356,7 +1386,7 @@ function TrainPageInner() {
               // owned by the WinBurst above.)
               headline={
                 firstRep && !feedback.is_correct && decoderTag
-                  ? firstRepCues.recoveryHeadline(DECODER_LABELS[decoderTag])
+                  ? firstRepCues.recoveryHeadline(DECODER_HEADLINE[decoderTag])
                   : praise
               }
               microNote={
@@ -1366,7 +1396,9 @@ function TrainPageInner() {
                     ? getDecoderOneLiner(decoderTag)
                     : suppressCueHints
                       ? 'Reset and try again.'
-                      : MISS_MICRO_NOTE[decoderTag ?? 'BACKDOOR_WINDOW']
+                      : decoderTag
+                        ? MISS_MICRO_NOTE[decoderTag]
+                        : 'Reset and try again.'
               }
               whyText={feedback.feedback_text}
               hasReplay={!!scene && scene.answerDemo.length > 0}
@@ -1413,14 +1445,18 @@ function TrainPageInner() {
             V3 P9 — also suppressed on the player's first ever rep. The
             4-question self-review reads like school after a moment that
             should feel like a rep. The lesson hand-off card stays
-            available from the next rep onward. */}
-        {feedback && isDecoder && decoderTag && !suppressCueHints && !firstRep ? (
+            available from the next rep onward.
+            Pack 2 — gated on `decoderHandoff` being authored. Pack 2
+            decoders (READ_THE_COVERAGE, HUNT_THE_ADVANTAGE) ship without
+            a handoff entry today; they skip the lesson + self-review
+            surfaces while the founder reps continue to render them. */}
+        {feedback && isDecoder && decoderTag && decoderHandoff && !suppressCueHints && !firstRep ? (
           <>
             <DecoderLessonPanel
-              decoderName={DECODER_LABELS[decoderTag]}
-              teachingPoint={DECODER_HANDOFF[decoderTag].teachingPoint}
-              lessonConnection={DECODER_HANDOFF[decoderTag].lessonConnection}
-              lessonSlug={DECODER_HANDOFF[decoderTag].lessonSlug}
+              decoderName={DECODER_HEADLINE[decoderTag]}
+              teachingPoint={decoderHandoff.teachingPoint}
+              lessonConnection={decoderHandoff.lessonConnection}
+              lessonSlug={decoderHandoff.lessonSlug}
             />
             {/* Phase 9 — the firstSession script keeps the self-review
                 checklist suppressed across reps 1-4 of the cold-start
@@ -1429,7 +1465,7 @@ function TrainPageInner() {
             {uiMode.suppressSelfReviewChecklist ? null : (
               <SelfReviewChecklist
                 scenarioId={current.id}
-                items={DECODER_HANDOFF[decoderTag].selfReviewChecklist}
+                items={decoderHandoff.selfReviewChecklist}
               />
             )}
           </>

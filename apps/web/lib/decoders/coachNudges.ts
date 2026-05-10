@@ -29,6 +29,8 @@ const NUDGES: Record<DecoderTag, string> = {
   EMPTY_SPACE_CUT: 'Eyes on the help defender.',
   ADVANTAGE_OR_RESET: 'Watch his feet on the closeout.',
   SKIP_THE_ROTATION: 'Watch where the help comes from.',
+  READ_THE_COVERAGE: 'Eyes on the screen defender.',
+  HUNT_THE_ADVANTAGE: "Eyes on the help defender's hips.",
 }
 
 export function getCoachNudge(tag: DecoderTag): string {

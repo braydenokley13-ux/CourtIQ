@@ -197,24 +197,40 @@ const SKIP_THE_ROTATION: DecoderVisualPrimitives = {
   },
 }
 
-// Pack 2 stub. The visual primitive contract requires every decoder to
-// declare a teaching beat + required intents + authoring requirements.
-// DROP and HUNT are defined here with the minimum-viable scaffold so
-// the type system enforces "every decoder has a record"; the full
-// preset (including any DecoderRole extensions for screen_defender /
-// ball_handler) lands with 3.1.2. Empty `requiredIntents` means the
-// founder-scenario invariant test will not run intent assertions for
-// DROP / HUNT scenarios — and the seeder's coach-validation gate is
-// the production guard that prevents LIVE Pack 2 scenarios shipping
-// before this scaffold is filled in.
-const READ_THE_COVERAGE_PACK2_STUB: DecoderVisualPrimitives = {
+// Pack 2 (Phase β) — DROP / READ_THE_COVERAGE D1/D2 entry. Promoted
+// from the original empty scaffold to the real teaching beat: the PnR
+// ball-handler reads the screen defender's body language at the
+// moment the screen is set. A drop defender sits below the screen,
+// belly forward, weight back — the cue is on his chest line + foot
+// angle. The advantage is the pull-up pocket between the screen and
+// the retreating big.
+//
+// `requiredIntents` stays empty here for two reasons:
+//   1. The founder DecoderRole union does not include screen_defender
+//      / ball_handler (PnR-specific roles); adding them is a Phase γ
+//      animation-intent change that this slice intentionally avoids.
+//   2. DROP D1/D2 ride the existing helper_defender / receiver intents
+//      under the hood — there is no new clip authoring required for
+//      D1/D2, so the founder invariant has nothing decoder-specific
+//      to assert.
+//
+// HUNT remains a scaffold (D3+, chained-second-read) — its content is
+// owned by Phase γ and stays a stub here.
+const READ_THE_COVERAGE: DecoderVisualPrimitives = {
   decoder: 'READ_THE_COVERAGE',
   label: 'Read the Coverage',
   beat: {
+    // The PnR ball-handler is the read actor — they decide whether to
+    // pull, snake, or attack based on the screen defender's posture.
     readActor: 'open_player',
+    // The screen defender is the cue. We map him to helper_defender in
+    // the founder taxonomy because that's the existing role with
+    // matching body-language coverage (turn, drop, recover); a future
+    // animation-intent expansion can promote a dedicated
+    // screen_defender role.
     cueActor: 'helper_defender',
     readSentence:
-      'Pack 2 stub — DROP coverage read. Full beat designed in 3.1.2.',
+      'Screen defender drops below the screen — ball-handler reads the pocket and pulls / snakes / attacks before help recovers.',
   },
   requiredIntents: [],
   requiredAuthoring: {
@@ -222,7 +238,7 @@ const READ_THE_COVERAGE_PACK2_STUB: DecoderVisualPrimitives = {
     requiresAnswerDemo: true,
     requiresUserPlayer: true,
     requiresOneBallHolder: true,
-    requiredPlayerRoleSubstrings: ['ball_handler'],
+    requiredPlayerRoleSubstrings: ['ball_handler', 'screen_defender'],
     requiredAnswerDemoKinds: [],
   },
 }
@@ -258,7 +274,7 @@ export const DECODER_VISUAL_PRIMITIVES: Readonly<
   ADVANTAGE_OR_RESET,
   EMPTY_SPACE_CUT,
   SKIP_THE_ROTATION,
-  READ_THE_COVERAGE: READ_THE_COVERAGE_PACK2_STUB,
+  READ_THE_COVERAGE,
   HUNT_THE_ADVANTAGE: HUNT_THE_ADVANTAGE_PACK2_STUB,
 })
 

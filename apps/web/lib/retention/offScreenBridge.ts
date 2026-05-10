@@ -150,21 +150,21 @@ const DORMANT_DAYS_THRESHOLD = 14
 
 // --- copy vocabulary -------------------------------------------------------
 
-const FRESHLY_LEARNED_COPY: Record<DecoderTag, string> = {
+const FRESHLY_LEARNED_COPY: Partial<Record<DecoderTag, string>> = {
   BACKDOOR_WINDOW: 'Watch the denial defender’s eyes tonight.',
   EMPTY_SPACE_CUT: 'Watch help defenders turn their hips tonight.',
   SKIP_THE_ROTATION: 'Watch for two defenders pulled to one side.',
   ADVANTAGE_OR_RESET: 'Watch closeout speed in one game tonight.',
 }
 
-const GROWTH_CHECK_COPY: Record<DecoderTag, string> = {
+const GROWTH_CHECK_COPY: Partial<Record<DecoderTag, string>> = {
   BACKDOOR_WINDOW: 'See if you can spot a backdoor in a real game.',
   EMPTY_SPACE_CUT: 'Catch one help-rotation cut this weekend.',
   SKIP_THE_ROTATION: 'See a skip pass land tonight if you can.',
   ADVANTAGE_OR_RESET: 'Spot one bad closeout in a real game.',
 }
 
-const DORMANT_RECALL_COPY: Record<DecoderTag, string> = {
+const DORMANT_RECALL_COPY: Partial<Record<DecoderTag, string>> = {
   BACKDOOR_WINDOW: 'Backdoor windows — see one tonight if you can.',
   EMPTY_SPACE_CUT: 'Empty-space cuts — see one tonight if you can.',
   SKIP_THE_ROTATION: 'Skip passes — see one tonight if you can.',
@@ -187,21 +187,21 @@ const SEASON_LENS_COPY: Record<NonNullable<BridgeSnapshot['seasonWindow']>, stri
   none: '',
 }
 
-const FRESHLY_LEARNED_REFLECTION: Record<DecoderTag, string> = {
+const FRESHLY_LEARNED_REFLECTION: Partial<Record<DecoderTag, string>> = {
   BACKDOOR_WINDOW: 'Did you spot one denial last time you watched?',
   EMPTY_SPACE_CUT: 'Catch a help defender turn this weekend?',
   SKIP_THE_ROTATION: 'See a skip pass land?',
   ADVANTAGE_OR_RESET: 'Notice closeout balance in a real game?',
 }
 
-const GROWTH_CHECK_REFLECTION: Record<DecoderTag, string> = {
+const GROWTH_CHECK_REFLECTION: Partial<Record<DecoderTag, string>> = {
   BACKDOOR_WINDOW: 'Catch a backdoor window in a real game?',
   EMPTY_SPACE_CUT: 'Catch a help-rotation cut this weekend?',
   SKIP_THE_ROTATION: 'See a skip pass go for a shot?',
   ADVANTAGE_OR_RESET: 'Spot one bad closeout?',
 }
 
-const DORMANT_RECALL_REFLECTION: Record<DecoderTag, string> = {
+const DORMANT_RECALL_REFLECTION: Partial<Record<DecoderTag, string>> = {
   BACKDOOR_WINDOW: 'See a backdoor read in a real game?',
   EMPTY_SPACE_CUT: 'Catch an empty-space cut?',
   SKIP_THE_ROTATION: 'See a skip pass tonight?',
@@ -314,11 +314,9 @@ export function getWatchLens(
     )
     .sort((a, b) => (a.daysSinceFreshlyLearned ?? 999) - (b.daysSinceFreshlyLearned ?? 999))
   if (fresh[0]) {
-    return {
-      kind: 'freshly_learned',
-      decoder: fresh[0].decoder,
-      copy: FRESHLY_LEARNED_COPY[fresh[0].decoder],
-    }
+    const copy = FRESHLY_LEARNED_COPY[fresh[0].decoder]
+    // Pack 2 — TODO(pack-2): emit once copy is authored.
+    if (copy) return { kind: 'freshly_learned', decoder: fresh[0].decoder, copy }
   }
 
   // 4. growth_check — strongest qualifying slope.
@@ -332,11 +330,8 @@ export function getWatchLens(
     )
     .sort((a, b) => (b.growthSlopePerDay ?? 0) - (a.growthSlopePerDay ?? 0))
   if (growth[0]) {
-    return {
-      kind: 'growth_check',
-      decoder: growth[0].decoder,
-      copy: GROWTH_CHECK_COPY[growth[0].decoder],
-    }
+    const copy = GROWTH_CHECK_COPY[growth[0].decoder]
+    if (copy) return { kind: 'growth_check', decoder: growth[0].decoder, copy }
   }
 
   // 5. dormant_recall — longest dormant qualifying decoder.
@@ -349,11 +344,8 @@ export function getWatchLens(
     )
     .sort((a, b) => b.daysSinceLastRep - a.daysSinceLastRep)
   if (dormant[0]) {
-    return {
-      kind: 'dormant_recall',
-      decoder: dormant[0].decoder,
-      copy: DORMANT_RECALL_COPY[dormant[0].decoder],
-    }
+    const copy = DORMANT_RECALL_COPY[dormant[0].decoder]
+    if (copy) return { kind: 'dormant_recall', decoder: dormant[0].decoder, copy }
   }
 
   return null
@@ -381,27 +373,24 @@ export function getReflectionPrompt(
   if (days < REFLECTION_MIN_DAYS || days > REFLECTION_MAX_DAYS) return null
 
   switch (pending.kind) {
-    case 'freshly_learned':
+    case 'freshly_learned': {
       if (!pending.decoder) return null
-      return {
-        kind: pending.kind,
-        decoder: pending.decoder,
-        copy: FRESHLY_LEARNED_REFLECTION[pending.decoder],
-      }
-    case 'growth_check':
+      const copy = FRESHLY_LEARNED_REFLECTION[pending.decoder]
+      if (!copy) return null // Pack 2 — TODO(pack-2): author reflection copy
+      return { kind: pending.kind, decoder: pending.decoder, copy }
+    }
+    case 'growth_check': {
       if (!pending.decoder) return null
-      return {
-        kind: pending.kind,
-        decoder: pending.decoder,
-        copy: GROWTH_CHECK_REFLECTION[pending.decoder],
-      }
-    case 'dormant_recall':
+      const copy = GROWTH_CHECK_REFLECTION[pending.decoder]
+      if (!copy) return null
+      return { kind: pending.kind, decoder: pending.decoder, copy }
+    }
+    case 'dormant_recall': {
       if (!pending.decoder) return null
-      return {
-        kind: pending.kind,
-        decoder: pending.decoder,
-        copy: DORMANT_RECALL_REFLECTION[pending.decoder],
-      }
+      const copy = DORMANT_RECALL_REFLECTION[pending.decoder]
+      if (!copy) return null
+      return { kind: pending.kind, decoder: pending.decoder, copy }
+    }
     case 'archetype_lean':
       if (!earnedArchetype || earnedArchetype === 'ball-watcher') return null
       return {
