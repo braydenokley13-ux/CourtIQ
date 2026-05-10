@@ -155,6 +155,21 @@ export interface ReplayCadence {
   doneHoldMs: number
 }
 
+/**
+ * Replay paths emitted by the teaching timeline.
+ *
+ * - `'wrong'` — the player picked the wrong action; replay shows the
+ *   consequence leg, repaints cues, then plays the best-read answer.
+ * - `'correct'` — the player picked the best read; replay quick-resets
+ *   to the snapshot and plays the same leg as the answer.
+ * - `'partial_chain'` — HUNT-only: the player got one beat of a chained
+ *   two-beat scenario right and the other wrong. Cadence sits between
+ *   correct and wrong (see `PARTIAL_CHAIN_CADENCE`) so the replay can
+ *   over-emphasize the missed beat without punishing the partly-correct
+ *   read with the full wrong-path dwell. Per HUNT_DECODER_DESIGN §6.
+ */
+export type ReplayPath = 'wrong' | 'correct' | 'partial_chain'
+
 const WRONG_CADENCE: ReplayCadence = Object.freeze({
   preLegDelayMs: PRE_CONSEQUENCE_DELAY_MS,
   cueRepaintHoldMs: CUE_REPAINT_HOLD_WRONG_MS,
@@ -168,6 +183,34 @@ const CORRECT_CADENCE: ReplayCadence = Object.freeze({
 })
 
 /**
+ * HUNT partial-chain cadence (HUNT_DECODER_DESIGN §6).
+ *
+ * The chain-partial path is closer to correct than wrong:
+ *   - `preLegDelayMs` matches the best-read pre-delay (80 ms) — the
+ *     player got one beat right, so the replay quick-resets like a
+ *     correct path rather than running a full consequence leg.
+ *   - `cueRepaintHoldMs: 800` — slower than the 600 ms correct hold so
+ *     the renderer can over-emphasize beat 2's cue cluster (the missed
+ *     read) without tipping into the wrong-path 400 ms+consequence
+ *     budget.
+ *   - `doneHoldMs: 900` — sits between the legacy 700 ms correct hold
+ *     and the D4+ wrong-path 1500 ms extended hold. Long enough for the
+ *     player to absorb "you got beat 1, missed beat 2" before the CTA.
+ *
+ * The chain-partial path is intentionally insensitive to
+ * `effectiveDifficulty` — the F8 D4+ dwell extension is wrong-path only.
+ */
+export const PARTIAL_CHAIN_PRE_DELAY_MS = PRE_BESTREAD_DELAY_MS
+export const PARTIAL_CHAIN_CUE_REPAINT_HOLD_MS = 800
+export const PARTIAL_CHAIN_DONE_HOLD_MS = 900
+
+const PARTIAL_CHAIN_CADENCE: ReplayCadence = Object.freeze({
+  preLegDelayMs: PARTIAL_CHAIN_PRE_DELAY_MS,
+  cueRepaintHoldMs: PARTIAL_CHAIN_CUE_REPAINT_HOLD_MS,
+  doneHoldMs: PARTIAL_CHAIN_DONE_HOLD_MS,
+})
+
+/**
  * Returns the replay cadence for a given path. When `effectiveDifficulty`
  * is provided AND path === 'wrong' AND effectiveDifficulty ≥ 4, the
  * F8 dwell extension lengthens `doneHoldMs` by
@@ -177,12 +220,17 @@ const CORRECT_CADENCE: ReplayCadence = Object.freeze({
  * return the legacy fixed cadence — the no-arg form is preserved
  * exactly, so existing callers and pinned tests stay green.
  *
+ * The HUNT `'partial_chain'` path returns `PARTIAL_CHAIN_CADENCE`
+ * regardless of difficulty (per HUNT_DECODER_DESIGN §6 the partial
+ * path has its own fixed cadence).
+ *
  * Pure — same inputs always produce the same outputs.
  */
 export function getReplayCadence(
-  path: 'wrong' | 'correct',
+  path: ReplayPath,
   effectiveDifficulty?: number,
 ): ReplayCadence {
+  if (path === 'partial_chain') return PARTIAL_CHAIN_CADENCE
   const base = path === 'wrong' ? WRONG_CADENCE : CORRECT_CADENCE
   if (path !== 'wrong' || effectiveDifficulty === undefined) return base
   if (!Number.isFinite(effectiveDifficulty)) return base
