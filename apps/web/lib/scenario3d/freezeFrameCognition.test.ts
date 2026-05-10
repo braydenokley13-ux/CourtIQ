@@ -30,9 +30,12 @@ const FULL_ANCHORS: FreezeBeatAnchors = {
   receiver: 'o3',
   open_player: 'o4',
   passer: 'o5',
+  screen_defender: 'd2',
+  ball_handler: 'o6',
   vacated_zone: { x: 1, z: 2 },
   open_rim_zone: { x: 0, z: 0 },
   closeout_target: { x: 3, z: 4 },
+  pull_up_pocket: { x: -2, z: 16 },
 }
 
 describe('hydrateFreezeBeats — drive_cut_preview hydration (P1 fix)', () => {
@@ -189,5 +192,107 @@ describe('resolveFreezeTiming — Pack 1/2 round-trip', () => {
     expect(timing.cueRepaintHoldCorrectMs).toBe(
       DEFAULT_FREEZE_TIMING.cueRepaintHoldCorrectMs,
     )
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Pack 2 (Phase β) — DROP D1/D2 cognition templates.
+//
+// DROP = READ_THE_COVERAGE = "is the screen defender dropping?"
+//
+// These tests pin the contract for the new DROP templates added in this
+// slice:
+//   - Three beats land (cue / action / advantage).
+//   - Cue + action are body-language cues on the screen defender —
+//     defender_chest_line and defender_foot_arrow — both legal pre-
+//     answer overlay primitives in the schema.
+//   - Advantage is the pull-up pocket: an open_space_region anchored
+//     by court-point, never a player id.
+//   - The DROP schedule is single-freeze. Templates carry no second-
+//     beat data and must hydrate without authoring beatSpec.secondBeat.
+// ---------------------------------------------------------------------------
+
+describe('DROP (READ_THE_COVERAGE) D1/D2 cognition templates', () => {
+  it('exposes a non-empty template list with cue → action → advantage', () => {
+    const tpl = getFreezeBeatTemplates('READ_THE_COVERAGE')
+    expect(tpl.length).toBe(3)
+    expect(tpl.map((t) => t.kind)).toEqual(['cue', 'action', 'advantage'])
+  })
+
+  it('uses screen-defender body-language primitives for cue + action', () => {
+    const tpl = getFreezeBeatTemplates('READ_THE_COVERAGE')
+    const cue = tpl.find((t) => t.kind === 'cue')
+    const action = tpl.find((t) => t.kind === 'action')
+    expect(cue?.primitive_kind).toBe('defender_chest_line')
+    expect(cue?.anchor).toBe('screen_defender')
+    expect(action?.primitive_kind).toBe('defender_foot_arrow')
+    expect(action?.anchor).toBe('screen_defender')
+  })
+
+  it('uses a court-point pull_up_pocket anchor for the advantage beat', () => {
+    const tpl = getFreezeBeatTemplates('READ_THE_COVERAGE')
+    const adv = tpl.find((t) => t.kind === 'advantage')
+    expect(adv?.primitive_kind).toBe('open_space_region')
+    expect(adv?.anchor).toBe('pull_up_pocket')
+  })
+
+  it('hydrates to schema-legal OverlayBeats with the DROP anchors set', () => {
+    const beats = hydrateFreezeBeats(
+      'READ_THE_COVERAGE',
+      getFreezeBeatTemplates('READ_THE_COVERAGE'),
+      FULL_ANCHORS,
+    )
+    expect(beats).toHaveLength(3)
+    const kinds = beats.map((b) => b.primitive.kind)
+    expect(kinds).toEqual([
+      'defender_chest_line',
+      'defender_foot_arrow',
+      'open_space_region',
+    ])
+    // All three beats must declare phase='freeze' — DROP is single-
+    // freeze; nothing here ever schedules into a second beat.
+    expect(beats.every((b) => b.phase === 'freeze')).toBe(true)
+  })
+
+  it('skips DROP beats when their anchors are missing', () => {
+    const partial: FreezeBeatAnchors = {
+      ...FULL_ANCHORS,
+      screen_defender: undefined,
+      pull_up_pocket: undefined,
+    }
+    const beats = hydrateFreezeBeats(
+      'READ_THE_COVERAGE',
+      getFreezeBeatTemplates('READ_THE_COVERAGE'),
+      partial,
+    )
+    expect(beats.length).toBe(0)
+  })
+
+  it('does not require secondBeat — templates declare no beat-2 schedule', () => {
+    const tpl = getFreezeBeatTemplates('READ_THE_COVERAGE')
+    // No second-beat scheduling is encoded on the DROP templates: every
+    // beat lives inside the single freeze envelope (≤ FREEZE_COGNITION_HOLD_MS
+    // after freezeAtMs).
+    for (const t of tpl) {
+      expect(t.at_phase_ms).toBeLessThanOrEqual(1400)
+      expect(t.at_phase_ms).toBeGreaterThanOrEqual(0)
+    }
+  })
+
+  it('READ_THE_COVERAGE is compatible with the Pack 1 hydration code path', () => {
+    // Same hydrate function, same anchor map, same OverlayBeat shape as
+    // BDW/ESC/SKR/AOR — DROP rides the founder rails.
+    const drop = hydrateFreezeBeats(
+      'READ_THE_COVERAGE',
+      getFreezeBeatTemplates('READ_THE_COVERAGE'),
+      FULL_ANCHORS,
+    )
+    const bdw = hydrateFreezeBeats(
+      'BACKDOOR_WINDOW',
+      getFreezeBeatTemplates('BACKDOOR_WINDOW'),
+      FULL_ANCHORS,
+    )
+    expect(drop.length).toBe(bdw.length)
+    expect(drop.map((b) => b.phase)).toEqual(bdw.map((b) => b.phase))
   })
 })

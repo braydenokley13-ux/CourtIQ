@@ -107,6 +107,20 @@ export function getDecoderCameraPreset(
 }
 
 /**
+ * Pack 2 (Phase β) — single-freeze guard. A decoder is "single freeze"
+ * when its camera preset declares no `secondBeat`. The runtime uses
+ * this gate to assert DROP scenarios never enter the chained-freeze
+ * bridge transition (`chained-freeze-bridge`) that was authored for
+ * HUNT in 3.1.4. Pure — no side effects, no scene reads.
+ *
+ * Returns `true` for BDW / ESC / SKR / AOR / DROP, `false` for HUNT.
+ */
+export function isSingleFreezeDecoder(decoder: DecoderTag): boolean {
+  const preset = DECODER_CAMERA_PRESETS[decoder]
+  return preset.secondBeat === undefined
+}
+
+/**
  * Returns true when the authored camera matches the decoder's first-
  * beat preset. Used by template lint to surface drift WITHOUT
  * blocking: an author may legitimately override the preset when their

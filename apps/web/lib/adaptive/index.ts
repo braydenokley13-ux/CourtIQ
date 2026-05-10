@@ -31,3 +31,19 @@ export {
 } from './types'
 export { classifyAttempt } from './classifyAttempt'
 export { computeDecoderConfidence } from './decoderBand'
+// Pack 2 (Phase β) — pure adaptive eligibility helper. Additive
+// re-export; not yet wired into live routing. Surfaces alongside the
+// existing adaptive primitives so future routing-layer changes land
+// as a single import.
+export {
+  eligibleDifficultyForDecoder,
+  ELIGIBILITY_LOW_ACCURACY_FLOOR,
+  ELIGIBILITY_MIN_ATTEMPTS_FOR_D2,
+  ELIGIBILITY_MIN_ATTEMPTS_FOR_D3,
+  ELIGIBILITY_STRONG_ACCURACY_GATE,
+} from './eligibility'
+export type {
+  Difficulty,
+  EligibilityReason,
+  EligibilityResult,
+} from './eligibility'

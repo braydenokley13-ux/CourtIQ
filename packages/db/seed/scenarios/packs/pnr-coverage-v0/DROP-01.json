@@ -1,0 +1,269 @@
+[
+  {
+    "id": "DROP-01",
+    "version": 1,
+    "status": "DRAFT",
+    "title": "Pull Up in the Pocket",
+    "category": "OFFENSE",
+    "decoder_tag": "READ_THE_COVERAGE",
+    "concept_tags": ["pnr_ball_handler_read", "screen_defender_coverage_read"],
+    "sub_concepts": ["drop_pull_up", "pnr_pocket"],
+    "difficulty": 1,
+    "user_role": "pnr_ball_handler",
+    "game_context": "5-on-5 half-court. You are the point guard initiating a high ball-screen at the top of the key. Your screener (5) sets a clean screen on your right. The screen defender (x5) is coached to drop on every ball-screen — he sits two steps below the level of the screen and protects the rim.",
+    "possession_setup": "Top-of-the-key high pick-and-roll. The screen comes from the right. x5 is the read: he drops below the screen, chest below the level, weight back, feet pointing toward his own basket. The other three defenders are stationed in shell-rotation positions and do not stunt early.",
+    "decision_moment": "You come off the screen with one dribble of separation. x5 has not stepped up. The pocket between the screen and x5 is open. Your on-ball defender (x1) is trailing on your hip, two steps behind.",
+    "visible_cue": "x5's chest is below the level of the screen — clear drop posture. His feet point back toward the rim. The pocket between the ball-screen and x5 is wide open. Help defenders stay home.",
+    "court_state": {
+      "offense": [
+        { "id": "user", "x": 240, "y": 180, "role": "pnr_ball_handler", "hasBall": true },
+        { "id": "screener", "x": 280, "y": 200, "role": "screener", "hasBall": false },
+        { "id": "wing", "x": 60, "y": 80, "role": "weak_wing", "hasBall": false },
+        { "id": "corner_strong", "x": 460, "y": 10, "role": "strong_corner", "hasBall": false },
+        { "id": "corner_weak", "x": 20, "y": 10, "role": "weak_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x_user", "x": 240, "y": 200, "role": "on_ball", "hasBall": false },
+        { "id": "x_screener", "x": 280, "y": 140, "role": "screen_defender", "hasBall": false },
+        { "id": "x_wing", "x": 80, "y": 100, "role": "weak_wing_defender", "hasBall": false },
+        { "id": "x_corner_strong", "x": 440, "y": 30, "role": "strong_corner_defender", "hasBall": false },
+        { "id": "x_corner_weak", "x": 50, "y": 30, "role": "weak_corner_defender", "hasBall": false }
+      ],
+      "ball_location": { "x": 240, "y": 180 }
+    },
+    "prompt": "You turn the corner off the screen. The big drops back. What's the read?",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Pull up in the pocket.",
+        "quality": "best",
+        "feedback_text": "Best read. Drop coverage gives you the pocket — rise into the open shot before x5 can recover.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Snake the dribble back to the middle.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. Snaking buys time, but the pocket pull-up was already there. You let x1 catch up.",
+        "partial_feedback_text": "A snake works against late shows, not against a settled drop. Read the chest — drop = pull-up first.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Drive at x5's chest into the paint.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Driving into a drop big walks you into the contest. The space is in front of him, not past him.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Reset the ball to the wing.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Resetting wastes the pocket. Drop coverage is asking you to take the pull-up.",
+        "order": 4
+      }
+    ],
+    "best_read": "Rise into the pull-up in the pocket. x5's posture is the green light — he's protecting the paint, not the screen, and there is no early help. The shot is open before the on-ball defender can recover.",
+    "acceptable_reads": [
+      "Snake back to the middle if you misread the depth — keeps the possession alive but trades the open shot for a contested re-read."
+    ],
+    "bad_reads": [
+      "Drive into x5's chest — walks into the protected paint and a contest at the rim.",
+      "Reset to the wing — wastes a clean drop-coverage advantage."
+    ],
+    "common_miss_reason": "Reflex to attack downhill on every screen. A drop big is daring you to shoot; ball-handlers who never look at his chest never see the pocket.",
+    "why_best_read_works": "Drop coverage is built around protecting the rim. The trade-off is the mid-range pocket — by definition the screen-defender cannot contest the pull-up without giving up his own assignment. The on-ball defender is trailing, so the only contest is x5 stepping up. He won't step up unless his coach changes the call.",
+    "decoder_teaching_point": "When the screen defender drops, the pocket is yours. Read his chest before you turn the corner: chest below the screen + feet to his rim = pull up.",
+    "lesson_connection": "pnr-coverage-recognition",
+    "feedback": {
+      "correct": "Good read. The drop gave you the pocket — you took it before he could step up.",
+      "partial": "Snaking works, but the drop already gave you the shot. Trust the chest cue.",
+      "wrong": "Look at his chest. Below the screen + feet back = drop. The shot is in front of him, not past him."
+    },
+    "self_review_checklist": [
+      "Did I see the screen defender's chest before I committed?",
+      "Did I take the pocket pull-up, or hesitate?",
+      "Did I attack toward open space, not into a body?",
+      "Did I rise on balance off the dribble?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-10T00:00:00.000Z",
+      "notes": "Pack 2 (Phase β) — DROP-01 base scenario. Single-freeze, no secondBeat. D1 difficulty: undisguised drop, ball-handler reads coverage in the pocket. Approved for controlled production test under Pack 2 DROP foundations."
+    },
+    "source_research_basis": "Standard PnR coverage taxonomy. Drop coverage is the universal entry-level call at every level above middle school; the ball-handler's first read is the screen defender's depth, taught from Spain 'cinco' through every NBA staff manual.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": []
+    },
+    "explanation_md": "**Read the Coverage — Drop.** When the screen defender drops, he's telling you the call: protect the paint, give up the pull-up. The cue is his chest — if it stays below the level of the screen and his feet point back at his rim, the pocket between the screen and his body is yours. The trade is honest: he won't contest the pull-up because that's not his job. The on-ball defender is behind you, the help is shell-honest, and the shot is up before x5 can step up. **Read his chest, then take the pocket.**",
+    "xp_reward": 14,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "pnr_drop_pull_up",
+      "court": "half",
+      "camera": "top_down",
+      "players": [
+        { "id": "user", "team": "offense", "role": "pnr_ball_handler", "label": "You", "start": { "x": 0, "z": 22 }, "isUser": true, "hasBall": true },
+        { "id": "screener", "team": "offense", "role": "screener", "label": "5", "start": { "x": 4, "z": 20 } },
+        { "id": "wing", "team": "offense", "role": "weak_wing", "label": "3", "start": { "x": -16, "z": 12 } },
+        { "id": "corner_strong", "team": "offense", "role": "strong_corner", "label": "4", "start": { "x": 22, "z": 1 } },
+        { "id": "corner_weak", "team": "offense", "role": "weak_corner", "label": "2", "start": { "x": -22, "z": 1 } },
+        { "id": "x_user", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": 0, "z": 24 } },
+        { "id": "x_screener", "team": "defense", "role": "screen_defender", "label": "x5", "start": { "x": 4, "z": 16 } },
+        { "id": "x_wing", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": -14, "z": 13 } },
+        { "id": "x_corner_strong", "team": "defense", "role": "strong_corner_defender", "label": "x4", "start": { "x": 20, "z": 3 } },
+        { "id": "x_corner_weak", "team": "defense", "role": "weak_corner_defender", "label": "x2", "start": { "x": -20, "z": 3 } }
+      ],
+      "ball": {
+        "start": { "x": 0, "z": 22 },
+        "holderId": "user"
+      },
+      "movements": [
+        {
+          "id": "screener_set",
+          "playerId": "screener",
+          "kind": "lift",
+          "to": { "x": 3, "z": 21 },
+          "delayMs": 0,
+          "durationMs": 500
+        },
+        {
+          "id": "user_use_screen",
+          "playerId": "user",
+          "kind": "drive",
+          "to": { "x": 5, "z": 19 },
+          "delayMs": 400,
+          "durationMs": 700
+        },
+        {
+          "id": "x_user_trail",
+          "playerId": "x_user",
+          "kind": "rotation",
+          "to": { "x": 3, "z": 22 },
+          "delayMs": 400,
+          "durationMs": 700
+        },
+        {
+          "id": "x_screener_drop",
+          "playerId": "x_screener",
+          "kind": "drift",
+          "to": { "x": 4, "z": 14 },
+          "delayMs": 0,
+          "durationMs": 900
+        }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1300 },
+      "answerDemo": [
+        {
+          "id": "user_pull_up",
+          "playerId": "user",
+          "kind": "lift",
+          "to": { "x": 5, "z": 18 },
+          "delayMs": 0,
+          "durationMs": 250
+        },
+        {
+          "id": "user_release_shot",
+          "playerId": "ball",
+          "kind": "pass",
+          "to": { "x": 0, "z": 0.5 },
+          "delayMs": 200,
+          "durationMs": 700
+        }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You snaked back. The big stayed home and x1 caught up.",
+          "movements": [
+            {
+              "id": "user_snake_back",
+              "playerId": "user",
+              "kind": "drive",
+              "to": { "x": -1, "z": 22 },
+              "delayMs": 0,
+              "durationMs": 600
+            },
+            {
+              "id": "x_user_catch_up",
+              "playerId": "x_user",
+              "kind": "rotation",
+              "to": { "x": -1, "z": 24 },
+              "delayMs": 100,
+              "durationMs": 600
+            }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You drove into x5's chest. The contest was already waiting.",
+          "movements": [
+            {
+              "id": "user_drive_paint",
+              "playerId": "user",
+              "kind": "drive",
+              "to": { "x": 4, "z": 8 },
+              "delayMs": 0,
+              "durationMs": 700
+            },
+            {
+              "id": "x_screener_contest",
+              "playerId": "x_screener",
+              "kind": "closeout",
+              "to": { "x": 4, "z": 10 },
+              "delayMs": 200,
+              "durationMs": 500
+            }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You reset to the wing. The pocket closed before the ball moved again.",
+          "movements": [
+            {
+              "id": "user_reset_pass",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": { "x": -16, "z": 12 },
+              "delayMs": 0,
+              "durationMs": 600
+            },
+            {
+              "id": "x_screener_recover",
+              "playerId": "x_screener",
+              "kind": "rotation",
+              "to": { "x": 4, "z": 18 },
+              "delayMs": 100,
+              "durationMs": 500
+            }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "defender_chest_line", "playerId": "x_screener" },
+        { "kind": "defender_foot_arrow", "playerId": "x_screener" },
+        { "kind": "label", "anchor": { "x": 5, "z": 17 }, "text": "Read the chest" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "open_space_region", "anchor": { "x": 5, "z": 18 }, "radiusFt": 4 },
+        { "kind": "defender_chest_line", "playerId": "x_screener" },
+        { "kind": "defender_foot_arrow", "playerId": "x_screener" },
+        { "kind": "timing_pulse", "anchor": { "x": 5, "z": 18 }, "durationMs": 600 },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "user",
+          "path": [
+            { "x": 0, "z": 22 },
+            { "x": 5, "z": 19 },
+            { "x": 5, "z": 18 }
+          ]
+        }
+      ]
+    }
+  }
+]
