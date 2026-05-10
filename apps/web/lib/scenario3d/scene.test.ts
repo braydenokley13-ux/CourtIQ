@@ -354,3 +354,68 @@ describe('buildScene — Pack 2 Teaching-Quality wire-in (decoderTag + effective
     expect(result.effectiveDifficulty).toBeUndefined()
   })
 })
+
+describe('buildScene — Pack 2 Teaching-Quality F11 (acceptableDemos)', () => {
+  it('defaults acceptableDemos to empty array on every scene path', () => {
+    // Authored scene path
+    const authored = buildScene({
+      id: 'a',
+      scene: {
+        players: [
+          { id: 'user', team: 'offense' as const, role: 'wing', start: { x: 0, z: 10 }, isUser: true },
+        ],
+        ball: { start: { x: 0, z: 10 } },
+      },
+    })
+    expect(authored.acceptableDemos).toEqual([])
+
+    // Synth-from-court-state path
+    const synth = buildScene({
+      id: 'b',
+      court_state: {
+        offense: [{ id: 'user', x: 0, y: 0, role: 'wing' }],
+        defense: [],
+        ball_location: { x: 0, y: 0 },
+      },
+    })
+    expect(synth.acceptableDemos).toEqual([])
+
+    // Default scene path (no inputs)
+    const fallback = buildScene({ id: 'c' })
+    expect(fallback.acceptableDemos).toEqual([])
+  })
+
+  it('propagates an authored acceptableDemos block onto Scene3D.acceptableDemos', () => {
+    const result = buildScene({
+      id: 'a',
+      scene: {
+        players: [
+          { id: 'user', team: 'offense' as const, role: 'wing', start: { x: 0, z: 10 }, isUser: true },
+          { id: 'pg', team: 'offense' as const, role: 'ball_handler', start: { x: 0, z: 22 }, hasBall: true },
+        ],
+        ball: { start: { x: 0, z: 22 } },
+        movements: [],
+        wrongDemos: [
+          {
+            choiceId: 'c3',
+            movements: [{ id: 'm1', playerId: 'user', kind: 'cut', to: { x: 5, z: 5 } }],
+            caption: 'wrong path',
+          },
+        ],
+        acceptableDemos: [
+          {
+            choiceId: 'c2',
+            movements: [{ id: 'm2', playerId: 'user', kind: 'cut', to: { x: 8, z: 8 } }],
+            caption: 'second-best read',
+          },
+        ],
+      },
+    })
+    expect(result.acceptableDemos).toHaveLength(1)
+    expect(result.acceptableDemos[0]!.choiceId).toBe('c2')
+    expect(result.acceptableDemos[0]!.caption).toBe('second-best read')
+    expect(result.acceptableDemos[0]!.movements).toHaveLength(1)
+    expect(result.wrongDemos).toHaveLength(1)
+    expect(result.wrongDemos[0]!.choiceId).toBe('c3')
+  })
+})

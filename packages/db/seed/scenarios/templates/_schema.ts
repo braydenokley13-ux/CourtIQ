@@ -218,6 +218,27 @@ export const templateWrongDemoSchema = z.object({
   caption: z.string().max(80).optional(),
 })
 
+/**
+ * Pack 2 Teaching-Quality F11 — `acceptable` choice demo path.
+ *
+ * Risk M4: the schema declares an `acceptable` quality but the replay
+ * model has no slot for it — the player can never see what
+ * "second-best" looks like. F11 adds an optional list of demo
+ * movements parallel to wrongDemos, indexed by the same outcome key,
+ * but joining to choices whose quality is `acceptable`. Authors opt
+ * in per template; absence is fine — the controller short-circuits
+ * to the answer leg as today.
+ *
+ * Same shape as templateWrongDemoSchema so the runtime/materializer
+ * paths can mirror the wrong-demo plumbing.
+ */
+export const templateAcceptableDemoSchema = z.object({
+  /** Outcome key — joins to template.choices[*].outcome where quality === 'acceptable'. */
+  outcome: z.string().regex(/^[a-z][a-z0-9_]*$/, 'outcome must be lower_snake_case'),
+  movements: z.array(wrongDemoMovementSchema).max(32),
+  caption: z.string().max(80).optional(),
+})
+
 export const templateChoiceSchema = z.object({
   /** Stable semantic key the variant uses to attach prose. */
   outcome: z.string().regex(/^[a-z][a-z0-9_]*$/, 'outcome must be lower_snake_case'),
@@ -405,6 +426,14 @@ export const templateSchema = z.object({
     answerDemo: z.array(templateMovementSchema).max(32).default([]),
     freezeMarker: freezeMarkerSchema.optional(),
     wrongDemos: z.array(templateWrongDemoSchema).max(8).default([]),
+    /** Pack 2 Teaching-Quality F11 — optional demo paths for choices
+     *  with quality === 'acceptable'. Indexed by outcome (mirrors the
+     *  wrongDemos shape). When present and the player picks the
+     *  matching `acceptable` choice, the replay controller plays the
+     *  acceptable-demo as the consequence leg before transitioning to
+     *  the answer demo. Absence preserves Pack 1 behaviour: acceptable
+     *  picks short-circuit to the answer leg. */
+    acceptableDemos: z.array(templateAcceptableDemoSchema).max(8).default([]),
     // Phase 3.1.4 — per-scenario timing override block. The blueprint
     // §2.3 specifies per-difficulty cognition hold targets (D1-D2 =
     // 1400ms, D3 = 1200, D4 = 1000, D5 = 800). Authors opt in by

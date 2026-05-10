@@ -91,6 +91,18 @@ export interface SceneWrongDemo {
   caption?: string
 }
 
+/**
+ * Pack 2 Teaching-Quality F11 — per-choice `acceptable` demo. Same shape
+ * as SceneWrongDemo; the replay controller plays it as the consequence
+ * leg when the player picks an acceptable-quality choice. Empty for
+ * legacy scenes.
+ */
+export interface SceneAcceptableDemo {
+  choiceId: string
+  movements: SceneMovement[]
+  caption?: string
+}
+
 export interface Scene3D {
   /** Stable identifier for memoising frames. */
   id: string
@@ -106,6 +118,14 @@ export interface Scene3D {
    * scenes (no authored wrongDemos block).
    */
   wrongDemos: SceneWrongDemo[]
+  /**
+   * Pack 2 Teaching-Quality F11 — `acceptable` choice demos keyed by
+   * choiceId. Empty for legacy scenes; populated from the authored
+   * `scene.acceptableDemos[]` block. The controller plays the
+   * matching demo as the consequence leg when the player picks an
+   * acceptable-quality choice.
+   */
+  acceptableDemos: SceneAcceptableDemo[]
   /**
    * Phase B — resolved freeze cue, in ms from the start of `movements`.
    * `null` means "no freeze authored" (renderer treats this as "freeze at
@@ -173,6 +193,7 @@ interface AuthoredScene {
   movements?: SceneMovement[]
   answerDemo?: SceneMovement[]
   wrongDemos?: SceneWrongDemo[]
+  acceptableDemos?: SceneAcceptableDemo[]
   freezeMarker?: FreezeMarker
   preAnswerOverlays?: OverlayPrimitive[]
   postAnswerOverlays?: OverlayPrimitive[]
@@ -311,6 +332,7 @@ function normaliseAuthoredScene(id: string, scene: AuthoredScene): Scene3D {
     movements,
     answerDemo: scene.answerDemo ?? [],
     wrongDemos: scene.wrongDemos ?? [],
+    acceptableDemos: scene.acceptableDemos ?? [],
     preAnswerOverlays: scene.preAnswerOverlays ?? [],
     postAnswerOverlays: scene.postAnswerOverlays ?? [],
     freezeAtMs,
@@ -344,6 +366,7 @@ function resolveFreezeFromAuthored(
     movements,
     answerDemo: [],
     wrongDemos: [],
+    acceptableDemos: [],
     preAnswerOverlays: [],
     postAnswerOverlays: [],
     freezeAtMs: null,
@@ -412,6 +435,7 @@ function synthesiseSceneFromCourtState(
     movements: [],
     answerDemo: [],
     wrongDemos: [],
+    acceptableDemos: [],
     preAnswerOverlays: [],
     postAnswerOverlays: [],
     freezeAtMs: null,
@@ -435,6 +459,7 @@ export function createDefaultScene(id = 'default_3d_scene'): Scene3D {
     movements: [],
     answerDemo: [],
     wrongDemos: [],
+    acceptableDemos: [],
     preAnswerOverlays: [],
     postAnswerOverlays: [],
     freezeAtMs: null,
@@ -505,6 +530,19 @@ function sanitiseScene(scene: Scene3D): Scene3D {
       }))
   }
 
+  const cleanAcceptableDemos = (
+    list: SceneAcceptableDemo[] | undefined,
+  ): SceneAcceptableDemo[] => {
+    if (!Array.isArray(list)) return []
+    return list
+      .filter((d) => d && typeof d.choiceId === 'string')
+      .map((d) => ({
+        choiceId: d.choiceId,
+        movements: cleanMovements(d.movements),
+        caption: d.caption,
+      }))
+  }
+
   return {
     ...scene,
     players,
@@ -512,6 +550,7 @@ function sanitiseScene(scene: Scene3D): Scene3D {
     movements: cleanMovements(scene.movements),
     answerDemo: cleanMovements(scene.answerDemo),
     wrongDemos: cleanWrongDemos(scene.wrongDemos),
+    acceptableDemos: cleanAcceptableDemos(scene.acceptableDemos),
   }
 }
 

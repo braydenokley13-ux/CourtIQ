@@ -422,6 +422,41 @@ function materialize(template: Template, variant: Variant): MaterializedScenario
     }
   })
 
+  // Pack 2 Teaching-Quality F11 — acceptable demos: same outcome→choiceId
+  // join as wrongDemos. The choice's quality must be `acceptable`; using
+  // an acceptable-demo on a `wrong` or `best` choice is an authoring
+  // mistake (the controller would short-circuit incorrectly). Validate
+  // here so authors see the error at materialize time.
+  const acceptableDemos = template.scene.acceptableDemos.map((ad) => {
+    const choiceId = outcomeToChoiceId.get(ad.outcome)
+    if (!choiceId) {
+      throw new Error(
+        `Template ${template.id} acceptable demo references outcome "${ad.outcome}" with no choice.`,
+      )
+    }
+    const choice = template.choices.find((c) => c.outcome === ad.outcome)
+    if (choice && choice.quality !== 'acceptable') {
+      throw new Error(
+        `Template ${template.id} acceptable demo "${ad.outcome}" maps to a choice with ` +
+          `quality="${choice.quality}". Acceptable demos may only attach to acceptable choices ` +
+          `(use wrongDemos for wrong choices; best choices play the answer demo).`,
+      )
+    }
+    return {
+      choiceId,
+      ...(ad.caption ? { caption: ad.caption } : {}),
+      movements: ad.movements.map((m) => ({
+        id: m.id,
+        playerId: m.playerSlot,
+        kind: m.kind,
+        to: flipX(m.to, mirror),
+        ...(typeof m.delayMs === 'number' ? { delayMs: m.delayMs } : {}),
+        ...(typeof m.durationMs === 'number' ? { durationMs: m.durationMs } : {}),
+        ...(m.caption ? { caption: m.caption } : {}),
+      })),
+    }
+  })
+
   // Disguise application: filter pre overlays + maybe compress freeze.
   const disguise = template.disguises[variant.variation.disguise]
   const removeSet = new Set(
@@ -628,6 +663,10 @@ function materialize(template: Template, variant: Variant): MaterializedScenario
       answerDemo,
       ...(freezeMarker ? { freezeMarker } : {}),
       wrongDemos,
+      // Pack 2 Teaching-Quality F11 — emit acceptableDemos only when
+      // the template authored at least one (preserves diff-stable
+      // output for templates that don't use the field).
+      ...(acceptableDemos.length > 0 ? { acceptableDemos } : {}),
       preAnswerOverlays,
       postAnswerOverlays,
       // Phase 3.1.4 — pass through opt-in timing override + multi-beat

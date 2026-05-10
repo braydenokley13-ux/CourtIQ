@@ -201,34 +201,54 @@ export function ScenarioReplayController({
     if (phaseRef.current !== 'frozen') return
     consumedChoiceRef.current = pickedChoiceId
 
+    // Pack 2 Teaching-Quality F11 — check acceptable demos first so a
+    // template that authored both a wrongDemo and an acceptableDemo
+    // for the same choiceId routes to the acceptable branch (an
+    // authoring conflict the scaffolder would otherwise allow). The
+    // acceptableDemos array is keyed by choiceId of `acceptable`-
+    // quality choices only (validated at materialize time), so this
+    // lookup is safe.
+    const acceptableDemo = scene.acceptableDemos.find(
+      (d) => d.choiceId === pickedChoiceId,
+    )
     const wrongDemo = scene.wrongDemos.find((d) => d.choiceId === pickedChoiceId)
-    if (wrongDemo) {
+    const consequenceDemo = acceptableDemo ?? wrongDemo
+    if (consequenceDemo) {
       legRef.current = 'consequence'
-      movementsRef.current = wrongDemo.movements
-      timelineRef.current = buildTimeline(scene, wrongDemo.movements, {
+      movementsRef.current = consequenceDemo.movements
+      timelineRef.current = buildTimeline(scene, consequenceDemo.movements, {
         startOverrides: snapshotRef.current ?? undefined,
       })
       startedAtRef.current = null
       // FR-6 §10.2 — the wrong-choice tile flashes for ~80 ms before
-      // the consequence leg starts moving.
+      // the consequence leg starts moving. Same beat for an
+      // acceptable-demo so the player gets equivalent acknowledgement
+      // before the second-best read plays.
       preDelayMsRef.current = PRE_CONSEQUENCE_DELAY_MS
       cueRepaintActiveRef.current = false
       lastFiredCaptionRef.current = ''
       firedMovementsRef.current.clear()
       phaseRef.current = 'consequence'
       onPhase?.('consequence')
-      if (wrongDemo.caption) onCaption?.(wrongDemo.caption)
+      if (consequenceDemo.caption) onCaption?.(consequenceDemo.caption)
     } else {
       // Best-read short-circuits silently. Any other choiceId reaching
       // here is a missing-wrongDemos authoring fault — emit a
       // breadcrumb (Sentry's nextjs auto-instruments console.warn) so
       // the canvas degrades gracefully without losing the signal.
-      if (scene.wrongDemos.length > 0 && typeof console !== 'undefined') {
-        console.warn('[scenario3d] no wrongDemos entry for choice; falling back to replay leg', {
-          sceneId: scene.id,
-          choiceId: pickedChoiceId,
-          authoredChoiceIds: scene.wrongDemos.map((d) => d.choiceId),
-        })
+      if (
+        (scene.wrongDemos.length > 0 || scene.acceptableDemos.length > 0) &&
+        typeof console !== 'undefined'
+      ) {
+        console.warn(
+          '[scenario3d] no wrongDemos / acceptableDemos entry for choice; falling back to replay leg',
+          {
+            sceneId: scene.id,
+            choiceId: pickedChoiceId,
+            authoredWrongChoiceIds: scene.wrongDemos.map((d) => d.choiceId),
+            authoredAcceptableChoiceIds: scene.acceptableDemos.map((d) => d.choiceId),
+          },
+        )
       }
       // FR-6 — best-read path holds the cue cluster for ~600 ms
       // before motion (§10.2 correct-path beat).

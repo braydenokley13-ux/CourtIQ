@@ -130,6 +130,19 @@ const wrongDemoSchema = z.object({
 })
 export type WrongDemo = z.infer<typeof wrongDemoSchema>
 
+// --- Pack 2 Teaching-Quality F11 — `acceptable` choice demo --------------
+//
+// Same shape as wrongDemoSchema; emitted when the player picks a choice
+// whose quality is `acceptable`. The replay controller plays the
+// acceptable-demo as the consequence leg before transitioning to the
+// answer demo, so the player sees what "second-best" looks like.
+const acceptableDemoSchema = z.object({
+  choiceId: z.string().min(1),
+  movements: z.array(sceneMovementSchema).max(32),
+  caption: z.string().max(80).optional(),
+})
+export type AcceptableDemo = z.infer<typeof acceptableDemoSchema>
+
 // --- Overlay primitives (Section 4.5 / 6) --------------------------------
 // Discriminated union so the seed validator and the renderer share
 // exhaustive coverage. Pre-answer overlays are gated to a small allow-list
@@ -257,6 +270,12 @@ export const sceneSchema = z
     // fixtures parse unchanged.
     freezeMarker: freezeMarkerSchema.optional(),
     wrongDemos: z.array(wrongDemoSchema).max(8).default([]),
+    /** Pack 2 Teaching-Quality F11 — optional `acceptable` choice
+     *  demos. Mirrors wrongDemos shape; played as the consequence leg
+     *  when the player picks an acceptable-quality choice. Absence
+     *  preserves Pack 1 behaviour: acceptable picks short-circuit
+     *  to the answer leg. */
+    acceptableDemos: z.array(acceptableDemoSchema).max(8).default([]),
     preAnswerOverlays: z.array(overlayPrimitiveSchema).max(16).default([]),
     postAnswerOverlays: z.array(overlayPrimitiveSchema).max(16).default([]),
     // Phase 3.1.4 — per-scenario timing override + multi-beat spec.
@@ -324,6 +343,20 @@ export const sceneSchema = z
             code: z.ZodIssueCode.custom,
             path: ['wrongDemos', i, 'movements'],
             message: `wrongDemos[${i}].movement "${m.id}" references unknown playerId "${m.playerId}".`,
+          })
+        }
+      }
+    }
+
+    // F11 — same player-set check for acceptableDemos.
+    for (let i = 0; i < scene.acceptableDemos.length; i++) {
+      const demo = scene.acceptableDemos[i]!
+      for (const m of demo.movements) {
+        if (!validMovementTargets.has(m.playerId)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['acceptableDemos', i, 'movements'],
+            message: `acceptableDemos[${i}].movement "${m.id}" references unknown playerId "${m.playerId}".`,
           })
         }
       }
