@@ -57,7 +57,13 @@ const PACK2_DECODER_TAGS: readonly DecoderTag[] = [
 ] as const
 
 /** Pack 2 ids the matrix is expected to surface. */
-const PACK2_IDS: readonly string[] = ['DROP-01', 'DROP-02', 'HUNT-01', 'HUNT-02'] as const
+const PACK2_IDS: readonly string[] = [
+  'DROP-01',
+  'DROP-02',
+  'DROP-03',
+  'HUNT-01',
+  'HUNT-02',
+] as const
 
 const EXPECTED_TOTAL = FOUNDER_V0_IDS.length + PACK2_IDS.length
 
@@ -105,7 +111,8 @@ describe('QA_MATRIX', () => {
 
   it('has matching Pack 2 entry counts for the new DROP and HUNT families', () => {
     const grouped = groupQaMatrixByDecoder()
-    expect(grouped.get('READ_THE_COVERAGE')?.length).toBe(2)
+    // DROP rises to 3 entries at Phase δ (DROP-01..03); HUNT stays at 2.
+    expect(grouped.get('READ_THE_COVERAGE')?.length).toBe(3)
     expect(grouped.get('HUNT_THE_ADVANTAGE')?.length).toBe(2)
   })
 
