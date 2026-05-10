@@ -31,23 +31,43 @@ function s(id: string, decoder_tag: DecoderTag | null) {
 }
 
 describe('isHuntEligibleForUser', () => {
-  it('high-IQ user is eligible regardless of calibration age', () => {
+  // Pin a deterministic clock for every case so calibration-window
+  // math is reproducible. Calibration-age inputs are derived as
+  // offsets from this anchor.
+  const NOW = new Date('2026-05-10T12:00:00Z')
+  const DAY_MS = 24 * 60 * 60 * 1000
+  const daysAgo = (n: number) => new Date(NOW.getTime() - n * DAY_MS)
+
+  it('high-IQ calibrated user is eligible regardless of calibration age', () => {
     expect(
-      isHuntEligibleForUser({ iq_score: HUNT_IQ_FLOOR, daysSinceCalibration: 0 }),
+      isHuntEligibleForUser({
+        iq_score: HUNT_IQ_FLOOR,
+        calibratedAt: daysAgo(0),
+        now: NOW,
+      }),
     ).toBe(true)
     expect(
-      isHuntEligibleForUser({ iq_score: 900, daysSinceCalibration: 5 }),
+      isHuntEligibleForUser({
+        iq_score: 900,
+        calibratedAt: daysAgo(5),
+        now: NOW,
+      }),
     ).toBe(true)
   })
 
   it('low-IQ user within the calibration window is excluded', () => {
     expect(
-      isHuntEligibleForUser({ iq_score: 600, daysSinceCalibration: 0 }),
+      isHuntEligibleForUser({
+        iq_score: 600,
+        calibratedAt: daysAgo(0),
+        now: NOW,
+      }),
     ).toBe(false)
     expect(
       isHuntEligibleForUser({
         iq_score: HUNT_IQ_FLOOR - 1,
-        daysSinceCalibration: HUNT_CALIBRATION_DAYS - 1,
+        calibratedAt: daysAgo(HUNT_CALIBRATION_DAYS - 1),
+        now: NOW,
       }),
     ).toBe(false)
   })
@@ -56,21 +76,45 @@ describe('isHuntEligibleForUser', () => {
     expect(
       isHuntEligibleForUser({
         iq_score: 500,
-        daysSinceCalibration: HUNT_CALIBRATION_DAYS,
+        calibratedAt: daysAgo(HUNT_CALIBRATION_DAYS),
+        now: NOW,
       }),
     ).toBe(true)
     expect(
-      isHuntEligibleForUser({ iq_score: 500, daysSinceCalibration: 365 }),
+      isHuntEligibleForUser({
+        iq_score: 500,
+        calibratedAt: daysAgo(365),
+        now: NOW,
+      }),
     ).toBe(true)
   })
 
-  it('Number.POSITIVE_INFINITY days (uncalibrated user) is eligible', () => {
+  it('null calibratedAt (uncalibrated user) is excluded — the conservative read', () => {
+    // Phase δ-C: uncalibrated users get HUNT filtered out regardless
+    // of IQ (the prior Phase γ contract used POSITIVE_INFINITY days as
+    // "uncalibrated" and admitted them; that proxy mis-classified
+    // pre-calibration signups so we flipped to the conservative default).
     expect(
       isHuntEligibleForUser({
         iq_score: 400,
-        daysSinceCalibration: Number.POSITIVE_INFINITY,
+        calibratedAt: null,
+        now: NOW,
       }),
-    ).toBe(true)
+    ).toBe(false)
+    expect(
+      isHuntEligibleForUser({
+        iq_score: 900,
+        calibratedAt: null,
+        now: NOW,
+      }),
+    ).toBe(false)
+    expect(
+      isHuntEligibleForUser({
+        iq_score: HUNT_IQ_FLOOR,
+        calibratedAt: null,
+        now: NOW,
+      }),
+    ).toBe(false)
   })
 })
 

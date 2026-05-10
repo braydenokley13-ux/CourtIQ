@@ -73,7 +73,7 @@ async function loadScenario(file: string): Promise<HuntScenarioJson> {
 }
 
 describe('hunt-decoder-v0 pack manifest', () => {
-  it('lists HUNT-01 and HUNT-02 with the expected files', async () => {
+  it('lists HUNT-01, HUNT-02, and HUNT-03 with the expected files', async () => {
     const raw = await fs.readFile(PACK_PATH, 'utf8')
     const manifest = JSON.parse(raw) as {
       slug: string
@@ -81,14 +81,16 @@ describe('hunt-decoder-v0 pack manifest', () => {
     }
     expect(manifest.slug).toBe('hunt-decoder-v0')
     const ids = manifest.scenarios.map((s) => s.id)
-    expect(ids).toEqual(['HUNT-01', 'HUNT-02'])
+    expect(ids).toEqual(['HUNT-01', 'HUNT-02', 'HUNT-03'])
     expect(manifest.scenarios[0]!.file).toBe('HUNT-01.json')
     expect(manifest.scenarios[1]!.file).toBe('HUNT-02.json')
+    expect(manifest.scenarios[2]!.file).toBe('HUNT-03.json')
     expect(manifest.scenarios[1]!.prerequisites).toEqual(['HUNT-01'])
+    expect(manifest.scenarios[2]!.prerequisites).toEqual(['HUNT-02'])
   })
 })
 
-for (const id of ['HUNT-01', 'HUNT-02'] as const) {
+for (const id of ['HUNT-01', 'HUNT-02', 'HUNT-03'] as const) {
   describe(`${id} — Pack 2 (Phase γ) HUNT base scenario authoring lock`, () => {
     it('parses through the runtime scene schema', async () => {
       const scenario = await loadScenario(`${id}.json`)
@@ -169,3 +171,45 @@ for (const id of ['HUNT-01', 'HUNT-02'] as const) {
     })
   })
 }
+
+// ---------------------------------------------------------------------------
+// HUNT-03 (Phase δ-A) — D3 decoy-action specific assertions
+// ---------------------------------------------------------------------------
+//
+// HUNT-03 is the first HUNT scenario at difficulty ≥ 3 and so picks up
+// LINT-HUNT-05's stricter coach-validation gate. The shared loop above
+// runs lintHuntVariant against every shipped HUNT scenario, so a
+// regression in LINT-HUNT-05 already surfaces there. This block locks
+// the D3-specific authoring contract explicitly so a future relaxation
+// (e.g. someone dropping coach_validation.level to 'medium' on HUNT-03)
+// fails with a HUNT-03-named test, not a generic lint roll-up.
+
+describe('HUNT-03 — Phase δ-A decoy-action scenario authoring lock', () => {
+  it('declares difficulty=3 (the first D3 HUNT scenario in the pack)', async () => {
+    const scenario = await loadScenario('HUNT-03.json')
+    expect(scenario.difficulty).toBe(3)
+  })
+
+  it('carries coach_validation.level="high" and status="approved" per LINT-HUNT-05', async () => {
+    const scenario = await loadScenario('HUNT-03.json')
+    expect(scenario.coach_validation?.level).toBe('high')
+    expect(scenario.coach_validation?.status).toBe('approved')
+  })
+
+  it('uses the decoy-action overlay cluster (hand_in_lane + foot_arrow on x_user at beat 2)', async () => {
+    const scenario = await loadScenario('HUNT-03.json')
+    const pre = scenario.scene?.preAnswerOverlays ?? []
+    const beat2HandInLane = pre.find(
+      (o) =>
+        o.kind === 'defender_hand_in_lane' &&
+        (o as { beat?: number }).beat === 2,
+    )
+    const beat2FootArrow = pre.find(
+      (o) =>
+        o.kind === 'defender_foot_arrow' &&
+        (o as { beat?: number }).beat === 2,
+    )
+    expect(beat2HandInLane).toBeDefined()
+    expect(beat2FootArrow).toBeDefined()
+  })
+})

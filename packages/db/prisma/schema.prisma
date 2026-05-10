@@ -36,6 +36,14 @@ model Profile {
   current_streak      Int      @default(0)
   longest_streak      Int      @default(0)
   streak_freeze_count Int      @default(0)
+  // Phase δ-C — explicit timestamp set when the user finishes IQ
+  // calibration (onboarding step 5). Replaces the Phase γ
+  // `User.created_at` proxy used by HUNT eligibility. Nullable so
+  // pre-Phase-δ-C accounts that never went through the wired path
+  // read as uncalibrated (= HUNT excluded, the conservative default)
+  // until they re-trigger calibration. Not backfilled at migration
+  // time — see migration SQL for rationale.
+  calibrated_at       DateTime?
   updated_at          DateTime @updatedAt
 }
 
@@ -170,6 +178,10 @@ model Attempt {
   @@index([user_id, scenario_id])
   @@index([session_run_id, created_at])
   @@index([user_id, created_at])
+  // Phase delta-Telemetry (WS-T) — descending index on created_at to
+  // back the cross-user "recent attempts" scan that the admin
+  // beat-aggregates endpoint runs. Migration: 20260510140000.
+  @@index([created_at(sort: Desc)], map: "Attempt_created_at_idx")
 }
 
 model Mastery {

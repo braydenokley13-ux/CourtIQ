@@ -609,21 +609,42 @@ describe('resolveFreezeTiming — Pack 1/2 round-trip', () => {
 //     beat data and must hydrate without authoring beatSpec.secondBeat.
 // ---------------------------------------------------------------------------
 
-describe('DROP (READ_THE_COVERAGE) D1/D2 cognition templates', () => {
-  it('exposes a non-empty template list with cue → action → advantage', () => {
+describe('DROP (READ_THE_COVERAGE) cognition templates', () => {
+  it('exposes the cue/cue/action/advantage shape (Phase δ — D3 adds the low-man tag cue)', () => {
+    // Pack 2 (Phase δ) — DROP_TEMPLATES has 4 entries: two cue beats
+    // (screen_defender chest + low_man tag), one action, one advantage.
+    // D1/D2 scenes do not set the `low_man` anchor; the hydrator
+    // silently drops that beat at hydrate time so D1/D2 still light up
+    // 3 beats.
     const tpl = getFreezeBeatTemplates('READ_THE_COVERAGE')
-    expect(tpl.length).toBe(3)
-    expect(tpl.map((t) => t.kind)).toEqual(['cue', 'action', 'advantage'])
+    expect(tpl.length).toBe(4)
+    expect(tpl.map((t) => t.kind)).toEqual([
+      'cue',
+      'cue',
+      'action',
+      'advantage',
+    ])
   })
 
-  it('uses screen-defender body-language primitives for cue + action', () => {
+  it('uses screen-defender body-language primitives for the first cue and action', () => {
     const tpl = getFreezeBeatTemplates('READ_THE_COVERAGE')
-    const cue = tpl.find((t) => t.kind === 'cue')
+    const screenCue = tpl.find(
+      (t) => t.kind === 'cue' && t.anchor === 'screen_defender',
+    )
     const action = tpl.find((t) => t.kind === 'action')
-    expect(cue?.primitive_kind).toBe('defender_chest_line')
-    expect(cue?.anchor).toBe('screen_defender')
+    expect(screenCue?.primitive_kind).toBe('defender_chest_line')
     expect(action?.primitive_kind).toBe('defender_foot_arrow')
     expect(action?.anchor).toBe('screen_defender')
+  })
+
+  it('adds a low-man help_pulse cue with role="tag" for the D3 second cue', () => {
+    const tpl = getFreezeBeatTemplates('READ_THE_COVERAGE')
+    const lowManCue = tpl.find(
+      (t) => t.kind === 'cue' && t.anchor === 'low_man',
+    )
+    expect(lowManCue).toBeDefined()
+    expect(lowManCue?.primitive_kind).toBe('help_pulse')
+    expect(lowManCue?.help_pulse_role).toBe('tag')
   })
 
   it('uses a court-point pull_up_pocket anchor for the advantage beat', () => {
@@ -633,7 +654,10 @@ describe('DROP (READ_THE_COVERAGE) D1/D2 cognition templates', () => {
     expect(adv?.anchor).toBe('pull_up_pocket')
   })
 
-  it('hydrates to schema-legal OverlayBeats with the DROP anchors set', () => {
+  it('hydrates D1/D2 to 3 beats (low_man anchor absent — silently skipped)', () => {
+    // D1/D2 scenes never set the low_man anchor. The hydrator drops
+    // the second cue beat, leaving the textbook DROP D1/D2 three-beat
+    // shape (chest cue → foot action → pocket advantage).
     const beats = hydrateFreezeBeats(
       'READ_THE_COVERAGE',
       getFreezeBeatTemplates('READ_THE_COVERAGE'),
@@ -646,8 +670,26 @@ describe('DROP (READ_THE_COVERAGE) D1/D2 cognition templates', () => {
       'defender_foot_arrow',
       'open_space_region',
     ])
-    // All three beats must declare phase='freeze' — DROP is single-
-    // freeze; nothing here ever schedules into a second beat.
+    expect(beats.every((b) => b.phase === 'freeze')).toBe(true)
+  })
+
+  it('hydrates D3 to 4 beats when the low_man anchor is provided', () => {
+    const d3Anchors: FreezeBeatAnchors = { ...FULL_ANCHORS, low_man: 'd7' }
+    const beats = hydrateFreezeBeats(
+      'READ_THE_COVERAGE',
+      getFreezeBeatTemplates('READ_THE_COVERAGE'),
+      d3Anchors,
+    )
+    expect(beats).toHaveLength(4)
+    const kinds = beats.map((b) => b.primitive.kind)
+    expect(kinds).toEqual([
+      'defender_chest_line',
+      'help_pulse',
+      'defender_foot_arrow',
+      'open_space_region',
+    ])
+    // All four still phase='freeze' — DROP D3 is single-freeze; the
+    // second cue rides the same envelope as the chest_line.
     expect(beats.every((b) => b.phase === 'freeze')).toBe(true)
   })
 
@@ -665,20 +707,15 @@ describe('DROP (READ_THE_COVERAGE) D1/D2 cognition templates', () => {
     expect(beats.length).toBe(0)
   })
 
-  it('does not require secondBeat — templates declare no beat-2 schedule', () => {
+  it('does not require secondBeat — every template lives in the single freeze envelope', () => {
     const tpl = getFreezeBeatTemplates('READ_THE_COVERAGE')
-    // No second-beat scheduling is encoded on the DROP templates: every
-    // beat lives inside the single freeze envelope (≤ FREEZE_COGNITION_HOLD_MS
-    // after freezeAtMs).
     for (const t of tpl) {
       expect(t.at_phase_ms).toBeLessThanOrEqual(1400)
       expect(t.at_phase_ms).toBeGreaterThanOrEqual(0)
     }
   })
 
-  it('READ_THE_COVERAGE is compatible with the Pack 1 hydration code path', () => {
-    // Same hydrate function, same anchor map, same OverlayBeat shape as
-    // BDW/ESC/SKR/AOR — DROP rides the founder rails.
+  it('READ_THE_COVERAGE D1/D2 (without low_man) is compatible with the Pack 1 hydration code path', () => {
     const drop = hydrateFreezeBeats(
       'READ_THE_COVERAGE',
       getFreezeBeatTemplates('READ_THE_COVERAGE'),

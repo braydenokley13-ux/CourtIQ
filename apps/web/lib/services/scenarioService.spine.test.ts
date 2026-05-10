@@ -16,11 +16,11 @@ vi.mock('@/lib/db/prisma', () => ({
   prisma: {
     scenario: { findMany: vi.fn(), findFirst: vi.fn(), count: vi.fn() },
     sessionRun: { create: vi.fn(), findFirst: vi.fn() },
+    // Phase δ-C — Profile now carries `calibrated_at`, which the HUNT
+    // eligibility gate consumes directly. Tests default to a long-ago
+    // calibration so the calibration-window check doesn't filter HUNT
+    // out of every bundle; specific cases override.
     profile: { findUnique: vi.fn() },
-    // Phase γ — User row hydrated for HUNT calibration-window check.
-    // Tests default to a freshly-created account; specific cases can
-    // override `created_at` to exercise the eligibility gate.
-    user: { findUnique: vi.fn() },
     mastery: { findMany: vi.fn() },
     attempt: { findMany: vi.fn(), count: vi.fn() },
   },
@@ -122,18 +122,15 @@ describe('generateSessionBundle — spine routing', () => {
   })
 
   beforeEach(() => {
-    // Default to a mature account so the HUNT calibration-window
-    // gate doesn't filter HUNT out of every test bundle. Specific
-    // tests can override.
-    ;(prisma.user.findUnique as MockedFn).mockResolvedValue({
-      created_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
-    })
+    // No-op — profile mocks (which now carry `calibrated_at`) are
+    // configured per-test below.
   })
 
   it('routes brand-new players (lifetimeAttempts === 0) through firstSession and persists mode=first_session', async () => {
     ;(prisma.profile.findUnique as MockedFn).mockResolvedValue({
       iq_score: 500,
       current_streak: 0,
+      calibrated_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
     })
     ;(prisma.scenario.findMany as MockedFn).mockResolvedValue(richCatalog())
     ;(prisma.attempt.findMany as MockedFn).mockResolvedValue([])
@@ -163,6 +160,7 @@ describe('generateSessionBundle — spine routing', () => {
     ;(prisma.profile.findUnique as MockedFn).mockResolvedValue({
       iq_score: 600,
       current_streak: 2,
+      calibrated_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
     })
     ;(prisma.scenario.findMany as MockedFn).mockResolvedValue(richCatalog())
     ;(prisma.attempt.findMany as MockedFn).mockResolvedValue([])
@@ -185,6 +183,7 @@ describe('generateSessionBundle — spine routing', () => {
     ;(prisma.profile.findUnique as MockedFn).mockResolvedValue({
       iq_score: 500,
       current_streak: 0,
+      calibrated_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
     })
     // Brand-new player (would normally route to firstSession), but
     // concept filter forces legacy weighted path.
@@ -219,6 +218,7 @@ describe('generateSessionBundle — spine routing', () => {
     ;(prisma.profile.findUnique as MockedFn).mockResolvedValue({
       iq_score: 500,
       current_streak: 0,
+      calibrated_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
     })
     ;(prisma.scenario.findMany as MockedFn).mockResolvedValue(richCatalog())
     ;(prisma.attempt.findMany as MockedFn).mockResolvedValue([])
@@ -252,6 +252,7 @@ describe('generateSessionBundle — spine routing', () => {
     ;(prisma.profile.findUnique as MockedFn).mockResolvedValueOnce({
       iq_score: 500,
       current_streak: 0,
+      calibrated_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
     })
     ;(prisma.sessionRun.create as MockedFn).mockResolvedValueOnce({ id: 'sess-p' })
 

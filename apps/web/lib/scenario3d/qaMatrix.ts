@@ -384,6 +384,23 @@ export const QA_MATRIX: readonly QaMatrixEntry[] = [
       'Snake path must paint cleanly across the screen — risk of camera hiding the cross-back',
     priority: 'high',
   },
+  {
+    id: 'DROP-03',
+    decoder: 'READ_THE_COVERAGE',
+    primaryCue:
+      'x5 in drop AND x2 (low man) both feet in the lane — full tag commit',
+    requiredFraming:
+      'Ball-handler off the screen, x5 in drop, roller in the lane, x2 stepped fully into the tag, weak corner empty behind x2',
+    requiredHighlight: 'x2 (low man tagger) + the vacated weak corner',
+    requiredOverlays: [
+      'defender_chest_line',
+      'help_pulse',
+      'defender_hip_arrow',
+    ],
+    knownRisk:
+      'Two-defender cue cluster — the chest_line on x5 must not steal attention from the help_pulse on x2; intermediate cluster cap is 4 and this scene runs to the cap',
+    priority: 'high',
+  },
 
   // -- HUNT family (Pack 2 / Phase γ) ---------------------------------------
   {
@@ -418,6 +435,23 @@ export const QA_MATRIX: readonly QaMatrixEntry[] = [
     ],
     knownRisk:
       'Switch animation must complete inside the inter-beat window — late switch breaks the chain',
+    priority: 'high',
+  },
+  {
+    id: 'HUNT-03',
+    decoder: 'HUNT_THE_ADVANTAGE',
+    primaryCue:
+      'Beat 1 mismatch + hip arrow on x1; beat 2 hand-in-lane + foot arrow on x1 after the DHO bait fires',
+    requiredFraming:
+      'Wing ball-handler with screener walking into a DHO, x1 shaded to the handoff, slip lane to rim visible at beat 2',
+    requiredHighlight: 'x1 (on-ball, baited)',
+    requiredOverlays: [
+      'help_pulse',
+      'defender_hand_in_lane',
+      'defender_foot_arrow',
+    ],
+    knownRisk:
+      'Decoy DHO must read as a fake — risk that the handoff animation looks committed and the slip reads as a turnover',
     priority: 'high',
   },
 ] as const

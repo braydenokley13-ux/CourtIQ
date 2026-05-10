@@ -250,6 +250,18 @@ describe('LINT-HUNT-05 — coach validation gate', () => {
     if (!r.ok) expect(r.rule).toBe('LINT-HUNT-05')
   })
 
+  it('fails at D3 when level is medium (Phase δ-A: D3 decoy-action scenarios require high)', () => {
+    // Phase δ-A — HUNT D3 introduces decoy-action scenarios; per the
+    // blueprint these require high+approved coach validation before
+    // shipping, the same gate D4 / D5 already enforced. This test pins
+    // the D3 boundary explicitly so a future relaxation surfaces here.
+    const meta = baseHuntMeta()
+    meta.coach_validation = { level: 'medium', status: 'approved' }
+    const r = lintHuntCoachValidation(meta, 3)
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.rule).toBe('LINT-HUNT-05')
+  })
+
   it('fails at D4 when level is not high', () => {
     const meta = baseHuntMeta()
     meta.coach_validation = { level: 'medium', status: 'approved' }

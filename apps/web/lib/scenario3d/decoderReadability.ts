@@ -46,7 +46,44 @@ import type { DecoderTag } from './schema'
  */
 export type TensionPhase = 'pre' | 'ramp' | 'freeze' | 'release' | 'post'
 
-/** Defensive body-language states. See Part-2B § 2. */
+/** Defensive body-language states. See Part-2B § 2.
+ *
+ * Pack 2 (Phase δ) — DROP family adds a sit-back / tag-recover vocabulary
+ * that the founder set could not express. The existing OVER_COMMITTED
+ * names overhelp (hips already through the ball-line); a DROP big who is
+ * still settled below the screen is not over-committed, he is sitting
+ * back inside his coverage call. Same shape for the low-man tag: a tag
+ * that is "still bumping" lives somewhere between LEVERAGE_HELD and
+ * LATE_ROTATION but is neither — it is a half-step commit that recovers
+ * before the corner skip arrives. These states name those poses so the
+ * readability tables can encode them without overloading the founder
+ * vocabulary.
+ *
+ *   DROP_SIT_BACK         — screen defender held in textbook drop:
+ *                            chest below screen, feet to own rim,
+ *                            weight back. The cue that says "pocket
+ *                            is yours."
+ *   DROP_SAGGED           — screen defender deeper than textbook drop:
+ *                            chest below the elbow, feet at the lane.
+ *                            The cue that says "middle is yours behind
+ *                            him." DROP-02's load-bearing pose.
+ *   TAG_COMMITTING        — weak-side low man stepped fully into the
+ *                            tag line: chest square to roller, both
+ *                            feet inside the lane, hips no longer
+ *                            shading the corner. The cue that says
+ *                            "his corner is open — kick it."
+ *   TAG_BUMPING           — weak-side low man stunted at the tag
+ *                            line: one foot in the lane, the other
+ *                            shading the corner, chest still angled
+ *                            outside. He will recover before the kick
+ *                            lands. The cue that says "the pocket
+ *                            pass to the roller wins."
+ *   TAG_RECOVERING        — weak-side low man already retreating from
+ *                            a stunt: hips turning back to the corner,
+ *                            lead foot pulling out of the lane. The
+ *                            post-bump cue that confirms the corner
+ *                            kick window is closing.
+ */
 export type DefensiveBodyState =
   | 'LEVERAGE_HELD'
   | 'BALL_WATCHING'
@@ -55,8 +92,28 @@ export type DefensiveBodyState =
   | 'CLOSEOUT_BALANCED'
   | 'CLOSEOUT_OFFBALANCE'
   | 'LATE_ROTATION'
+  | 'DROP_SIT_BACK'
+  | 'DROP_SAGGED'
+  | 'TAG_COMMITTING'
+  | 'TAG_BUMPING'
+  | 'TAG_RECOVERING'
 
-/** Offensive body-language states. See Part-2B § 2. */
+/** Offensive body-language states. See Part-2B § 2.
+ *
+ * Pack 2 (Phase δ) — DROP family adds two on-ball PnR poses the founder
+ * set never described. The ball-handler reading drop coverage is in a
+ * distinct pose from a wing receiver loading a catch: hands at the gather,
+ * eyes on the screen defender's chest, hips squared to the screen. Same
+ * story for the roller diving into the pocket — the "ROLLER_PRESENT"
+ * pose is the body-state the pocket pass keys off.
+ *
+ *   PNR_READ_POCKET       — ball-handler off the screen, gathered into
+ *                            the pull-up pocket, eyes on the screen
+ *                            defender's chest. The DROP D1 user pose.
+ *   ROLLER_PRESENT        — screener rolling hard into the lane with
+ *                            hands up: the pocket-pass cue when the
+ *                            tag is just bumping.
+ */
 export type OffensiveBodyState =
   | 'READY_NEUTRAL'
   | 'LOADED_TO_CATCH'
@@ -64,6 +121,8 @@ export type OffensiveBodyState =
   | 'EXPLOSIVE_BURST'
   | 'SHOT_READY'
   | 'ADVANTAGE_HELD'
+  | 'PNR_READ_POCKET'
+  | 'ROLLER_PRESENT'
 
 export type BodyState = DefensiveBodyState | OffensiveBodyState
 
@@ -310,15 +369,119 @@ const HUNT_TABLE: Partial<Record<DecoderRole, CuePeak>> = {
   },
 }
 
-// DROP readability stays empty: screen-defender depth + chest-line
-// peaks need a dedicated body-state vocabulary (the existing
-// LATE_ROTATION / OVER_COMMITTED states don't fit a sit-back drop).
+// Pack 2 (Phase δ) — DROP readability table. The DROP family freezes on
+// the screen defender's coverage shape (D1/D2 cue) and, at D3, on the
+// weak-side low man's tag commitment (the second-cue cluster). The
+// DecoderRole vocabulary is fixed (Pack 1 enum) — DROP role substrings
+// like `screen_defender`, `ball_handler`, and `low_man_*` resolve in the
+// scene's player role strings but do not surface as DecoderRole entries.
+// The table here keys the cue peaks against the closest DecoderRole
+// proxies:
+//
+//   - `closeout_defender` carries the SCREEN defender's drop / sag
+//     pose. We re-use the slot because the renderer's readability
+//     resolver receives the same per-player role hand-off that
+//     `decoderPrimitives.ts` uses to drive intent dispatch; the DROP
+//     screen defender's nearest DecoderRole match is closeout_defender
+//     (the only Pack 1 defensive role that names a single on-ball
+//     read pose, which DROP's sit-back analogously occupies).
+//   - `helper_defender` carries the LOW MAN tag pose at D3 — same
+//     slot used by SKR / HUNT for weak-side helpers.
+//   - `receiver` carries the ball-handler's PnR read pose (PNR_READ_POCKET).
+//     DROP's `ball_handler` is on-ball, not catching, but the receiver
+//     slot is the closest "loaded-and-reading" offensive pose Pack 1
+//     authors; the renderer's role-resolution stage maps both to the
+//     same `LOADED_TO_CATCH` / `PNR_READ_POCKET` family at freeze time.
+//   - `open_player` carries the ROLLER_PRESENT pose for the screener
+//     rolling into the pocket. The pose's role is the same shape —
+//     "ready hands, paint-bound, lane open" — that SKR / AOR's
+//     `open_player` already encodes; DROP overloads it for the rolling
+//     screener so the renderer can light up the pocket-pass target.
+//
+// Six entries — one per role × major variant. The peak magnitudes match
+// the existing tables (SKR's late-rotation lean, AOR's closeout
+// balance) so a renderer that already tuned its emphasis caps does not
+// need a re-tune for DROP. The two scenes that need the second variant
+// path (D2 sag, D3 tag) opt in via `getReadabilityProfileWithVariant`
+// (added below alongside the AOR variant fork).
+const DROP_TABLE: Partial<Record<DecoderRole, CuePeak>> = {
+  // D1 default — screen defender sitting back in textbook drop.
+  closeout_defender: {
+    bodyState: 'DROP_SIT_BACK',
+    leanBoost: 1.1,
+    headTurnBoostRad: 0,
+    hipYawBoostRad: 0,
+    freezeEmphasisRad: DEG(6),
+    cameraBias: 'player-read-angle',
+    overlayBeatBias: 'cue',
+  },
+  // D3 default — weak-side low man bumping the roller. The "committing"
+  // variant is selected via getReadabilityProfileWithVariant below.
+  helper_defender: {
+    bodyState: 'TAG_BUMPING',
+    leanBoost: 1.1,
+    headTurnBoostRad: DEG(5),
+    hipYawBoostRad: DEG(5),
+    freezeEmphasisRad: DEG(6),
+    cameraBias: 'help-defense-angle',
+    overlayBeatBias: 'cue',
+  },
+  // Ball-handler reading the coverage from the pocket.
+  receiver: {
+    bodyState: 'PNR_READ_POCKET',
+    leanBoost: 1.0,
+    headTurnBoostRad: 0,
+    hipYawBoostRad: 0,
+    freezeEmphasisRad: DEG(4),
+    cameraBias: 'none',
+    overlayBeatBias: 'action',
+  },
+  // Screener rolling into the pocket — the pocket-pass target at D3
+  // when the tag is just bumping.
+  open_player: {
+    bodyState: 'ROLLER_PRESENT',
+    leanBoost: 1.2,
+    headTurnBoostRad: 0,
+    hipYawBoostRad: 0,
+    freezeEmphasisRad: DEG(4),
+    cameraBias: 'none',
+    overlayBeatBias: 'advantage',
+  },
+}
+
+/** DROP — sagged-drop variant (D2 deep-drop pose). Selected via the
+ *  scenario data when the screen defender is dropping past the
+ *  textbook depth. */
+const DROP_SAGGED_SCREEN_DEFENDER: CuePeak = {
+  bodyState: 'DROP_SAGGED',
+  leanBoost: 1.2,
+  headTurnBoostRad: 0,
+  hipYawBoostRad: 0,
+  freezeEmphasisRad: DEG(7),
+  cameraBias: 'player-read-angle',
+  overlayBeatBias: 'cue',
+}
+
+/** DROP — tag-committing variant (D3 low-man committed to the
+ *  roller). Pairs with TAG_BUMPING in the table above; the scenario
+ *  data drives the fork the same way AOR's closeout balance fork
+ *  does. */
+const DROP_COMMITTING_LOW_MAN: CuePeak = {
+  bodyState: 'TAG_COMMITTING',
+  leanBoost: 1.3,
+  headTurnBoostRad: DEG(4),
+  hipYawBoostRad: DEG(8),
+  freezeEmphasisRad: DEG(7),
+  cameraBias: 'help-defense-angle',
+  overlayBeatBias: 'cue',
+}
+
 const DECODER_TABLES: Record<DecoderTag, Partial<Record<DecoderRole, CuePeak>>> = {
   BACKDOOR_WINDOW: BDW_TABLE,
   EMPTY_SPACE_CUT: ESC_TABLE,
   SKIP_THE_ROTATION: SKR_TABLE,
   ADVANTAGE_OR_RESET: AOR_TABLE,
-  READ_THE_COVERAGE: {},
+  READ_THE_COVERAGE: DROP_TABLE,
   HUNT_THE_ADVANTAGE: HUNT_TABLE,
 }
 
@@ -328,12 +491,31 @@ const DECODER_TABLES: Record<DecoderTag, Partial<Record<DecoderRole, CuePeak>>> 
  *  `balanced` is the default; `off_balance` opts into the bad-closeout cue. */
 export type AorCloseoutVariant = 'balanced' | 'off_balance'
 
+/** DROP-only variant tags. Scenario data drives the fork.
+ *
+ *   `drop` (default)   — textbook drop, screen defender sitting back at
+ *                         the screen level. D1.
+ *   `sagged`           — deep drop, screen defender below the elbow. D2.
+ *
+ *   `bumping` (default) — weak-side low man stunted at the lane line,
+ *                         not yet committed. D3 default state — the
+ *                         pocket-pass-to-roller cue.
+ *   `committing`       — weak-side low man fully into the tag, corner
+ *                         abandoned. D3 fork — the corner-skip cue.
+ */
+export type DropScreenDefenderVariant = 'drop' | 'sagged'
+export type DropLowManVariant = 'bumping' | 'committing'
+
 export interface ReadabilityInput {
   decoder: DecoderTag | undefined
   role: DecoderRole | undefined
   tensionPhase: TensionPhase
   /** Required only when (decoder = AOR && role = closeout_defender). Ignored elsewhere. */
   aorCloseoutVariant?: AorCloseoutVariant
+  /** Required only when (decoder = DROP && role = closeout_defender). Ignored elsewhere. */
+  dropScreenDefenderVariant?: DropScreenDefenderVariant
+  /** Required only when (decoder = DROP && role = helper_defender). Ignored elsewhere. */
+  dropLowManVariant?: DropLowManVariant
 }
 
 /**
@@ -357,7 +539,14 @@ export interface ReadabilityInput {
  * The function never throws and always returns a defined value.
  */
 export function getReadabilityProfile(input: ReadabilityInput): ReadabilityProfile {
-  const { decoder, role, tensionPhase, aorCloseoutVariant } = input
+  const {
+    decoder,
+    role,
+    tensionPhase,
+    aorCloseoutVariant,
+    dropScreenDefenderVariant,
+    dropLowManVariant,
+  } = input
   if (!decoder || !role) return NEUTRAL_PROFILE
   if (tensionPhase === 'pre' || tensionPhase === 'post') return NEUTRAL_PROFILE
 
@@ -370,6 +559,22 @@ export function getReadabilityProfile(input: ReadabilityInput): ReadabilityProfi
     aorCloseoutVariant === 'off_balance'
   ) {
     peak = AOR_OFFBALANCE_CLOSEOUT
+  }
+
+  if (
+    decoder === 'READ_THE_COVERAGE' &&
+    role === 'closeout_defender' &&
+    dropScreenDefenderVariant === 'sagged'
+  ) {
+    peak = DROP_SAGGED_SCREEN_DEFENDER
+  }
+
+  if (
+    decoder === 'READ_THE_COVERAGE' &&
+    role === 'helper_defender' &&
+    dropLowManVariant === 'committing'
+  ) {
+    peak = DROP_COMMITTING_LOW_MAN
   }
 
   if (!peak) return NEUTRAL_PROFILE

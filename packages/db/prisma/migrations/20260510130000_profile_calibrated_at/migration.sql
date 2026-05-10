@@ -1,0 +1,31 @@
+-- Phase δ-C — explicit `calibrated_at` column on Profile.
+--
+-- Phase γ wired the HUNT eligibility soft gate against `User.created_at`
+-- as a stand-in for "when the user finished IQ calibration." That proxy
+-- is wrong in two directions: signed-up-but-never-calibrated users
+-- *look* mature (so HUNT leaks into their pool too early), and users
+-- who actually finished calibration weeks after signup get the calibration
+-- window underestimated. This migration introduces an explicit column so
+-- the gate can read calibration completion directly.
+--
+-- Nullable: existing accounts have no recorded calibration timestamp,
+-- and we have no clean signal in the existing data to backfill from.
+-- Specifically, the obvious candidates are all unreliable:
+--   * `User.created_at`: this is what we're replacing — circular.
+--   * "Has any Attempt rows": Phase-γ-and-earlier players accumulated
+--     Attempt rows from both calibration and post-calibration training,
+--     and there is no SessionRun.mode value that marks the calibration
+--     run (calibration uses `mode = 'training'` like a regular session).
+--     Backfilling from "has attempts" would over-include and effectively
+--     reinstate the proxy we're trying to retire.
+--   * Earliest Attempt timestamp per user: same problem — it's the start
+--     of *training*, not necessarily a completed calibration.
+--
+-- Decision: leave existing rows null and treat null as "uncalibrated" in
+-- `huntSessionGates.isHuntEligibleForUser` (the most conservative read —
+-- under-700-IQ players who haven't been backfilled get HUNT filtered).
+-- This is forward-only; users finishing calibration after this migration
+-- ships get the column populated via `/api/onboarding/complete`.
+
+ALTER TABLE "Profile"
+  ADD COLUMN "calibrated_at" TIMESTAMP(3);

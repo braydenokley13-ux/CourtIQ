@@ -73,22 +73,39 @@ export const HUNT_IQ_FLOOR = 700
  *  no-op. */
 export const HUNT_MASTERY_THRESHOLD = 0.6
 
-/** Pure HUNT eligibility check. Returns false only when the user is
- *  *both* under the IQ floor AND still in their calibration window.
- *  A user past 60 days is always eligible (the calibration window
- *  has closed); a user above the IQ floor is always eligible
- *  regardless of calibration age.
+/** Pure HUNT eligibility check. Returns false when the user is
+ *  uncalibrated (`calibratedAt === null`) OR *both* under the IQ
+ *  floor AND still inside the 60-day post-calibration window.
  *
- *  Caller must pre-compute `daysSinceCalibration` so this stays
- *  clock-free. Pass `Number.POSITIVE_INFINITY` (or any value > 60)
- *  for users without a calibration timestamp — they fall outside
- *  the window by definition. */
+ *  Calibration-state semantics (Phase δ-C, replaces Phase γ proxy):
+ *    * `calibratedAt = null` → user never finished IQ calibration.
+ *      Most-conservative read: HUNT excluded. This guards against
+ *      under-700-IQ players who signed up but never completed
+ *      calibration getting HUNT injected into their pool before
+ *      they have a meaningful IQ signal. A high-IQ uncalibrated
+ *      account is rare (the default IQ is 500, and IQ only moves
+ *      via attempts) so the IQ-floor short-circuit below practically
+ *      doesn't fire for null calibration.
+ *    * `calibratedAt` set, IQ ≥ floor → always eligible.
+ *    * `calibratedAt` set, IQ < floor, within 60 days of calibration
+ *      → excluded (calibration window).
+ *    * `calibratedAt` set, IQ < floor, past 60 days → eligible
+ *      (calibration window has closed).
+ *
+ *  Accepts `now` as an explicit dependency so the helper stays
+ *  clock-free (tests pin a deterministic `now`). */
 export function isHuntEligibleForUser(profile: {
   iq_score: number
-  daysSinceCalibration: number
+  calibratedAt: Date | null
+  now: Date
 }): boolean {
+  if (profile.calibratedAt === null) return false
   if (profile.iq_score >= HUNT_IQ_FLOOR) return true
-  if (profile.daysSinceCalibration >= HUNT_CALIBRATION_DAYS) return true
+  const daysSinceCalibration = Math.floor(
+    (profile.now.getTime() - profile.calibratedAt.getTime()) /
+      (24 * 60 * 60 * 1000),
+  )
+  if (daysSinceCalibration >= HUNT_CALIBRATION_DAYS) return true
   return false
 }
 

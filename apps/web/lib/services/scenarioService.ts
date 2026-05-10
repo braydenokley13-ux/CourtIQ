@@ -21,6 +21,7 @@ import {
   excludeSkrWhenHuntPresent,
   isHuntEligibleForUser,
 } from '@/lib/scenario3d/huntSessionGates'
+import { isEnabled, type FeatureFlagEnv } from '@/lib/featureFlags'
 
 interface SanitizedChoice {
   id: string
@@ -65,6 +66,19 @@ export interface SessionBundle {
 }
 
 type ScenarioWithChoices = Scenario & { choices: ScenarioChoice[] }
+
+export function filterByFeatureFlags<T extends { decoder_tag: DecoderTag | null }>(
+  scenarios: T[],
+  env: FeatureFlagEnv = process.env,
+): T[] {
+  const huntOn = isEnabled('hunt_decoder_v0_live', env)
+  const dropOn = isEnabled('drop_decoder_v0_live', env)
+  return scenarios.filter((s) => {
+    if (s.decoder_tag === 'HUNT_THE_ADVANTAGE' && !huntOn) return false
+    if (s.decoder_tag === 'READ_THE_COVERAGE' && !dropOn) return false
+    return true
+  })
+}
 
 function pickRandom<T>(arr: T[], n: number, exclude = new Set<string>()): T[] {
   const pool = [...arr]
@@ -113,6 +127,9 @@ export interface SessionBundleOptions {
    *  selection so the user still gets reps. Mirrors the singular
    *  `scenarioId` pin path. */
   scenarioIds?: readonly string[] | null
+  /** Env source for feature flags. Tests inject a stub; production
+   *  falls back to `process.env`. */
+  env?: FeatureFlagEnv
 }
 
 /** Error code returned when the caller passes `scenarioIds` and *every*
@@ -135,6 +152,7 @@ export async function generateSessionBundle(
 ): Promise<SessionBundle> {
   const size = Math.max(1, n)
   const now = new Date()
+  const env = options.env ?? process.env
 
   // ---- Pinned paths (Pathway / QA deep-link). UNCHANGED from Phase 7
   // — Pathway-driven sessions must keep working unmodified through
@@ -184,7 +202,7 @@ export async function generateSessionBundle(
       where: { id: options.scenarioId, status: 'LIVE' },
       include: { choices: true },
     })
-    if (pinned) {
+    if (pinned && filterByFeatureFlags([pinned], env).length === 1) {
       const profile = await prisma.profile.findUnique({ where: { user_id: userId } })
       const session = await prisma.sessionRun.create({
         data: {
@@ -206,7 +224,8 @@ export async function generateSessionBundle(
         },
       }
     }
-    // Fallthrough to default selection.
+    // Fallthrough to default selection — id not LIVE / not found /
+    // gated by an off feature flag (filterByFeatureFlags returned 0).
   }
 
   // ---- Default selection: hydrate everything once, then route into
@@ -233,14 +252,12 @@ export async function generateSessionBundle(
   // so a daily completion an hour ago doesn't masquerade as a
   // training session for classifyReturn. Inlined twice (count + find)
   // because Prisma's where-clause typing rejects a shared `as const`.
-  const [profile, user, allLiveScenarios, recentAttemptsDesc, lifetimeCount, lastSession] =
+  const [profile, allLiveScenariosRaw, recentAttemptsDesc, lifetimeCount, lastSession] =
     await Promise.all([
+      // Phase δ-C — `Profile.calibrated_at` replaces the prior
+      // `User.created_at` proxy for HUNT eligibility. Null = the
+      // user hasn't finished calibration → conservative HUNT exclude.
       prisma.profile.findUnique({ where: { user_id: userId } }),
-      // For HUNT eligibility we need a "days since calibration"
-      // approximation. There's no dedicated `calibrated_at` column;
-      // `User.created_at` is the closest proxy (account age = how
-      // long the player has had to calibrate their IQ).
-      prisma.user.findUnique({ where: { id: userId }, select: { created_at: true } }),
       prisma.scenario.findMany({
         where: {
           status: 'LIVE',
@@ -286,6 +303,11 @@ export async function generateSessionBundle(
   // concepts" math read the player's history in chronological order.
   const recentAttempts = [...recentAttemptsDesc].reverse()
 
+  // Phase γ feature-flag gate — scenarios tagged with a not-yet-LIVE
+  // decoder are excluded from every downstream pool (firstSession,
+  // returnLoop, weakest, module, spaced-rep, fallback).
+  const allLiveScenarios = filterByFeatureFlags(allLiveScenariosRaw, env)
+
   const scenarioById = new Map(allLiveScenarios.map((s) => [s.id, s]))
   const decoderConfidences = buildDecoderConfidences(recentAttempts, now)
   const decoderConfByTag = new Map(decoderConfidences.map((d) => [d.decoderTag, d]))
@@ -296,15 +318,16 @@ export async function generateSessionBundle(
       )
     : null
 
-  // Phase γ HUNT gates — derive the two scalars the gate helpers
-  // need from data we already loaded:
+  // Phase γ HUNT gates (Phase δ-C calibration-source swap) — derive
+  // the inputs the gate helpers need from data we already loaded:
   //   * `huntMasteryRollingAccuracy`: rolling accuracy on past HUNT
   //     attempts (defaults to 0 if the user hasn't attempted any).
   //     Computed off `recentAttempts` so it stays in lockstep with
   //     the existing decoder-confidence math.
-  //   * `daysSinceCalibration`: account age in days (User.created_at
-  //     proxy). Brand-new accounts (no row) fall back to 0 so
-  //     under-700 IQ players get the conservative HUNT exclusion.
+  //   * `calibratedAt`: from `Profile.calibrated_at` (Phase δ-C). The
+  //     gate treats null as uncalibrated → HUNT excluded, so missing
+  //     Profile rows or pre-Phase-δ-C accounts that haven't been
+  //     re-calibrated never get HUNT injected into their pool.
   const huntAttempts = recentAttempts.filter(
     (a) => a.scenario.decoder_tag === 'HUNT_THE_ADVANTAGE',
   )
@@ -312,12 +335,10 @@ export async function generateSessionBundle(
     huntAttempts.length > 0
       ? huntAttempts.filter((a) => a.is_correct).length / huntAttempts.length
       : 0
-  const daysSinceCalibration = user
-    ? Math.floor((now.getTime() - user.created_at.getTime()) / (24 * 60 * 60 * 1000))
-    : 0
   const huntEligible = isHuntEligibleForUser({
     iq_score: profile?.iq_score ?? 500,
-    daysSinceCalibration,
+    calibratedAt: profile?.calibrated_at ?? null,
+    now,
   })
 
   // Concept-filtered sessions (e.g. an Academy lesson "drill this

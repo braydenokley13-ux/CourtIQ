@@ -52,3 +52,6 @@ coverage/
 
 # Playwright auth state (contains session cookies — never commit)
 .auth/
+
+# Claude Code agent worktrees (transient)
+.claude/

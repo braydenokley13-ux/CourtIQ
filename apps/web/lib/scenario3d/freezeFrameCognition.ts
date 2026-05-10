@@ -334,10 +334,12 @@ export type FreezeBeatAnchorRole =
   | 'screen_defender'     // DROP — the big sitting back below the screen
   | 'ball_handler'        // DROP — the PnR ball-handler reading the call
   | 'mismatch_target'     // HUNT — the post-switch defender being hunted
+  | 'low_man'             // DROP D3 — weak-side helper tagging the roller
   | 'vacated_zone'        // ESC / SKR — anchor is geometric, not a player
   | 'open_rim_zone'       // BDW backdoor catch zone
   | 'closeout_target'     // AOR — between closeout defender + receiver
   | 'pull_up_pocket'      // DROP — space between screen + retreating big
+  | 'tagger_corner'       // DROP D3 — vacated corner on the tagger's side
 
 /** Pure-data freeze beat. The renderer hydrates `primitive_kind +
  *  anchor_role` into a concrete OverlayPrimitive at emit time using
@@ -509,18 +511,45 @@ const AOR_TEMPLATES: ReadonlyArray<FreezeBeatTemplate> = [
   },
 ]
 
-// Pack 2 — DROP (READ_THE_COVERAGE) D1/D2 templates. Single-freeze, no
+// Pack 2 — DROP (READ_THE_COVERAGE) templates. Single-freeze, no
 // secondBeat. Cue is the screen-defender's chest/foot — does he stay
 // below the screen (drop) or step up (switch/blitz)? Action is the
 // ball-handler's pull-up arrow into the pocket. Advantage is the
-// pull-up pocket itself. D3+ shapes (deeper disguise, late-show) live
-// outside this slice and are NOT authored here.
+// pull-up pocket itself.
+//
+// Pack 2 (Phase δ) — DROP D3 adds a SECOND cue beat: the weak-side low
+// man's tag pulse. The read is "is he committing or just bumping?" —
+// committing opens his corner for the kick, bumping leaves the pocket
+// pass to the roller as the higher EV. The D3 cue is authored as an
+// additional `cue` entry in DROP_TEMPLATES so the hydrator silently
+// skips it on D1/D2 (which do not set the `low_man` anchor) per the
+// hydrator's missing-anchor contract. The clutter cap stays at 3 for
+// D1/D2 (one cue beat hydrates) and rises to 4 at D3 (two cue beats
+// + action + advantage = the intermediate-tier cap of 4 across two
+// defenders, per DROP_DECODER_DESIGN.md §3.3).
 const DROP_TEMPLATES: ReadonlyArray<FreezeBeatTemplate> = [
   {
     kind: 'cue',
     at_phase_ms: CUE_BEAT_AT_MS,
     primitive_kind: 'defender_chest_line',
     anchor: 'screen_defender',
+    clutter_priority: 1,
+    fade_in_ms: DEFAULT_BEAT_FADE_IN_MS,
+    fade_out_ms: DEFAULT_BEAT_FADE_OUT_MS,
+    teaching_question: 'what_changed',
+  },
+  // DROP D3 — low-man tag pulse. Pulses on the weak-side helper so the
+  // ball-handler reads the second cue (is the tag committing?). Shares
+  // the cue-beat offset with the chest_line above; visually they
+  // co-arrive so the diff cognition lands on the SAME beat (D3 read
+  // is one-shot, not chained). D1/D2 scenes never set the `low_man`
+  // anchor — the hydrator silently drops this beat there.
+  {
+    kind: 'cue',
+    at_phase_ms: CUE_BEAT_AT_MS,
+    primitive_kind: 'help_pulse',
+    anchor: 'low_man',
+    help_pulse_role: 'tag',
     clutter_priority: 1,
     fade_in_ms: DEFAULT_BEAT_FADE_IN_MS,
     fade_out_ms: DEFAULT_BEAT_FADE_OUT_MS,
@@ -550,10 +579,12 @@ const DROP_TEMPLATES: ReadonlyArray<FreezeBeatTemplate> = [
   },
 ]
 
-// Pack 2 (Phase γ) — HUNT (HUNT_THE_ADVANTAGE) chained two-beat
-// templates. HUNT is the only decoder that freezes twice in a single
-// scenario: beat 1 establishes the matchup ("the switch happened"),
-// beat 2 reads the recovery ("attack the angle they gave you").
+// Pack 2 (Phase γ + Phase δ-A) — HUNT (HUNT_THE_ADVANTAGE) chained
+// templates. HUNT is the only decoder that freezes more than once in
+// a single scenario. Phase γ shipped the two-beat shape (D1 / D2):
+// beat 1 establishes the matchup, beat 2 reads the recovery. Phase
+// δ-A extends to D3 (decoy actions): a third beat for the real read
+// after the decoy bait fires (see beat-3 block below).
 //
 // The existing per-decoder template list is single-flat: it's not
 // per-beat-index. The runtime reads `scene.secondBeatPreAnswerOverlays`
@@ -646,6 +677,61 @@ const HUNT_TEMPLATES: ReadonlyArray<FreezeBeatTemplate> = [
   // Beat 2 advantage — the now-open baseline driving lane. The
   // advantage is the same shape as beat 1 (rim attack) but at a
   // tighter angle now that the recovery commits the defender's hips.
+  {
+    kind: 'advantage',
+    at_phase_ms: ADVANTAGE_BEAT_AT_MS,
+    primitive_kind: 'open_space_region',
+    anchor: 'open_rim_zone',
+    clutter_priority: 3,
+    fade_in_ms: DEFAULT_BEAT_FADE_IN_MS,
+    fade_out_ms: DEFAULT_BEAT_FADE_OUT_MS,
+    teaching_question: 'what_space_opened',
+  },
+  // ---------------------------------------------------------------------
+  // Phase δ-A — HUNT D3 decoy-action beat (beat 3).
+  //
+  // D3 is a three-beat freeze: beat 1 observes, beat 2 is the decoy that
+  // bites the defense, beat 3 is the real read on what the decoy
+  // exposed. The cadence (cue=200 / action=700 / advantage=1100) is
+  // reused verbatim from beats 1 / 2 per §9.1 ("reuse the cadence; vary
+  // the grammar"); only the beat count and the per-scenario cognition
+  // hold differ. HUNT D3 scenarios author `timingOverrides.cognitionHoldMs`
+  // in 1100–1200ms so beat 3's hold sits within the LINT-HUNT-04 ceiling
+  // while leaving the player enough time to commit on the third read.
+  //
+  // Cue / action / advantage roles for beat 3:
+  //   - cue   — mismatch pulse retained ("the matchup the decoy exposed
+  //     is still yours"). Same primitive as beats 1 / 2 — continuity
+  //     anchors the diff cognition between the decoy reaction and the
+  //     real geometry.
+  //   - action — defender_hand_in_lane on the defender who bit on the
+  //     decoy. The hand reaching toward the bait IS the cue that the
+  //     decoy worked; the open lane is the side his hand left behind.
+  //   - advantage — the open lane at the rim (same anchor shape as
+  //     beats 1 / 2). What changes is the angle: beat 3's advantage
+  //     opens because the defender committed to the decoy, not because
+  //     of a switch or a recovery foot.
+  {
+    kind: 'cue',
+    at_phase_ms: CUE_BEAT_AT_MS,
+    primitive_kind: 'help_pulse',
+    anchor: 'mismatch_target',
+    help_pulse_role: 'mismatch',
+    clutter_priority: 1,
+    fade_in_ms: DEFAULT_BEAT_FADE_IN_MS,
+    fade_out_ms: DEFAULT_BEAT_FADE_OUT_MS,
+    teaching_question: 'what_changed',
+  },
+  {
+    kind: 'action',
+    at_phase_ms: ACTION_BEAT_AT_MS,
+    primitive_kind: 'defender_hand_in_lane',
+    anchor: 'mismatch_target',
+    clutter_priority: 2,
+    fade_in_ms: DEFAULT_BEAT_FADE_IN_MS,
+    fade_out_ms: DEFAULT_BEAT_FADE_OUT_MS,
+    teaching_question: 'what_is_best_read',
+  },
   {
     kind: 'advantage',
     at_phase_ms: ADVANTAGE_BEAT_AT_MS,
@@ -836,11 +922,15 @@ export interface FreezeBeatAnchors {
   ball_handler?: string
   /** HUNT — the post-switch defender the offense is hunting. */
   mismatch_target?: string
+  /** DROP D3 — the weak-side low man tagging (or bumping) the roller. */
+  low_man?: string
   vacated_zone?: CourtPoint
   open_rim_zone?: CourtPoint
   closeout_target?: CourtPoint
   /** DROP — geometric pocket between the screen + retreating big. */
   pull_up_pocket?: CourtPoint
+  /** DROP D3 — the corner the committing tagger vacated. */
+  tagger_corner?: CourtPoint
 }
 
 export interface HydrateOptions {
@@ -908,6 +998,7 @@ function _anchorPlayerId(
     case 'screen_defender': return a.screen_defender
     case 'ball_handler': return a.ball_handler
     case 'mismatch_target': return a.mismatch_target
+    case 'low_man': return a.low_man
     default: return undefined
   }
 }
@@ -921,6 +1012,7 @@ function _anchorPoint(
     case 'open_rim_zone': return a.open_rim_zone
     case 'closeout_target': return a.closeout_target
     case 'pull_up_pocket': return a.pull_up_pocket
+    case 'tagger_corner': return a.tagger_corner
     default: return undefined
   }
 }
