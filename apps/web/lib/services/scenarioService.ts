@@ -15,6 +15,12 @@ import {
   buildReturnCatalog,
   recognitionReasonForReturnSlot,
 } from '@/lib/spine/glue'
+import {
+  dedupeBackToBackHunt,
+  enforceHuntCountCap,
+  excludeSkrWhenHuntPresent,
+  isHuntEligibleForUser,
+} from '@/lib/scenario3d/huntSessionGates'
 
 interface SanitizedChoice {
   id: string
@@ -206,6 +212,14 @@ export async function generateSessionBundle(
   // ---- Default selection: hydrate everything once, then route into
   // the right composer.
   //
+  // Phase γ — HUNT session-generator soft gates. We hydrate the
+  // user's account-created timestamp + HUNT mastery here so the
+  // legacy weighted bundle below can apply the gates without a
+  // second round-trip. The gates themselves live in
+  // `lib/scenario3d/huntSessionGates.ts` (pure helpers); see the
+  // doc-block there for the full ruleset (HUNT_DECODER_DESIGN.md
+  // §5.4–§5.8).
+  //
   // Daily-challenge attempts MUST be excluded from this view of the
   // player's history. Daily reps are intentional side-mode reads —
   // they don't update mastery bands or training streaks at write time
@@ -219,9 +233,14 @@ export async function generateSessionBundle(
   // so a daily completion an hour ago doesn't masquerade as a
   // training session for classifyReturn. Inlined twice (count + find)
   // because Prisma's where-clause typing rejects a shared `as const`.
-  const [profile, allLiveScenarios, recentAttemptsDesc, lifetimeCount, lastSession] =
+  const [profile, user, allLiveScenarios, recentAttemptsDesc, lifetimeCount, lastSession] =
     await Promise.all([
       prisma.profile.findUnique({ where: { user_id: userId } }),
+      // For HUNT eligibility we need a "days since calibration"
+      // approximation. There's no dedicated `calibrated_at` column;
+      // `User.created_at` is the closest proxy (account age = how
+      // long the player has had to calibrate their IQ).
+      prisma.user.findUnique({ where: { id: userId }, select: { created_at: true } }),
       prisma.scenario.findMany({
         where: {
           status: 'LIVE',
@@ -276,6 +295,30 @@ export async function generateSessionBundle(
         (now.getTime() - lastSession.started_at.getTime()) / (24 * 60 * 60 * 1000),
       )
     : null
+
+  // Phase γ HUNT gates — derive the two scalars the gate helpers
+  // need from data we already loaded:
+  //   * `huntMasteryRollingAccuracy`: rolling accuracy on past HUNT
+  //     attempts (defaults to 0 if the user hasn't attempted any).
+  //     Computed off `recentAttempts` so it stays in lockstep with
+  //     the existing decoder-confidence math.
+  //   * `daysSinceCalibration`: account age in days (User.created_at
+  //     proxy). Brand-new accounts (no row) fall back to 0 so
+  //     under-700 IQ players get the conservative HUNT exclusion.
+  const huntAttempts = recentAttempts.filter(
+    (a) => a.scenario.decoder_tag === 'HUNT_THE_ADVANTAGE',
+  )
+  const huntMasteryRollingAccuracy =
+    huntAttempts.length > 0
+      ? huntAttempts.filter((a) => a.is_correct).length / huntAttempts.length
+      : 0
+  const daysSinceCalibration = user
+    ? Math.floor((now.getTime() - user.created_at.getTime()) / (24 * 60 * 60 * 1000))
+    : 0
+  const huntEligible = isHuntEligibleForUser({
+    iq_score: profile?.iq_score ?? 500,
+    daysSinceCalibration,
+  })
 
   // Concept-filtered sessions (e.g. an Academy lesson "drill this
   // module") bypass the firstSession + returnLoop composers — those
@@ -454,7 +497,40 @@ export async function generateSessionBundle(
     }
   }
 
-  const scenarios = selected.slice(0, size).map((s) => {
+  // Phase γ — HUNT session-generator soft gates. Run the gates over
+  // the planned bundle in the documented order:
+  //   1. early-stage HUNT eligibility filter (skipped here — picks
+  //      below already came from `allLiveScenarios`; we filter HUNTs
+  //      out post-selection when the user fails the gate, then
+  //      backfill from non-HUNT scenarios so the bundle stays at
+  //      `size`).
+  //   2. enforce HUNT count cap (≤1 below mastery threshold)
+  //   3. drop HUNT when SKR also present at low mastery
+  //   4. dedupe back-to-back HUNT (reorder, never drop)
+  // Steps 2–4 are lossy in the lossy direction only (drop), so we
+  // backfill from non-HUNT scenarios afterwards to keep `size` reps.
+  let bundle: ScenarioWithChoices[] = selected.slice(0, size)
+  if (!huntEligible) {
+    bundle = bundle.filter((s) => s.decoder_tag !== 'HUNT_THE_ADVANTAGE')
+  }
+  bundle = enforceHuntCountCap(bundle, huntMasteryRollingAccuracy)
+  bundle = excludeSkrWhenHuntPresent(bundle, huntMasteryRollingAccuracy)
+  bundle = dedupeBackToBackHunt(bundle)
+  if (bundle.length < size) {
+    const bundleIds = new Set(bundle.map((s) => s.id))
+    const usedAfterGates = new Set([...used, ...bundleIds])
+    const backfillPool = allLiveScenarios.filter(
+      (s) =>
+        !usedAfterGates.has(s.id) &&
+        // Don't reintroduce HUNT during backfill if eligibility/cap
+        // gates dropped it — that would defeat the gate.
+        (huntEligible || s.decoder_tag !== 'HUNT_THE_ADVANTAGE'),
+    )
+    const backfill = pickRandom(backfillPool, size - bundle.length)
+    bundle = [...bundle, ...backfill]
+  }
+
+  const scenarios = bundle.slice(0, size).map((s) => {
     const conf = decoderConfByTag.get(s.decoder_tag ?? '')
     const reason = conf ? recognitionReason(conf.nextProbe) : null
     return sanitizeScenario(s, reason)
