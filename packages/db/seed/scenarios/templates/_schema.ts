@@ -364,6 +364,33 @@ export const templateSchema = z.object({
       .regex(/^[a-z0-9-]+$/, 'lesson_connection must be a lowercase, hyphenated module slug'),
     /** Default difficulty for `disguise: 'none'`. */
     difficulty_default: z.number().int().min(1).max(5),
+    /**
+     * Pack 2 Teaching-Quality F10 — handedness sensitivity declaration.
+     *
+     *   - 'symmetric'           — the read teaches the same concept on
+     *     either handedness; mirror=true variants are safe.
+     *   - 'right-handed-only'   — the read assumes a right-handed
+     *     finish (e.g. a back-cut to a right-handed layup). Lint
+     *     rejects mirror=true variants because the mirrored cut
+     *     becomes a left-handed cut, which is cognitively harder
+     *     without being tactically harder (audit Q7 / M2).
+     *   - 'left-handed-only'    — the symmetric case for left-hand finishes.
+     *   - 'review-each-mirror'  — explicit author sign-off required;
+     *     each mirror=true variant must declare a non-empty
+     *     `variation.mirror_review_note` so the lint can confirm a
+     *     human looked at the mirrored play.
+     *
+     * Defaults to 'symmetric' so existing templates keep their current
+     * mirror behaviour until an author opts into stricter handling.
+     */
+    mirror_safety: z
+      .enum([
+        'symmetric',
+        'right-handed-only',
+        'left-handed-only',
+        'review-each-mirror',
+      ])
+      .default('symmetric'),
   }),
 
   scene: z.object({
@@ -456,6 +483,16 @@ export const variationSchema = z.object({
   disguise: z.enum(['none', 'light', 'moderate', 'heavy']).default('none'),
   clock_pressure: z.enum(['none', 'shot_clock', 'game_clock']).default('none'),
   overrides: variantOverrideSchema.default({ players: [], movements: [] }),
+  /**
+   * Pack 2 Teaching-Quality F10 — required when the parent template
+   * declares `tactical.mirror_safety: 'review-each-mirror'` AND
+   * `mirror: true`. The note records the author's confirmation that
+   * the mirrored play teaches the same concept (e.g. "right-hand
+   * back-cut mirrors to a left-hand back-cut; both are taught in
+   * Module 4"). The lint enforces presence; freeform string so
+   * authors can capture nuance without a controlled vocabulary.
+   */
+  mirror_review_note: z.string().min(1).max(280).optional(),
 })
 
 export const variantSchema = z.object({

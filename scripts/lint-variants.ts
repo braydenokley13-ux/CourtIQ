@@ -372,6 +372,65 @@ function lintOverlayPresetConformance(loaded: Loaded[]): Issue[] {
 }
 
 // ---------------------------------------------------------------------------
+// Pack 2 Teaching-Quality F10 — mirror handedness lint.
+//
+// Risk M2 in docs/pack-2-teaching-quality-risk-report.md: a right-handed
+// back-cut mirrored becomes a left-handed cut. For middle-school players
+// still building handedness, the wrong axis is being taxed — the
+// mirrored variant feels harder for handedness reasons, not for
+// tactical reasons.
+//
+// `tactical.mirror_safety` declares the template's handedness sensitivity:
+//
+//   - 'symmetric'           — mirror=true is fine.
+//   - 'right-handed-only' / 'left-handed-only' — mirror=true is rejected
+//     because the mirrored play loses its handedness alignment.
+//   - 'review-each-mirror'  — mirror=true requires a non-empty
+//     `variation.mirror_review_note` so a human signs off.
+//
+// Lint severity: error. The schema default for new templates is
+// 'symmetric' so existing fixtures keep their behaviour; an author
+// promoting a template to a stricter category surfaces every mirror
+// variant immediately.
+// ---------------------------------------------------------------------------
+
+function lintMirrorHandedness(loaded: Loaded[]): Issue[] {
+  const issues: Issue[] = []
+  for (const { template, variants } of loaded) {
+    const safety = template.tactical.mirror_safety
+    if (safety === 'symmetric') continue
+    for (const v of variants) {
+      if (v.status === 'RETIRED') continue
+      if (!v.variation.mirror) continue
+      if (safety === 'right-handed-only' || safety === 'left-handed-only') {
+        issues.push({
+          severity: 'error',
+          message:
+            `Variant ${template.id}:${v.id} has mirror=true but the parent template declares ` +
+            `tactical.mirror_safety="${safety}". The mirrored play loses its handedness ` +
+            `alignment — switch the variant to mirror=false, or change the template's ` +
+            `mirror_safety to "symmetric" / "review-each-mirror" if both handedness paths ` +
+            `genuinely teach the same concept.`,
+        })
+      } else if (safety === 'review-each-mirror') {
+        const note = v.variation.mirror_review_note?.trim() ?? ''
+        if (note.length === 0) {
+          issues.push({
+            severity: 'error',
+            message:
+              `Variant ${template.id}:${v.id} has mirror=true and the parent template requires ` +
+              `"review-each-mirror" sign-off, but variation.mirror_review_note is empty. Add ` +
+              `a brief note (e.g. "right-hand back-cut mirrors to left-hand back-cut; both ` +
+              `taught in Module 4") confirming the mirrored play teaches the same concept.`,
+          })
+        }
+      }
+    }
+  }
+  return issues
+}
+
+// ---------------------------------------------------------------------------
 // Pack 2 Teaching-Quality F7 — wrong-demo divergence lint.
 //
 // Risk H6 in docs/pack-2-teaching-quality-risk-report.md: the schema
@@ -830,6 +889,7 @@ async function main(): Promise<void> {
     ...lintOverlayPresetConformance(loaded),
     ...lintEmptyPresetPromotionGate(loaded),
     ...lintWrongDemoDivergence(loaded),
+    ...lintMirrorHandedness(loaded),
     ...lintDisguiseProgression(loaded),
     ...lintTodoProse(loaded),
     ...lintProseBankCoverage(loaded),
