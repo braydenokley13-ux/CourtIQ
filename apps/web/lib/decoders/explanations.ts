@@ -88,24 +88,23 @@ const EXPLANATIONS: Record<DecoderTag, DecoderExplanation> = {
     example:
       'You drive middle, two help. The weak-side corner is empty — line drive across the lane to the open shooter.',
   },
-  // Pack 2 entries — concise stand-ins so client surfaces (chip,
-  // explainer card, train one-liner) render coherent player-facing
-  // copy for READ_THE_COVERAGE / HUNT_THE_ADVANTAGE without falling
-  // back to founder defaults. Final teaching content for these
-  // decoders is owned by the DROP/HUNT pedagogy workstream and may
-  // expand these fields. Voice rule matches the founders above.
+  // Pack 2 — DROP (READ_THE_COVERAGE) D1/D2 player-facing copy.
+  // Promoted from a Pack 2 stand-in to the real teaching copy. Voice
+  // rule matches the founders: kid-readable, basketball-first nouns,
+  // film-room tone. D3+ disguised-coverage shapes (late show, ICE)
+  // live in a separate slice and may expand these fields.
   READ_THE_COVERAGE: {
     tag: 'READ_THE_COVERAGE',
     label: 'Read the Coverage',
-    oneLiner: 'Read his coverage call before you commit.',
+    oneLiner: 'When the big drops back, use the space before help recovers.',
     meaning:
-      'On a pick & roll the screen defender shows you the call. Decide before you turn the corner.',
+      'A drop defender protects the paint first. Your read is the space between the screen and the retreating defender: pull up, snake, or attack before the defense resets.',
     watch:
-      'The screen defender — drop, switch, or blitz. His feet name the answer.',
+      'The screen defender. Chest below the screen, feet pointing back at the rim — that\'s drop coverage. The pocket between him and the screen is yours.',
     matters:
-      'Reading the coverage early kills the rotation before it forms.',
+      'Drop coverage gives the ball-handler a free window. Hesitate and the recovery closes it; recognize early and the easy shot is there.',
     example:
-      'You come off the screen; the big drops back — no help, you pull up.',
+      'You come off the ball-screen, the big sits two steps below — pull up in the pocket before he can step up.',
   },
   HUNT_THE_ADVANTAGE: {
     tag: 'HUNT_THE_ADVANTAGE',
