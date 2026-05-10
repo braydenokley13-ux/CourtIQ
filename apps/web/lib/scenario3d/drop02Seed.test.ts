@@ -54,6 +54,12 @@ interface DropScenarioJson extends DropLintScenarioInput {
   status: string
   user_role?: string
   lesson_connection?: string
+  choices?: ReadonlyArray<{
+    id: string
+    quality?: 'best' | 'acceptable' | 'wrong'
+    label: string
+    feedback_text?: string
+  }>
   scene?: DropLintScenarioInput['scene'] & {
     camera?: string
     secondBeatPreAnswerOverlays?: unknown[]
@@ -137,7 +143,7 @@ describe('DROP-02 — Pack 2 (Phase γ) deep-drop snake authoring lock', () => {
     const choices = scenario.choices ?? []
     const nonBestIds = choices
       .filter((c) => c.quality !== 'best')
-      .map((c) => (c as { id: string }).id)
+      .map((c) => c.id)
     const demos = (scenario.scene?.wrongDemos ?? []).map((d) => d.choiceId)
     for (const id of nonBestIds) {
       expect(demos).toContain(id)
