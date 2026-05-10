@@ -8,9 +8,15 @@
 
 export type FeatureFlag = 'hunt_decoder_v0_live' | 'drop_decoder_v0_live'
 
+// Structural subset of NodeJS.ProcessEnv. Accepting a plain dict
+// here keeps the call sites — including tests — free of the
+// Next-injected required keys (NODE_ENV etc.) while still satisfying
+// `process.env` as a default argument.
+export type FeatureFlagEnv = { [key: string]: string | undefined }
+
 export function isEnabled(
   flag: FeatureFlag,
-  env: NodeJS.ProcessEnv = process.env,
+  env: FeatureFlagEnv = process.env,
 ): boolean {
   const raw = env.FEATURE_FLAGS
   if (!raw) return false

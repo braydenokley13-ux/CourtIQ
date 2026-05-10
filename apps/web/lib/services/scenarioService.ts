@@ -1,5 +1,13 @@
 import type { DecoderTag, Scenario, ScenarioChoice } from '@prisma/client'
 import { prisma } from '@/lib/db/prisma'
+import { isEnabled, type FeatureFlagEnv } from '@/lib/featureFlags'
+
+// Decoder tags gated by Phase γ feature flags. Stored as strings so
+// the gate compiles before the matching Prisma enum members land —
+// the runtime compare against `scenario.decoder_tag` is a string
+// equality either way.
+const HUNT_DECODER_TAG = 'HUNT_THE_ADVANTAGE'
+const DROP_DECODER_TAG = 'READ_THE_COVERAGE'
 
 interface SanitizedChoice {
   id: string
@@ -31,6 +39,22 @@ export interface SessionBundle {
 }
 
 type ScenarioWithChoices = Scenario & { choices: ScenarioChoice[] }
+
+/** Drop scenarios whose decoder_tag is gated behind a flag that is
+ *  not enabled in the supplied env. Pure: no I/O, no Prisma. */
+export function filterByFeatureFlags<T extends { decoder_tag: DecoderTag | null }>(
+  scenarios: T[],
+  env: FeatureFlagEnv = process.env,
+): T[] {
+  const huntOn = isEnabled('hunt_decoder_v0_live', env)
+  const dropOn = isEnabled('drop_decoder_v0_live', env)
+  return scenarios.filter((s) => {
+    const tag = s.decoder_tag as string | null
+    if (tag === HUNT_DECODER_TAG && !huntOn) return false
+    if (tag === DROP_DECODER_TAG && !dropOn) return false
+    return true
+  })
+}
 
 function pickRandom<T>(arr: T[], n: number, exclude = new Set<string>()): T[] {
   const pool = [...arr]
@@ -67,6 +91,9 @@ export interface SessionBundleOptions {
    *  When set, the session ignores the spaced-rep / weakest-concept
    *  weighting and returns a single-scenario bundle. */
   scenarioId?: string | null
+  /** Env source for feature flags. Tests inject a stub; production
+   *  falls back to `process.env`. */
+  env?: FeatureFlagEnv
 }
 
 export async function generateSessionBundle(
@@ -76,6 +103,7 @@ export async function generateSessionBundle(
 ): Promise<SessionBundle> {
   const size = Math.max(1, n)
   const now = new Date()
+  const env = options.env ?? process.env
 
   // Pinned scenario (QA / deep-link). Skip the bucket weighting and
   // return that scenario alone if it exists and is LIVE.
@@ -84,7 +112,7 @@ export async function generateSessionBundle(
       where: { id: options.scenarioId, status: 'LIVE' },
       include: { choices: true },
     })
-    if (pinned) {
+    if (pinned && filterByFeatureFlags([pinned], env).length === 1) {
       const profile = await prisma.profile.findUnique({ where: { user_id: userId } })
       const session = await prisma.sessionRun.create({
         data: { user_id: userId, scenario_ids: [pinned.id] },
@@ -99,11 +127,12 @@ export async function generateSessionBundle(
         },
       }
     }
-    // Fallthrough — id not LIVE / not found; falls through to the
-    // normal pool below so the user still gets a session.
+    // Fallthrough — id not LIVE / not found / gated by an off
+    // feature flag; falls through to the normal pool below so the
+    // user still gets a session.
   }
 
-  const [profile, allLiveScenarios, weakestConcepts, recentAttempts, dueIncorrect, dueMasteries] = await Promise.all([
+  const [profile, allLiveScenariosRaw, weakestConcepts, recentAttempts, dueIncorrect, dueMasteries] = await Promise.all([
     prisma.profile.findUnique({ where: { user_id: userId } }),
     prisma.scenario.findMany({
       where: {
@@ -142,6 +171,11 @@ export async function generateSessionBundle(
       take: 10,
     }),
   ])
+
+  // Phase γ — top-level decoder feature-flag gate. Scenarios tagged
+  // with a not-yet-LIVE decoder are excluded from every downstream
+  // pool (weakest, module, spaced-rep, fallback).
+  const allLiveScenarios = filterByFeatureFlags(allLiveScenariosRaw, env)
 
   const weakestConceptIds = new Set(weakestConcepts.map((m) => m.concept_id))
   const weakestPool = allLiveScenarios.filter((s) => s.concept_tags.some((tag) => weakestConceptIds.has(tag)))
