@@ -259,8 +259,12 @@ function AuthoredOverlayBridge({
         preAnswer: scene.preAnswerOverlays,
         postAnswer: scene.postAnswerOverlays,
         level: overlayLevel,
+        // Pack 2 Teaching-Quality F6 — promote the decoder's primary
+        // cue kind through the priority sort so a tight cap (advanced
+        // = 1) cannot drop the cue identifying the decoder.
+        decoderTag: scene.decoderTag,
       }),
-    [overlayLevel, scene.preAnswerOverlays, scene.postAnswerOverlays],
+    [overlayLevel, scene.preAnswerOverlays, scene.postAnswerOverlays, scene.decoderTag],
   )
 
   useEffect(() => {

@@ -22,6 +22,7 @@
 import {
   PRE_ANSWER_OVERLAY_KINDS,
   isAllowedPreAnswerOverlay,
+  type DecoderTag,
   type OverlayPrimitive,
 } from './schema'
 
@@ -156,6 +157,78 @@ function comparePreAnswerPriority(a: OverlayPrimitive, b: OverlayPrimitive): num
   return pa - pb
 }
 
+// ---------------------------------------------------------------------------
+// Pack 2 Teaching-Quality F6 — decoder-cue priority dominance.
+//
+// Risk M1 in docs/pack-2-teaching-quality-risk-report.md: the generic
+// PRE_ANSWER_PRIORITY ranks defender_vision_cone and help_pulse both
+// at priority 0. When the budget is tight (advanced = 1) and a template
+// authors BOTH (e.g. SKR with help_pulse as the decoder cue and a
+// distractor vision_cone), the stable sort breaks the tie by authored
+// order — but only if authors were disciplined enough to put the
+// decoder cue first. A distractor authored ahead of the decoder's
+// own cue silently wins truncation and the cue identifying the read
+// is dropped.
+//
+// F6 promotes the decoder's primary cue kind to a "priority-(-1)" rank
+// when applyOverlayLevel knows which decoder the scene belongs to.
+// The mapping mirrors the first preAnswer kind in
+// apps/web/lib/scenario3d/decoderOverlayPresets.ts. DROP / HUNT have
+// no entry today (Pack 2 stubs) — F3 already gates them out of
+// REVIEW/LIVE, and absent here means we fall through to the generic
+// priority comparator.
+//
+// When the decoderTag is `undefined` (legacy / preset / synthetic
+// scenes that have no scenario context — see scene.ts:130-136), the
+// behaviour is exactly the previous comparator: priority sort + stable
+// authored-order tiebreak. F6 is opt-in by passing decoderTag.
+// ---------------------------------------------------------------------------
+
+const PRIMARY_PRE_CUE_KIND_BY_DECODER: Readonly<
+  Partial<Record<DecoderTag, OverlayPrimitive['kind']>>
+> = Object.freeze({
+  BACKDOOR_WINDOW: 'defender_vision_cone',
+  EMPTY_SPACE_CUT: 'defender_vision_cone',
+  SKIP_THE_ROTATION: 'help_pulse',
+  ADVANTAGE_OR_RESET: 'defender_vision_cone',
+  // READ_THE_COVERAGE / HUNT_THE_ADVANTAGE: undefined — Pack 2 stubs.
+  // F3 (lint-variants empty-preset gate) blocks REVIEW/LIVE promotion
+  // until the presets are filled in, so this map naturally extends
+  // when 3.1.2 lands the DROP/HUNT primary cue.
+})
+
+/** Returns the decoder's primary cue overlay kind, or undefined if
+ *  the decoder is unknown / has no canonical cue (Pack 2 DROP/HUNT
+ *  stubs). Pure — same input always produces the same output. */
+export function getDecoderPrimaryCueKind(
+  decoder: DecoderTag | undefined,
+): OverlayPrimitive['kind'] | undefined {
+  if (!decoder) return undefined
+  return PRIMARY_PRE_CUE_KIND_BY_DECODER[decoder]
+}
+
+/** Builds a comparator that promotes the decoder's primary cue kind
+ *  to priority -1, beating the generic priority-0 ties. Falls back
+ *  to `comparePreAnswerPriority` when the decoder is unknown or has
+ *  no canonical cue. */
+function makePreAnswerComparatorWithDecoder(
+  decoder: DecoderTag | undefined,
+): (a: OverlayPrimitive, b: OverlayPrimitive) => number {
+  const promoted = getDecoderPrimaryCueKind(decoder)
+  if (!promoted) return comparePreAnswerPriority
+  return (a, b) => {
+    // Priority is -1 for the decoder's primary cue, otherwise the
+    // generic table's priority. Lower wins.
+    const pa = a.kind === promoted ? -1 : (
+      PRE_ANSWER_PRIORITY[a.kind as (typeof PRE_ANSWER_OVERLAY_KINDS)[number]] ?? 99
+    )
+    const pb = b.kind === promoted ? -1 : (
+      PRE_ANSWER_PRIORITY[b.kind as (typeof PRE_ANSWER_OVERLAY_KINDS)[number]] ?? 99
+    )
+    return pa - pb
+  }
+}
+
 /**
  * Post-answer priority order. The §9.8 invariants require the reveal
  * to include at least one of: open-space region, passing lane,
@@ -225,8 +298,15 @@ export function applyOverlayLevel(input: {
   preAnswer: readonly OverlayPrimitive[]
   postAnswer: readonly OverlayPrimitive[]
   level: OverlayLevel
+  /** Pack 2 Teaching-Quality F6 — optional decoder context. When
+   *  provided, the pre-answer priority sort promotes the decoder's
+   *  canonical primary cue kind ahead of generic priority-0 ties so
+   *  a distractor authored ahead of the decoder cue cannot win
+   *  truncation. Absent / undefined falls back to the generic
+   *  priority comparator (legacy behaviour). */
+  decoderTag?: DecoderTag
 }): AppliedOverlayLevel {
-  const { level } = input
+  const { level, decoderTag } = input
   const budget = BUDGETS[level]
 
   // Pack 2 Teaching-Quality F4 — mandatory cue floor policy.
@@ -237,7 +317,8 @@ export function applyOverlayLevel(input: {
   //     if the variant authored any pre-answer cue, at least one must
   //     survive truncation. Combined with the priority sort below, the
   //     surviving overlay is the highest-priority kind (the decoder
-  //     cue), not whatever happened to be authored first.
+  //     cue, when decoderTag is known — F6), not whatever happened to
+  //     be authored first.
   //   - Post-answer keeps a 0 floor everywhere. The §9.8 reveal-cue
   //     invariant is upheld by `comparePostAnswerPriority` ranking
   //     open-space / passing-lane / drive-cut at priority 0; no
@@ -246,9 +327,11 @@ export function applyOverlayLevel(input: {
   const preFloor = level === 'none' ? 0 : 1
   const postFloor = 0
 
-  // Pre-answer: kind allow-list → priority sort → effective budget.
+  // Pre-answer: kind allow-list → priority sort (F6 decoder-promoted)
+  //           → effective budget.
   const preAllowed = filterPreAnswerKinds(input.preAnswer)
-  const preSorted = stableSort(preAllowed, comparePreAnswerPriority)
+  const preComparator = makePreAnswerComparatorWithDecoder(decoderTag)
+  const preSorted = stableSort(preAllowed, preComparator)
   const effectivePreCap = resolveEffectiveOverlayBudget(
     preSorted.length,
     budget.preMax,

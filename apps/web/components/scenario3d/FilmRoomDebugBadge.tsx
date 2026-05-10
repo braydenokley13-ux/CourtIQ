@@ -241,6 +241,10 @@ export function FilmRoomDebugBadge({
         preAnswer: scene.preAnswerOverlays ?? [],
         postAnswer: scene.postAnswerOverlays ?? [],
         level: effectiveLevel,
+        // Pack 2 Teaching-Quality F6 — mirror AuthoredOverlayBridge's
+        // decoder-aware projection so the debug badge shows what the
+        // renderer actually mounts.
+        decoderTag: scene.decoderTag,
       })
     : { preAnswer: [], postAnswer: [], droppedPre: 0, droppedPost: 0, level: effectiveLevel }
   const suppressed = isOverlaySuppressed(effectiveLevel)
