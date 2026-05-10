@@ -102,6 +102,8 @@ export type PresetRole =
   | 'on_ball_defender'
   | 'low_man'
   | 'decision_maker'
+  /** HUNT — the post-switch defender being hunted by the user. */
+  | 'mismatch_target'
 
 /**
  * Preset overlay template — like `OverlayPrimitive` but with role-typed
@@ -117,7 +119,7 @@ export type PresetOverlay =
   | {
       kind: 'help_pulse'
       player: PresetRole
-      role: 'tag' | 'low_man' | 'nail' | 'stunter' | 'overhelp'
+      role: 'tag' | 'low_man' | 'nail' | 'stunter' | 'overhelp' | 'mismatch'
     }
   | { kind: 'open_space_region'; anchor: 'rim' | 'shooting_pocket' | 'vacated_paint' | 'weak_side' | 'attack_lane' }
   | { kind: 'passing_lane_open'; from: PresetRole | 'ball'; to: PresetRole }
@@ -261,17 +263,48 @@ const READ_THE_COVERAGE_PACK2_STUB: DecoderOverlayPreset = {
   defaultTier: 'intermediate',
 }
 
-const HUNT_THE_ADVANTAGE_PACK2_STUB: DecoderOverlayPreset = {
+// Pack 2 (Phase γ) — HUNT preset. Chained two-beat reads: beat 1
+// establishes the matchup ("a switch put a slower defender on you"),
+// beat 2 reads the recovery ("his foot is wrong, drive that side").
+// The `preAnswer` cluster authors the persistent mismatch pulse plus
+// the post-switch defender's recovery foot — the same primitives the
+// HUNT freeze-template authors hydrate against `mismatch_target`. The
+// `postAnswer` cluster reveals the open lane the recovery angle gave
+// up. `defaultTier` is `advanced` because HUNT D1 (per
+// HUNT_DECODER_DESIGN.md §4) is roughly equivalent in load to BDW D3.
+const HUNT_THE_ADVANTAGE: DecoderOverlayPreset = {
   decoder: 'HUNT_THE_ADVANTAGE',
   label: 'Hunt the Advantage',
   beat: {
-    whatChanged: 'Pack 2 stub — HUNT chained second read. Authored in 3.1.2.',
-    whatSpaceOpened: 'Pack 2 stub.',
-    whatIsBestRead: 'Pack 2 stub.',
-    whatIsNextBest: 'Pack 2 stub.',
+    whatChanged:
+      'A screen forced a switch — a slower defender is now on you, and his recovery foot points away from the rim.',
+    whatSpaceOpened:
+      'The baseline driving lane on the side of his trailing foot, before help can rotate over.',
+    whatIsBestRead:
+      'Attack the recovery angle right away — drive the side his foot points away from before help arrives.',
+    whatIsNextBest:
+      'If the new defender squares up before you can move, reset and re-screen — keep the mismatch alive.',
   },
-  preAnswer: [],
-  postAnswer: [],
+  preAnswer: [
+    // Persistent mismatch pulse on the post-switch defender — the
+    // load-bearing cue across both freezes (matches the HUNT freeze
+    // template authoring shape).
+    { kind: 'help_pulse', player: 'mismatch_target', role: 'mismatch' },
+    // Foot arrow on the same defender — the new cue beat 2 swaps in,
+    // showing the recovery angle the user attacks.
+    { kind: 'defender_foot_arrow', player: 'mismatch_target' },
+  ],
+  postAnswer: [
+    // The space the recovery angle gave up — the baseline rim attack.
+    { kind: 'open_space_region', anchor: 'attack_lane' },
+    // The drive itself — receiver (the user) attacking the
+    // mismatched defender's trailing foot side.
+    {
+      kind: 'drive_cut_preview',
+      player: 'receiver',
+      pathDescription: 'catch → attack baseline against recovery foot',
+    },
+  ],
   defaultTier: 'advanced',
 }
 
@@ -286,7 +319,7 @@ export const DECODER_OVERLAY_PRESETS: Readonly<
   EMPTY_SPACE_CUT,
   SKIP_THE_ROTATION,
   READ_THE_COVERAGE: READ_THE_COVERAGE_PACK2_STUB,
-  HUNT_THE_ADVANTAGE: HUNT_THE_ADVANTAGE_PACK2_STUB,
+  HUNT_THE_ADVANTAGE,
 })
 
 /** Convenience accessor — same shape as a Map.get with a clean fallback. */

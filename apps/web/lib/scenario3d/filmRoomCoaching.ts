@@ -102,10 +102,14 @@ const COACH_VOICE: Record<DecoderTag, Record<CoachVoiceLevel, string | null>> = 
     minimal: null,
     silent: null,
   },
+  // Pack 2 (Phase γ) — HUNT chained-second-read voice. The voice is
+  // shorter than DROP's because HUNT's load is in the temporal chain,
+  // not the visual identification — over-talking blunts the second
+  // read.
   HUNT_THE_ADVANTAGE: {
-    explicit: null,
-    guided: null,
-    minimal: null,
+    explicit: 'Force the switch, hunt the mismatch.',
+    guided: 'Who do they have to switch onto?',
+    minimal: 'Hunt the mismatch.',
     silent: null,
   },
 }
@@ -142,6 +146,10 @@ export type ScanTargetTag =
   | 'closeout_speed'
   | 'closeout_balance'
   | 'receiver_hands'
+  /** HUNT — the size / matchup gap on the post-switch defender. */
+  | 'mismatch_target_size'
+  /** HUNT — the post-switch defender's hip / foot recovery angle. */
+  | 'switch_defender_hips'
 
 const DECODER_SCAN_TARGETS: Record<DecoderTag, ReadonlyArray<ScanTargetTag>> = {
   BACKDOOR_WINDOW: ['defender_head', 'cutter_plant_foot'],
@@ -149,13 +157,15 @@ const DECODER_SCAN_TARGETS: Record<DecoderTag, ReadonlyArray<ScanTargetTag>> = {
   SKIP_THE_ROTATION: ['two_helpers_pulled', 'receiver_hands'],
   ADVANTAGE_OR_RESET: ['closeout_balance', 'closeout_speed'],
   // Pack 2 stub. DROP would surface screen-defender depth / hip
-  // orientation; HUNT would surface post-rotation defender body
-  // language. The ScanTargetTag union doesn't yet contain those tags
-  // — extending it lands with the full DROP/HUNT preset design.
-  // Empty arrays are safe: the WATCH-phase renderer treats an empty
-  // target list as "no scan emphasis" and just shows the freeze.
+  // orientation; the ScanTargetTag union doesn't yet contain those
+  // tags — extending it lands with a follow-on DROP slice. Empty
+  // arrays are safe: the WATCH-phase renderer treats an empty target
+  // list as "no scan emphasis" and just shows the freeze.
   READ_THE_COVERAGE: [],
-  HUNT_THE_ADVANTAGE: [],
+  // Pack 2 (Phase γ) — HUNT scan targets. Primary scan is the size
+  // gap (the matchup itself); secondary is the recovery hip angle on
+  // beat 2 — the chain the player learns to read in time.
+  HUNT_THE_ADVANTAGE: ['mismatch_target_size', 'switch_defender_hips'],
 }
 
 // --- coaching-script config ------------------------------------------------
