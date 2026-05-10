@@ -312,6 +312,41 @@ const AUTHORING_OVERLAY_CAPS_BY_DIFFICULTY: Readonly<
   5: { pre: 1, post: 5 },
 })
 
+// ---------------------------------------------------------------------------
+// Pack 2 Teaching-Quality F1 — per-difficulty cognition hold floor.
+//
+// Mirror of `COGNITION_HOLD_FLOOR_MS_BY_DIFFICULTY` in
+// apps/web/lib/scenario3d/freezeFrameCognition.ts. We duplicate the
+// (small) table here rather than importing from apps/web because
+// materialize-templates is a node script and apps/web ships next.js
+// surface (the lint-variants.ts pattern). Any change to the per-D
+// floor must update BOTH tables in lockstep.
+//
+// The schemas (template + runtime) admit the absolute floor (800ms);
+// this helper narrows that to the per-D floor at materialize time
+// when effective difficulty is known.
+// ---------------------------------------------------------------------------
+
+const COGNITION_HOLD_FLOOR_MS_BY_DIFFICULTY: Readonly<Record<number, number>> =
+  Object.freeze({
+    1: 1100,
+    2: 1100,
+    3: 1100,
+    4: 1000,
+    5: 800,
+  })
+
+function _cognitionHoldFloorForDifficulty(effectiveDifficulty: number): number {
+  // Same out-of-band semantics as the apps/web helper: clamp into
+  // [1, 5], collapse to D1 (loosest) when non-finite. The variant
+  // schema bounds difficulty to 1..5 already, so the clamp is
+  // belt-and-braces.
+  if (!Number.isFinite(effectiveDifficulty)) return 1100
+  const rounded = Math.round(effectiveDifficulty)
+  const d = rounded < 1 ? 1 : rounded > 5 ? 5 : rounded
+  return COGNITION_HOLD_FLOOR_MS_BY_DIFFICULTY[d] ?? 1100
+}
+
 function authoringOverlayCap(
   phase: 'pre' | 'post',
   difficulty: number,
@@ -418,6 +453,25 @@ function materialize(template: Template, variant: Variant): MaterializedScenario
     throw new Error(
       `Template ${template.id} (used by ${variant.id} at D${effectiveDifficultyForCap}) exceeds post-overlay cap (${template.overlays.post.length} > ${postCap}). See blueprint §3.6.`,
     )
+  }
+
+  // Pack 2 Teaching-Quality F1 — per-difficulty cognition hold floor.
+  // Schemas admit ≥800ms (the absolute floor); the per-D narrowing
+  // (D1-D3=1100, D4=1000, D5=800) is enforced here at materialize time
+  // because only the materializer knows the variant's effective
+  // difficulty. A D2 variant authoring an 800ms hold is rejected; a D5
+  // variant authoring 800ms is accepted.
+  const authoredHoldMs = template.scene.timingOverrides?.cognitionHoldMs
+  if (typeof authoredHoldMs === 'number') {
+    const cognitionFloor = _cognitionHoldFloorForDifficulty(effectiveDifficultyForCap)
+    if (authoredHoldMs < cognitionFloor) {
+      throw new Error(
+        `Template ${template.id} (used by ${variant.id} at D${effectiveDifficultyForCap}) ` +
+          `cognitionHoldMs=${authoredHoldMs} is below the per-D floor (${cognitionFloor}ms). ` +
+          `Per-D floors: D1-D3=1100, D4=1000, D5=800. See ` +
+          `cognitionHoldFloorForDifficulty in apps/web/lib/scenario3d/freezeFrameCognition.ts.`,
+      )
+    }
   }
 
   const preAnswerOverlays = filteredPre.map((o) => resolveOverlay(o, mirror))
