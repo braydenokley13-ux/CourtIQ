@@ -242,7 +242,7 @@ describe('FR-7 — AuthoredOverlayBridge wires phase reapply on controller rebui
     // Scope the assertion to the rebuild effect — the fingerprint
     // we lock onto is the `[scene.id, filtered, overlayLevel]` deps,
     // which is the rebuild effect's signature.
-    const rebuildEffectIdx = SOURCE.indexOf('[scene.id, filtered, overlayLevel]')
+    const rebuildEffectIdx = SOURCE.indexOf('[scene.id, filtered, overlayLevel,')
     expect(rebuildEffectIdx).toBeGreaterThan(0)
     // The setter call must appear somewhere before the deps array.
     const before = SOURCE.slice(0, rebuildEffectIdx)
@@ -258,7 +258,7 @@ describe('FR-7 — AuthoredOverlayBridge wires phase reapply on controller rebui
     // Locks the FR-5 contract: Boss / 'none' keeps the controller
     // mounted with the overlay group hidden. Without this, a Boss
     // user might see overlays when the bridge rebuilds.
-    const rebuildEffectIdx = SOURCE.indexOf('[scene.id, filtered, overlayLevel]')
+    const rebuildEffectIdx = SOURCE.indexOf('[scene.id, filtered, overlayLevel,')
     const before = SOURCE.slice(0, rebuildEffectIdx)
     const effectStart = before.lastIndexOf('useEffect(')
     const effectBody = SOURCE.slice(effectStart, rebuildEffectIdx)

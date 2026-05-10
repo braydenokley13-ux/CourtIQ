@@ -1,0 +1,190 @@
+{
+  "_dummy_only": "Pack 2 (3.1.4) runtime-validation fixture — NOT production content. Lives outside packs/; the seeder ignores it. Used by hunt-runtime tests to exercise the secondBeat freeze + consequence overlay + chained-freeze bridge end to end.",
+  "id": "HUNT.preset-mismatch.dummy-01",
+  "version": 1,
+  "status": "DRAFT",
+  "title": "[DUMMY] HUNT preset-mismatch runtime fixture",
+  "category": "OFFENSE",
+  "decoder_tag": "HUNT_THE_ADVANTAGE",
+  "concept_tags": ["pnr_ball_handler_read"],
+  "sub_concepts": [],
+  "difficulty": 1,
+  "user_role": "wing_receiver",
+  "game_context": "Dev fixture — not for player-facing sessions.",
+  "possession_setup": "User is the wing receiver. A side ball-screen forces a switch; the resulting mismatch is the read.",
+  "decision_moment": "Beat 1: see the upcoming switch geometry. Beat 2: read the recovery angle.",
+  "visible_cue": "Beat 1 — slower defender about to switch onto user. Beat 2 — defender's recovery foot points away from the rim.",
+  "prompt": "[Dummy] Your defender just switched. What do you do?",
+  "best_read": "Drive baseline at the slower defender's hip.",
+  "decoder_teaching_point": "When you force a switch, the second read is the matchup, not the action.",
+  "lesson_connection": "chained-reads-intro",
+  "explanation_md": "Dummy scenario for HUNT runtime validation. Real HUNT D1 content lands in Phase γ.",
+  "xp_reward": 0,
+  "mastery_weight": 0.0,
+  "render_tier": 1,
+  "media_refs": [],
+  "choices": [
+    {
+      "id": "c1",
+      "label": "Drive baseline.",
+      "quality": "best",
+      "feedback_text": "Best read. The recovery angle gives you a step.",
+      "order": 1
+    },
+    {
+      "id": "c2",
+      "label": "Pull up.",
+      "quality": "wrong",
+      "feedback_text": "He's slow but already squared up. Drive instead.",
+      "order": 2
+    },
+    {
+      "id": "c3",
+      "label": "Reset.",
+      "quality": "wrong",
+      "feedback_text": "Reset kills the mismatch. Attack now.",
+      "order": 3
+    }
+  ],
+  "feedback": {
+    "correct": "Good. The switch was the question; the drive is the answer.",
+    "wrong": "The mismatch is on you for one possession. Attack it."
+  },
+  "self_review_checklist": [
+    "Did I see the switch as it happened?",
+    "Did I attack on the catch, not after?"
+  ],
+  "coach_validation": {
+    "level": "low",
+    "status": "not_needed",
+    "notes": "Dummy fixture for runtime tests; not subject to SME review."
+  },
+  "scene": {
+    "type": "hunt_preset_mismatch_dummy",
+    "court": "half",
+    "camera": "teaching_angle",
+    "players": [
+      { "id": "passer", "team": "offense", "role": "ball_handler", "label": "PG", "start": { "x": -9, "z": 14 }, "hasBall": true },
+      { "id": "user", "team": "offense", "role": "wing_receiver", "label": "You", "start": { "x": 15, "z": 9 }, "isUser": true },
+      { "id": "screener", "team": "offense", "role": "screener", "label": "5", "start": { "x": -2, "z": 16 } },
+      { "id": "x_passer", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": -9, "z": 16 } },
+      { "id": "x_user", "team": "defense", "role": "wing_defender", "label": "x2", "start": { "x": 14, "z": 11 } },
+      { "id": "x_screener", "team": "defense", "role": "screen_defender", "label": "x5", "start": { "x": -2, "z": 18 } }
+    ],
+    "ball": { "start": { "x": -9, "z": 14 }, "holderId": "passer" },
+    "movements": [
+      {
+        "id": "screener_lift",
+        "playerId": "screener",
+        "kind": "lift",
+        "to": { "x": -2, "z": 17 },
+        "delayMs": 0,
+        "durationMs": 600
+      },
+      {
+        "id": "user_lift",
+        "playerId": "user",
+        "kind": "lift",
+        "to": { "x": 15, "z": 10 },
+        "delayMs": 0,
+        "durationMs": 800
+      },
+      {
+        "id": "x_screener_show",
+        "playerId": "x_screener",
+        "kind": "rotation",
+        "to": { "x": -1, "z": 17 },
+        "delayMs": 800,
+        "durationMs": 700
+      },
+      {
+        "id": "x_screener_switch_to_user",
+        "playerId": "x_screener",
+        "kind": "rotation",
+        "to": { "x": 14, "z": 12 },
+        "delayMs": 1700,
+        "durationMs": 1500
+      },
+      {
+        "id": "x_user_switch_to_passer",
+        "playerId": "x_user",
+        "kind": "rotation",
+        "to": { "x": -8, "z": 15 },
+        "delayMs": 1700,
+        "durationMs": 1500
+      }
+    ],
+    "answerDemo": [
+      {
+        "id": "user_drive_baseline",
+        "playerId": "user",
+        "kind": "drive",
+        "to": { "x": 16, "z": 2 },
+        "delayMs": 0,
+        "durationMs": 800
+      },
+      {
+        "id": "passer_pass_to_user",
+        "playerId": "ball",
+        "kind": "pass",
+        "to": { "x": 15, "z": 10 },
+        "delayMs": 0,
+        "durationMs": 500
+      }
+    ],
+    "wrongDemos": [
+      {
+        "choiceId": "c2",
+        "caption": "[Dummy] You pulled up. He had time to contest.",
+        "movements": [
+          {
+            "id": "user_pullup",
+            "playerId": "user",
+            "kind": "lift",
+            "to": { "x": 15, "z": 10 },
+            "delayMs": 0,
+            "durationMs": 400
+          }
+        ]
+      }
+    ],
+    "beatSpec": {
+      "firstBeat": { "kind": "atMs", "atMs": 1500 },
+      "secondBeat": { "kind": "atMs", "atMs": 3200 }
+    },
+    "timingOverrides": {
+      "cognitionHoldMs": 1100
+    },
+    "preAnswerOverlays": [
+      { "kind": "help_pulse", "playerId": "x_screener", "role": "mismatch" },
+      { "kind": "defender_chest_line", "playerId": "x_screener" }
+    ],
+    "consequenceOverlays": [
+      { "kind": "defender_hip_arrow", "playerId": "x_screener" },
+      {
+        "kind": "label",
+        "anchor": { "x": 6, "z": 14 },
+        "text": "Switch"
+      }
+    ],
+    "secondBeatPreAnswerOverlays": [
+      { "kind": "help_pulse", "playerId": "x_screener", "role": "mismatch" },
+      { "kind": "defender_foot_arrow", "playerId": "x_screener" }
+    ],
+    "postAnswerOverlays": [
+      {
+        "kind": "open_space_region",
+        "anchor": { "x": 16, "z": 4 },
+        "radiusFt": 5
+      },
+      {
+        "kind": "drive_cut_preview",
+        "playerId": "user",
+        "path": [
+          { "x": 15, "z": 10 },
+          { "x": 16, "z": 2 }
+        ]
+      }
+    ]
+  }
+}

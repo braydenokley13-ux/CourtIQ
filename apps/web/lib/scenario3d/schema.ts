@@ -168,7 +168,12 @@ export const overlayPrimitiveSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('help_pulse'),
     playerId: z.string().min(1),
-    role: z.enum(['tag', 'low_man', 'nail', 'stunter', 'overhelp']),
+    // Pack 2 (3.1.2) — `'mismatch'` was added so HUNT scenarios can
+    // highlight the targeted defender after a forced switch / hunt.
+    // The renderer treats `'mismatch'` like other help-pulse roles
+    // (full-opacity post-pick, gentler pre-pick); the role label
+    // surfaces the matchup to the user during the beat-2 freeze.
+    role: z.enum(['tag', 'low_man', 'nail', 'stunter', 'overhelp', 'mismatch']),
   }),
   z.object({
     kind: z.literal('drive_cut_preview'),
@@ -252,6 +257,23 @@ export const sceneSchema = z
     wrongDemos: z.array(wrongDemoSchema).max(8).default([]),
     preAnswerOverlays: z.array(overlayPrimitiveSchema).max(16).default([]),
     postAnswerOverlays: z.array(overlayPrimitiveSchema).max(16).default([]),
+    // Pack 2 (3.1.2) — consequence-phase overlays. Render during the
+    // controller's `consequence` state: in Pack 1 that is the wrong-
+    // demo replay leg (rendered between the user's pick and the cue
+    // repaint); in Pack 2 HUNT scenarios the same overlay set is
+    // reused for the inter-beat bridge ("what changed between beat 1
+    // and beat 2"). Empty for legacy scenes — Pack 1 behavior is
+    // bit-identical when this field is absent because the bridge
+    // falls back to the post-answer overlay set as before.
+    consequenceOverlays: z.array(overlayPrimitiveSchema).max(16).default([]),
+    // Pack 2 (3.1.4) — overrides for the *second* freeze beat. When
+    // the scene authors `beatSpec.secondBeat`, the renderer enters a
+    // second freeze after the inter-beat unfreeze; these arrays drive
+    // the cue cluster + reveal for that second beat. When absent the
+    // second beat reuses the primary `preAnswerOverlays` /
+    // `postAnswerOverlays` arrays so authoring stays low-friction.
+    secondBeatPreAnswerOverlays: z.array(overlayPrimitiveSchema).max(16).default([]),
+    secondBeatPostAnswerOverlays: z.array(overlayPrimitiveSchema).max(16).default([]),
     // Phase 3.1.4 — per-scenario timing override + multi-beat spec.
     // Mirrored from packages/db/seed/scenarios/templates/_schema.ts.
     // The renderer wires consumption in 3.1.4 (runtime); the seeder
@@ -332,8 +354,10 @@ export const sceneSchema = z
       }
     }
 
-    // Pre-answer overlay allow-list. Post-answer overlays may use any
-    // primitive, so they're not gated here.
+    // Pre-answer overlay allow-list. Post-answer + consequence overlays
+    // may use any primitive, so they're not gated here. Pack 2 (3.1.4)
+    // — the same allow-list applies to `secondBeatPreAnswerOverlays`
+    // since beat 2 is also a pre-decision freeze.
     for (let i = 0; i < scene.preAnswerOverlays.length; i++) {
       const ov = scene.preAnswerOverlays[i]!
       if (!isAllowedPreAnswerOverlay(ov.kind)) {
@@ -343,6 +367,34 @@ export const sceneSchema = z
           message: `pre-answer overlay "${ov.kind}" is not in the allow-list (see PRE_ANSWER_OVERLAY_KINDS).`,
         })
       }
+    }
+    for (let i = 0; i < scene.secondBeatPreAnswerOverlays.length; i++) {
+      const ov = scene.secondBeatPreAnswerOverlays[i]!
+      if (!isAllowedPreAnswerOverlay(ov.kind)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['secondBeatPreAnswerOverlays', i, 'kind'],
+          message: `secondBeatPreAnswerOverlays[${i}].kind "${ov.kind}" is not in the allow-list (see PRE_ANSWER_OVERLAY_KINDS).`,
+        })
+      }
+    }
+
+    // Pack 2 — secondBeatPreAnswerOverlays only meaningful when
+    // beatSpec.secondBeat is authored. Allow empty (means "reuse
+    // primary preAnswerOverlays") but reject overlays-without-beatSpec
+    // because that's an authoring mistake the runtime would silently
+    // ignore.
+    if (
+      (scene.secondBeatPreAnswerOverlays.length > 0 ||
+        scene.secondBeatPostAnswerOverlays.length > 0) &&
+      !scene.beatSpec?.secondBeat
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['secondBeatPreAnswerOverlays'],
+        message:
+          'secondBeat overlays authored without `beatSpec.secondBeat`; either remove the overlays or add a beatSpec.secondBeat freeze marker.',
+      })
     }
 
     // Overlays that reference a player must reference a real one.
@@ -355,7 +407,15 @@ export const sceneSchema = z
       kind === 'help_pulse' ||
       kind === 'drive_cut_preview'
 
-    const checkOverlayRefs = (overlays: OverlayPrimitive[], path: 'preAnswerOverlays' | 'postAnswerOverlays') => {
+    const checkOverlayRefs = (
+      overlays: OverlayPrimitive[],
+      path:
+        | 'preAnswerOverlays'
+        | 'postAnswerOverlays'
+        | 'consequenceOverlays'
+        | 'secondBeatPreAnswerOverlays'
+        | 'secondBeatPostAnswerOverlays',
+    ) => {
       for (let i = 0; i < overlays.length; i++) {
         const ov = overlays[i]!
         if (referencedPlayer(ov.kind) && 'playerId' in ov && !ids.has(ov.playerId)) {
@@ -392,6 +452,9 @@ export const sceneSchema = z
     }
     checkOverlayRefs(scene.preAnswerOverlays, 'preAnswerOverlays')
     checkOverlayRefs(scene.postAnswerOverlays, 'postAnswerOverlays')
+    checkOverlayRefs(scene.consequenceOverlays, 'consequenceOverlays')
+    checkOverlayRefs(scene.secondBeatPreAnswerOverlays, 'secondBeatPreAnswerOverlays')
+    checkOverlayRefs(scene.secondBeatPostAnswerOverlays, 'secondBeatPostAnswerOverlays')
   })
 
 export type SceneInput = z.infer<typeof sceneSchema>

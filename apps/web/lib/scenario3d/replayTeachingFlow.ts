@@ -120,3 +120,82 @@ export function totalReplayDurationMs(input: FlowInput): number {
   const last = events[events.length - 1]!
   return last.atMs - input.pickedAtMs
 }
+
+// ---------------------------------------------------------------------------
+// Pack 2 (3.1.4) — HUNT chained-freeze pre-pick simulator.
+//
+// The flow above models the post-pick reaction (consequence → cueRepaint
+// → answer-leg). HUNT scenarios add a *pre-pick* chain: beat 1 freeze
+// → cognition hold → inter-beat unfreeze (controller emits
+// `'consequence'` so the bridge mounts `consequenceOverlays`) → beat 2
+// freeze. The user's pick happens at beat 2, after which the post-pick
+// flow above plays out unchanged.
+//
+// `simulateHuntPrePickFlow` returns the deterministic phase sequence
+// the controller emits during the pre-pick chain. Same inputs always
+// produce the same outputs; no scene, no timeline, no clock dependency.
+// ---------------------------------------------------------------------------
+
+export type HuntPrePickPhase = 'frozen-beat-1' | 'consequence' | 'frozen-beat-2'
+
+export interface HuntPrePickEvent {
+  /** Wall-clock time at which the controller emits the phase. */
+  atMs: number
+  phase: HuntPrePickPhase
+  /** 0 for beat 1; 1 for beat 2. `consequence` is the inter-beat
+   *  unfreeze and carries the *outgoing* beat index (0). */
+  beatIndex: 0 | 1
+}
+
+export interface HuntPrePickInput {
+  /** Wall-clock at scene start (mode='intro' first useFrame). Use the
+   *  legacy PRE_DELAY_MS as the pre-roll before motion begins. */
+  startedAtMs: number
+  /** Authored `freezeAtMs` for beat 1, in ms relative to motion start. */
+  firstFreezeAtMs: number
+  /** Authored `secondFreezeAtMs` (resolved from `beatSpec.secondBeat`)
+   *  for beat 2, in ms relative to motion start. Must be strictly
+   *  greater than `firstFreezeAtMs`. */
+  secondFreezeAtMs: number
+  /** Cognition hold for beat 1, in ms. Resolved from
+   *  `scene.timingOverrides` or the module default. */
+  cognitionHoldMs: number
+}
+
+/**
+ * Simulates the controller's pre-pick phase emissions for a HUNT
+ * chained scene. Output sequence is always:
+ *
+ *   `frozen-beat-1` at `startedAtMs + firstFreezeAtMs`
+ *   `consequence`   at `startedAtMs + firstFreezeAtMs + cognitionHoldMs`
+ *   `frozen-beat-2` at `startedAtMs + firstFreezeAtMs + cognitionHoldMs +
+ *                       (secondFreezeAtMs - firstFreezeAtMs)`
+ *                 = `startedAtMs + cognitionHoldMs + secondFreezeAtMs`
+ *
+ * The inter-beat duration is `secondFreezeAtMs - firstFreezeAtMs`
+ * (the authored gap between the two freezes); the cognition hold is
+ * additive on top because motion is paused for that window.
+ */
+export function simulateHuntPrePickFlow(input: HuntPrePickInput): HuntPrePickEvent[] {
+  const { startedAtMs, firstFreezeAtMs, secondFreezeAtMs, cognitionHoldMs } = input
+  const beat1At = startedAtMs + firstFreezeAtMs
+  const consequenceAt = beat1At + cognitionHoldMs
+  const interBeatDurationMs = secondFreezeAtMs - firstFreezeAtMs
+  const beat2At = consequenceAt + interBeatDurationMs
+  return [
+    { atMs: beat1At, phase: 'frozen-beat-1', beatIndex: 0 },
+    { atMs: consequenceAt, phase: 'consequence', beatIndex: 0 },
+    { atMs: beat2At, phase: 'frozen-beat-2', beatIndex: 1 },
+  ]
+}
+
+/**
+ * Total wall-clock budget from scene start to beat-2 freeze entry —
+ * the moment the user can pick. Single source of truth for HUNT pacing
+ * tests so the lower bound (beat-2 freeze) is auditable against the
+ * 4000 ms cognition-hold ceiling enforced by `timingOverridesSchema`.
+ */
+export function huntPrePickDurationMs(input: HuntPrePickInput): number {
+  const events = simulateHuntPrePickFlow(input)
+  return events[events.length - 1]!.atMs - input.startedAtMs
+}
