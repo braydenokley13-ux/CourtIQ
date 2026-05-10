@@ -153,6 +153,13 @@ model Attempt {
   // can't grind the demo into a memorized read. Defaults to 0 so
   // pre-Phase-11 rows count as "no replays seen".
   replay_count   Int            @default(0)
+  // Phase γ (HUNT) — per-beat correctness for chained two-beat scenarios.
+  // Shape: `Array<{ beatIndex: number; correct: boolean }>` for HUNT
+  // (and any future chained-beat decoder). Null for single-beat
+  // scenarios so the replay teaching layer can dispatch correct /
+  // wrong vs. partial_chain off this presence + content. Optional so
+  // pre-HUNT rows continue to read as legacy. Forward-only.
+  beat_results   Json?
   time_ms        Int
   iq_before      Int
   iq_after       Int
