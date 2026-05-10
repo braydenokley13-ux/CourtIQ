@@ -561,7 +561,19 @@ export type CueAtom = z.infer<typeof cueAtomSchema>
 // -----------------------------------------------------------------------------
 
 /** Stable signature for repetition lint. Two variants with the same signature
- *  are forbidden in the same template. */
+ *  are forbidden in the same template.
+ *
+ *  Pack 2 Teaching-Quality F9: includes a deterministic content hash of
+ *  the resolved disguise level (its removePre set, difficultyBump, and
+ *  freezeCompressMs). Two variants that pick the same disguise NAME
+ *  always produce the same hash today (disguise content is template-
+ *  level, not variant-level), so this is behaviour-preserving for the
+ *  current data shape. The forward-compat win: when per-variant
+ *  disguise overrides land, or when an existing template's disguise
+ *  config is edited mid-cycle, the signature can no longer accidentally
+ *  collapse two variants with materially different surviving cues into
+ *  the same key.
+ */
 export function variationSignature(v: Variant, template: Template): string {
   const userSlot = v.variation.user_slot ?? template.tactical.user_slot_default
   return [
@@ -569,6 +581,32 @@ export function variationSignature(v: Variant, template: Template): string {
     `slot:${userSlot}`,
     `d:${v.variation.difficulty ?? template.tactical.difficulty_default}`,
     `disg:${v.variation.disguise}`,
+    `dh:${disguiseContentFingerprint(template, v.variation.disguise)}`,
     `clk:${v.variation.clock_pressure}`,
   ].join('|')
+}
+
+/** Deterministic, human-readable fingerprint of a disguise level's
+ *  effective content. Two disguise configs with the same removePre set
+ *  (order-insensitive), the same difficultyBump, and the same
+ *  freezeCompressMs always produce identical fingerprints. Used by
+ *  `variationSignature` so the deduplicator stays honest when disguise
+ *  content evolves.
+ *
+ *  Returns 'none' for an absent / undefined disguise level (the variant
+ *  schema's default is `disguise: 'none'`, which always exists).
+ */
+export function disguiseContentFingerprint(
+  template: Template,
+  disguiseName: 'none' | 'light' | 'moderate' | 'heavy',
+): string {
+  const cfg = template.disguises[disguiseName]
+  if (!cfg) return 'absent'
+  const removeSorted = [...(cfg.removePre ?? [])]
+    .map((r) => `${r.kind}|${r.onSlot ?? '_'}`)
+    .sort()
+    .join(',')
+  const bump = cfg.difficultyBump ?? 0
+  const compress = cfg.freezeCompressMs ?? 0
+  return `r[${removeSorted}]b${bump}c${compress}`
 }

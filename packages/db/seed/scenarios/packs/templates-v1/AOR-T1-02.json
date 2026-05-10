@@ -16,7 +16,7 @@
       "cue:short_closeout",
       "cue:hips_turned_to_ball",
       "tpl:AOR.short-closeout-shoot",
-      "sig:mirror|slot:shooter|d:1|disg:light|clk:none"
+      "sig:mirror|slot:shooter|d:1|disg:light|dh:r[defender_hip_arrow|closeout_def]b1c0|clk:none"
     ],
     "difficulty": 2,
     "user_role": "wing_shooter",
@@ -459,7 +459,7 @@
     },
     "_generated": {
       "template": "AOR.short-closeout-shoot",
-      "signature": "mirror|slot:shooter|d:1|disg:light|clk:none"
+      "signature": "mirror|slot:shooter|d:1|disg:light|dh:r[defender_hip_arrow|closeout_def]b1c0|clk:none"
     }
   }
 ]

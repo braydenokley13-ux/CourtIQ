@@ -16,7 +16,7 @@
       "cue:hand_in_lane",
       "cue:foot_in_lane",
       "tpl:BDW.denied-wing",
-      "sig:orig|slot:cutter|d:1|disg:none|clk:none"
+      "sig:orig|slot:cutter|d:1|disg:none|dh:r[]b0c0|clk:none"
     ],
     "difficulty": 1,
     "user_role": "off_ball_wing",
@@ -491,7 +491,7 @@
     },
     "_generated": {
       "template": "BDW.denied-wing",
-      "signature": "orig|slot:cutter|d:1|disg:none|clk:none"
+      "signature": "orig|slot:cutter|d:1|disg:none|dh:r[]b0c0|clk:none"
     }
   }
 ]
