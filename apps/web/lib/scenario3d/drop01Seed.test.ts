@@ -67,6 +67,7 @@ interface DropScenarioJson {
   lesson_connection?: string
   choices: Array<{
     id: string
+    label: string
     quality?: 'best' | 'acceptable' | 'wrong'
     feedback_text: string
     order: number
