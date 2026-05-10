@@ -513,6 +513,16 @@ describe('resolveEffectiveOverlayBudget — F4 pure helper', () => {
     expect(resolveEffectiveOverlayBudget(5, Number.POSITIVE_INFINITY, 0)).toBe(5)
   })
 
+  it('clamps NaN inputs to 0 instead of leaking NaN through the budget', () => {
+    // Each NaN-tainted input collapses to 0, so the result is bounded by
+    // authoredCount and never returns NaN (which downstream takeWithCap
+    // would treat as an unlimited cap).
+    expect(resolveEffectiveOverlayBudget(Number.NaN, 3, 1)).toBe(0)
+    expect(resolveEffectiveOverlayBudget(3, Number.NaN, 1)).toBe(1)
+    expect(resolveEffectiveOverlayBudget(3, 3, Number.NaN)).toBe(3)
+    expect(resolveEffectiveOverlayBudget(Number.NaN, Number.NaN, Number.NaN)).toBe(0)
+  })
+
   it('full matrix enumeration is monotonic non-decreasing in authoredCount', () => {
     for (const cap of [0, 1, 2, 3]) {
       for (const floor of [0, 1]) {

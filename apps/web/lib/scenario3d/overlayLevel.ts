@@ -102,9 +102,20 @@ export function resolveEffectiveOverlayBudget(
   pathwayCap: number,
   mandatoryCueFloor: number,
 ): number {
-  const safeAuthoredCount = Math.max(0, Math.floor(authoredCount))
-  const safePathwayCap = Math.max(0, Math.floor(pathwayCap))
-  const safeMandatoryCueFloor = Math.max(0, Math.floor(mandatoryCueFloor))
+  // NaN guards: Math.max(0, Math.floor(NaN)) is NaN, which would leak
+  // through Math.min as NaN and hand `takeWithCap` a non-finite cap
+  // (treated as unlimited). Collapse non-finite inputs to 0 so the
+  // contract (return value in [0, authoredCount]) holds. `pathwayCap`
+  // must still accept `Infinity` (review mode), so guard NaN only.
+  const safeAuthoredCount = Number.isFinite(authoredCount)
+    ? Math.max(0, Math.floor(authoredCount))
+    : 0
+  const safePathwayCap = Number.isNaN(pathwayCap)
+    ? 0
+    : Math.max(0, Math.floor(pathwayCap))
+  const safeMandatoryCueFloor = Number.isFinite(mandatoryCueFloor)
+    ? Math.max(0, Math.floor(mandatoryCueFloor))
+    : 0
 
   const floor = Math.min(safeAuthoredCount, safeMandatoryCueFloor)
   const cap = Math.max(safePathwayCap, floor)
