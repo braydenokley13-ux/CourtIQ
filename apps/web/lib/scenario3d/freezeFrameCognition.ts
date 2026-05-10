@@ -550,10 +550,12 @@ const DROP_TEMPLATES: ReadonlyArray<FreezeBeatTemplate> = [
   },
 ]
 
-// Pack 2 (Phase γ) — HUNT (HUNT_THE_ADVANTAGE) chained two-beat
-// templates. HUNT is the only decoder that freezes twice in a single
-// scenario: beat 1 establishes the matchup ("the switch happened"),
-// beat 2 reads the recovery ("attack the angle they gave you").
+// Pack 2 (Phase γ + Phase δ-A) — HUNT (HUNT_THE_ADVANTAGE) chained
+// templates. HUNT is the only decoder that freezes more than once in
+// a single scenario. Phase γ shipped the two-beat shape (D1 / D2):
+// beat 1 establishes the matchup, beat 2 reads the recovery. Phase
+// δ-A extends to D3 (decoy actions): a third beat for the real read
+// after the decoy bait fires (see beat-3 block below).
 //
 // The existing per-decoder template list is single-flat: it's not
 // per-beat-index. The runtime reads `scene.secondBeatPreAnswerOverlays`
@@ -646,6 +648,61 @@ const HUNT_TEMPLATES: ReadonlyArray<FreezeBeatTemplate> = [
   // Beat 2 advantage — the now-open baseline driving lane. The
   // advantage is the same shape as beat 1 (rim attack) but at a
   // tighter angle now that the recovery commits the defender's hips.
+  {
+    kind: 'advantage',
+    at_phase_ms: ADVANTAGE_BEAT_AT_MS,
+    primitive_kind: 'open_space_region',
+    anchor: 'open_rim_zone',
+    clutter_priority: 3,
+    fade_in_ms: DEFAULT_BEAT_FADE_IN_MS,
+    fade_out_ms: DEFAULT_BEAT_FADE_OUT_MS,
+    teaching_question: 'what_space_opened',
+  },
+  // ---------------------------------------------------------------------
+  // Phase δ-A — HUNT D3 decoy-action beat (beat 3).
+  //
+  // D3 is a three-beat freeze: beat 1 observes, beat 2 is the decoy that
+  // bites the defense, beat 3 is the real read on what the decoy
+  // exposed. The cadence (cue=200 / action=700 / advantage=1100) is
+  // reused verbatim from beats 1 / 2 per §9.1 ("reuse the cadence; vary
+  // the grammar"); only the beat count and the per-scenario cognition
+  // hold differ. HUNT D3 scenarios author `timingOverrides.cognitionHoldMs`
+  // in 1100–1200ms so beat 3's hold sits within the LINT-HUNT-04 ceiling
+  // while leaving the player enough time to commit on the third read.
+  //
+  // Cue / action / advantage roles for beat 3:
+  //   - cue   — mismatch pulse retained ("the matchup the decoy exposed
+  //     is still yours"). Same primitive as beats 1 / 2 — continuity
+  //     anchors the diff cognition between the decoy reaction and the
+  //     real geometry.
+  //   - action — defender_hand_in_lane on the defender who bit on the
+  //     decoy. The hand reaching toward the bait IS the cue that the
+  //     decoy worked; the open lane is the side his hand left behind.
+  //   - advantage — the open lane at the rim (same anchor shape as
+  //     beats 1 / 2). What changes is the angle: beat 3's advantage
+  //     opens because the defender committed to the decoy, not because
+  //     of a switch or a recovery foot.
+  {
+    kind: 'cue',
+    at_phase_ms: CUE_BEAT_AT_MS,
+    primitive_kind: 'help_pulse',
+    anchor: 'mismatch_target',
+    help_pulse_role: 'mismatch',
+    clutter_priority: 1,
+    fade_in_ms: DEFAULT_BEAT_FADE_IN_MS,
+    fade_out_ms: DEFAULT_BEAT_FADE_OUT_MS,
+    teaching_question: 'what_changed',
+  },
+  {
+    kind: 'action',
+    at_phase_ms: ACTION_BEAT_AT_MS,
+    primitive_kind: 'defender_hand_in_lane',
+    anchor: 'mismatch_target',
+    clutter_priority: 2,
+    fade_in_ms: DEFAULT_BEAT_FADE_IN_MS,
+    fade_out_ms: DEFAULT_BEAT_FADE_OUT_MS,
+    teaching_question: 'what_is_best_read',
+  },
   {
     kind: 'advantage',
     at_phase_ms: ADVANTAGE_BEAT_AT_MS,
