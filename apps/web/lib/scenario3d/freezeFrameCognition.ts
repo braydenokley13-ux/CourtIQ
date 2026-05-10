@@ -122,9 +122,12 @@ export type FreezeBeatAnchorRole =
   | 'receiver'
   | 'open_player'
   | 'passer'
+  | 'screen_defender'     // DROP — the big sitting back below the screen
+  | 'ball_handler'        // DROP — the PnR ball-handler reading the call
   | 'vacated_zone'        // ESC / SKR — anchor is geometric, not a player
   | 'open_rim_zone'       // BDW backdoor catch zone
   | 'closeout_target'     // AOR — between closeout defender + receiver
+  | 'pull_up_pocket'      // DROP — space between screen + retreating big
 
 /** Pure-data freeze beat. The renderer hydrates `primitive_kind +
  *  anchor_role` into a concrete OverlayPrimitive at emit time using
@@ -296,13 +299,50 @@ const AOR_TEMPLATES: ReadonlyArray<FreezeBeatTemplate> = [
   },
 ]
 
-// Pack 2 stub. DROP and HUNT freeze-beat templates intentionally collapse
-// to the empty-array sentinel until 3.1.2 / 3.1.4 design the full beat
-// schedule (DROP: screen-defender depth + ball-handler attack arrow;
-// HUNT: chained two-beat freeze). The contract at the top of the file
-// already says "missing decoder collapses to an empty list, never throws"
-// — DROP/HUNT exercise that path until their templates land.
-const DROP_TEMPLATES_PACK2_STUB: ReadonlyArray<FreezeBeatTemplate> = []
+// Pack 2 — DROP (READ_THE_COVERAGE) D1/D2 templates. Single-freeze, no
+// secondBeat. Cue is the screen-defender's chest/foot — does he stay
+// below the screen (drop) or step up (switch/blitz)? Action is the
+// ball-handler's pull-up arrow into the pocket. Advantage is the
+// pull-up pocket itself. D3+ shapes (deeper disguise, late-show) live
+// outside this slice and are NOT authored here.
+const DROP_TEMPLATES: ReadonlyArray<FreezeBeatTemplate> = [
+  {
+    kind: 'cue',
+    at_phase_ms: CUE_BEAT_AT_MS,
+    primitive_kind: 'defender_chest_line',
+    anchor: 'screen_defender',
+    clutter_priority: 1,
+    fade_in_ms: DEFAULT_BEAT_FADE_IN_MS,
+    fade_out_ms: DEFAULT_BEAT_FADE_OUT_MS,
+    teaching_question: 'what_changed',
+  },
+  {
+    kind: 'action',
+    at_phase_ms: ACTION_BEAT_AT_MS,
+    primitive_kind: 'defender_foot_arrow',
+    anchor: 'screen_defender',
+    clutter_priority: 2,
+    fade_in_ms: DEFAULT_BEAT_FADE_IN_MS,
+    fade_out_ms: DEFAULT_BEAT_FADE_OUT_MS,
+    teaching_question: 'what_is_best_read',
+  },
+  {
+    kind: 'advantage',
+    at_phase_ms: ADVANTAGE_BEAT_AT_MS,
+    // The pocket — space between the screen and the retreating big —
+    // is geometric, anchored by court-point not a player id.
+    primitive_kind: 'open_space_region',
+    anchor: 'pull_up_pocket',
+    clutter_priority: 3,
+    fade_in_ms: DEFAULT_BEAT_FADE_IN_MS,
+    fade_out_ms: DEFAULT_BEAT_FADE_OUT_MS,
+    teaching_question: 'what_space_opened',
+  },
+]
+
+// HUNT (chained two-beat) still ships as the empty sentinel until
+// Phase γ designs the full second-beat schedule. Pack 1 contract:
+// "missing decoder collapses to an empty list, never throws."
 const HUNT_TEMPLATES_PACK2_STUB: ReadonlyArray<FreezeBeatTemplate> = []
 
 const DECODER_TEMPLATES: Record<DecoderTag, ReadonlyArray<FreezeBeatTemplate>> = {
@@ -310,7 +350,7 @@ const DECODER_TEMPLATES: Record<DecoderTag, ReadonlyArray<FreezeBeatTemplate>> =
   EMPTY_SPACE_CUT: ESC_TEMPLATES,
   SKIP_THE_ROTATION: SKR_TEMPLATES,
   ADVANTAGE_OR_RESET: AOR_TEMPLATES,
-  READ_THE_COVERAGE: DROP_TEMPLATES_PACK2_STUB,
+  READ_THE_COVERAGE: DROP_TEMPLATES,
   HUNT_THE_ADVANTAGE: HUNT_TEMPLATES_PACK2_STUB,
 }
 
@@ -415,9 +455,15 @@ export interface FreezeBeatAnchors {
   receiver?: string
   open_player?: string
   passer?: string
+  /** DROP — the on-ball big sitting back at or below the screen. */
+  screen_defender?: string
+  /** DROP — the PnR ball-handler reading the coverage call. */
+  ball_handler?: string
   vacated_zone?: CourtPoint
   open_rim_zone?: CourtPoint
   closeout_target?: CourtPoint
+  /** DROP — geometric pocket between the screen + retreating big. */
+  pull_up_pocket?: CourtPoint
 }
 
 export interface HydrateOptions {
@@ -482,6 +528,8 @@ function _anchorPlayerId(
     case 'receiver': return a.receiver
     case 'open_player': return a.open_player
     case 'passer': return a.passer
+    case 'screen_defender': return a.screen_defender
+    case 'ball_handler': return a.ball_handler
     default: return undefined
   }
 }
@@ -494,6 +542,7 @@ function _anchorPoint(
     case 'vacated_zone': return a.vacated_zone
     case 'open_rim_zone': return a.open_rim_zone
     case 'closeout_target': return a.closeout_target
+    case 'pull_up_pocket': return a.pull_up_pocket
     default: return undefined
   }
 }
