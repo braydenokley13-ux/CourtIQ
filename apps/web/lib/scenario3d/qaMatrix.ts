@@ -437,6 +437,23 @@ export const QA_MATRIX: readonly QaMatrixEntry[] = [
       'Switch animation must complete inside the inter-beat window — late switch breaks the chain',
     priority: 'high',
   },
+  {
+    id: 'HUNT-03',
+    decoder: 'HUNT_THE_ADVANTAGE',
+    primaryCue:
+      'Beat 1 mismatch + hip arrow on x1; beat 2 hand-in-lane + foot arrow on x1 after the DHO bait fires',
+    requiredFraming:
+      'Wing ball-handler with screener walking into a DHO, x1 shaded to the handoff, slip lane to rim visible at beat 2',
+    requiredHighlight: 'x1 (on-ball, baited)',
+    requiredOverlays: [
+      'help_pulse',
+      'defender_hand_in_lane',
+      'defender_foot_arrow',
+    ],
+    knownRisk:
+      'Decoy DHO must read as a fake — risk that the handoff animation looks committed and the slip reads as a turnover',
+    priority: 'high',
+  },
 ] as const
 
 /** All twenty founder-v0 ids in the canonical order the matrix uses. */

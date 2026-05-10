@@ -63,6 +63,7 @@ const PACK2_IDS: readonly string[] = [
   'DROP-03',
   'HUNT-01',
   'HUNT-02',
+  'HUNT-03',
 ] as const
 
 const EXPECTED_TOTAL = FOUNDER_V0_IDS.length + PACK2_IDS.length
@@ -111,9 +112,10 @@ describe('QA_MATRIX', () => {
 
   it('has matching Pack 2 entry counts for the new DROP and HUNT families', () => {
     const grouped = groupQaMatrixByDecoder()
-    // DROP rises to 3 entries at Phase δ (DROP-01..03); HUNT stays at 2.
+    // DROP rises to 3 entries at Phase δ-B (DROP-01..03); HUNT rises to
+    // 3 at Phase δ-A (HUNT-01..03, adding the decoy-action scenario).
     expect(grouped.get('READ_THE_COVERAGE')?.length).toBe(3)
-    expect(grouped.get('HUNT_THE_ADVANTAGE')?.length).toBe(2)
+    expect(grouped.get('HUNT_THE_ADVANTAGE')?.length).toBe(3)
   })
 
   it('every entry has at least one required overlay', () => {
