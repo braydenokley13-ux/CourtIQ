@@ -27,6 +27,11 @@ import {
   type Template,
   type Variant,
 } from '../packages/db/seed/scenarios/templates/_schema'
+import {
+  lintHuntVariant,
+  type HuntLintSceneInput,
+  type HuntLintVariantMeta,
+} from '../apps/web/lib/scenario3d/huntAuthoringLint'
 
 const TEMPLATES_DIR = path.join(process.cwd(), 'packages', 'db', 'seed', 'scenarios', 'templates')
 const PACKS_DIR = path.join(process.cwd(), 'packages', 'db', 'seed', 'scenarios', 'packs')
@@ -872,6 +877,103 @@ function lintUnresolvedSlotTokens(loaded: Loaded[]): Issue[] {
   return issues
 }
 
+// ---------------------------------------------------------------------------
+// Pack 2 (Phase γ) — HUNT authoring lint dispatch.
+//
+// Per-decoder dispatch: every variant whose template.decoder_tag is
+// HUNT_THE_ADVANTAGE is run through the five LINT-HUNT-XX rules in
+// apps/web/lib/scenario3d/huntAuthoringLint.ts. Non-HUNT templates
+// short-circuit inside the lint module so the dispatch is cheap.
+//
+// The lint expects a per-variant scene + meta + difficulty triple. We
+// build that here from the template + variant pair without going
+// through full materialization — the lint only needs the pre-answer
+// overlay clusters, the scene movements, the beatSpec, the timing
+// overrides, and the coach validation block. All of those live on the
+// template (the variant inherits them; per-variant overrides for the
+// movement timing fields are also folded in so an authoring mistake
+// in `variation.overrides.movements` cannot bypass the lint).
+// ---------------------------------------------------------------------------
+
+function buildHuntSceneInput(template: Template, variant: Variant): HuntLintSceneInput {
+  // Apply variant movement overrides so an inter-beat movement whose
+  // timing was authored on the variant (not the template) is still
+  // visible to LINT-HUNT-02. Other override fields (player starts,
+  // disguise removePre) do not affect the HUNT rule set.
+  const overridesById = new Map<string, { delayMs?: number; durationMs?: number }>()
+  for (const o of variant.variation.overrides.movements ?? []) {
+    overridesById.set(o.id, { delayMs: o.delayMs, durationMs: o.durationMs })
+  }
+  const movements = template.scene.movements.map((m) => {
+    const ov = overridesById.get(m.id)
+    return {
+      id: m.id,
+      delayMs: ov?.delayMs ?? m.delayMs,
+      durationMs: ov?.durationMs ?? m.durationMs,
+    }
+  })
+
+  // Map template overlays to the lint's narrowed shape. The optional
+  // `beat` field travels through verbatim if the author has annotated
+  // it; absent annotation is folded into beat 1 inside the lint
+  // module (the strictest default).
+  const preAnswerOverlays = template.overlays.pre.map((o) => {
+    const beat = (o as { beat?: 1 | 2 }).beat
+    return beat === 1 || beat === 2 ? { kind: o.kind, beat } : { kind: o.kind }
+  })
+
+  const beatSpec = template.scene.beatSpec
+    ? {
+        firstBeat:
+          template.scene.beatSpec.firstBeat?.kind === 'atMs'
+            ? { kind: 'atMs' as const, atMs: template.scene.beatSpec.firstBeat.atMs }
+            : null,
+        secondBeat:
+          template.scene.beatSpec.secondBeat?.kind === 'atMs'
+            ? { kind: 'atMs' as const, atMs: template.scene.beatSpec.secondBeat.atMs }
+            : null,
+      }
+    : undefined
+
+  return {
+    preAnswerOverlays,
+    movements,
+    beatSpec,
+    timingOverrides: template.scene.timingOverrides
+      ? { cognitionHoldMs: template.scene.timingOverrides.cognitionHoldMs }
+      : undefined,
+  }
+}
+
+function lintHuntVariants(loaded: Loaded[]): Issue[] {
+  const issues: Issue[] = []
+  for (const { template, variants } of loaded) {
+    if (template.decoder_tag !== 'HUNT_THE_ADVANTAGE') continue
+    for (const v of variants) {
+      // RETIRED variants are read-only; skip the gate so a historical
+      // failure does not block fresh work. DRAFT runs the lint so
+      // authoring mistakes surface during scaffolding.
+      if (v.status === 'RETIRED') continue
+      const variantScene = buildHuntSceneInput(template, v)
+      const meta: HuntLintVariantMeta = {
+        id: `${template.id}:${v.id}`,
+        decoder_tag: template.decoder_tag,
+        coach_validation: template.coach_validation,
+      }
+      const d = effectiveDifficulty(v, template)
+      const result = lintHuntVariant(variantScene, meta, d)
+      if (result.ok) continue
+      for (const f of result.failures) {
+        issues.push({
+          severity: 'error',
+          message: `[${f.rule}] ${f.message}`,
+        })
+      }
+    }
+  }
+  return issues
+}
+
 async function main(): Promise<void> {
   const showCoverage = process.argv.includes('--coverage')
   const loaded = await load()
@@ -894,6 +996,7 @@ async function main(): Promise<void> {
     ...lintTodoProse(loaded),
     ...lintProseBankCoverage(loaded),
     ...lintUnresolvedSlotTokens(loaded),
+    ...lintHuntVariants(loaded),
   ]
   const cov = lintCoverage(loaded)
   issues.push(...cov.issues)
