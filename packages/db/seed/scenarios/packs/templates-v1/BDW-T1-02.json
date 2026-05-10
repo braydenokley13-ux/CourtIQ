@@ -16,7 +16,7 @@
       "cue:hand_in_lane",
       "cue:foot_in_lane",
       "tpl:BDW.denied-wing",
-      "sig:mirror|slot:cutter|d:1|disg:light|dh:r[defender_hip_arrow|deny_def]b1c0|clk:shot_clock"
+      "sig:mirror|slot:cutter|d:1|disg:light|dh:r[defender_hip_arrow|deny_def]b1s0h0|clk:shot_clock"
     ],
     "difficulty": 2,
     "user_role": "off_ball_wing",
@@ -487,7 +487,7 @@
     },
     "_generated": {
       "template": "BDW.denied-wing",
-      "signature": "mirror|slot:cutter|d:1|disg:light|dh:r[defender_hip_arrow|deny_def]b1c0|clk:shot_clock"
+      "signature": "mirror|slot:cutter|d:1|disg:light|dh:r[defender_hip_arrow|deny_def]b1s0h0|clk:shot_clock"
     }
   }
 ]

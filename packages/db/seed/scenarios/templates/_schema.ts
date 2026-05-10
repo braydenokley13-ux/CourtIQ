@@ -296,8 +296,30 @@ export const disguiseLevelSchema = z.object({
       }),
     )
     .default([]),
-  /** Compress freeze duration when freezeMarker.kind === 'atMs'. */
-  freezeCompressMs: z.number().int().nonnegative().max(2_000).optional(),
+  /** Pack 2 Teaching-Quality F2: shifts the freezeMarker EARLIER by
+   *  this many ms when freezeMarker.kind === 'atMs'. Renamed from the
+   *  legacy `freezeCompressMs` whose name implied it compressed the
+   *  cognition hold — it does not (the hold is fixed by
+   *  cognitionHoldMs). The renamed field accurately describes the
+   *  behaviour: the freeze marker moves earlier in the possession,
+   *  the player gets less time to read pre-freeze motion before the
+   *  freeze hits. To compress thinking time itself, use
+   *  `cognitionHoldCompressMs` below. */
+  freezeShiftEarlierMs: z.number().int().nonnegative().max(2_000).optional(),
+  /** Pack 2 Teaching-Quality F2: subtracts this many ms from the
+   *  resolved cognition hold (template default OR scene
+   *  timingOverrides.cognitionHoldMs) when this disguise level is
+   *  applied. Heavy disguise can now compose two effects: shift
+   *  the freeze earlier (less pre-freeze read time) AND tighten
+   *  thinking time (less cognition hold). The materializer enforces
+   *  the per-D F1 floor on the resolved hold so a heavy disguise
+   *  cannot drag a D1 variant below 1100ms. */
+  cognitionHoldCompressMs: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(2_000)
+    .optional(),
   /** Difficulty bump applied on top of variation.difficulty if author leaves it default. */
   difficultyBump: z.number().int().nonnegative().max(3).default(0),
 })
@@ -588,13 +610,14 @@ export function variationSignature(v: Variant, template: Template): string {
 
 /** Deterministic, human-readable fingerprint of a disguise level's
  *  effective content. Two disguise configs with the same removePre set
- *  (order-insensitive), the same difficultyBump, and the same
- *  freezeCompressMs always produce identical fingerprints. Used by
- *  `variationSignature` so the deduplicator stays honest when disguise
- *  content evolves.
+ *  (order-insensitive), the same difficultyBump, the same
+ *  freezeShiftEarlierMs, and the same cognitionHoldCompressMs always
+ *  produce identical fingerprints. Used by `variationSignature` so
+ *  the deduplicator stays honest when disguise content evolves.
  *
- *  Returns 'none' for an absent / undefined disguise level (the variant
- *  schema's default is `disguise: 'none'`, which always exists).
+ *  Returns 'absent' for an unmapped disguise level. The variant
+ *  schema's default is `disguise: 'none'` and the menu's `none` entry
+ *  always exists, so `absent` is a defence-in-depth path.
  */
 export function disguiseContentFingerprint(
   template: Template,
@@ -607,6 +630,7 @@ export function disguiseContentFingerprint(
     .sort()
     .join(',')
   const bump = cfg.difficultyBump ?? 0
-  const compress = cfg.freezeCompressMs ?? 0
-  return `r[${removeSorted}]b${bump}c${compress}`
+  const shift = cfg.freezeShiftEarlierMs ?? 0
+  const cogCompress = cfg.cognitionHoldCompressMs ?? 0
+  return `r[${removeSorted}]b${bump}s${shift}h${cogCompress}`
 }

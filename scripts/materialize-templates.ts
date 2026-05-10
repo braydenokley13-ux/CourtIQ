@@ -477,16 +477,59 @@ function materialize(template: Template, variant: Variant): MaterializedScenario
   const preAnswerOverlays = filteredPre.map((o) => resolveOverlay(o, mirror))
   const postAnswerOverlays = template.overlays.post.map((o) => resolveOverlay(o, mirror))
 
-  // Freeze marker — disguise can compress.
+  // Pack 2 Teaching-Quality F2 — disguise can shift the freeze marker
+  // earlier in the possession (renamed from the legacy `freezeCompressMs`,
+  // which mis-named the behaviour as "compression"). The marker moves
+  // earlier; the cognition hold itself stays the same unless
+  // `cognitionHoldCompressMs` is also set (handled below).
   let freezeMarker = template.scene.freezeMarker
   if (
     freezeMarker?.kind === 'atMs' &&
-    typeof disguise?.freezeCompressMs === 'number' &&
-    disguise.freezeCompressMs > 0
+    typeof disguise?.freezeShiftEarlierMs === 'number' &&
+    disguise.freezeShiftEarlierMs > 0
   ) {
     freezeMarker = {
       kind: 'atMs',
-      atMs: Math.max(0, freezeMarker.atMs - disguise.freezeCompressMs),
+      atMs: Math.max(0, freezeMarker.atMs - disguise.freezeShiftEarlierMs),
+    }
+  }
+
+  // Pack 2 Teaching-Quality F2 — disguise can also tighten thinking
+  // time itself by subtracting from the resolved cognition hold.
+  // Composes with `freezeShiftEarlierMs`: heavy disguise can both
+  // move the freeze earlier AND give the player less time to read it.
+  // The F1 per-D floor is enforced after the subtraction so a heavy
+  // disguise cannot drag the hold below the difficulty's floor.
+  let resolvedTimingOverrides = template.scene.timingOverrides
+  if (
+    typeof disguise?.cognitionHoldCompressMs === 'number' &&
+    disguise.cognitionHoldCompressMs > 0
+  ) {
+    // Default cognition hold is FREEZE_COGNITION_HOLD_MS = 1400 (Pack 1
+    // module constant in apps/web/lib/scenario3d/freezeFrameCognition.ts).
+    // Mirror the value here as a literal so the materializer stays
+    // node-only (architecture lock); update both in lockstep when the
+    // default ever changes.
+    const PACK_1_DEFAULT_HOLD_MS = 1400
+    const baseHold =
+      template.scene.timingOverrides?.cognitionHoldMs ?? PACK_1_DEFAULT_HOLD_MS
+    const compressed = Math.max(0, baseHold - disguise.cognitionHoldCompressMs)
+    const cognitionFloor = _cognitionHoldFloorForDifficulty(
+      effectiveDifficultyForCap,
+    )
+    if (compressed < cognitionFloor) {
+      throw new Error(
+        `Template ${template.id} (used by ${variant.id} at D${effectiveDifficultyForCap}) ` +
+          `disguise "${variant.variation.disguise}" cognitionHoldCompressMs=` +
+          `${disguise.cognitionHoldCompressMs} drives the resolved cognition hold ` +
+          `to ${compressed}ms, below the per-D floor (${cognitionFloor}ms). ` +
+          `Reduce cognitionHoldCompressMs or raise the template's ` +
+          `timingOverrides.cognitionHoldMs.`,
+      )
+    }
+    resolvedTimingOverrides = {
+      ...(template.scene.timingOverrides ?? {}),
+      cognitionHoldMs: compressed,
     }
   }
 
@@ -591,8 +634,12 @@ function materialize(template: Template, variant: Variant): MaterializedScenario
       // spec. Both fields are optional in the template schema; we
       // forward them only when authored so materialized JSONs stay
       // diff-stable for templates that don't use them.
-      ...(template.scene.timingOverrides
-        ? { timingOverrides: template.scene.timingOverrides }
+      // Pack 2 Teaching-Quality F2 — `resolvedTimingOverrides` includes
+      // any disguise-driven cognitionHoldCompressMs subtraction
+      // applied above; if no compression and no template override,
+      // we forward nothing.
+      ...(resolvedTimingOverrides
+        ? { timingOverrides: resolvedTimingOverrides }
         : {}),
       ...(template.scene.beatSpec ? { beatSpec: template.scene.beatSpec } : {}),
     },
