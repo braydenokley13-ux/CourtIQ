@@ -372,6 +372,113 @@ function lintOverlayPresetConformance(loaded: Loaded[]): Issue[] {
 }
 
 // ---------------------------------------------------------------------------
+// Pack 2 Teaching-Quality F7 — wrong-demo divergence lint.
+//
+// Risk H6 in docs/pack-2-teaching-quality-risk-report.md: the schema
+// requires every wrong choice to declare wrongDemos movements, but it
+// does not require those movements to visually differ from the
+// answerDemo. A wrong choice that plays a path indistinguishable from
+// the right choice teaches nothing — the player can't tell which path
+// was correct.
+//
+// F7 enforces a minimum endpoint divergence: for each (template,
+// wrongDemo), the union of moved player slots across both demos is
+// computed; if EVERY moved slot's final destination in the wrongDemo
+// lies within `WRONG_DEMO_MIN_DIVERGENCE_FT` of the same slot's final
+// destination in the answerDemo, the wrong demo is flagged. A slot
+// moved in one demo but absent from the other counts as structural
+// divergence (no false-positive on asymmetric demos).
+//
+// Endpoint comparison is the audit's spirit ("at +500ms after freeze")
+// applied to the cheapest-to-implement signal that catches the worst
+// authoring failure (a copy-pasted wrongDemo). Per-tick interpolation
+// would catch additional same-endpoint-via-different-path cases; the
+// endpoint check is a lower bound that gates the obvious bugs without
+// requiring a kinematics simulator in the lint script.
+// ---------------------------------------------------------------------------
+
+const WRONG_DEMO_MIN_DIVERGENCE_FT = 1.5
+
+interface CourtPoint {
+  x: number
+  z: number
+}
+
+interface DemoMovementLike {
+  playerSlot: string
+  to: CourtPoint
+  delayMs?: number
+  durationMs?: number
+}
+
+/** For each playerSlot moved by `movements`, return the destination
+ *  of the latest-ending movement. Movements without an explicit
+ *  durationMs are treated as 600ms long (the renderer default). */
+function _finalDestinationsBySlot(
+  movements: ReadonlyArray<DemoMovementLike>,
+): Map<string, CourtPoint> {
+  const latestByEnd = new Map<string, { endMs: number; to: CourtPoint }>()
+  for (const m of movements) {
+    const endMs = (m.delayMs ?? 0) + (m.durationMs ?? 600)
+    const prev = latestByEnd.get(m.playerSlot)
+    if (!prev || endMs >= prev.endMs) {
+      latestByEnd.set(m.playerSlot, { endMs, to: m.to })
+    }
+  }
+  const out = new Map<string, CourtPoint>()
+  for (const [slot, entry] of latestByEnd) out.set(slot, entry.to)
+  return out
+}
+
+function _euclideanFt(a: CourtPoint, b: CourtPoint): number {
+  const dx = a.x - b.x
+  const dz = a.z - b.z
+  return Math.sqrt(dx * dx + dz * dz)
+}
+
+function lintWrongDemoDivergence(loaded: Loaded[]): Issue[] {
+  const issues: Issue[] = []
+  for (const { template } of loaded) {
+    const answerDests = _finalDestinationsBySlot(template.scene.answerDemo)
+    if (answerDests.size === 0) continue
+    for (const wrongDemo of template.scene.wrongDemos) {
+      if (wrongDemo.movements.length === 0) continue
+      const wrongDests = _finalDestinationsBySlot(wrongDemo.movements)
+      const allSlots = new Set<string>([
+        ...answerDests.keys(),
+        ...wrongDests.keys(),
+      ])
+      let diverged = false
+      for (const slot of allSlots) {
+        const a = answerDests.get(slot)
+        const w = wrongDests.get(slot)
+        // Slot moved in one demo but not the other → structural divergence.
+        if (!a || !w) {
+          diverged = true
+          break
+        }
+        if (_euclideanFt(a, w) >= WRONG_DEMO_MIN_DIVERGENCE_FT) {
+          diverged = true
+          break
+        }
+      }
+      if (!diverged) {
+        issues.push({
+          severity: 'error',
+          message:
+            `Template ${template.id}: wrong-demo "${wrongDemo.outcome}" does not visibly ` +
+            `diverge from the answer demo — every moved player ends within ` +
+            `${WRONG_DEMO_MIN_DIVERGENCE_FT}ft of the answer's destination. The wrong-demo ` +
+            `plays a silent failure that teaches nothing. Move at least one player's ` +
+            `final destination ≥ ${WRONG_DEMO_MIN_DIVERGENCE_FT}ft from the answer demo's.`,
+        })
+      }
+    }
+  }
+  return issues
+}
+
+// ---------------------------------------------------------------------------
 // Pack 2 Teaching-Quality F3 — Hard gate on empty preset decoders.
 //
 // Risk H3 (pack-2-teaching-quality-risk-report.md §2): a LIVE D4/D5
@@ -722,6 +829,7 @@ async function main(): Promise<void> {
     ...lintCameraPreset(loaded),
     ...lintOverlayPresetConformance(loaded),
     ...lintEmptyPresetPromotionGate(loaded),
+    ...lintWrongDemoDivergence(loaded),
     ...lintDisguiseProgression(loaded),
     ...lintTodoProse(loaded),
     ...lintProseBankCoverage(loaded),
