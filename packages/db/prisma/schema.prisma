@@ -36,6 +36,14 @@ model Profile {
   current_streak      Int      @default(0)
   longest_streak      Int      @default(0)
   streak_freeze_count Int      @default(0)
+  // Phase δ-C — explicit timestamp set when the user finishes IQ
+  // calibration (onboarding step 5). Replaces the Phase γ
+  // `User.created_at` proxy used by HUNT eligibility. Nullable so
+  // pre-Phase-δ-C accounts that never went through the wired path
+  // read as uncalibrated (= HUNT excluded, the conservative default)
+  // until they re-trigger calibration. Not backfilled at migration
+  // time — see migration SQL for rationale.
+  calibrated_at       DateTime?
   updated_at          DateTime @updatedAt
 }
 
