@@ -53,10 +53,19 @@ export async function POST(request: Request) {
   })
 
   // Ensure a Profile row exists so subsequent Profile reads don't 404-equivalent.
+  // Phase δ-C — stamp `calibrated_at` here. The onboarding wizard
+  // posts to this endpoint immediately after the calibration session
+  // resolves (5-scenario IQ calibration on step 5 of the wizard), so
+  // this is the canonical "user finished calibration" moment. The
+  // value replaces the prior `User.created_at` proxy in the HUNT
+  // eligibility gate (see lib/scenario3d/huntSessionGates.ts). We
+  // overwrite on update so a user who replays calibration (e.g. a
+  // future "reset calibration" flow) gets a fresh window.
+  const calibratedAt = new Date()
   await prisma.profile.upsert({
     where: { user_id: user.id },
-    create: { user_id: user.id },
-    update: {},
+    create: { user_id: user.id, calibrated_at: calibratedAt },
+    update: { calibrated_at: calibratedAt },
   })
 
   return NextResponse.json({ ok: true })
