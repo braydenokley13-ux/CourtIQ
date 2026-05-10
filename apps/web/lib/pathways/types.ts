@@ -14,27 +14,19 @@
  */
 
 /**
- * Local decoder-tag union that mirrors the four LIVE values on the
- * Prisma `DecoderTag` enum. Defined here (instead of imported from
- * `@prisma/client`) so that this module — and the Pathway config /
- * helpers that import it — can be consumed by client components
- * without pulling Prisma's runtime in.
- *
- * Must stay aligned with `enum DecoderTag` in
- * `packages/db/prisma/schema.prisma`.
+ * Decoder-tag union — re-exported from the central registry so the
+ * Pathway config / helpers stay client-safe (no Prisma runtime in
+ * client bundles) while also covering Pack 2 tags
+ * (READ_THE_COVERAGE, HUNT_THE_ADVANTAGE).
  */
-export type DecoderTag =
-  | 'BACKDOOR_WINDOW'
-  | 'EMPTY_SPACE_CUT'
-  | 'ADVANTAGE_OR_RESET'
-  | 'SKIP_THE_ROTATION'
+export type { DecoderTag } from '@/lib/decoders/registry'
+import { ALL_KNOWN_DECODERS, type DecoderTag } from '@/lib/decoders/registry'
 
-export const ALL_DECODER_TAGS: readonly DecoderTag[] = [
-  'BACKDOOR_WINDOW',
-  'EMPTY_SPACE_CUT',
-  'ADVANTAGE_OR_RESET',
-  'SKIP_THE_ROTATION',
-] as const
+/** All decoder tags, in canonical display order. Existing Pathway
+ *  consumers that iterated this list (e.g. config validators) now
+ *  see six entries instead of four; widen any narrow Records they
+ *  build off of it before relying on exhaustiveness. */
+export const ALL_DECODER_TAGS: readonly DecoderTag[] = ALL_KNOWN_DECODERS
 
 export type PathwayTrainingMode =
   | 'learn-the-cue'

@@ -13,16 +13,15 @@
  *   - One sentence per surface, never two.
  */
 import type { DecoderConfidence, NextProbe } from '../adaptive/types'
+import { decoderLabel as registryDecoderLabel } from '../decoders/registry'
 
-const DECODER_LABELS: Record<string, string> = {
-  BACKDOOR_WINDOW: 'Backdoor Window',
-  EMPTY_SPACE_CUT: 'Empty-Space Cut',
-  ADVANTAGE_OR_RESET: 'Advantage or Reset',
-  SKIP_THE_ROTATION: 'Skip the Rotation',
-}
-
+/** Player-facing decoder label. Re-exported here so existing
+ *  recognitionSurface consumers don't have to migrate their imports;
+ *  the implementation now lives in the central decoder registry and
+ *  resolves Pack 2 tags (READ_THE_COVERAGE, HUNT_THE_ADVANTAGE) the
+ *  same way it resolves founder tags. */
 export function decoderLabel(tag: string): string {
-  return DECODER_LABELS[tag] ?? tag
+  return registryDecoderLabel(tag)
 }
 
 /**

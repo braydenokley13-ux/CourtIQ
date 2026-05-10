@@ -17,12 +17,18 @@ const baseConfidence: DecoderConfidence = {
 }
 
 describe('decoderLabel', () => {
-  it('maps known tags to display labels', () => {
+  it('maps known founder tags to display labels', () => {
     expect(decoderLabel('BACKDOOR_WINDOW')).toBe('Backdoor Window')
     expect(decoderLabel('ADVANTAGE_OR_RESET')).toBe('Advantage or Reset')
   })
-  it('falls back to the tag for unknown decoders', () => {
-    expect(decoderLabel('FUTURE_DECODER')).toBe('FUTURE_DECODER')
+
+  it('maps Pack 2 tags to display labels (no raw enum leak)', () => {
+    expect(decoderLabel('READ_THE_COVERAGE')).toBe('Read the Coverage')
+    expect(decoderLabel('HUNT_THE_ADVANTAGE')).toBe('Hunt the Advantage')
+  })
+
+  it('humanizes an unknown SCREAMING_SNAKE tag instead of echoing it raw', () => {
+    expect(decoderLabel('FUTURE_DECODER')).toBe('Future Decoder')
   })
 })
 

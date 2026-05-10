@@ -1,6 +1,7 @@
 import type { Module, Lesson, Mastery } from '@prisma/client'
 import { DecoderTag, MasteryDimension } from '@prisma/client'
 import { prisma } from '@/lib/db/prisma'
+import { decoderLabel } from '@/lib/decoders/registry'
 
 /**
  * Mastery thresholds for Academy unlock + state.
@@ -29,14 +30,11 @@ export interface DecoderProgress {
   rolling_accuracy: number
 }
 
-const DECODER_TITLES: Record<DecoderTag, string> = {
-  BACKDOOR_WINDOW: 'Backdoor Window',
-  EMPTY_SPACE_CUT: 'Empty Space Cut',
-  SKIP_THE_ROTATION: 'Skip the Rotation',
-  ADVANTAGE_OR_RESET: 'Advantage or Reset',
-  READ_THE_COVERAGE: 'Read the Coverage',
-  HUNT_THE_ADVANTAGE: 'Hunt the Advantage',
-}
+// Display titles sourced from the central decoder registry. Adding
+// a new decoder to the registry surfaces it here automatically.
+const DECODER_TITLES: Record<DecoderTag, string> = Object.fromEntries(
+  Object.values(DecoderTag).map((tag) => [tag, decoderLabel(tag)]),
+) as Record<DecoderTag, string>
 
 function deriveDecoderState(attempts: number, accuracy: number): DecoderState {
   if (

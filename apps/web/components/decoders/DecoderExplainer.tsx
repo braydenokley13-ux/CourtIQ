@@ -21,6 +21,7 @@ import {
   getDecoderExplanation,
   getDecoderOneLiner,
 } from '@/lib/decoders/explanations'
+import { ALL_KNOWN_DECODERS } from '@/lib/decoders/registry'
 
 export function DecoderExplainerCard({
   tag,
@@ -126,10 +127,9 @@ export function AllDecodersExplainerGrid({ className }: { className?: string }) 
         className ?? '',
       ].join(' ')}
     >
-      <DecoderExplainerCard tag="BACKDOOR_WINDOW" />
-      <DecoderExplainerCard tag="EMPTY_SPACE_CUT" />
-      <DecoderExplainerCard tag="ADVANTAGE_OR_RESET" />
-      <DecoderExplainerCard tag="SKIP_THE_ROTATION" />
+      {ALL_KNOWN_DECODERS.map((tag) => (
+        <DecoderExplainerCard key={tag} tag={tag} />
+      ))}
     </div>
   )
 }

@@ -88,6 +88,38 @@ const EXPLANATIONS: Record<DecoderTag, DecoderExplanation> = {
     example:
       'You drive middle, two help. The weak-side corner is empty — line drive across the lane to the open shooter.',
   },
+  // Pack 2 entries — concise stand-ins so client surfaces (chip,
+  // explainer card, train one-liner) render coherent player-facing
+  // copy for READ_THE_COVERAGE / HUNT_THE_ADVANTAGE without falling
+  // back to founder defaults. Final teaching content for these
+  // decoders is owned by the DROP/HUNT pedagogy workstream and may
+  // expand these fields. Voice rule matches the founders above.
+  READ_THE_COVERAGE: {
+    tag: 'READ_THE_COVERAGE',
+    label: 'Read the Coverage',
+    oneLiner: 'Read his coverage call before you commit.',
+    meaning:
+      'On a pick & roll the screen defender shows you the call. Decide before you turn the corner.',
+    watch:
+      'The screen defender — drop, switch, or blitz. His feet name the answer.',
+    matters:
+      'Reading the coverage early kills the rotation before it forms.',
+    example:
+      'You come off the screen; the big drops back — no help, you pull up.',
+  },
+  HUNT_THE_ADVANTAGE: {
+    tag: 'HUNT_THE_ADVANTAGE',
+    label: 'Hunt the Advantage',
+    oneLiner: "First read isn't always the play — chain it.",
+    meaning:
+      'When help comes to stop the first read, the second window opens. Punish the help that arrived.',
+    watch:
+      'Where the help came from. That spot is the next attack.',
+    matters:
+      'Single reads stall once defenses rotate. Chained reads keep the advantage moving.',
+    example:
+      'Drive draws the corner help — kick to the open shooter on the wing.',
+  },
 }
 
 export function getDecoderExplanation(tag: DecoderTag): DecoderExplanation {
@@ -100,6 +132,8 @@ export function getAllDecoderExplanations(): readonly DecoderExplanation[] {
     EXPLANATIONS.EMPTY_SPACE_CUT,
     EXPLANATIONS.ADVANTAGE_OR_RESET,
     EXPLANATIONS.SKIP_THE_ROTATION,
+    EXPLANATIONS.READ_THE_COVERAGE,
+    EXPLANATIONS.HUNT_THE_ADVANTAGE,
   ]
 }
 
