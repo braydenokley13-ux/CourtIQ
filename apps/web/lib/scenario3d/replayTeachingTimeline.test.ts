@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   CUE_REPAINT_HOLD_CORRECT_MS,
   CUE_REPAINT_HOLD_WRONG_MS,
+  D4_PLUS_WRONG_DWELL_EXTENSION_MS,
+  D4_PLUS_WRONG_DWELL_MIN_DIFFICULTY,
   DONE_HOLD_MS,
   PRE_BESTREAD_DELAY_MS,
   PRE_CONSEQUENCE_DELAY_MS,
@@ -63,6 +65,71 @@ describe('FR-6 replay cadence — total feel targets', () => {
 
   it('wrong / correct cadences use the same done hold (§10.2 same +700ms beat)', () => {
     expect(getReplayCadence('wrong').doneHoldMs).toBe(getReplayCadence('correct').doneHoldMs)
+  })
+})
+
+describe('Pack 2 Teaching-Quality F8 — D4+ wrong-answer dwell extension', () => {
+  it('exposes the extension constant (800ms) and minimum difficulty (4)', () => {
+    expect(D4_PLUS_WRONG_DWELL_EXTENSION_MS).toBe(800)
+    expect(D4_PLUS_WRONG_DWELL_MIN_DIFFICULTY).toBe(4)
+  })
+
+  it('no-arg getReplayCadence preserves the legacy 700ms doneHoldMs (regression pin)', () => {
+    expect(getReplayCadence('wrong').doneHoldMs).toBe(DONE_HOLD_MS)
+    expect(getReplayCadence('correct').doneHoldMs).toBe(DONE_HOLD_MS)
+  })
+
+  it('D1, D2, D3 wrong-path keep the legacy 700ms doneHoldMs', () => {
+    for (const d of [1, 2, 3]) {
+      expect(getReplayCadence('wrong', d).doneHoldMs).toBe(DONE_HOLD_MS)
+    }
+  })
+
+  it('D4 wrong-path extends doneHoldMs by 800ms (1500ms total)', () => {
+    expect(getReplayCadence('wrong', 4).doneHoldMs).toBe(
+      DONE_HOLD_MS + D4_PLUS_WRONG_DWELL_EXTENSION_MS,
+    )
+  })
+
+  it('D5 wrong-path extends doneHoldMs by 800ms (1500ms total)', () => {
+    expect(getReplayCadence('wrong', 5).doneHoldMs).toBe(
+      DONE_HOLD_MS + D4_PLUS_WRONG_DWELL_EXTENSION_MS,
+    )
+  })
+
+  it('correct-path doneHoldMs is never extended (the audit explicitly limits to wrong path)', () => {
+    for (const d of [1, 2, 3, 4, 5]) {
+      expect(getReplayCadence('correct', d).doneHoldMs).toBe(DONE_HOLD_MS)
+    }
+  })
+
+  it('extended cadence still keeps the wrong-path renderer overhead under 2s (§10.2 bound)', () => {
+    // Plan §10.2 caps wrong path at < 2s renderer overhead.
+    // 80 + 400 + 1500 = 1980 < 2000 ✓
+    const cad = getReplayCadence('wrong', 5)
+    const total = cad.preLegDelayMs + cad.cueRepaintHoldMs + cad.doneHoldMs
+    expect(total).toBeLessThan(2000)
+  })
+
+  it('non-finite difficulty (NaN, +Infinity) falls back to the legacy cadence', () => {
+    expect(getReplayCadence('wrong', Number.NaN).doneHoldMs).toBe(DONE_HOLD_MS)
+    expect(getReplayCadence('wrong', Number.POSITIVE_INFINITY).doneHoldMs).toBe(
+      DONE_HOLD_MS,
+    )
+  })
+
+  it('returned extended cadence is frozen so consumers cannot mutate it', () => {
+    const cad = getReplayCadence('wrong', 5)
+    expect(() => {
+      ;(cad as { doneHoldMs: number }).doneHoldMs = 9999
+    }).toThrow()
+  })
+
+  it('preLegDelayMs and cueRepaintHoldMs are unchanged at D4+ — only doneHoldMs extends', () => {
+    const base = getReplayCadence('wrong')
+    const ext = getReplayCadence('wrong', 5)
+    expect(ext.preLegDelayMs).toBe(base.preLegDelayMs)
+    expect(ext.cueRepaintHoldMs).toBe(base.cueRepaintHoldMs)
   })
 })
 
