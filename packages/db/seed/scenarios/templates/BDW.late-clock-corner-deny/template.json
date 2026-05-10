@@ -134,7 +134,7 @@
     },
     "moderate": {
       "removePre": [{ "kind": "defender_hip_arrow", "onSlot": "deny_def" }],
-      "freezeCompressMs": 300,
+      "freezeShiftEarlierMs": 300,
       "difficultyBump": 1
     }
   },

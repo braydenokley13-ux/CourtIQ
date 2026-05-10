@@ -15,13 +15,26 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
 import {
+  ABSOLUTE_COGNITION_HOLD_FLOOR_MS,
+  ACTION_BEAT_AT_MS,
+  ADVANTAGE_BEAT_AT_MS,
+  beatSchedule,
+  cognitionHoldFloorForDifficulty,
+  CUE_BEAT_AT_MS,
+  DEFAULT_BEAT_FADE_IN_MS,
+  DEFAULT_BEAT_FADE_OUT_MS,
   DEFAULT_FREEZE_TIMING,
+  FREEZE_COGNITION_HOLD_MS,
   getFreezeBeatTemplates,
+  getFreezeBeatTemplatesAtDifficulty,
   hydrateFreezeBeats,
+  LABEL_BEAT_AT_MS,
   resolveFreezeTiming,
   type FreezeBeatAnchors,
 } from './freezeFrameCognition'
 import { buildScene } from './scene'
+
+import type { DecoderTag } from './schema'
 
 const FULL_ANCHORS: FreezeBeatAnchors = {
   cue_defender: 'd1',
@@ -30,9 +43,12 @@ const FULL_ANCHORS: FreezeBeatAnchors = {
   receiver: 'o3',
   open_player: 'o4',
   passer: 'o5',
+  screen_defender: 'd2',
+  ball_handler: 'o6',
   vacated_zone: { x: 1, z: 2 },
   open_rim_zone: { x: 0, z: 0 },
   closeout_target: { x: 3, z: 4 },
+  pull_up_pocket: { x: -2, z: 16 },
 }
 
 describe('hydrateFreezeBeats — drive_cut_preview hydration (P1 fix)', () => {
@@ -126,6 +142,383 @@ describe('hydrateFreezeBeats — SKR advantage anchor (P1 fix)', () => {
 //      free and cannot drift).
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Pack 2 Teaching-Quality F5 — difficulty-aware beat schedule.
+// ---------------------------------------------------------------------------
+
+describe('beatSchedule — F5 difficulty-aware offsets', () => {
+  const FOUNDER_DECODERS: ReadonlyArray<DecoderTag> = [
+    'BACKDOOR_WINDOW',
+    'EMPTY_SPACE_CUT',
+    'SKIP_THE_ROTATION',
+    'ADVANTAGE_OR_RESET',
+  ]
+
+  it('D1, D2, D3 share a single Pack-1-cadence schedule (cue/label/action unchanged from constants)', () => {
+    for (const dec of FOUNDER_DECODERS) {
+      for (const d of [1, 2, 3]) {
+        const s = beatSchedule(dec, d)
+        expect(s.cueAtMs).toBe(CUE_BEAT_AT_MS)
+        expect(s.labelAtMs).toBe(LABEL_BEAT_AT_MS)
+        expect(s.actionAtMs).toBe(ACTION_BEAT_AT_MS)
+        // Advantage tightened from the legacy 1100 to 1000 so it
+        // starts strictly before the 1100ms schema floor on any
+        // override. The legacy module constant stays at 1100 for
+        // backward compat with existing callers of getFreezeBeatTemplates.
+        expect(s.advantageAtMs).toBe(1000)
+        expect(s.advantageAtMs).toBeLessThan(ADVANTAGE_BEAT_AT_MS)
+        expect(s.fadeInMs).toBe(DEFAULT_BEAT_FADE_IN_MS)
+        expect(s.fadeOutMs).toBe(DEFAULT_BEAT_FADE_OUT_MS)
+      }
+    }
+  })
+
+  it('D4 advantage compresses to +700ms (audit target)', () => {
+    const s = beatSchedule('BACKDOOR_WINDOW', 4)
+    expect(s.advantageAtMs).toBe(700)
+  })
+
+  it('D5 advantage compresses to +500ms (audit target)', () => {
+    const s = beatSchedule('BACKDOOR_WINDOW', 5)
+    expect(s.advantageAtMs).toBe(500)
+  })
+
+  it('cue → label → action → advantage stays strictly monotonic at every difficulty', () => {
+    for (const d of [1, 2, 3, 4, 5]) {
+      const s = beatSchedule('BACKDOOR_WINDOW', d)
+      expect(s.cueAtMs).toBeLessThan(s.labelAtMs)
+      expect(s.labelAtMs).toBeLessThan(s.actionAtMs)
+      expect(s.actionAtMs).toBeLessThan(s.advantageAtMs)
+    }
+  })
+
+  it('advantage offset is monotonic non-increasing in difficulty (harder = sooner)', () => {
+    let prev = Number.POSITIVE_INFINITY
+    for (const d of [1, 2, 3, 4, 5]) {
+      const s = beatSchedule('BACKDOOR_WINDOW', d)
+      expect(s.advantageAtMs).toBeLessThanOrEqual(prev)
+      prev = s.advantageAtMs
+    }
+  })
+
+  it('every offset (cue/label/action/advantage) is monotonic non-increasing in difficulty', () => {
+    const offsets: Array<keyof Pick<ReturnType<typeof beatSchedule>, 'cueAtMs' | 'labelAtMs' | 'actionAtMs' | 'advantageAtMs'>> = [
+      'cueAtMs',
+      'labelAtMs',
+      'actionAtMs',
+      'advantageAtMs',
+    ]
+    for (const k of offsets) {
+      let prev = Number.POSITIVE_INFINITY
+      for (const d of [1, 2, 3, 4, 5]) {
+        const v = beatSchedule('BACKDOOR_WINDOW', d)[k]
+        expect(v).toBeLessThanOrEqual(prev)
+        prev = v
+      }
+    }
+  })
+
+  it('fade-ins shrink at D4 and D5 alongside the offsets', () => {
+    expect(beatSchedule('BACKDOOR_WINDOW', 1).fadeInMs).toBe(300)
+    expect(beatSchedule('BACKDOOR_WINDOW', 4).fadeInMs).toBe(250)
+    expect(beatSchedule('BACKDOOR_WINDOW', 5).fadeInMs).toBe(200)
+  })
+
+  it('advantage beat STARTS strictly before the schema-floor cognition hold (1100ms) at every difficulty — H5 invariant', () => {
+    // H5 — the advantage explanation must arrive strictly before the
+    // choice tray opens. "Arrives" = start of fade-in (matching the
+    // audit's framing of "ADVANTAGE_BEAT_AT_MS = CHOICE_TRAY floor").
+    // The schema floor is 1100ms for every difficulty today; F1 will
+    // lower it per-D (D≤3=1100, D4=1000, D5=800). The schedule below
+    // already satisfies the future per-D floors so F1 can land
+    // without revisiting these numbers.
+    const SCHEMA_MIN_HOLD_MS = 1100
+    const FUTURE_HOLD_BY_D: Record<number, number> = {
+      1: SCHEMA_MIN_HOLD_MS,
+      2: SCHEMA_MIN_HOLD_MS,
+      3: SCHEMA_MIN_HOLD_MS,
+      4: 1000,
+      5: 800,
+    }
+    for (const d of [1, 2, 3, 4, 5]) {
+      const s = beatSchedule('BACKDOOR_WINDOW', d)
+      // Today's schema floor — every D must clear it.
+      expect(s.advantageAtMs).toBeLessThan(SCHEMA_MIN_HOLD_MS)
+      // Future per-D floor (post-F1) — every D must also clear it.
+      expect(s.advantageAtMs).toBeLessThan(FUTURE_HOLD_BY_D[d]!)
+    }
+  })
+
+  it('advantage beat finishes its fade-in before the default 1400ms cognition hold', () => {
+    // The Pack 1 default cognition hold is 1400ms. The schedule must
+    // not regress the case where a scenario uses the default hold —
+    // advantage's full fade-in should still complete before the tray.
+    for (const d of [1, 2, 3, 4, 5]) {
+      const s = beatSchedule('BACKDOOR_WINDOW', d)
+      expect(s.advantageAtMs + s.fadeInMs).toBeLessThanOrEqual(
+        FREEZE_COGNITION_HOLD_MS,
+      )
+    }
+  })
+
+  it('out-of-band difficulties clamp to D1 (loosest, safest schedule)', () => {
+    const d1Advantage = beatSchedule('BACKDOOR_WINDOW', 1).advantageAtMs
+    expect(beatSchedule('BACKDOOR_WINDOW', 0).advantageAtMs).toBe(d1Advantage)
+    expect(beatSchedule('BACKDOOR_WINDOW', -2).advantageAtMs).toBe(d1Advantage)
+    expect(beatSchedule('BACKDOOR_WINDOW', Number.NaN).advantageAtMs).toBe(
+      d1Advantage,
+    )
+  })
+
+  it('above-band difficulties clamp to D5 (tightest schedule); +Infinity falls back to D1', () => {
+    expect(beatSchedule('BACKDOOR_WINDOW', 6).advantageAtMs).toBe(500)
+    expect(beatSchedule('BACKDOOR_WINDOW', 99).advantageAtMs).toBe(500)
+    // +Infinity is non-finite, so the helper treats it as out-of-band
+    // and falls back to the loosest schedule (D1) — never crash.
+    expect(
+      beatSchedule('BACKDOOR_WINDOW', Number.POSITIVE_INFINITY).advantageAtMs,
+    ).toBe(beatSchedule('BACKDOOR_WINDOW', 1).advantageAtMs)
+  })
+
+  it('non-integer difficulties round to the nearest integer', () => {
+    expect(beatSchedule('BACKDOOR_WINDOW', 4.4).advantageAtMs).toBe(700)
+    expect(beatSchedule('BACKDOOR_WINDOW', 4.6).advantageAtMs).toBe(500)
+  })
+
+  it('decoder parameter is forward-compatible — every founder decoder gets the same schedule today', () => {
+    for (const d of [1, 2, 3, 4, 5]) {
+      const ref = beatSchedule(FOUNDER_DECODERS[0], d)
+      for (const dec of FOUNDER_DECODERS) {
+        expect(beatSchedule(dec, d)).toEqual(ref)
+      }
+    }
+  })
+
+  it('undefined decoder still resolves the difficulty-keyed schedule', () => {
+    expect(beatSchedule(undefined, 5).advantageAtMs).toBe(500)
+    expect(beatSchedule(undefined, 1).advantageAtMs).toBe(
+      beatSchedule('BACKDOOR_WINDOW', 1).advantageAtMs,
+    )
+  })
+
+  it('returned schedules are referentially stable for the same difficulty', () => {
+    expect(beatSchedule('BACKDOOR_WINDOW', 5)).toBe(
+      beatSchedule('SKIP_THE_ROTATION', 5),
+    )
+    expect(beatSchedule('BACKDOOR_WINDOW', 1)).toBe(
+      beatSchedule('SKIP_THE_ROTATION', 1),
+    )
+  })
+})
+
+describe('getFreezeBeatTemplatesAtDifficulty — F5b template re-stamping', () => {
+  const FOUNDER_DECODERS: ReadonlyArray<DecoderTag> = [
+    'BACKDOOR_WINDOW',
+    'EMPTY_SPACE_CUT',
+    'SKIP_THE_ROTATION',
+    'ADVANTAGE_OR_RESET',
+  ]
+
+  it('legacy getFreezeBeatTemplates is unchanged — Pack 1 cadence preserved for backward compat', () => {
+    for (const dec of FOUNDER_DECODERS) {
+      const tpls = getFreezeBeatTemplates(dec)
+      const cue = tpls.find((t) => t.kind === 'cue')
+      const action = tpls.find((t) => t.kind === 'action')
+      const advantage = tpls.find((t) => t.kind === 'advantage')
+      expect(cue?.at_phase_ms).toBe(CUE_BEAT_AT_MS)
+      expect(action?.at_phase_ms).toBe(ACTION_BEAT_AT_MS)
+      // Legacy advantage stays at 1100 (the constant) so callers reading
+      // getFreezeBeatTemplates do not silently shift their freeze cadence.
+      expect(advantage?.at_phase_ms).toBe(ADVANTAGE_BEAT_AT_MS)
+    }
+  })
+
+  it('returns [] for undefined or unknown decoders (matches legacy contract)', () => {
+    expect(getFreezeBeatTemplatesAtDifficulty(undefined, 1)).toEqual([])
+    expect(getFreezeBeatTemplatesAtDifficulty(undefined, 5)).toEqual([])
+  })
+
+  it('DROP / HUNT Pack 2 stubs return [] at every difficulty', () => {
+    for (const d of [1, 2, 3, 4, 5]) {
+      expect(getFreezeBeatTemplatesAtDifficulty('READ_THE_COVERAGE', d)).toEqual([])
+      expect(getFreezeBeatTemplatesAtDifficulty('HUNT_THE_ADVANTAGE', d)).toEqual([])
+    }
+  })
+
+  it('emits the same beat kinds and order as getFreezeBeatTemplates — re-stamping is offset-only', () => {
+    for (const dec of FOUNDER_DECODERS) {
+      const legacy = getFreezeBeatTemplates(dec).map((t) => t.kind)
+      for (const d of [1, 2, 3, 4, 5]) {
+        const restamped = getFreezeBeatTemplatesAtDifficulty(dec, d).map(
+          (t) => t.kind,
+        )
+        expect(restamped).toEqual(legacy)
+      }
+    }
+  })
+
+  it('D5 cue/action/advantage land at the schedule offsets (100 / 350 / 500)', () => {
+    for (const dec of FOUNDER_DECODERS) {
+      const tpls = getFreezeBeatTemplatesAtDifficulty(dec, 5)
+      const cue = tpls.find((t) => t.kind === 'cue')
+      const action = tpls.find((t) => t.kind === 'action')
+      const advantage = tpls.find((t) => t.kind === 'advantage')
+      expect(cue?.at_phase_ms).toBe(100)
+      expect(action?.at_phase_ms).toBe(350)
+      expect(advantage?.at_phase_ms).toBe(500)
+    }
+  })
+
+  it('D4 cue/action/advantage land at the schedule offsets (150 / 500 / 700)', () => {
+    for (const dec of FOUNDER_DECODERS) {
+      const tpls = getFreezeBeatTemplatesAtDifficulty(dec, 4)
+      const cue = tpls.find((t) => t.kind === 'cue')
+      const action = tpls.find((t) => t.kind === 'action')
+      const advantage = tpls.find((t) => t.kind === 'advantage')
+      expect(cue?.at_phase_ms).toBe(150)
+      expect(action?.at_phase_ms).toBe(500)
+      expect(advantage?.at_phase_ms).toBe(700)
+    }
+  })
+
+  it('D1-D3 cue/action match the legacy constants; advantage is the F5 tightened 1000ms', () => {
+    for (const dec of FOUNDER_DECODERS) {
+      for (const d of [1, 2, 3]) {
+        const tpls = getFreezeBeatTemplatesAtDifficulty(dec, d)
+        const cue = tpls.find((t) => t.kind === 'cue')
+        const action = tpls.find((t) => t.kind === 'action')
+        const advantage = tpls.find((t) => t.kind === 'advantage')
+        expect(cue?.at_phase_ms).toBe(CUE_BEAT_AT_MS)
+        expect(action?.at_phase_ms).toBe(ACTION_BEAT_AT_MS)
+        expect(advantage?.at_phase_ms).toBe(1000)
+      }
+    }
+  })
+
+  it('default-fade templates pick up the schedule-default fade durations at D4/D5', () => {
+    for (const dec of FOUNDER_DECODERS) {
+      const d4 = getFreezeBeatTemplatesAtDifficulty(dec, 4)
+      const d5 = getFreezeBeatTemplatesAtDifficulty(dec, 5)
+      for (const t of d4) {
+        expect(t.fade_in_ms).toBe(250)
+        expect(t.fade_out_ms).toBe(200)
+      }
+      for (const t of d5) {
+        expect(t.fade_in_ms).toBe(200)
+        expect(t.fade_out_ms).toBe(150)
+      }
+    }
+  })
+
+  it('every restamped template satisfies cue < action < advantage (ordering preserved)', () => {
+    for (const dec of FOUNDER_DECODERS) {
+      for (const d of [1, 2, 3, 4, 5]) {
+        const tpls = getFreezeBeatTemplatesAtDifficulty(dec, d)
+        const byKind: Partial<Record<string, number>> = {}
+        for (const t of tpls) byKind[t.kind] = t.at_phase_ms
+        if (
+          byKind.cue !== undefined &&
+          byKind.action !== undefined &&
+          byKind.advantage !== undefined
+        ) {
+          expect(byKind.cue).toBeLessThan(byKind.action)
+          expect(byKind.action).toBeLessThan(byKind.advantage)
+        }
+      }
+    }
+  })
+
+  it('does not mutate the underlying decoder template table — re-stamping returns fresh objects', () => {
+    const before = JSON.stringify(getFreezeBeatTemplates('BACKDOOR_WINDOW'))
+    getFreezeBeatTemplatesAtDifficulty('BACKDOOR_WINDOW', 5)
+    getFreezeBeatTemplatesAtDifficulty('BACKDOOR_WINDOW', 4)
+    const after = JSON.stringify(getFreezeBeatTemplates('BACKDOOR_WINDOW'))
+    expect(after).toBe(before)
+  })
+
+  it('hydrates into schema-valid OverlayBeats at every difficulty (downstream pipeline contract)', () => {
+    for (const dec of FOUNDER_DECODERS) {
+      for (const d of [1, 2, 3, 4, 5]) {
+        const beats = hydrateFreezeBeats(
+          dec,
+          getFreezeBeatTemplatesAtDifficulty(dec, d),
+          FULL_ANCHORS,
+        )
+        expect(beats.length).toBeGreaterThan(0)
+        // Every emitted beat carries an at_phase_ms drawn from the
+        // difficulty-keyed schedule, not the legacy module constants.
+        for (const b of beats) {
+          expect(b.at_phase_ms).toBeGreaterThanOrEqual(0)
+        }
+      }
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Pack 2 Teaching-Quality F1 — per-difficulty cognition hold floor.
+// ---------------------------------------------------------------------------
+
+describe('cognitionHoldFloorForDifficulty — F1 per-D floor table', () => {
+  it('D1, D2, D3 keep the legacy 1100ms floor (unchanged from today)', () => {
+    expect(cognitionHoldFloorForDifficulty(1)).toBe(1100)
+    expect(cognitionHoldFloorForDifficulty(2)).toBe(1100)
+    expect(cognitionHoldFloorForDifficulty(3)).toBe(1100)
+  })
+
+  it('D4 floor drops to 1000ms (blueprint target)', () => {
+    expect(cognitionHoldFloorForDifficulty(4)).toBe(1000)
+  })
+
+  it('D5 floor drops to 800ms (blueprint target — H1 fix)', () => {
+    expect(cognitionHoldFloorForDifficulty(5)).toBe(800)
+  })
+
+  it('floor is monotonic non-increasing in difficulty (harder = tighter floor)', () => {
+    let prev = Number.POSITIVE_INFINITY
+    for (const d of [1, 2, 3, 4, 5]) {
+      const f = cognitionHoldFloorForDifficulty(d)
+      expect(f).toBeLessThanOrEqual(prev)
+      prev = f
+    }
+  })
+
+  it('out-of-band difficulties collapse to the loosest D1 floor (1100ms)', () => {
+    expect(cognitionHoldFloorForDifficulty(0)).toBe(1100)
+    expect(cognitionHoldFloorForDifficulty(-2)).toBe(1100)
+    expect(cognitionHoldFloorForDifficulty(Number.NaN)).toBe(1100)
+    // Above-band clamps to D5 (tightest), per _clampDifficulty contract.
+    expect(cognitionHoldFloorForDifficulty(6)).toBe(800)
+    expect(cognitionHoldFloorForDifficulty(99)).toBe(800)
+  })
+
+  it('non-integer difficulties round to the nearest integer (consistent with beatSchedule)', () => {
+    expect(cognitionHoldFloorForDifficulty(4.4)).toBe(1000)
+    expect(cognitionHoldFloorForDifficulty(4.6)).toBe(800)
+  })
+
+  it('absolute floor (800) is the minimum across the table', () => {
+    expect(ABSOLUTE_COGNITION_HOLD_FLOOR_MS).toBe(800)
+    for (const d of [1, 2, 3, 4, 5]) {
+      expect(cognitionHoldFloorForDifficulty(d)).toBeGreaterThanOrEqual(
+        ABSOLUTE_COGNITION_HOLD_FLOOR_MS,
+      )
+    }
+  })
+
+  it('every per-D floor leaves the F5 advantage beat strictly inside the hold', () => {
+    // Cross-check the F1 floor table against the F5 schedule: the
+    // advantage beat must STILL fire strictly before the choice tray
+    // opens at the per-D floor. This is the integration invariant
+    // that keeps F1 + F5 coherent.
+    for (const d of [1, 2, 3, 4, 5]) {
+      const floor = cognitionHoldFloorForDifficulty(d)
+      const sched = beatSchedule('BACKDOOR_WINDOW', d)
+      expect(sched.advantageAtMs).toBeLessThan(floor)
+    }
+  })
+})
+
 describe('resolveFreezeTiming — Pack 1/2 round-trip', () => {
   it('returns DEFAULT_FREEZE_TIMING (===) for the no-override path', () => {
     expect(resolveFreezeTiming(undefined)).toBe(DEFAULT_FREEZE_TIMING)
@@ -189,5 +582,107 @@ describe('resolveFreezeTiming — Pack 1/2 round-trip', () => {
     expect(timing.cueRepaintHoldCorrectMs).toBe(
       DEFAULT_FREEZE_TIMING.cueRepaintHoldCorrectMs,
     )
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Pack 2 (Phase β) — DROP D1/D2 cognition templates.
+//
+// DROP = READ_THE_COVERAGE = "is the screen defender dropping?"
+//
+// These tests pin the contract for the new DROP templates added in this
+// slice:
+//   - Three beats land (cue / action / advantage).
+//   - Cue + action are body-language cues on the screen defender —
+//     defender_chest_line and defender_foot_arrow — both legal pre-
+//     answer overlay primitives in the schema.
+//   - Advantage is the pull-up pocket: an open_space_region anchored
+//     by court-point, never a player id.
+//   - The DROP schedule is single-freeze. Templates carry no second-
+//     beat data and must hydrate without authoring beatSpec.secondBeat.
+// ---------------------------------------------------------------------------
+
+describe('DROP (READ_THE_COVERAGE) D1/D2 cognition templates', () => {
+  it('exposes a non-empty template list with cue → action → advantage', () => {
+    const tpl = getFreezeBeatTemplates('READ_THE_COVERAGE')
+    expect(tpl.length).toBe(3)
+    expect(tpl.map((t) => t.kind)).toEqual(['cue', 'action', 'advantage'])
+  })
+
+  it('uses screen-defender body-language primitives for cue + action', () => {
+    const tpl = getFreezeBeatTemplates('READ_THE_COVERAGE')
+    const cue = tpl.find((t) => t.kind === 'cue')
+    const action = tpl.find((t) => t.kind === 'action')
+    expect(cue?.primitive_kind).toBe('defender_chest_line')
+    expect(cue?.anchor).toBe('screen_defender')
+    expect(action?.primitive_kind).toBe('defender_foot_arrow')
+    expect(action?.anchor).toBe('screen_defender')
+  })
+
+  it('uses a court-point pull_up_pocket anchor for the advantage beat', () => {
+    const tpl = getFreezeBeatTemplates('READ_THE_COVERAGE')
+    const adv = tpl.find((t) => t.kind === 'advantage')
+    expect(adv?.primitive_kind).toBe('open_space_region')
+    expect(adv?.anchor).toBe('pull_up_pocket')
+  })
+
+  it('hydrates to schema-legal OverlayBeats with the DROP anchors set', () => {
+    const beats = hydrateFreezeBeats(
+      'READ_THE_COVERAGE',
+      getFreezeBeatTemplates('READ_THE_COVERAGE'),
+      FULL_ANCHORS,
+    )
+    expect(beats).toHaveLength(3)
+    const kinds = beats.map((b) => b.primitive.kind)
+    expect(kinds).toEqual([
+      'defender_chest_line',
+      'defender_foot_arrow',
+      'open_space_region',
+    ])
+    // All three beats must declare phase='freeze' — DROP is single-
+    // freeze; nothing here ever schedules into a second beat.
+    expect(beats.every((b) => b.phase === 'freeze')).toBe(true)
+  })
+
+  it('skips DROP beats when their anchors are missing', () => {
+    const partial: FreezeBeatAnchors = {
+      ...FULL_ANCHORS,
+      screen_defender: undefined,
+      pull_up_pocket: undefined,
+    }
+    const beats = hydrateFreezeBeats(
+      'READ_THE_COVERAGE',
+      getFreezeBeatTemplates('READ_THE_COVERAGE'),
+      partial,
+    )
+    expect(beats.length).toBe(0)
+  })
+
+  it('does not require secondBeat — templates declare no beat-2 schedule', () => {
+    const tpl = getFreezeBeatTemplates('READ_THE_COVERAGE')
+    // No second-beat scheduling is encoded on the DROP templates: every
+    // beat lives inside the single freeze envelope (≤ FREEZE_COGNITION_HOLD_MS
+    // after freezeAtMs).
+    for (const t of tpl) {
+      expect(t.at_phase_ms).toBeLessThanOrEqual(1400)
+      expect(t.at_phase_ms).toBeGreaterThanOrEqual(0)
+    }
+  })
+
+  it('READ_THE_COVERAGE is compatible with the Pack 1 hydration code path', () => {
+    // Same hydrate function, same anchor map, same OverlayBeat shape as
+    // BDW/ESC/SKR/AOR — DROP rides the founder rails.
+    const drop = hydrateFreezeBeats(
+      'READ_THE_COVERAGE',
+      getFreezeBeatTemplates('READ_THE_COVERAGE'),
+      FULL_ANCHORS,
+    )
+    const bdw = hydrateFreezeBeats(
+      'BACKDOOR_WINDOW',
+      getFreezeBeatTemplates('BACKDOOR_WINDOW'),
+      FULL_ANCHORS,
+    )
+    expect(drop.length).toBe(bdw.length)
+    expect(drop.map((b) => b.phase)).toEqual(bdw.map((b) => b.phase))
   })
 })

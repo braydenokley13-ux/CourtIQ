@@ -91,6 +91,18 @@ export interface SceneWrongDemo {
   caption?: string
 }
 
+/**
+ * Pack 2 Teaching-Quality F11 — per-choice `acceptable` demo. Same shape
+ * as SceneWrongDemo; the replay controller plays it as the consequence
+ * leg when the player picks an acceptable-quality choice. Empty for
+ * legacy scenes.
+ */
+export interface SceneAcceptableDemo {
+  choiceId: string
+  movements: SceneMovement[]
+  caption?: string
+}
+
 export interface Scene3D {
   /** Stable identifier for memoising frames. */
   id: string
@@ -106,6 +118,14 @@ export interface Scene3D {
    * scenes (no authored wrongDemos block).
    */
   wrongDemos: SceneWrongDemo[]
+  /**
+   * Pack 2 Teaching-Quality F11 — `acceptable` choice demos keyed by
+   * choiceId. Empty for legacy scenes; populated from the authored
+   * `scene.acceptableDemos[]` block. The controller plays the
+   * matching demo as the consequence leg when the player picks an
+   * acceptable-quality choice.
+   */
+  acceptableDemos: SceneAcceptableDemo[]
   /**
    * Phase B — resolved freeze cue, in ms from the start of `movements`.
    * `null` means "no freeze authored" (renderer treats this as "freeze at
@@ -124,6 +144,41 @@ export interface Scene3D {
    */
   preAnswerOverlays: OverlayPrimitive[]
   postAnswerOverlays: OverlayPrimitive[]
+  /**
+   * Pack 2 (3.1.2) — overlays rendered during the controller's
+   * `consequence` state. In Pack 1 this is the wrong-demo replay leg
+   * (between the user's pick and the answer-leg cue repaint); in
+   * Pack 2 HUNT scenarios the same overlay set is reused for the
+   * inter-beat unfreeze ("what changed between beat 1 and beat 2").
+   *
+   * Optional in the type so legacy test fixtures continue to construct
+   * `Scene3D` literals without modification; the production loader
+   * paths (`buildScene`, `normaliseAuthoredScene`,
+   * `synthesiseSceneFromCourtState`, `createDefaultScene`,
+   * `preset(...)`) always populate it as `[]` by default. Consumers
+   * MUST treat absence as the empty array — when `.length === 0` the
+   * JSX bridge falls back to the post-answer overlay set so Pack 1
+   * behavior is bit-identical.
+   */
+  consequenceOverlays?: OverlayPrimitive[]
+  /**
+   * Pack 2 (3.1.4) — beat-2 overrides. When the scene authors
+   * `beatSpec.secondBeat`, the second freeze paints these arrays
+   * instead of the primary `preAnswerOverlays` /
+   * `postAnswerOverlays`. Optional for the same reason as
+   * `consequenceOverlays`. Empty here means "reuse primary arrays for
+   * beat 2" so Pack 1 (single-beat) scenes don't carry double payload.
+   */
+  secondBeatPreAnswerOverlays?: OverlayPrimitive[]
+  secondBeatPostAnswerOverlays?: OverlayPrimitive[]
+  /**
+   * Pack 2 (3.1.4) — resolved freeze cue for the *second* beat in HUNT
+   * scenarios, in ms from the start of `movements`. `null` (or absent)
+   * means the scene is single-beat. Authors set this via
+   * `beatSpec.secondBeat`; the loader resolves both `atMs` and
+   * `beforeMovementId` forms.
+   */
+  secondFreezeAtMs?: number | null
   /** True if the scene was synthesised from legacy court_state. */
   synthetic: boolean
   /**
@@ -134,6 +189,15 @@ export interface Scene3D {
    * the renderer falls back to the movement-kind path in that case.
    */
   decoderTag?: DecoderTag
+  /**
+   * Pack 2 Teaching-Quality wire-in — the variant's resolved effective
+   * difficulty (1..5). The renderer threads this into the F5
+   * beatSchedule (per-D freeze beat offsets) and the F8 getReplayCadence
+   * (D4+ wrong-answer dwell extension). Legacy / preset / synth scenes
+   * leave it `undefined`; consumers are expected to fall back to a
+   * safe D1 cadence in that case.
+   */
+  effectiveDifficulty?: number
   /**
    * Phase 3.1.4 — per-scenario freeze-timing overrides. Validated at
    * parse time by `timingOverridesSchema`; missing fields fall back
@@ -164,9 +228,14 @@ interface AuthoredScene {
   movements?: SceneMovement[]
   answerDemo?: SceneMovement[]
   wrongDemos?: SceneWrongDemo[]
+  acceptableDemos?: SceneAcceptableDemo[]
   freezeMarker?: FreezeMarker
   preAnswerOverlays?: OverlayPrimitive[]
   postAnswerOverlays?: OverlayPrimitive[]
+  consequenceOverlays?: OverlayPrimitive[]
+  secondBeatPreAnswerOverlays?: OverlayPrimitive[]
+  secondBeatPostAnswerOverlays?: OverlayPrimitive[]
+  beatSpec?: { firstBeat: FreezeMarker; secondBeat?: FreezeMarker }
   timingOverrides?: TimingOverrides
 }
 
@@ -185,6 +254,17 @@ interface SourceScenario {
    * decoder tag fall through.
    */
   decoder_tag?: string
+  /**
+   * Pack 2 Teaching-Quality wire-in — the variant's resolved effective
+   * difficulty (1..5). Read from the scenario's top-level `difficulty`
+   * field (set by the materializer to `variation.difficulty ??
+   * min(5, template.tactical.difficulty_default + disguise.difficultyBump)`)
+   * and propagated onto the resulting Scene3D so the renderer can
+   * thread D into beatSchedule (F5b) and getReplayCadence (F8).
+   * Legacy / preset / synth scenes leave it `undefined`; downstream
+   * helpers fall back to D1 (loosest, safest) cadence in that case.
+   */
+  difficulty?: number
 }
 
 /**
@@ -192,12 +272,25 @@ interface SourceScenario {
  * closed `DecoderTag` set, returning `undefined` for unknown values
  * (legacy scenarios, typos, or scenarios outside the v1 decoder
  * vocabulary). Defensive: never throws.
+ *
+ * Pack 2 (3.1.2/3.1.4) — `READ_THE_COVERAGE` (DROP) and
+ * `HUNT_THE_ADVANTAGE` (HUNT) were added so Pack 2 scenarios with
+ * those decoder_tag values reach the renderer with the correct
+ * tag attached to `Scene3D.decoderTag`. Without this entry, Pack 2
+ * scenarios would silently coerce to `undefined` and fall back to
+ * the movement-kind animation path.
  */
 const _DECODER_TAGS: ReadonlySet<DecoderTag> = new Set<DecoderTag>([
   'BACKDOOR_WINDOW',
   'EMPTY_SPACE_CUT',
   'SKIP_THE_ROTATION',
   'ADVANTAGE_OR_RESET',
+  // Pack 2 — DROP / HUNT decoder tags. The runtime presets are still
+  // stubs (gated by F3's empty-preset promotion check), but the tag
+  // itself must coerce successfully so the renderer can route F6's
+  // primary-cue promotion / F5's beat schedule by decoder.
+  'READ_THE_COVERAGE',
+  'HUNT_THE_ADVANTAGE',
 ])
 function _coerceDecoderTag(raw: string | undefined): DecoderTag | undefined {
   if (!raw) return undefined
@@ -216,6 +309,11 @@ function _coerceDecoderTag(raw: string | undefined): DecoderTag | undefined {
 export function buildScene(scenario: SourceScenario): Scene3D {
   const id = scenario.id || 'scene'
   const decoderTag = _coerceDecoderTag(scenario.decoder_tag)
+  // Pack 2 Teaching-Quality wire-in — clamp the variant's resolved
+  // difficulty to the schema's [1,5] domain. Out-of-band values
+  // (negative, NaN, > 5) collapse to undefined so downstream helpers
+  // (beatSchedule, getReplayCadence) take their safe-default branch.
+  const effectiveDifficulty = _coerceEffectiveDifficulty(scenario.difficulty)
 
   if (scenario.scene != null) {
     const parsed = sceneSchema.safeParse(scenario.scene)
@@ -223,6 +321,7 @@ export function buildScene(scenario: SourceScenario): Scene3D {
       return sanitiseScene({
         ...normaliseAuthoredScene(id, parsed.data as AuthoredScene),
         decoderTag,
+        effectiveDifficulty,
       })
     }
     if (typeof console !== 'undefined') {
@@ -233,18 +332,26 @@ export function buildScene(scenario: SourceScenario): Scene3D {
   const conceptTags = scenario.concept_tags ?? []
   if (conceptTags.length > 0) {
     const preset = getPresetForConcept(id, conceptTags)
-    if (preset) return sanitiseScene({ ...preset, decoderTag })
+    if (preset) return sanitiseScene({ ...preset, decoderTag, effectiveDifficulty })
   }
 
   if (scenario.court_state) {
     const synth = synthesiseSceneFromCourtState({ ...scenario, id, court_state: scenario.court_state })
     if (synth.players.length > 0) {
-      return sanitiseScene({ ...synth, decoderTag })
+      return sanitiseScene({ ...synth, decoderTag, effectiveDifficulty })
     }
   }
 
   // Last-resort default scene so the renderer always has something to show.
   return sanitiseScene(createDefaultScene(id))
+}
+
+function _coerceEffectiveDifficulty(raw: number | undefined): number | undefined {
+  if (typeof raw !== 'number') return undefined
+  if (!Number.isFinite(raw)) return undefined
+  const rounded = Math.round(raw)
+  if (rounded < 1 || rounded > 5) return undefined
+  return rounded
 }
 
 function normaliseAuthoredScene(id: string, scene: AuthoredScene): Scene3D {
@@ -260,7 +367,21 @@ function normaliseAuthoredScene(id: string, scene: AuthoredScene): Scene3D {
       color: p.color,
     })) ?? []
   const movements = scene.movements ?? []
-  const freezeAtMs = resolveFreezeFromAuthored(players, scene.ball, movements, scene.freezeMarker)
+  // Pack 2 (3.1.4) — `beatSpec` overrides the legacy `freezeMarker`
+  // field. When `beatSpec.firstBeat` is authored, it is the first
+  // (and primary) freeze marker; when `beatSpec.secondBeat` is also
+  // present the loader resolves both. Pack 1 scenes that author the
+  // legacy `freezeMarker` continue to work unchanged because beatSpec
+  // is optional.
+  const firstMarker = scene.beatSpec?.firstBeat ?? scene.freezeMarker
+  const secondMarker = scene.beatSpec?.secondBeat
+  const freezeAtMs = resolveFreezeFromAuthored(players, scene.ball, movements, firstMarker)
+  const secondFreezeAtMs = resolveFreezeFromAuthored(
+    players,
+    scene.ball,
+    movements,
+    secondMarker,
+  )
   return {
     id,
     type: scene.type,
@@ -271,9 +392,14 @@ function normaliseAuthoredScene(id: string, scene: AuthoredScene): Scene3D {
     movements,
     answerDemo: scene.answerDemo ?? [],
     wrongDemos: scene.wrongDemos ?? [],
+    acceptableDemos: scene.acceptableDemos ?? [],
     preAnswerOverlays: scene.preAnswerOverlays ?? [],
     postAnswerOverlays: scene.postAnswerOverlays ?? [],
+    consequenceOverlays: scene.consequenceOverlays ?? [],
+    secondBeatPreAnswerOverlays: scene.secondBeatPreAnswerOverlays ?? [],
+    secondBeatPostAnswerOverlays: scene.secondBeatPostAnswerOverlays ?? [],
     freezeAtMs,
+    secondFreezeAtMs,
     synthetic: false,
     ...(scene.timingOverrides ? { timingOverrides: scene.timingOverrides } : {}),
   }
@@ -304,9 +430,14 @@ function resolveFreezeFromAuthored(
     movements,
     answerDemo: [],
     wrongDemos: [],
+    acceptableDemos: [],
     preAnswerOverlays: [],
     postAnswerOverlays: [],
+    consequenceOverlays: [],
+    secondBeatPreAnswerOverlays: [],
+    secondBeatPostAnswerOverlays: [],
     freezeAtMs: null,
+    secondFreezeAtMs: null,
     synthetic: false,
   }
   const timeline = buildTimeline(proxyScene, movements)
@@ -372,9 +503,14 @@ function synthesiseSceneFromCourtState(
     movements: [],
     answerDemo: [],
     wrongDemos: [],
+    acceptableDemos: [],
     preAnswerOverlays: [],
     postAnswerOverlays: [],
+    consequenceOverlays: [],
+    secondBeatPreAnswerOverlays: [],
+    secondBeatPostAnswerOverlays: [],
     freezeAtMs: null,
+    secondFreezeAtMs: null,
     synthetic: true,
   }
 }
@@ -395,9 +531,14 @@ export function createDefaultScene(id = 'default_3d_scene'): Scene3D {
     movements: [],
     answerDemo: [],
     wrongDemos: [],
+    acceptableDemos: [],
     preAnswerOverlays: [],
     postAnswerOverlays: [],
+    consequenceOverlays: [],
+    secondBeatPreAnswerOverlays: [],
+    secondBeatPostAnswerOverlays: [],
     freezeAtMs: null,
+    secondFreezeAtMs: null,
     synthetic: true,
   }
 }
@@ -465,6 +606,19 @@ function sanitiseScene(scene: Scene3D): Scene3D {
       }))
   }
 
+  const cleanAcceptableDemos = (
+    list: SceneAcceptableDemo[] | undefined,
+  ): SceneAcceptableDemo[] => {
+    if (!Array.isArray(list)) return []
+    return list
+      .filter((d) => d && typeof d.choiceId === 'string')
+      .map((d) => ({
+        choiceId: d.choiceId,
+        movements: cleanMovements(d.movements),
+        caption: d.caption,
+      }))
+  }
+
   return {
     ...scene,
     players,
@@ -472,6 +626,7 @@ function sanitiseScene(scene: Scene3D): Scene3D {
     movements: cleanMovements(scene.movements),
     answerDemo: cleanMovements(scene.answerDemo),
     wrongDemos: cleanWrongDemos(scene.wrongDemos),
+    acceptableDemos: cleanAcceptableDemos(scene.acceptableDemos),
   }
 }
 

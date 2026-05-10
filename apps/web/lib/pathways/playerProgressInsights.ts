@@ -138,7 +138,11 @@ export function groupDecoderStrength(input: {
   return 'needs-work'
 }
 
-const WEAKNESS_MESSAGE: Record<DecoderTag, string> = {
+// TODO(pack-2): author Pack 2 weakness coaching copy when the
+// DROP / HUNT pedagogy ships. For now this map is founder-only; the
+// consumer falls back to a generic message when a Pack 2 decoder is
+// the player's weakest.
+const WEAKNESS_MESSAGE: Partial<Record<DecoderTag, string>> = {
   BACKDOOR_WINDOW:
     'Backdoor windows are slipping past you. When the defender denies the pass, cut behind — don’t hold the spot.',
   EMPTY_SPACE_CUT:
@@ -211,7 +215,11 @@ function pickWeakness(decoders: readonly DecoderInsight[]): WeaknessInsight | nu
     label: weakest.label,
     accuracy: weakest.accuracy,
     attempts: weakest.attempts,
-    message: WEAKNESS_MESSAGE[weakest.tag],
+    // Pack 2 — generic fallback until WEAKNESS_MESSAGE has authored
+    // entries for READ_THE_COVERAGE / HUNT_THE_ADVANTAGE.
+    message:
+      WEAKNESS_MESSAGE[weakest.tag] ??
+      `${weakest.label} reads need more reps right now.`,
   }
 }
 

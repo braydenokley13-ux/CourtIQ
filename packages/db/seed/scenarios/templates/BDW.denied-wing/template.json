@@ -129,7 +129,7 @@
         { "kind": "defender_hip_arrow", "onSlot": "deny_def" },
         { "kind": "defender_vision_cone", "onSlot": "deny_def" }
       ],
-      "freezeCompressMs": 600,
+      "freezeShiftEarlierMs": 600,
       "difficultyBump": 2
     }
   },

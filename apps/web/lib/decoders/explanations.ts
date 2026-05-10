@@ -88,6 +88,37 @@ const EXPLANATIONS: Record<DecoderTag, DecoderExplanation> = {
     example:
       'You drive middle, two help. The weak-side corner is empty — line drive across the lane to the open shooter.',
   },
+  // Pack 2 — DROP (READ_THE_COVERAGE) D1/D2 player-facing copy.
+  // Promoted from a Pack 2 stand-in to the real teaching copy. Voice
+  // rule matches the founders: kid-readable, basketball-first nouns,
+  // film-room tone. D3+ disguised-coverage shapes (late show, ICE)
+  // live in a separate slice and may expand these fields.
+  READ_THE_COVERAGE: {
+    tag: 'READ_THE_COVERAGE',
+    label: 'Read the Coverage',
+    oneLiner: 'When the big drops back, use the space before help recovers.',
+    meaning:
+      'A drop defender protects the paint first. Your read is the space between the screen and the retreating defender: pull up, snake, or attack before the defense resets.',
+    watch:
+      'The screen defender. Chest below the screen, feet pointing back at the rim — that\'s drop coverage. The pocket between him and the screen is yours.',
+    matters:
+      'Drop coverage gives the ball-handler a free window. Hesitate and the recovery closes it; recognize early and the easy shot is there.',
+    example:
+      'You come off the ball-screen, the big sits two steps below — pull up in the pocket before he can step up.',
+  },
+  HUNT_THE_ADVANTAGE: {
+    tag: 'HUNT_THE_ADVANTAGE',
+    label: 'Hunt the Advantage',
+    oneLiner: "First read isn't always the play — chain it.",
+    meaning:
+      'When help comes to stop the first read, the second window opens. Punish the help that arrived.',
+    watch:
+      'Where the help came from. That spot is the next attack.',
+    matters:
+      'Single reads stall once defenses rotate. Chained reads keep the advantage moving.',
+    example:
+      'Drive draws the corner help — kick to the open shooter on the wing.',
+  },
 }
 
 export function getDecoderExplanation(tag: DecoderTag): DecoderExplanation {
@@ -100,6 +131,8 @@ export function getAllDecoderExplanations(): readonly DecoderExplanation[] {
     EXPLANATIONS.EMPTY_SPACE_CUT,
     EXPLANATIONS.ADVANTAGE_OR_RESET,
     EXPLANATIONS.SKIP_THE_ROTATION,
+    EXPLANATIONS.READ_THE_COVERAGE,
+    EXPLANATIONS.HUNT_THE_ADVANTAGE,
   ]
 }
 

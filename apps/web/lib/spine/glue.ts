@@ -25,12 +25,64 @@ import { recognitionReason } from '@/lib/recognitionSurface'
  *  return-loop composer. Mirrors strategy §6. */
 export const RETURN_FRESHNESS_DAYS = 14
 
+/** Founder decoder set (Pack 1). The home decoder ring renders
+ *  exactly these four whether or not the player has touched them, so
+ *  the strip looks consistent for every founder-pack player. Pack 2
+ *  decoders (`READ_THE_COVERAGE`, `HUNT_THE_ADVANTAGE`) are
+ *  intentionally NOT here — admitting them unconditionally would
+ *  surface "ghost rings" for founders before any LIVE Pack 2
+ *  scenario ships. They get added per-player once the catalog and
+ *  the player's own attempt history reach them; see
+ *  `decoderTagsFromAttempts` and `decoderTagsInCatalog`. */
 export const ALL_DECODERS: DecoderTag[] = [
   'BACKDOOR_WINDOW',
   'EMPTY_SPACE_CUT',
   'SKIP_THE_ROTATION',
   'ADVANTAGE_OR_RESET',
 ] as DecoderTag[]
+
+/** Decoder tags the player has actually attempted, deduped, in the
+ *  order they first appear in the input. Pure helper. Pack-2-aware
+ *  consumers union this with `ALL_DECODERS` to surface confidence
+ *  rows for `READ_THE_COVERAGE` / `HUNT_THE_ADVANTAGE` once the
+ *  player has at least one attempt on them, without causing founders
+ *  with zero Pack 2 history to grow phantom rings. Attempts whose
+ *  scenario has a null `decoder_tag` (legacy fixtures) are dropped. */
+export function decoderTagsFromAttempts(
+  attempts: readonly AttemptWithScenario[],
+): DecoderTag[] {
+  const seen = new Set<string>()
+  const out: DecoderTag[] = []
+  for (const a of attempts) {
+    const tag = a.scenario.decoder_tag
+    if (!tag) continue
+    if (seen.has(tag)) continue
+    seen.add(tag)
+    out.push(tag)
+  }
+  return out
+}
+
+/** Decoder tags present in a LIVE-scenario catalog, deduped, in the
+ *  order they first appear. Pure helper. Used by future routing
+ *  layers to gate Pack 2 admission on actual catalog content
+ *  ("READ_THE_COVERAGE rings only if at least one LIVE
+ *  READ_THE_COVERAGE scenario exists") rather than on the schema
+ *  enum (which advances ahead of authored content). */
+export function decoderTagsInCatalog(
+  scenarios: readonly Pick<Scenario, 'decoder_tag'>[],
+): DecoderTag[] {
+  const seen = new Set<string>()
+  const out: DecoderTag[] = []
+  for (const s of scenarios) {
+    const tag = s.decoder_tag
+    if (!tag) continue
+    if (seen.has(tag)) continue
+    seen.add(tag)
+    out.push(tag)
+  }
+  return out
+}
 
 /** Lightweight Attempt + Scenario shape the glue accepts. Decoupled
  *  from Prisma's full row types so call sites can pass pared-down
@@ -103,7 +155,21 @@ export function buildDecoderConfidences(
     .slice(-REPLAY_VIEW_WINDOW)
     .reduce((acc, a) => acc + (a.replay_count ?? 0), 0)
 
-  return ALL_DECODERS.map((tag) => {
+  // Pack 2 admission: founders are ALWAYS represented (so the home
+  // ring renders consistently for every founder-pack player). Pack 2
+  // decoders are added only when the player has actually attempted
+  // one — preventing "ghost rings" for founders who have never seen
+  // a `READ_THE_COVERAGE` / `HUNT_THE_ADVANTAGE` scenario, while
+  // still surfacing confidence the moment they do.
+  const attemptedTags = decoderTagsFromAttempts(attempts)
+  const tagsForConfidence: DecoderTag[] = [...ALL_DECODERS]
+  for (const tag of attemptedTags) {
+    if (!tagsForConfidence.includes(tag)) {
+      tagsForConfidence.push(tag)
+    }
+  }
+
+  return tagsForConfidence.map((tag) => {
     const decoderAttempts = byDecoder.get(tag) ?? []
     const last = decoderAttempts[decoderAttempts.length - 1]
     const days = last

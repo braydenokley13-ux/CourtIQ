@@ -70,6 +70,27 @@ export const TEACHING_LABEL_FADE_IN_MS = 500
  *  CTA tray. */
 export const DONE_HOLD_MS = 700
 
+/**
+ * Pack 2 Teaching-Quality F8 — D4+ wrong-answer dwell extension (ms).
+ *
+ * Risks M5 + M6: at D4 / D5 — where choices are stressful — the uniform
+ * 700ms done-hold gives no cognitive room to absorb "why wrong" before
+ * "what was right" begins. The audit calls for 800ms additional dwell
+ * on the wrong path at effective difficulty ≥ 4.
+ *
+ * Applied by `getReplayCadence(path, effectiveDifficulty)` when both:
+ *   - path === 'wrong'
+ *   - effectiveDifficulty ≥ D4_PLUS_WRONG_DWELL_MIN_DIFFICULTY (4)
+ *
+ * D1-D3 wrong path and every correct path keep the legacy 700ms hold
+ * regardless of difficulty.
+ */
+export const D4_PLUS_WRONG_DWELL_EXTENSION_MS = 800
+
+/** Minimum effective difficulty that triggers the F8 wrong-answer
+ *  dwell extension. */
+export const D4_PLUS_WRONG_DWELL_MIN_DIFFICULTY = 4
+
 // ---------------------------------------------------------------------------
 // Per-decoder teaching label.
 //
@@ -146,6 +167,29 @@ const CORRECT_CADENCE: ReplayCadence = Object.freeze({
   doneHoldMs: DONE_HOLD_MS,
 })
 
-export function getReplayCadence(path: 'wrong' | 'correct'): ReplayCadence {
-  return path === 'wrong' ? WRONG_CADENCE : CORRECT_CADENCE
+/**
+ * Returns the replay cadence for a given path. When `effectiveDifficulty`
+ * is provided AND path === 'wrong' AND effectiveDifficulty ≥ 4, the
+ * F8 dwell extension lengthens `doneHoldMs` by
+ * `D4_PLUS_WRONG_DWELL_EXTENSION_MS` (800ms) so the player gets
+ * cognitive room to absorb the consequence before the answer leg
+ * shows the correct path. All other (path, difficulty) combinations
+ * return the legacy fixed cadence — the no-arg form is preserved
+ * exactly, so existing callers and pinned tests stay green.
+ *
+ * Pure — same inputs always produce the same outputs.
+ */
+export function getReplayCadence(
+  path: 'wrong' | 'correct',
+  effectiveDifficulty?: number,
+): ReplayCadence {
+  const base = path === 'wrong' ? WRONG_CADENCE : CORRECT_CADENCE
+  if (path !== 'wrong' || effectiveDifficulty === undefined) return base
+  if (!Number.isFinite(effectiveDifficulty)) return base
+  if (effectiveDifficulty < D4_PLUS_WRONG_DWELL_MIN_DIFFICULTY) return base
+  return Object.freeze({
+    preLegDelayMs: base.preLegDelayMs,
+    cueRepaintHoldMs: base.cueRepaintHoldMs,
+    doneHoldMs: base.doneHoldMs + D4_PLUS_WRONG_DWELL_EXTENSION_MS,
+  })
 }

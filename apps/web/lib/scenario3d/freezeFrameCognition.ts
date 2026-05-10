@@ -93,6 +93,215 @@ export const CHOICE_TRAY_AT_MS = 1400
 export const DEFAULT_BEAT_FADE_IN_MS = 300
 export const DEFAULT_BEAT_FADE_OUT_MS = 200
 
+// --- Pack 2 Teaching-Quality F5 — difficulty-aware beat schedule -----------
+//
+// Risk H5 in docs/pack-2-teaching-quality-risk-report.md: with the schema
+// floor of cognitionHoldMs = 1100 and the module constant
+// ADVANTAGE_BEAT_AT_MS = 1100, an override that pulls the cognition hold to
+// the floor opens the choice tray at the same instant the advantage beat
+// starts fading in. The "why this read works" explanation arrives the same
+// instant the player must commit. F5 moves the offsets from a single
+// schedule shared across difficulties to a per-difficulty mapping so D4
+// and D5 (which the blueprint calls for ≤ 1000ms / ≤ 800ms holds) get a
+// compressed beat cadence that always lands the advantage strictly before
+// the choice tray opens.
+//
+// The decoder parameter is reserved for forward compatibility — DROP /
+// HUNT presets may want their own cadence (e.g. HUNT's chained second
+// read needs a tighter first-beat). Today every decoder shares the
+// difficulty-keyed schedule; the parameter shape is locked so a future
+// decoder-specific table can land without changing call sites.
+//
+// Existing callers that read the module constants directly (cue / action /
+// advantage / label `*_BEAT_AT_MS`) still see the default D1-D3 schedule
+// — `getFreezeBeatTemplates(decoder)` is unchanged. New callers that
+// thread `effectiveDifficulty` resolve the per-difficulty schedule via
+// `beatSchedule(decoder, effectiveDifficulty)` or pull templates through
+// `getFreezeBeatTemplatesAtDifficulty(decoder, effectiveDifficulty)`.
+
+/** Resolved per-(decoder, difficulty) freeze-beat schedule. All offsets
+ *  relative to freezeAtMs, in milliseconds. */
+export interface BeatSchedule {
+  cueAtMs: number
+  labelAtMs: number
+  actionAtMs: number
+  advantageAtMs: number
+  /** Default fade-in for beats that do not author their own. */
+  fadeInMs: number
+  /** Default fade-out for beats that do not author their own. */
+  fadeOutMs: number
+}
+
+/** Per-difficulty schedule table.
+ *
+ *  Invariant (H5): `advantageAtMs(D) < schemaFloorHoldMs(D)` for every D
+ *  — the advantage beat must START fading in strictly before the choice
+ *  tray opens, never simultaneously. Today the schema floor is 1100ms
+ *  for every difficulty; F1 will lower it per-difficulty (D≤3=1100,
+ *  D4=1000, D5=800). The schedule below already satisfies the future
+ *  per-difficulty floors so F1 lands without revisiting these numbers.
+ *
+ *  Cadence design (cue → label → action → advantage):
+ *    - D1-D3: 200 / 600 / 700 / 1000 — advantage tightened from the
+ *             legacy 1100 so it lands strictly before the 1100ms floor
+ *             at any difficulty. Default cognition hold (1400ms) keeps
+ *             the surface feel of Pack 1.
+ *    - D4:    150 / 400 / 500 / 700  — fast-read; advantage fires
+ *             300ms ahead of the future 1000ms hold.
+ *    - D5:    100 / 300 / 350 / 500  — flash-read; advantage fires
+ *             300ms ahead of the future 800ms hold.
+ *  Fade-ins shrink at D4/D5 so the visible cadence stays brisk; even
+ *  with shorter fade-ins the advantage's final-opacity moment still
+ *  arrives before the tray at typical (non-floor) holds. Fade-outs
+ *  follow in step so post-beat decay also fits inside the compressed
+ *  envelope. */
+const BEAT_SCHEDULES_BY_DIFFICULTY: Readonly<Record<number, BeatSchedule>> =
+  Object.freeze({
+    1: Object.freeze({
+      cueAtMs: CUE_BEAT_AT_MS,
+      labelAtMs: LABEL_BEAT_AT_MS,
+      actionAtMs: ACTION_BEAT_AT_MS,
+      advantageAtMs: 1000,
+      fadeInMs: DEFAULT_BEAT_FADE_IN_MS,
+      fadeOutMs: DEFAULT_BEAT_FADE_OUT_MS,
+    }),
+    2: Object.freeze({
+      cueAtMs: CUE_BEAT_AT_MS,
+      labelAtMs: LABEL_BEAT_AT_MS,
+      actionAtMs: ACTION_BEAT_AT_MS,
+      advantageAtMs: 1000,
+      fadeInMs: DEFAULT_BEAT_FADE_IN_MS,
+      fadeOutMs: DEFAULT_BEAT_FADE_OUT_MS,
+    }),
+    3: Object.freeze({
+      cueAtMs: CUE_BEAT_AT_MS,
+      labelAtMs: LABEL_BEAT_AT_MS,
+      actionAtMs: ACTION_BEAT_AT_MS,
+      advantageAtMs: 1000,
+      fadeInMs: DEFAULT_BEAT_FADE_IN_MS,
+      fadeOutMs: DEFAULT_BEAT_FADE_OUT_MS,
+    }),
+    4: Object.freeze({
+      cueAtMs: 150,
+      labelAtMs: 400,
+      actionAtMs: 500,
+      advantageAtMs: 700,
+      fadeInMs: 250,
+      fadeOutMs: 200,
+    }),
+    5: Object.freeze({
+      cueAtMs: 100,
+      labelAtMs: 300,
+      actionAtMs: 350,
+      advantageAtMs: 500,
+      fadeInMs: 200,
+      fadeOutMs: 150,
+    }),
+  })
+
+/** Fallback schedule for out-of-band difficulties — the loosest of the
+ *  table. Used by `_clampDifficulty` callers when a non-finite or
+ *  outside-[1,5] value reaches `beatSchedule`. */
+const DEFAULT_BEAT_SCHEDULE: BeatSchedule = BEAT_SCHEDULES_BY_DIFFICULTY[1]!
+
+/** Clamp an effective difficulty to the [1, 5] integer domain. Non-finite
+ *  or out-of-band values fall back to D1 (the loosest, safest schedule). */
+function _clampDifficulty(effectiveDifficulty: number): number {
+  if (!Number.isFinite(effectiveDifficulty)) return 1
+  const rounded = Math.round(effectiveDifficulty)
+  if (rounded < 1) return 1
+  if (rounded > 5) return 5
+  return rounded
+}
+
+/**
+ * Returns the resolved freeze-beat schedule for a (decoder, effectiveD)
+ * pair. Pure — same inputs always produce the same output. The schedule
+ * is decoder-parametrised for forward compatibility; today every decoder
+ * uses the difficulty-keyed table.
+ *
+ * `effectiveDifficulty` is the variant's resolved D after applying any
+ * disguise difficultyBump and the schema clamp (1..5). Out-of-band
+ * inputs collapse to D1 rather than throwing — a renderer that lost
+ * track of difficulty should fall back to the slowest (most readable)
+ * cadence, not crash the freeze.
+ */
+export function beatSchedule(
+  decoder: DecoderTag | undefined,
+  effectiveDifficulty: number,
+): BeatSchedule {
+  // `decoder` is intentionally unused at this milestone — see comment
+  // above. Reading it here keeps the parameter declared so call sites
+  // that thread the decoder don't need to change when a per-decoder
+  // table lands.
+  void decoder
+  const d = _clampDifficulty(effectiveDifficulty)
+  return BEAT_SCHEDULES_BY_DIFFICULTY[d] ?? DEFAULT_BEAT_SCHEDULE
+}
+
+// --- Pack 2 Teaching-Quality F1 — per-difficulty cognition hold floor ------
+//
+// Risk H1 in docs/pack-2-teaching-quality-risk-report.md: the schema's
+// 1100ms floor on cognitionHoldMs blocks the blueprint's D5 spec of
+// 800ms. The hardest tier silently caps to easier tier's pacing.
+//
+// F1 introduces a per-D floor table:
+//   D1, D2, D3 → 1100ms (unchanged from today's flat floor)
+//   D4         → 1000ms
+//   D5         →  800ms
+//
+// Enforcement points:
+//   - Schemas (apps/web/lib/scenario3d/schema.ts and the template's
+//     packages/db/seed/scenarios/templates/_schema.ts) loosen their
+//     literal `min(1100)` to `min(800)` so the parser admits the
+//     full per-D range. The narrower per-D check happens in the
+//     materializer where effective difficulty is computed.
+//   - Materializer (scripts/materialize-templates.ts) calls
+//     `cognitionHoldFloorForDifficulty(effectiveD)` and throws if the
+//     authored cognitionHoldMs is below that floor.
+//
+// The function lives here in freezeFrameCognition.ts (alongside
+// beatSchedule) so the policy module owns both the per-D timing
+// targets and the per-D floor; future floors (D2 = 1300, etc.) land
+// in this single table.
+
+/** Per-difficulty cognition hold floor in milliseconds. The materializer
+ *  enforces these floors against each variant's effective difficulty
+ *  (template default + disguise bump, optionally overridden by
+ *  variation.difficulty). The schemas accept the absolute floor (800);
+ *  the materializer applies the per-D narrowing. */
+const COGNITION_HOLD_FLOOR_MS_BY_DIFFICULTY: Readonly<Record<number, number>> =
+  Object.freeze({
+    1: 1100,
+    2: 1100,
+    3: 1100,
+    4: 1000,
+    5: 800,
+  })
+
+/** The absolute floor across every difficulty — the schema-level floor.
+ *  No authored hold may go below this regardless of difficulty. */
+export const ABSOLUTE_COGNITION_HOLD_FLOOR_MS = 800
+
+/**
+ * Returns the minimum cognition hold (ms) for a given effective
+ * difficulty. Pure — same input always produces the same output.
+ * Out-of-band inputs collapse to the loosest (D1) floor of 1100ms so
+ * a stray difficulty value never accidentally lets a 200ms hold
+ * through.
+ *
+ * Used by the template materializer to validate authored
+ * timingOverrides.cognitionHoldMs against the variant's effective D.
+ * The schemas only enforce the absolute floor (800ms); per-D
+ * narrowing happens here.
+ */
+export function cognitionHoldFloorForDifficulty(
+  effectiveDifficulty: number,
+): number {
+  const d = _clampDifficulty(effectiveDifficulty)
+  return COGNITION_HOLD_FLOOR_MS_BY_DIFFICULTY[d] ?? 1100
+}
+
 // --- types -----------------------------------------------------------------
 
 export type CognitionPhase =
@@ -122,9 +331,12 @@ export type FreezeBeatAnchorRole =
   | 'receiver'
   | 'open_player'
   | 'passer'
+  | 'screen_defender'     // DROP — the big sitting back below the screen
+  | 'ball_handler'        // DROP — the PnR ball-handler reading the call
   | 'vacated_zone'        // ESC / SKR — anchor is geometric, not a player
   | 'open_rim_zone'       // BDW backdoor catch zone
   | 'closeout_target'     // AOR — between closeout defender + receiver
+  | 'pull_up_pocket'      // DROP — space between screen + retreating big
 
 /** Pure-data freeze beat. The renderer hydrates `primitive_kind +
  *  anchor_role` into a concrete OverlayPrimitive at emit time using
@@ -296,13 +508,50 @@ const AOR_TEMPLATES: ReadonlyArray<FreezeBeatTemplate> = [
   },
 ]
 
-// Pack 2 stub. DROP and HUNT freeze-beat templates intentionally collapse
-// to the empty-array sentinel until 3.1.2 / 3.1.4 design the full beat
-// schedule (DROP: screen-defender depth + ball-handler attack arrow;
-// HUNT: chained two-beat freeze). The contract at the top of the file
-// already says "missing decoder collapses to an empty list, never throws"
-// — DROP/HUNT exercise that path until their templates land.
-const DROP_TEMPLATES_PACK2_STUB: ReadonlyArray<FreezeBeatTemplate> = []
+// Pack 2 — DROP (READ_THE_COVERAGE) D1/D2 templates. Single-freeze, no
+// secondBeat. Cue is the screen-defender's chest/foot — does he stay
+// below the screen (drop) or step up (switch/blitz)? Action is the
+// ball-handler's pull-up arrow into the pocket. Advantage is the
+// pull-up pocket itself. D3+ shapes (deeper disguise, late-show) live
+// outside this slice and are NOT authored here.
+const DROP_TEMPLATES: ReadonlyArray<FreezeBeatTemplate> = [
+  {
+    kind: 'cue',
+    at_phase_ms: CUE_BEAT_AT_MS,
+    primitive_kind: 'defender_chest_line',
+    anchor: 'screen_defender',
+    clutter_priority: 1,
+    fade_in_ms: DEFAULT_BEAT_FADE_IN_MS,
+    fade_out_ms: DEFAULT_BEAT_FADE_OUT_MS,
+    teaching_question: 'what_changed',
+  },
+  {
+    kind: 'action',
+    at_phase_ms: ACTION_BEAT_AT_MS,
+    primitive_kind: 'defender_foot_arrow',
+    anchor: 'screen_defender',
+    clutter_priority: 2,
+    fade_in_ms: DEFAULT_BEAT_FADE_IN_MS,
+    fade_out_ms: DEFAULT_BEAT_FADE_OUT_MS,
+    teaching_question: 'what_is_best_read',
+  },
+  {
+    kind: 'advantage',
+    at_phase_ms: ADVANTAGE_BEAT_AT_MS,
+    // The pocket — space between the screen and the retreating big —
+    // is geometric, anchored by court-point not a player id.
+    primitive_kind: 'open_space_region',
+    anchor: 'pull_up_pocket',
+    clutter_priority: 3,
+    fade_in_ms: DEFAULT_BEAT_FADE_IN_MS,
+    fade_out_ms: DEFAULT_BEAT_FADE_OUT_MS,
+    teaching_question: 'what_space_opened',
+  },
+]
+
+// HUNT (chained two-beat) still ships as the empty sentinel until
+// Phase γ designs the full second-beat schedule. Pack 1 contract:
+// "missing decoder collapses to an empty list, never throws."
 const HUNT_TEMPLATES_PACK2_STUB: ReadonlyArray<FreezeBeatTemplate> = []
 
 const DECODER_TEMPLATES: Record<DecoderTag, ReadonlyArray<FreezeBeatTemplate>> = {
@@ -310,7 +559,7 @@ const DECODER_TEMPLATES: Record<DecoderTag, ReadonlyArray<FreezeBeatTemplate>> =
   EMPTY_SPACE_CUT: ESC_TEMPLATES,
   SKIP_THE_ROTATION: SKR_TEMPLATES,
   ADVANTAGE_OR_RESET: AOR_TEMPLATES,
-  READ_THE_COVERAGE: DROP_TEMPLATES_PACK2_STUB,
+  READ_THE_COVERAGE: DROP_TEMPLATES,
   HUNT_THE_ADVANTAGE: HUNT_TEMPLATES_PACK2_STUB,
 }
 
@@ -391,12 +640,74 @@ export function resolveFreezeTiming(
 // --- public API ------------------------------------------------------------
 
 /** Returns the canonical freeze-phase template list for a decoder.
- *  Returns `[]` for an undefined decoder. Never throws. */
+ *  Returns `[]` for an undefined decoder. Never throws.
+ *
+ *  Uses the Pack 1 default cadence (cue=200, action=700, advantage=1100,
+ *  fade-in=300). New callers that want F5's difficulty-aware cadence
+ *  should use `getFreezeBeatTemplatesAtDifficulty(decoder, D)` instead.
+ *  This entry point stays stable so existing callers / fixtures do not
+ *  shift offsets under their feet. */
 export function getFreezeBeatTemplates(
   decoder: DecoderTag | undefined,
 ): ReadonlyArray<FreezeBeatTemplate> {
   if (!decoder) return []
   return DECODER_TEMPLATES[decoder] ?? []
+}
+
+/**
+ * F5 — Returns the freeze-phase template list for a decoder with
+ * `at_phase_ms`, `fade_in_ms`, and `fade_out_ms` re-stamped from
+ * `beatSchedule(decoder, effectiveDifficulty)`. Each template's
+ * cue / label / action / advantage `kind` selects the corresponding
+ * offset from the schedule.
+ *
+ * Pure — same inputs always produce the same outputs. Returns `[]`
+ * for an undefined or unknown decoder. Never throws.
+ *
+ * Templates with a `kind` outside the four canonical beats fall back
+ * to their authored `at_phase_ms` (today every template uses one of
+ * the four kinds, so the fallback path is reachable only by future
+ * additions). Authored fade durations on individual templates are
+ * preserved when they differ from the default; the schedule's defaults
+ * only apply when the template was authored against the constants.
+ */
+export function getFreezeBeatTemplatesAtDifficulty(
+  decoder: DecoderTag | undefined,
+  effectiveDifficulty: number,
+): ReadonlyArray<FreezeBeatTemplate> {
+  if (!decoder) return []
+  const base = DECODER_TEMPLATES[decoder] ?? []
+  if (base.length === 0) return base
+  const schedule = beatSchedule(decoder, effectiveDifficulty)
+  return base.map((t) => ({
+    ...t,
+    at_phase_ms: _scheduleOffsetFor(t.kind, schedule, t.at_phase_ms),
+    fade_in_ms:
+      t.fade_in_ms === DEFAULT_BEAT_FADE_IN_MS ? schedule.fadeInMs : t.fade_in_ms,
+    fade_out_ms:
+      t.fade_out_ms === DEFAULT_BEAT_FADE_OUT_MS
+        ? schedule.fadeOutMs
+        : t.fade_out_ms,
+  }))
+}
+
+function _scheduleOffsetFor(
+  kind: FreezeBeatKind,
+  schedule: BeatSchedule,
+  fallback: number,
+): number {
+  switch (kind) {
+    case 'cue':
+      return schedule.cueAtMs
+    case 'label':
+      return schedule.labelAtMs
+    case 'action':
+      return schedule.actionAtMs
+    case 'advantage':
+      return schedule.advantageAtMs
+    default:
+      return fallback
+  }
 }
 
 /**
@@ -415,9 +726,15 @@ export interface FreezeBeatAnchors {
   receiver?: string
   open_player?: string
   passer?: string
+  /** DROP — the on-ball big sitting back at or below the screen. */
+  screen_defender?: string
+  /** DROP — the PnR ball-handler reading the coverage call. */
+  ball_handler?: string
   vacated_zone?: CourtPoint
   open_rim_zone?: CourtPoint
   closeout_target?: CourtPoint
+  /** DROP — geometric pocket between the screen + retreating big. */
+  pull_up_pocket?: CourtPoint
 }
 
 export interface HydrateOptions {
@@ -482,6 +799,8 @@ function _anchorPlayerId(
     case 'receiver': return a.receiver
     case 'open_player': return a.open_player
     case 'passer': return a.passer
+    case 'screen_defender': return a.screen_defender
+    case 'ball_handler': return a.ball_handler
     default: return undefined
   }
 }
@@ -494,6 +813,7 @@ function _anchorPoint(
     case 'vacated_zone': return a.vacated_zone
     case 'open_rim_zone': return a.open_rim_zone
     case 'closeout_target': return a.closeout_target
+    case 'pull_up_pocket': return a.pull_up_pocket
     default: return undefined
   }
 }

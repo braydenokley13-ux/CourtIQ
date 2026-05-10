@@ -8,6 +8,7 @@ import {
   overlayPrimitiveSchema,
   resolveFreezeAtMs,
   sceneSchema,
+  timingOverridesSchema,
 } from './schema'
 
 const baseScene = {
@@ -292,6 +293,54 @@ describe('coachValidationSchema', () => {
   it('accepts level=low + status=not_needed', () => {
     expect(
       coachValidationSchema.safeParse({ level: 'low', status: 'not_needed' }).success,
+    ).toBe(true)
+  })
+})
+
+describe('timingOverridesSchema — F1 absolute cognition hold floor (800ms)', () => {
+  it('accepts cognitionHoldMs at the new absolute floor of 800ms', () => {
+    expect(
+      timingOverridesSchema.safeParse({ cognitionHoldMs: 800 }).success,
+    ).toBe(true)
+  })
+
+  it('accepts the legacy 1100ms floor unchanged', () => {
+    expect(
+      timingOverridesSchema.safeParse({ cognitionHoldMs: 1100 }).success,
+    ).toBe(true)
+  })
+
+  it('accepts D4 target 1000ms and D5 target 800ms (per the F1 floor table)', () => {
+    expect(
+      timingOverridesSchema.safeParse({ cognitionHoldMs: 1000 }).success,
+    ).toBe(true)
+    expect(
+      timingOverridesSchema.safeParse({ cognitionHoldMs: 800 }).success,
+    ).toBe(true)
+  })
+
+  it('rejects values below the absolute 800ms floor', () => {
+    expect(
+      timingOverridesSchema.safeParse({ cognitionHoldMs: 799 }).success,
+    ).toBe(false)
+    expect(
+      timingOverridesSchema.safeParse({ cognitionHoldMs: 0 }).success,
+    ).toBe(false)
+  })
+
+  it('still rejects values above the 4_000ms ceiling', () => {
+    expect(
+      timingOverridesSchema.safeParse({ cognitionHoldMs: 4_001 }).success,
+    ).toBe(false)
+  })
+
+  it('per-D narrowing happens in the materializer, not here — the parser admits the full 800–4000 range', () => {
+    // A D2 scenario that authors a 900ms hold round-trips the runtime
+    // parser successfully — the per-D floor (1100ms for D2) is enforced
+    // at materialize time so the runtime can ingest any
+    // ≥800ms cognitionHoldMs without needing to know the variant's D.
+    expect(
+      timingOverridesSchema.safeParse({ cognitionHoldMs: 900 }).success,
     ).toBe(true)
   })
 })

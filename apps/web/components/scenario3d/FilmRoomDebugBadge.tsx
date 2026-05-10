@@ -241,15 +241,29 @@ export function FilmRoomDebugBadge({
         preAnswer: scene.preAnswerOverlays ?? [],
         postAnswer: scene.postAnswerOverlays ?? [],
         level: effectiveLevel,
+        // Pack 2 Teaching-Quality F6 — mirror AuthoredOverlayBridge's
+        // decoder-aware projection so the debug badge shows what the
+        // renderer actually mounts.
+        decoderTag: scene.decoderTag,
       })
     : { preAnswer: [], postAnswer: [], droppedPre: 0, droppedPost: 0, level: effectiveLevel }
   const suppressed = isOverlaySuppressed(effectiveLevel)
+  // Pack 2 (3.1.2) — when the scene authors `consequenceOverlays` and
+  // the controller is in the `consequence` state, the bridge mounts
+  // the consequence overlay set rather than the post-answer set. The
+  // badge surfaces that distinct count so debug viewers see what's
+  // actually on screen.
+  const consequenceCount: number = scene?.consequenceOverlays?.length ?? 0
   const phaseStaged: number =
     replayPhase === 'frozen' || replayPhase === 'cueRepaint'
       ? filtered.preAnswer.length
-      : replayPhase === 'consequence' || replayPhase === 'replaying' || replayPhase === 'done'
-        ? filtered.postAnswer.length
-        : 0
+      : replayPhase === 'consequence'
+        ? consequenceCount > 0
+          ? consequenceCount
+          : filtered.postAnswer.length
+        : replayPhase === 'replaying' || replayPhase === 'done'
+          ? filtered.postAnswer.length
+          : 0
 
   // FR-6 — replay teaching state. Three derived bits the badge surfaces
   // so QA can see at a glance which leg is active, whether the cue
