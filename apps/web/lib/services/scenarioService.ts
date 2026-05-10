@@ -233,14 +233,12 @@ export async function generateSessionBundle(
   // so a daily completion an hour ago doesn't masquerade as a
   // training session for classifyReturn. Inlined twice (count + find)
   // because Prisma's where-clause typing rejects a shared `as const`.
-  const [profile, user, allLiveScenarios, recentAttemptsDesc, lifetimeCount, lastSession] =
+  const [profile, allLiveScenarios, recentAttemptsDesc, lifetimeCount, lastSession] =
     await Promise.all([
+      // Phase δ-C — `Profile.calibrated_at` replaces the prior
+      // `User.created_at` proxy for HUNT eligibility. Null = the
+      // user hasn't finished calibration → conservative HUNT exclude.
       prisma.profile.findUnique({ where: { user_id: userId } }),
-      // For HUNT eligibility we need a "days since calibration"
-      // approximation. There's no dedicated `calibrated_at` column;
-      // `User.created_at` is the closest proxy (account age = how
-      // long the player has had to calibrate their IQ).
-      prisma.user.findUnique({ where: { id: userId }, select: { created_at: true } }),
       prisma.scenario.findMany({
         where: {
           status: 'LIVE',
@@ -296,15 +294,16 @@ export async function generateSessionBundle(
       )
     : null
 
-  // Phase γ HUNT gates — derive the two scalars the gate helpers
-  // need from data we already loaded:
+  // Phase γ HUNT gates (Phase δ-C calibration-source swap) — derive
+  // the inputs the gate helpers need from data we already loaded:
   //   * `huntMasteryRollingAccuracy`: rolling accuracy on past HUNT
   //     attempts (defaults to 0 if the user hasn't attempted any).
   //     Computed off `recentAttempts` so it stays in lockstep with
   //     the existing decoder-confidence math.
-  //   * `daysSinceCalibration`: account age in days (User.created_at
-  //     proxy). Brand-new accounts (no row) fall back to 0 so
-  //     under-700 IQ players get the conservative HUNT exclusion.
+  //   * `calibratedAt`: from `Profile.calibrated_at` (Phase δ-C). The
+  //     gate treats null as uncalibrated → HUNT excluded, so missing
+  //     Profile rows or pre-Phase-δ-C accounts that haven't been
+  //     re-calibrated never get HUNT injected into their pool.
   const huntAttempts = recentAttempts.filter(
     (a) => a.scenario.decoder_tag === 'HUNT_THE_ADVANTAGE',
   )
@@ -312,12 +311,10 @@ export async function generateSessionBundle(
     huntAttempts.length > 0
       ? huntAttempts.filter((a) => a.is_correct).length / huntAttempts.length
       : 0
-  const daysSinceCalibration = user
-    ? Math.floor((now.getTime() - user.created_at.getTime()) / (24 * 60 * 60 * 1000))
-    : 0
   const huntEligible = isHuntEligibleForUser({
     iq_score: profile?.iq_score ?? 500,
-    daysSinceCalibration,
+    calibratedAt: profile?.calibrated_at ?? null,
+    now,
   })
 
   // Concept-filtered sessions (e.g. an Academy lesson "drill this

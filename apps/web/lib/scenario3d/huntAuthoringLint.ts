@@ -37,6 +37,9 @@
  *                 `coach_validation.status: 'approved'`. The seeder
  *                 enforces high+approved for shipping; this lint
  *                 catches missing reviews at template-author time.
+ *                 Phase δ-A: D3 (decoy-action) scenarios fall under
+ *                 the same gate — `medium` is no longer sufficient
+ *                 once a HUNT variant resolves to difficulty ≥ 3.
  *
  * Architecture lock — read once, never violate:
  *   - Pure data + types. No I/O, no DB, no Three.js. The lint takes

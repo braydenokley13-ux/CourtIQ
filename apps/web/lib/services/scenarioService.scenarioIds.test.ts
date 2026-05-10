@@ -20,9 +20,10 @@ vi.mock('@/lib/db/prisma', () => ({
       count: vi.fn(),
     },
     sessionRun: { create: vi.fn(), findFirst: vi.fn() },
+    // Phase δ-C — Profile now carries `calibrated_at`, consumed
+    // directly by the HUNT eligibility gate. Replaces the prior
+    // `User.created_at` proxy hydration.
     profile: { findUnique: vi.fn() },
-    // Phase γ — User row hydrated for HUNT calibration-window check.
-    user: { findUnique: vi.fn() },
     mastery: { findMany: vi.fn() },
     attempt: { findMany: vi.fn(), count: vi.fn() },
   },
@@ -75,11 +76,9 @@ describe('generateSessionBundle — scenarioIds (plural) pin', () => {
   })
 
   beforeEach(() => {
-    // Phase γ — default to a mature account so the HUNT eligibility
-    // gate doesn't filter HUNT out of the weighted-fallback path.
-    ;(prisma.user.findUnique as MockedFn).mockResolvedValue({
-      created_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
-    })
+    // No-op — profile mocks (which now carry `calibrated_at`) are
+    // configured per-test. Tests that exercise the weighted-fallback
+    // path set a long-ago calibration so HUNT stays in the pool.
   })
 
   it('returns the requested scenarios in the requested order, ignoring weighted bucket logic', async () => {
@@ -92,6 +91,7 @@ describe('generateSessionBundle — scenarioIds (plural) pin', () => {
     ;(prisma.profile.findUnique as MockedFn).mockResolvedValueOnce({
       iq_score: 700,
       current_streak: 3,
+      calibrated_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
     })
     ;(prisma.sessionRun.create as MockedFn).mockResolvedValueOnce({ id: 'sess-1' })
 
@@ -143,7 +143,11 @@ describe('generateSessionBundle — scenarioIds (plural) pin', () => {
   it('falls through to weighted bundle when scenarioIds is undefined or empty', async () => {
     // No scenarioIds → path should hit the standard weighted bundle.
     // Stub all the queries the weighted path makes.
-    ;(prisma.profile.findUnique as MockedFn).mockResolvedValue({ iq_score: 500, current_streak: 0 })
+    ;(prisma.profile.findUnique as MockedFn).mockResolvedValue({
+      iq_score: 500,
+      current_streak: 0,
+      calibrated_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
+    })
     ;(prisma.scenario.findMany as MockedFn).mockResolvedValue([
       makeScenario('SC-1'),
       makeScenario('SC-2'),
