@@ -250,3 +250,107 @@ describe('buildScene', () => {
     expect(result.type).toBe('closeouts')
   })
 })
+
+describe('buildScene — Pack 2 Teaching-Quality wire-in (decoderTag + effectiveDifficulty)', () => {
+  const minimalAuthoredScene = {
+    players: [
+      { id: 'user', team: 'offense' as const, role: 'wing', start: { x: 0, z: 10 }, isUser: true },
+      { id: 'pg', team: 'offense' as const, role: 'ball_handler', start: { x: 0, z: 22 }, hasBall: true },
+    ],
+    ball: { start: { x: 0, z: 22 } },
+  }
+
+  it('propagates decoder_tag through to scene.decoderTag for known decoders', () => {
+    const tags = [
+      'BACKDOOR_WINDOW',
+      'EMPTY_SPACE_CUT',
+      'SKIP_THE_ROTATION',
+      'ADVANTAGE_OR_RESET',
+      'READ_THE_COVERAGE',
+      'HUNT_THE_ADVANTAGE',
+    ] as const
+    for (const tag of tags) {
+      const result = buildScene({
+        id: 'wire-in',
+        scene: minimalAuthoredScene,
+        decoder_tag: tag,
+      })
+      expect(result.decoderTag).toBe(tag)
+    }
+  })
+
+  it('coerces unknown decoder strings to undefined (no throw)', () => {
+    const result = buildScene({
+      id: 'wire-in',
+      scene: minimalAuthoredScene,
+      decoder_tag: 'NOT_A_REAL_DECODER',
+    })
+    expect(result.decoderTag).toBeUndefined()
+  })
+
+  it('propagates difficulty through to scene.effectiveDifficulty', () => {
+    for (const d of [1, 2, 3, 4, 5]) {
+      const result = buildScene({
+        id: 'wire-in',
+        scene: minimalAuthoredScene,
+        difficulty: d,
+      })
+      expect(result.effectiveDifficulty).toBe(d)
+    }
+  })
+
+  it('drops out-of-band difficulty to undefined (downstream helpers fall back)', () => {
+    for (const d of [0, 6, 99, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const result = buildScene({
+        id: 'wire-in',
+        scene: minimalAuthoredScene,
+        difficulty: d,
+      })
+      expect(result.effectiveDifficulty).toBeUndefined()
+    }
+  })
+
+  it('rounds non-integer difficulty to the nearest integer', () => {
+    expect(
+      buildScene({ id: 'x', scene: minimalAuthoredScene, difficulty: 4.4 }).effectiveDifficulty,
+    ).toBe(4)
+    expect(
+      buildScene({ id: 'x', scene: minimalAuthoredScene, difficulty: 4.6 }).effectiveDifficulty,
+    ).toBe(5)
+  })
+
+  it('preserves both fields through the preset fall-through path', () => {
+    const result = buildScene({
+      id: 'wire-in-preset',
+      concept_tags: ['closeouts'],
+      decoder_tag: 'ADVANTAGE_OR_RESET',
+      difficulty: 4,
+    })
+    expect(result.decoderTag).toBe('ADVANTAGE_OR_RESET')
+    expect(result.effectiveDifficulty).toBe(4)
+  })
+
+  it('preserves both fields through the synth-from-court-state path', () => {
+    const result = buildScene({
+      id: 'wire-in-synth',
+      court_state: {
+        offense: [{ id: 'user', x: 0, y: 0, role: 'wing' }],
+        defense: [],
+        ball_location: { x: 0, y: 0 },
+      },
+      decoder_tag: 'BACKDOOR_WINDOW',
+      difficulty: 2,
+    })
+    expect(result.decoderTag).toBe('BACKDOOR_WINDOW')
+    expect(result.effectiveDifficulty).toBe(2)
+  })
+
+  it('legacy scenes (no decoder_tag, no difficulty) leave both fields undefined', () => {
+    const result = buildScene({
+      id: 'legacy',
+      scene: minimalAuthoredScene,
+    })
+    expect(result.decoderTag).toBeUndefined()
+    expect(result.effectiveDifficulty).toBeUndefined()
+  })
+})
