@@ -333,6 +333,7 @@ export type FreezeBeatAnchorRole =
   | 'passer'
   | 'screen_defender'     // DROP — the big sitting back below the screen
   | 'ball_handler'        // DROP — the PnR ball-handler reading the call
+  | 'mismatch_target'     // HUNT — the post-switch defender being hunted
   | 'vacated_zone'        // ESC / SKR — anchor is geometric, not a player
   | 'open_rim_zone'       // BDW backdoor catch zone
   | 'closeout_target'     // AOR — between closeout defender + receiver
@@ -354,7 +355,7 @@ export interface FreezeBeatTemplate {
   anchor: FreezeBeatAnchorRole
   target_anchor?: FreezeBeatAnchorRole
   /** Help-pulse role label, if the primitive is `help_pulse`. */
-  help_pulse_role?: 'tag' | 'low_man' | 'nail' | 'stunter' | 'overhelp'
+  help_pulse_role?: 'tag' | 'low_man' | 'nail' | 'stunter' | 'overhelp' | 'mismatch'
   clutter_priority: number
   fade_in_ms: number
   fade_out_ms: number
@@ -549,10 +550,113 @@ const DROP_TEMPLATES: ReadonlyArray<FreezeBeatTemplate> = [
   },
 ]
 
-// HUNT (chained two-beat) still ships as the empty sentinel until
-// Phase γ designs the full second-beat schedule. Pack 1 contract:
-// "missing decoder collapses to an empty list, never throws."
-const HUNT_TEMPLATES_PACK2_STUB: ReadonlyArray<FreezeBeatTemplate> = []
+// Pack 2 (Phase γ) — HUNT (HUNT_THE_ADVANTAGE) chained two-beat
+// templates. HUNT is the only decoder that freezes twice in a single
+// scenario: beat 1 establishes the matchup ("the switch happened"),
+// beat 2 reads the recovery ("attack the angle they gave you").
+//
+// The existing per-decoder template list is single-flat: it's not
+// per-beat-index. The runtime reads `scene.secondBeatPreAnswerOverlays`
+// directly off the scene to drive beat 2's distinct cue cluster (see
+// `huntRuntimeVerticalSlice.test.ts`). The templates below describe
+// the canonical authored shape an author should mirror across both
+// beats — beat 1 (cue + action) on the mismatch_target's chest/hip,
+// beat 2 (cue retained + advantage) on the foot recovery. They share
+// the standard cue/action/advantage cadence so the F5 difficulty-aware
+// schedule (cue=200, action=700, advantage=1100) applies cleanly.
+//
+// Per HUNT_DECODER_DESIGN.md §2.4 ("highlight only what changed"):
+// the help_pulse(role:'mismatch') anchor is shared across both beats —
+// it persists from beat 1 into beat 2 — and the chest_line/hip_arrow
+// (beat 1 action) is swapped for foot_arrow (beat 2 advantage) when
+// the recovery angle becomes the key cue. Two `cue` entries denote the
+// persistent mismatch pulse; the action/advantage pair denotes the
+// per-beat body-language cue.
+const HUNT_TEMPLATES: ReadonlyArray<FreezeBeatTemplate> = [
+  // Beat 1 cue — mismatch pulse establishes "this is who they switched
+  // onto you." Persists into beat 2 (the runtime authors the same
+  // primitive into `secondBeatPreAnswerOverlays`).
+  {
+    kind: 'cue',
+    at_phase_ms: CUE_BEAT_AT_MS,
+    primitive_kind: 'help_pulse',
+    anchor: 'mismatch_target',
+    help_pulse_role: 'mismatch',
+    clutter_priority: 1,
+    fade_in_ms: DEFAULT_BEAT_FADE_IN_MS,
+    fade_out_ms: DEFAULT_BEAT_FADE_OUT_MS,
+    teaching_question: 'what_changed',
+  },
+  // Beat 1 action — defender chest line on the post-switch defender:
+  // "his stance is square, but his feet aren't moving — the matchup is
+  // real." This is the body-language cue that the matchup is genuinely
+  // exploitable, not a defender already in stance.
+  {
+    kind: 'action',
+    at_phase_ms: ACTION_BEAT_AT_MS,
+    primitive_kind: 'defender_chest_line',
+    anchor: 'mismatch_target',
+    clutter_priority: 2,
+    fade_in_ms: DEFAULT_BEAT_FADE_IN_MS,
+    fade_out_ms: DEFAULT_BEAT_FADE_OUT_MS,
+    teaching_question: 'what_is_best_read',
+  },
+  // Beat 1 advantage — the open lane to the rim is the space the
+  // mismatch creates. Anchored to the rim zone the user is now able to
+  // attack at speed against a slower defender.
+  {
+    kind: 'advantage',
+    at_phase_ms: ADVANTAGE_BEAT_AT_MS,
+    primitive_kind: 'open_space_region',
+    anchor: 'open_rim_zone',
+    clutter_priority: 3,
+    fade_in_ms: DEFAULT_BEAT_FADE_IN_MS,
+    fade_out_ms: DEFAULT_BEAT_FADE_OUT_MS,
+    teaching_question: 'what_space_opened',
+  },
+  // Beat 2 cue — mismatch pulse retained. Same primitive, same anchor,
+  // signaling continuity — "this is still the matchup you forced." The
+  // diff cognition the player performs is between this persistent pulse
+  // and the new foot_arrow on beat 2.
+  {
+    kind: 'cue',
+    at_phase_ms: CUE_BEAT_AT_MS,
+    primitive_kind: 'help_pulse',
+    anchor: 'mismatch_target',
+    help_pulse_role: 'mismatch',
+    clutter_priority: 1,
+    fade_in_ms: DEFAULT_BEAT_FADE_IN_MS,
+    fade_out_ms: DEFAULT_BEAT_FADE_OUT_MS,
+    teaching_question: 'what_changed',
+  },
+  // Beat 2 action — defender foot arrow on the post-switch defender:
+  // "his recovery foot points away from the rim — drive baseline." The
+  // foot arrow is the load-bearing new cue that swaps in for beat 1's
+  // chest_line.
+  {
+    kind: 'action',
+    at_phase_ms: ACTION_BEAT_AT_MS,
+    primitive_kind: 'defender_foot_arrow',
+    anchor: 'mismatch_target',
+    clutter_priority: 2,
+    fade_in_ms: DEFAULT_BEAT_FADE_IN_MS,
+    fade_out_ms: DEFAULT_BEAT_FADE_OUT_MS,
+    teaching_question: 'what_is_best_read',
+  },
+  // Beat 2 advantage — the now-open baseline driving lane. The
+  // advantage is the same shape as beat 1 (rim attack) but at a
+  // tighter angle now that the recovery commits the defender's hips.
+  {
+    kind: 'advantage',
+    at_phase_ms: ADVANTAGE_BEAT_AT_MS,
+    primitive_kind: 'open_space_region',
+    anchor: 'open_rim_zone',
+    clutter_priority: 3,
+    fade_in_ms: DEFAULT_BEAT_FADE_IN_MS,
+    fade_out_ms: DEFAULT_BEAT_FADE_OUT_MS,
+    teaching_question: 'what_space_opened',
+  },
+]
 
 const DECODER_TEMPLATES: Record<DecoderTag, ReadonlyArray<FreezeBeatTemplate>> = {
   BACKDOOR_WINDOW: BDW_TEMPLATES,
@@ -560,7 +664,7 @@ const DECODER_TEMPLATES: Record<DecoderTag, ReadonlyArray<FreezeBeatTemplate>> =
   SKIP_THE_ROTATION: SKR_TEMPLATES,
   ADVANTAGE_OR_RESET: AOR_TEMPLATES,
   READ_THE_COVERAGE: DROP_TEMPLATES,
-  HUNT_THE_ADVANTAGE: HUNT_TEMPLATES_PACK2_STUB,
+  HUNT_THE_ADVANTAGE: HUNT_TEMPLATES,
 }
 
 // --- per-scenario timing resolution (Phase 3.1.4) -------------------------
@@ -730,6 +834,8 @@ export interface FreezeBeatAnchors {
   screen_defender?: string
   /** DROP — the PnR ball-handler reading the coverage call. */
   ball_handler?: string
+  /** HUNT — the post-switch defender the offense is hunting. */
+  mismatch_target?: string
   vacated_zone?: CourtPoint
   open_rim_zone?: CourtPoint
   closeout_target?: CourtPoint
@@ -801,6 +907,7 @@ function _anchorPlayerId(
     case 'passer': return a.passer
     case 'screen_defender': return a.screen_defender
     case 'ball_handler': return a.ball_handler
+    case 'mismatch_target': return a.mismatch_target
     default: return undefined
   }
 }
