@@ -1,0 +1,281 @@
+[
+  {
+    "id": "DROP-03",
+    "version": 1,
+    "status": "DRAFT",
+    "title": "Kick the Low-Man Tag",
+    "category": "OFFENSE",
+    "decoder_tag": "READ_THE_COVERAGE",
+    "concept_tags": [
+      "pnr_ball_handler_read",
+      "pnr_screener_read",
+      "screen_defender_coverage_read"
+    ],
+    "sub_concepts": ["low_man_tag", "drop_kick_corner"],
+    "difficulty": 3,
+    "user_role": "pnr_ball_handler",
+    "game_context": "5-on-5 half-court. You are the point guard initiating a high ball-screen at the top of the key. Your screener (5) sets the screen on your right and rolls hard. The screen defender (x5) drops in textbook drop coverage. The weak-side low man (x2, guarding the weak corner) stunts up to tag the roller — and this rep he commits all the way: both feet inside the lane, chest square to the roller, hips no longer shading his man in the corner.",
+    "possession_setup": "Top-of-the-key high pick-and-roll, screen on the right. x5 drops textbook depth — chest at the screen level, feet to his own rim. x1 chases on the user's hip. As the screener rolls into the lane, x2 (weak corner defender) abandons his stance and steps fully into the tag line. The strong-side help (x4) stays attached to his corner; the wing defender (x3) is shell-honest.",
+    "decision_moment": "You come off the screen, see the drop, and look for the pocket — but the second read tells you more. The weak-side low man has committed to the tag: both feet in the lane, chest square to your roller. His corner is empty. The high-EV read is the cross-court kick to the open weak corner shooter (2), not the pocket pass to the tagged roller and not the pull-up.",
+    "visible_cue": "x5 sits back in textbook drop (chest at screen level, feet to rim). x2 stunted up so far his chest is square to the roller and BOTH feet are inside the lane — full commit. The weak corner behind him is wide open. The pocket pass to the roller would walk straight into x2's chest; the pull-up is fine but a corner three is the bigger advantage.",
+    "court_state": {
+      "offense": [
+        { "id": "user", "x": 240, "y": 180, "role": "pnr_ball_handler", "hasBall": true },
+        { "id": "screener", "x": 280, "y": 200, "role": "screener", "hasBall": false },
+        { "id": "wing", "x": 60, "y": 80, "role": "weak_wing", "hasBall": false },
+        { "id": "corner_strong", "x": 460, "y": 10, "role": "strong_corner", "hasBall": false },
+        { "id": "corner_weak", "x": 20, "y": 10, "role": "weak_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x_user", "x": 240, "y": 200, "role": "on_ball", "hasBall": false },
+        { "id": "x_screener", "x": 280, "y": 140, "role": "screen_defender", "hasBall": false },
+        { "id": "x_wing", "x": 80, "y": 100, "role": "weak_wing_defender", "hasBall": false },
+        { "id": "x_corner_strong", "x": 440, "y": 30, "role": "strong_corner_defender", "hasBall": false },
+        { "id": "x_corner_weak", "x": 100, "y": 60, "role": "weak_corner_defender", "hasBall": false }
+      ],
+      "ball_location": { "x": 240, "y": 180 }
+    },
+    "prompt": "You turn the corner. The big drops. The low man steps all the way up onto the roller. What's the read?",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Skip the cross-court kick to the weak corner.",
+        "quality": "best",
+        "feedback_text": "Best read. The low man committed — his corner is empty. Cross-court skip to 2 for the open three before x2 can recover.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Pull up in the pocket.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. The drop still gives you the pocket pull-up, but a fully-committed tag opens a corner three — bigger advantage than a mid-range pull-up.",
+        "partial_feedback_text": "Pull-up is open against a settled drop. The committed tag opens a wider window: the kick is the higher EV.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Pocket pass to the roller.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. The tag is fully committed — the pocket pass walks the roller straight into x2's chest. Read the tag before you feed.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Swing the ball back to the strong wing.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. The swing wastes the kick window — the tag recovers before the ball gets to the corner. Hit the open shooter directly.",
+        "order": 4
+      }
+    ],
+    "best_read": "Skip the cross-court pass to the weak corner. x2 committed both feet to the tag and his chest is square to the roller — by definition his man in the corner is alone. The drop already kept x5 deep, so no one is going to close out from the paint in time. The shooter receives the ball with a full beat to gather and rise before x2 can recover diagonally across the floor.",
+    "acceptable_reads": [
+      "Pull up in the pocket — drop still gives you the pull-up, but a fully-committed tag opens the corner wider than the pocket. Lower EV than the skip kick."
+    ],
+    "bad_reads": [
+      "Pocket pass to the roller — the tag is sitting on the roller's chest, the pass gets picked or fouls the catch.",
+      "Swing back to the strong wing — the ball travel time lets x2 recover; the kick window closes."
+    ],
+    "common_miss_reason": "Locking onto the single drop cue. Players who learned DROP D1/D2 anchor on the screen defender's chest line and never re-read the second defender. When the low man commits, the corner shooter is the bigger advantage — but the player has to read TWO defenders, not just one.",
+    "why_best_read_works": "A low-man tag is a coverage trade: the helper surrenders the corner to keep the roller from finishing at the rim. When the tag is fully committed (chest square, both feet in the lane), the helper cannot recover diagonally faster than the ball can skip across the floor. The drop big stays deep and cannot rotate to the corner — that's not his job. The on-ball defender is trailing. For one beat, the corner shooter has no one on him AND no help in flight. The kick beats the help by a full beat; the catch-and-shoot lifts before x2 closes out.",
+    "decoder_teaching_point": "Read two defenders. The drop gives you the pocket; the tag tells you who's open BEHIND the drop. Committed tag (chest square + both feet in the lane) = kick the skip to his corner. Bumping tag = pocket pass to the roller.",
+    "lesson_connection": "pnr-coverage-recognition",
+    "feedback": {
+      "correct": "Good read. The tag committed and you read his corner. The kick beat the rotation.",
+      "partial": "Pull-up was open, but the corner kick was open wider. Read the tag, not just the drop.",
+      "wrong": "Look at the tagger's feet AND chest. Both feet in the lane + chest square = he's gone. His corner is the answer, not the roller and not the pull-up."
+    },
+    "self_review_checklist": [
+      "Did I read the screen defender AND the low man, not just one?",
+      "Did I see both of x2's feet inside the lane before I committed?",
+      "Did I make the skip pass before x2 could recover diagonally?",
+      "Did I hit the shooter on balance so he could lift, not adjust?"
+    ],
+    "coach_validation": {
+      "level": "medium",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-10T00:00:00.000Z",
+      "notes": "Pack 2 (Phase δ) — DROP-03 base scenario. D3: low-man tag read, kick the committed tagger's corner. Single-freeze (no beatSpec.secondBeat) — the read lands in one beat across two defender cues per DROP_DECODER_DESIGN.md §3.3 (intermediate cap=4 across two defenders). Coach validation medium per the doc's D3 spec (two-defender cue clusters increase ambiguity risk; SME approved the geometry)."
+    },
+    "source_research_basis": "Standard PnR coverage taxonomy. Low-man tag rotation is the canonical D3 read above D1 pull-up + D2 snake — taught from high-school varsity through every NBA playbook as the second cue layer on top of a drop call. Kick-the-tag is the textbook punishment for an over-committing low man (Spain, Horns, Chicago entry actions).",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": ["DROP-01", "DROP-02"]
+    },
+    "explanation_md": "**Read the Coverage — Low-Man Tag.** D1 taught you the pocket pull-up. D2 taught you the snake against a deep drop. D3 adds a second defender — the weak-side low man tagging the roller. The cue is now a cluster: x5's chest still tells you the call (drop), but x2's commitment tells you the EXPLOIT. If x2 stays in his stance and just stunts (foot in the lane but chest still angled), the pocket pass to the roller is the answer. If x2 commits fully — chest square, both feet in the lane — his corner is empty and the kick is open. **Read two defenders. Kick the committed tag.**",
+    "xp_reward": 22,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "pnr_drop_low_man_tag",
+      "court": "half",
+      "camera": "top_down",
+      "players": [
+        { "id": "user", "team": "offense", "role": "pnr_ball_handler", "label": "You", "start": { "x": 0, "z": 22 }, "isUser": true, "hasBall": true },
+        { "id": "screener", "team": "offense", "role": "screener", "label": "5", "start": { "x": 4, "z": 20 } },
+        { "id": "wing", "team": "offense", "role": "weak_wing", "label": "3", "start": { "x": -16, "z": 12 } },
+        { "id": "corner_strong", "team": "offense", "role": "strong_corner", "label": "4", "start": { "x": 22, "z": 1 } },
+        { "id": "corner_weak", "team": "offense", "role": "weak_corner", "label": "2", "start": { "x": -22, "z": 1 } },
+        { "id": "x_user", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": 0, "z": 24 } },
+        { "id": "x_screener", "team": "defense", "role": "screen_defender", "label": "x5", "start": { "x": 4, "z": 16 } },
+        { "id": "x_wing", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": -14, "z": 13 } },
+        { "id": "x_corner_strong", "team": "defense", "role": "strong_corner_defender", "label": "x4", "start": { "x": 20, "z": 3 } },
+        { "id": "x_corner_weak", "team": "defense", "role": "weak_corner_low_man_tag", "label": "x2", "start": { "x": -18, "z": 5 } }
+      ],
+      "ball": {
+        "start": { "x": 0, "z": 22 },
+        "holderId": "user"
+      },
+      "movements": [
+        {
+          "id": "screener_set",
+          "playerId": "screener",
+          "kind": "lift",
+          "to": { "x": 3, "z": 21 },
+          "delayMs": 0,
+          "durationMs": 500
+        },
+        {
+          "id": "user_use_screen",
+          "playerId": "user",
+          "kind": "drive",
+          "to": { "x": 5, "z": 19 },
+          "delayMs": 400,
+          "durationMs": 700
+        },
+        {
+          "id": "x_user_trail",
+          "playerId": "x_user",
+          "kind": "rotation",
+          "to": { "x": 3, "z": 22 },
+          "delayMs": 400,
+          "durationMs": 700
+        },
+        {
+          "id": "x_screener_drop",
+          "playerId": "x_screener",
+          "kind": "drift",
+          "to": { "x": 4, "z": 14 },
+          "delayMs": 0,
+          "durationMs": 900
+        },
+        {
+          "id": "screener_roll",
+          "playerId": "screener",
+          "kind": "drive",
+          "to": { "x": 2, "z": 10 },
+          "delayMs": 600,
+          "durationMs": 700
+        },
+        {
+          "id": "x_low_man_commit",
+          "playerId": "x_corner_weak",
+          "kind": "rotation",
+          "to": { "x": -4, "z": 8 },
+          "delayMs": 700,
+          "durationMs": 600
+        }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1400 },
+      "answerDemo": [
+        {
+          "id": "user_skip_pass",
+          "playerId": "ball",
+          "kind": "skip_pass",
+          "to": { "x": -22, "z": 1 },
+          "delayMs": 0,
+          "durationMs": 700
+        },
+        {
+          "id": "corner_weak_lift_shot",
+          "playerId": "corner_weak",
+          "kind": "lift",
+          "to": { "x": -22, "z": 2 },
+          "delayMs": 600,
+          "durationMs": 300
+        },
+        {
+          "id": "corner_weak_release",
+          "playerId": "ball",
+          "kind": "pass",
+          "to": { "x": -22, "z": 0.5 },
+          "delayMs": 900,
+          "durationMs": 500
+        }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You pulled up in the pocket. Open shot, but the corner kick was open wider.",
+          "movements": [
+            {
+              "id": "user_pull_up_3",
+              "playerId": "user",
+              "kind": "lift",
+              "to": { "x": 5, "z": 18 },
+              "delayMs": 0,
+              "durationMs": 350
+            }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You fed the roller. x2 was sitting on his chest — the pass got tagged.",
+          "movements": [
+            {
+              "id": "user_pocket_pass_3",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": { "x": 2, "z": 10 },
+              "delayMs": 0,
+              "durationMs": 500
+            },
+            {
+              "id": "x_low_man_pickoff",
+              "playerId": "x_corner_weak",
+              "kind": "closeout",
+              "to": { "x": 0, "z": 10 },
+              "delayMs": 200,
+              "durationMs": 400
+            }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You swung the ball back. x2 recovered before the kick reached the corner.",
+          "movements": [
+            {
+              "id": "user_swing_3",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": { "x": -16, "z": 12 },
+              "delayMs": 0,
+              "durationMs": 600
+            },
+            {
+              "id": "x_low_man_recover_3",
+              "playerId": "x_corner_weak",
+              "kind": "rotation",
+              "to": { "x": -20, "z": 3 },
+              "delayMs": 200,
+              "durationMs": 600
+            }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "defender_chest_line", "playerId": "x_screener" },
+        { "kind": "defender_foot_arrow", "playerId": "x_screener" },
+        { "kind": "help_pulse", "playerId": "x_corner_weak", "role": "tag" },
+        { "kind": "defender_hip_arrow", "playerId": "x_corner_weak" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "open_space_region", "anchor": { "x": -22, "z": 1 }, "radiusFt": 5 },
+        { "kind": "passing_lane_open", "from": "user", "to": "corner_weak" },
+        { "kind": "help_pulse", "playerId": "x_corner_weak", "role": "tag" },
+        { "kind": "timing_pulse", "anchor": { "x": -22, "z": 1 }, "durationMs": 600 }
+      ]
+    }
+  }
+]
