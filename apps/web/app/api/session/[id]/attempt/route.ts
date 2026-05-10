@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { SessionMode } from '@prisma/client'
+import { z } from 'zod'
 import { prisma } from '@/lib/db/prisma'
 import { applyAttempt } from '@/lib/services/iqService'
 import { award } from '@/lib/services/xpService'
@@ -10,16 +11,44 @@ import { captureServerEvent } from '@/lib/analytics/serverEvents'
 import { sendEmail } from '@/lib/email/sender'
 import { badgeEarnedEmail } from '@/lib/email/templates/badge-earned'
 
+// Phase γ (HUNT) — per-beat correctness for chained two-beat scenarios.
+// Optional + nullable: present only for HUNT (and any future chained-
+// beat decoder), null/absent for single-beat scenarios so the replay
+// teaching layer falls back to the legacy correct / wrong cadences.
+// Persisted on Attempt.beat_results for downstream replay dispatch.
+const BeatResultSchema = z.object({
+  beatIndex: z.number().int().nonnegative(),
+  correct: z.boolean(),
+})
+const BeatResultsSchema = z.array(BeatResultSchema).optional()
+
+export function parseBeatResults(input: unknown):
+  | Array<{ beatIndex: number; correct: boolean }>
+  | undefined {
+  const parsed = BeatResultsSchema.safeParse(input)
+  if (!parsed.success) return undefined
+  return parsed.data
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: sessionId } = await params
-  const body = await request.json().catch(() => ({})) as { userId?: string; scenarioId?: string; choiceId?: string; timeMs?: number }
+  const body = await request.json().catch(() => ({})) as {
+    userId?: string
+    scenarioId?: string
+    choiceId?: string
+    timeMs?: number
+    beatResults?: unknown
+  }
 
   if (!body.userId || !body.scenarioId || !body.choiceId) {
     return NextResponse.json({ error: 'userId, scenarioId, and choiceId are required' }, { status: 400 })
   }
+
+  // HUNT-only — non-HUNT scenarios omit this and the column stays null.
+  const beatResults = parseBeatResults(body.beatResults)
 
   const session = await prisma.sessionRun.findUnique({ where: { id: sessionId } })
   if (!session || session.user_id !== body.userId) {
@@ -77,6 +106,11 @@ export async function POST(
         // off the real `best | acceptable | wrong` signal. Historical
         // rows stay null and the glue falls back to its proxy.
         choice_quality: selectedChoice.quality,
+        // Phase γ (HUNT) — per-beat correctness for chained two-beat
+        // scenarios. Undefined → column stays null for single-beat
+        // scenarios; the replay teaching layer falls back to the
+        // legacy correct / wrong cadences when this is null.
+        ...(beatResults !== undefined ? { beat_results: beatResults } : {}),
         time_ms: timeMs,
         iq_before: iq.iqBefore,
         iq_after: iq.iqAfter,

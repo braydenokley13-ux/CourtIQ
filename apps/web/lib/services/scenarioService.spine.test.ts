@@ -10,13 +10,17 @@
  * assert the routing decisions and the SessionMode that gets
  * persisted on SessionRun.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/db/prisma', () => ({
   prisma: {
     scenario: { findMany: vi.fn(), findFirst: vi.fn(), count: vi.fn() },
     sessionRun: { create: vi.fn(), findFirst: vi.fn() },
     profile: { findUnique: vi.fn() },
+    // Phase γ — User row hydrated for HUNT calibration-window check.
+    // Tests default to a freshly-created account; specific cases can
+    // override `created_at` to exercise the eligibility gate.
+    user: { findUnique: vi.fn() },
     mastery: { findMany: vi.fn() },
     attempt: { findMany: vi.fn(), count: vi.fn() },
   },
@@ -115,6 +119,15 @@ function richCatalog() {
 describe('generateSessionBundle — spine routing', () => {
   afterEach(() => {
     vi.resetAllMocks()
+  })
+
+  beforeEach(() => {
+    // Default to a mature account so the HUNT calibration-window
+    // gate doesn't filter HUNT out of every test bundle. Specific
+    // tests can override.
+    ;(prisma.user.findUnique as MockedFn).mockResolvedValue({
+      created_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
+    })
   })
 
   it('routes brand-new players (lifetimeAttempts === 0) through firstSession and persists mode=first_session', async () => {

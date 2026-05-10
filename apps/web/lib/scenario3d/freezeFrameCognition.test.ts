@@ -338,10 +338,17 @@ describe('getFreezeBeatTemplatesAtDifficulty — F5b template re-stamping', () =
     expect(getFreezeBeatTemplatesAtDifficulty(undefined, 5)).toEqual([])
   })
 
-  it('DROP / HUNT Pack 2 stubs return [] at every difficulty', () => {
+  it('Pack 2 DROP / HUNT decoders return non-empty templates at every difficulty', () => {
+    // DROP and HUNT shipped as empty stubs originally; both have been
+    // authored. DROP is single-freeze (3 templates); HUNT is chained
+    // two-beat (6 templates — two cue/action/advantage triads).
     for (const d of [1, 2, 3, 4, 5]) {
-      expect(getFreezeBeatTemplatesAtDifficulty('READ_THE_COVERAGE', d)).toEqual([])
-      expect(getFreezeBeatTemplatesAtDifficulty('HUNT_THE_ADVANTAGE', d)).toEqual([])
+      expect(
+        getFreezeBeatTemplatesAtDifficulty('READ_THE_COVERAGE', d).length,
+      ).toBeGreaterThan(0)
+      expect(
+        getFreezeBeatTemplatesAtDifficulty('HUNT_THE_ADVANTAGE', d).length,
+      ).toBeGreaterThan(0)
     }
   })
 

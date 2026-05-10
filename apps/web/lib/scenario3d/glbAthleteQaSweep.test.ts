@@ -68,13 +68,23 @@ const ROLES_PER_DECODER: Readonly<Record<string, readonly DecoderRole[]>> = {
 }
 
 describe('FR-8 Packet 7 — QA matrix is intact', () => {
-  it('exactly 20 founder-v0 scenarios', () => {
-    expect(QA_MATRIX).toHaveLength(20)
+  it('covers the twenty founder-v0 scenarios', () => {
+    const founderEntries = QA_MATRIX.filter(
+      (e) =>
+        e.decoder === 'BACKDOOR_WINDOW' ||
+        e.decoder === 'EMPTY_SPACE_CUT' ||
+        e.decoder === 'ADVANTAGE_OR_RESET' ||
+        e.decoder === 'SKIP_THE_ROTATION',
+    )
+    expect(founderEntries).toHaveLength(20)
   })
 
   it('all four founder families are covered', () => {
     const families = new Set(QA_MATRIX.map((e) => e.decoder))
-    expect(families.size).toBe(4)
+    expect(families.has('BACKDOOR_WINDOW')).toBe(true)
+    expect(families.has('EMPTY_SPACE_CUT')).toBe(true)
+    expect(families.has('ADVANTAGE_OR_RESET')).toBe(true)
+    expect(families.has('SKIP_THE_ROTATION')).toBe(true)
   })
 })
 

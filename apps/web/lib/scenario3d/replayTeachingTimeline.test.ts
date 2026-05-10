@@ -6,6 +6,9 @@ import {
   D4_PLUS_WRONG_DWELL_EXTENSION_MS,
   D4_PLUS_WRONG_DWELL_MIN_DIFFICULTY,
   DONE_HOLD_MS,
+  PARTIAL_CHAIN_CUE_REPAINT_HOLD_MS,
+  PARTIAL_CHAIN_DONE_HOLD_MS,
+  PARTIAL_CHAIN_PRE_DELAY_MS,
   PRE_BESTREAD_DELAY_MS,
   PRE_CONSEQUENCE_DELAY_MS,
   TEACHING_LABEL_FADE_IN_MS,
@@ -130,6 +133,66 @@ describe('Pack 2 Teaching-Quality F8 — D4+ wrong-answer dwell extension', () =
     const ext = getReplayCadence('wrong', 5)
     expect(ext.preLegDelayMs).toBe(base.preLegDelayMs)
     expect(ext.cueRepaintHoldMs).toBe(base.cueRepaintHoldMs)
+  })
+})
+
+describe('Pack 2 Phase-γ — partial_chain ReplayPath (HUNT)', () => {
+  it('exposes the partial-chain cadence constants per HUNT_DECODER_DESIGN §6', () => {
+    // preLegDelayMs matches the best-read 80 ms — chain-partial is
+    // closer to correct than wrong.
+    expect(PARTIAL_CHAIN_PRE_DELAY_MS).toBe(PRE_BESTREAD_DELAY_MS)
+    expect(PARTIAL_CHAIN_PRE_DELAY_MS).toBe(80)
+    // 800 ms cue repaint — slower than the 600 ms correct hold so the
+    // renderer can over-emphasize the missed beat.
+    expect(PARTIAL_CHAIN_CUE_REPAINT_HOLD_MS).toBe(800)
+    // 900 ms done hold — between correct (700) and the D4+ wrong (1500).
+    expect(PARTIAL_CHAIN_DONE_HOLD_MS).toBe(900)
+  })
+
+  it('partial_chain cadence sits strictly between correct and the D4+ wrong path', () => {
+    const partial = getReplayCadence('partial_chain')
+    const correct = getReplayCadence('correct')
+    const wrongD5 = getReplayCadence('wrong', 5)
+    expect(partial.cueRepaintHoldMs).toBeGreaterThan(correct.cueRepaintHoldMs)
+    expect(partial.doneHoldMs).toBeGreaterThan(correct.doneHoldMs)
+    expect(partial.doneHoldMs).toBeLessThan(wrongD5.doneHoldMs)
+  })
+
+  it('dispatcher returns the partial-chain bundle for path === "partial_chain"', () => {
+    const cad = getReplayCadence('partial_chain')
+    expect(cad.preLegDelayMs).toBe(PARTIAL_CHAIN_PRE_DELAY_MS)
+    expect(cad.cueRepaintHoldMs).toBe(PARTIAL_CHAIN_CUE_REPAINT_HOLD_MS)
+    expect(cad.doneHoldMs).toBe(PARTIAL_CHAIN_DONE_HOLD_MS)
+  })
+
+  it('partial_chain cadence is insensitive to effectiveDifficulty (the F8 dwell extension is wrong-path only)', () => {
+    const baseline = getReplayCadence('partial_chain')
+    for (const d of [1, 2, 3, 4, 5]) {
+      const cad = getReplayCadence('partial_chain', d)
+      expect(cad.preLegDelayMs).toBe(baseline.preLegDelayMs)
+      expect(cad.cueRepaintHoldMs).toBe(baseline.cueRepaintHoldMs)
+      expect(cad.doneHoldMs).toBe(baseline.doneHoldMs)
+    }
+  })
+
+  it('returned partial_chain cadence is frozen so consumers cannot mutate it', () => {
+    const cad = getReplayCadence('partial_chain')
+    expect(() => {
+      ;(cad as { doneHoldMs: number }).doneHoldMs = 9999
+    }).toThrow()
+  })
+
+  it('partial_chain renderer overhead stays under 2 s (§10.2 budget bound)', () => {
+    const cad = getReplayCadence('partial_chain')
+    const overhead = cad.preLegDelayMs + cad.cueRepaintHoldMs + cad.doneHoldMs
+    expect(overhead).toBeLessThan(2000)
+  })
+
+  it('does not regress wrong / correct cadences', () => {
+    expect(getReplayCadence('wrong').doneHoldMs).toBe(DONE_HOLD_MS)
+    expect(getReplayCadence('correct').doneHoldMs).toBe(DONE_HOLD_MS)
+    expect(getReplayCadence('wrong').cueRepaintHoldMs).toBe(CUE_REPAINT_HOLD_WRONG_MS)
+    expect(getReplayCadence('correct').cueRepaintHoldMs).toBe(CUE_REPAINT_HOLD_CORRECT_MS)
   })
 })
 

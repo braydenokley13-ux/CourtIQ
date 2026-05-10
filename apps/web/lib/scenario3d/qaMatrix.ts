@@ -34,8 +34,10 @@ export interface QaMatrixEntry {
 }
 
 /**
- * Twenty entries — five per decoder family. Authored from §14 of the
- * planning doc; do not edit without updating the doc.
+ * Twenty founder-v0 entries (five per Pack 1 family) plus Pack 2
+ * additions (DROP, HUNT). Authored from §14 of the planning doc and
+ * extended by the Pack 2 phase-γ rollout; mirrors the same row shape
+ * so the dev-only QA preview surfaces every shipped scenario.
  */
 export const QA_MATRIX: readonly QaMatrixEntry[] = [
   // -- BDW family ----------------------------------------------------------
@@ -346,6 +348,76 @@ export const QA_MATRIX: readonly QaMatrixEntry[] = [
     ],
     knownRisk:
       'Multiple defenders in motion — camera must isolate the cue',
+    priority: 'high',
+  },
+
+  // -- DROP family (Pack 2 / Phase β + γ) -----------------------------------
+  {
+    id: 'DROP-01',
+    decoder: 'READ_THE_COVERAGE',
+    primaryCue: 'x5 chest below the screen, feet to the rim',
+    requiredFraming:
+      'Ball-handler off the screen, x5 in drop posture, pocket visible',
+    requiredHighlight: 'x5 (screen defender)',
+    requiredOverlays: [
+      'defender_chest_line',
+      'defender_foot_arrow',
+      'label',
+    ],
+    knownRisk:
+      'Pocket region must read as open even with the screen body in frame',
+    priority: 'high',
+  },
+  {
+    id: 'DROP-02',
+    decoder: 'READ_THE_COVERAGE',
+    primaryCue: 'x5 chest below the elbow, vision locked on ball-handler',
+    requiredFraming:
+      'Ball-handler turning the corner, x5 deep, middle of the floor visible behind him',
+    requiredHighlight: 'x5 (screen defender) + middle paint',
+    requiredOverlays: [
+      'defender_chest_line',
+      'defender_foot_arrow',
+      'defender_vision_cone',
+    ],
+    knownRisk:
+      'Snake path must paint cleanly across the screen — risk of camera hiding the cross-back',
+    priority: 'high',
+  },
+
+  // -- HUNT family (Pack 2 / Phase γ) ---------------------------------------
+  {
+    id: 'HUNT-01',
+    decoder: 'HUNT_THE_ADVANTAGE',
+    primaryCue:
+      'Beat 1 mismatch on x4; beat 2 trailing recovery foot baseline',
+    requiredFraming:
+      'Wing user, x4 (post defender) on the hip, baseline lane visible at beat 2',
+    requiredHighlight: 'x4 (mismatch defender)',
+    requiredOverlays: [
+      'help_pulse',
+      'defender_chest_line',
+      'defender_foot_arrow',
+    ],
+    knownRisk:
+      'Beat 2 cluster must swap chest_line for foot_arrow without re-stacking — diff cognition relies on the change',
+    priority: 'high',
+  },
+  {
+    id: 'HUNT-02',
+    decoder: 'HUNT_THE_ADVANTAGE',
+    primaryCue:
+      'Beat 1 hip arrow on x5 (switch coming); beat 2 mismatch chest square',
+    requiredFraming:
+      'PnR ball-handler off the screen, x5 visibly switching, baseline lane visible at beat 2',
+    requiredHighlight: 'x5 (post defender, post-switch)',
+    requiredOverlays: [
+      'help_pulse',
+      'defender_hip_arrow',
+      'defender_chest_line',
+    ],
+    knownRisk:
+      'Switch animation must complete inside the inter-beat window — late switch breaks the chain',
     priority: 'high',
   },
 ] as const

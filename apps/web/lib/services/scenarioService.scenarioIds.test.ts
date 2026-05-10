@@ -10,7 +10,7 @@
  * silently downgrading.
  */
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/db/prisma', () => ({
   prisma: {
@@ -21,6 +21,8 @@ vi.mock('@/lib/db/prisma', () => ({
     },
     sessionRun: { create: vi.fn(), findFirst: vi.fn() },
     profile: { findUnique: vi.fn() },
+    // Phase γ — User row hydrated for HUNT calibration-window check.
+    user: { findUnique: vi.fn() },
     mastery: { findMany: vi.fn() },
     attempt: { findMany: vi.fn(), count: vi.fn() },
   },
@@ -70,6 +72,14 @@ function makeScenario(id: string, choices = ['a', 'b']) {
 describe('generateSessionBundle — scenarioIds (plural) pin', () => {
   afterEach(() => {
     vi.resetAllMocks()
+  })
+
+  beforeEach(() => {
+    // Phase γ — default to a mature account so the HUNT eligibility
+    // gate doesn't filter HUNT out of the weighted-fallback path.
+    ;(prisma.user.findUnique as MockedFn).mockResolvedValue({
+      created_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
+    })
   })
 
   it('returns the requested scenarios in the requested order, ignoring weighted bucket logic', async () => {

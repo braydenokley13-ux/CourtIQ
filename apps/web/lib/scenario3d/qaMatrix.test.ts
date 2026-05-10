@@ -6,6 +6,9 @@
  * the cluster-cap-respecting overlay set the planning doc requires.
  * Any future drift between scenario seeds and the matrix lights up
  * here rather than as silent QA-page rot.
+ *
+ * Pack 2 (Phase γ) — extended to cover the DROP and HUNT entries
+ * added alongside the new pnr-coverage-v0 / hunt-decoder-v0 packs.
  */
 
 import { describe, it, expect } from 'vitest'
@@ -47,9 +50,20 @@ const DECODER_TAGS: readonly DecoderTag[] = [
   'SKIP_THE_ROTATION',
 ] as const
 
+/** Pack 2 — additional decoder families shipped in phase β/γ. */
+const PACK2_DECODER_TAGS: readonly DecoderTag[] = [
+  'READ_THE_COVERAGE',
+  'HUNT_THE_ADVANTAGE',
+] as const
+
+/** Pack 2 ids the matrix is expected to surface. */
+const PACK2_IDS: readonly string[] = ['DROP-01', 'DROP-02', 'HUNT-01', 'HUNT-02'] as const
+
+const EXPECTED_TOTAL = FOUNDER_V0_IDS.length + PACK2_IDS.length
+
 describe('QA_MATRIX', () => {
-  it('contains exactly twenty entries', () => {
-    expect(QA_MATRIX).toHaveLength(20)
+  it('contains an entry for every shipped scenario (founder-v0 + Pack 2)', () => {
+    expect(QA_MATRIX).toHaveLength(EXPECTED_TOTAL)
   })
 
   it('covers every founder-v0 scenario id exactly once', () => {
@@ -60,24 +74,39 @@ describe('QA_MATRIX', () => {
     }
   })
 
-  it('exposes the same ids via QA_MATRIX_IDS', () => {
-    expect(QA_MATRIX_IDS).toHaveLength(20)
-    expect([...QA_MATRIX_IDS].sort()).toEqual([...FOUNDER_V0_IDS].sort())
-  })
-
-  it('uses only valid decoder tags', () => {
-    for (const e of QA_MATRIX) {
-      expect(DECODER_TAGS).toContain(e.decoder)
+  it('covers every Pack 2 scenario id exactly once', () => {
+    const ids = QA_MATRIX.map((e) => e.id)
+    for (const expected of PACK2_IDS) {
+      expect(ids).toContain(expected)
     }
   })
 
-  it('has five entries per decoder family', () => {
+  it('exposes the same ids via QA_MATRIX_IDS', () => {
+    expect(QA_MATRIX_IDS).toHaveLength(EXPECTED_TOTAL)
+    const expected = [...FOUNDER_V0_IDS, ...PACK2_IDS].sort()
+    expect([...QA_MATRIX_IDS].sort()).toEqual(expected)
+  })
+
+  it('uses only valid decoder tags', () => {
+    const all = [...DECODER_TAGS, ...PACK2_DECODER_TAGS]
+    for (const e of QA_MATRIX) {
+      expect(all).toContain(e.decoder)
+    }
+  })
+
+  it('has five entries per founder-v0 decoder family', () => {
     const grouped = groupQaMatrixByDecoder()
     for (const tag of DECODER_TAGS) {
       const entries = grouped.get(tag)
       expect(entries, `entries for ${tag}`).toBeDefined()
       expect(entries!.length, `count for ${tag}`).toBe(5)
     }
+  })
+
+  it('has matching Pack 2 entry counts for the new DROP and HUNT families', () => {
+    const grouped = groupQaMatrixByDecoder()
+    expect(grouped.get('READ_THE_COVERAGE')?.length).toBe(2)
+    expect(grouped.get('HUNT_THE_ADVANTAGE')?.length).toBe(2)
   })
 
   it('every entry has at least one required overlay', () => {

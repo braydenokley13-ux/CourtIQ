@@ -271,18 +271,55 @@ const AOR_OFFBALANCE_CLOSEOUT: CuePeak = {
   overlayBeatBias: 'cue',
 }
 
-// Pack 2 stub. DROP / HUNT readability tables are empty until 3.1.2
-// designs the cue-peak schedule for screen-defender depth (DROP) and
-// post-rotation defender body language (HUNT). The Partial<> on the
-// value side already permits empty per-decoder tables — the renderer
-// falls back to neutral readability when a role has no peak entry.
+// Pack 2 (Phase γ) — HUNT readability table. Mirrors the SKR shape
+// (the closest single-read analog) because HUNT D1/D2 reuse the same
+// body-language vocabulary on the post-switch defender —
+// closeout-recovering hips, late-rotation lean — they're chained in
+// time rather than novel in form. The user's read profile lands on
+// `receiver` (post-catch read pose) at the second-beat freeze, so
+// that role gets the same shot-ready / loaded-to-catch peaks AOR/SKR
+// already author. DROP remains empty (single-freeze, screen-defender-
+// specific peaks land in a follow-on slice).
+const HUNT_TABLE: Partial<Record<DecoderRole, CuePeak>> = {
+  closeout_defender: {
+    bodyState: 'PANIC_RECOVERING',
+    leanBoost: 1.5,
+    headTurnBoostRad: DEG(4),
+    hipYawBoostRad: 0,
+    freezeEmphasisRad: DEG(6),
+    cameraBias: 'player-read-angle',
+    overlayBeatBias: 'cue',
+  },
+  helper_defender: {
+    bodyState: 'LATE_ROTATION',
+    leanBoost: 1.1,
+    headTurnBoostRad: DEG(6),
+    hipYawBoostRad: DEG(7),
+    freezeEmphasisRad: DEG(7),
+    cameraBias: 'top-down-coach-board',
+    overlayBeatBias: 'cue',
+  },
+  receiver: {
+    bodyState: 'LOADED_TO_CATCH',
+    leanBoost: 1.0,
+    headTurnBoostRad: 0,
+    hipYawBoostRad: 0,
+    freezeEmphasisRad: DEG(4),
+    cameraBias: 'none',
+    overlayBeatBias: 'advantage',
+  },
+}
+
+// DROP readability stays empty: screen-defender depth + chest-line
+// peaks need a dedicated body-state vocabulary (the existing
+// LATE_ROTATION / OVER_COMMITTED states don't fit a sit-back drop).
 const DECODER_TABLES: Record<DecoderTag, Partial<Record<DecoderRole, CuePeak>>> = {
   BACKDOOR_WINDOW: BDW_TABLE,
   EMPTY_SPACE_CUT: ESC_TABLE,
   SKIP_THE_ROTATION: SKR_TABLE,
   ADVANTAGE_OR_RESET: AOR_TABLE,
   READ_THE_COVERAGE: {},
-  HUNT_THE_ADVANTAGE: {},
+  HUNT_THE_ADVANTAGE: HUNT_TABLE,
 }
 
 // --- resolver --------------------------------------------------------------
