@@ -15,9 +15,11 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
 import {
+  ABSOLUTE_COGNITION_HOLD_FLOOR_MS,
   ACTION_BEAT_AT_MS,
   ADVANTAGE_BEAT_AT_MS,
   beatSchedule,
+  cognitionHoldFloorForDifficulty,
   CUE_BEAT_AT_MS,
   DEFAULT_BEAT_FADE_IN_MS,
   DEFAULT_BEAT_FADE_OUT_MS,
@@ -446,6 +448,70 @@ describe('getFreezeBeatTemplatesAtDifficulty — F5b template re-stamping', () =
           expect(b.at_phase_ms).toBeGreaterThanOrEqual(0)
         }
       }
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Pack 2 Teaching-Quality F1 — per-difficulty cognition hold floor.
+// ---------------------------------------------------------------------------
+
+describe('cognitionHoldFloorForDifficulty — F1 per-D floor table', () => {
+  it('D1, D2, D3 keep the legacy 1100ms floor (unchanged from today)', () => {
+    expect(cognitionHoldFloorForDifficulty(1)).toBe(1100)
+    expect(cognitionHoldFloorForDifficulty(2)).toBe(1100)
+    expect(cognitionHoldFloorForDifficulty(3)).toBe(1100)
+  })
+
+  it('D4 floor drops to 1000ms (blueprint target)', () => {
+    expect(cognitionHoldFloorForDifficulty(4)).toBe(1000)
+  })
+
+  it('D5 floor drops to 800ms (blueprint target — H1 fix)', () => {
+    expect(cognitionHoldFloorForDifficulty(5)).toBe(800)
+  })
+
+  it('floor is monotonic non-increasing in difficulty (harder = tighter floor)', () => {
+    let prev = Number.POSITIVE_INFINITY
+    for (const d of [1, 2, 3, 4, 5]) {
+      const f = cognitionHoldFloorForDifficulty(d)
+      expect(f).toBeLessThanOrEqual(prev)
+      prev = f
+    }
+  })
+
+  it('out-of-band difficulties collapse to the loosest D1 floor (1100ms)', () => {
+    expect(cognitionHoldFloorForDifficulty(0)).toBe(1100)
+    expect(cognitionHoldFloorForDifficulty(-2)).toBe(1100)
+    expect(cognitionHoldFloorForDifficulty(Number.NaN)).toBe(1100)
+    // Above-band clamps to D5 (tightest), per _clampDifficulty contract.
+    expect(cognitionHoldFloorForDifficulty(6)).toBe(800)
+    expect(cognitionHoldFloorForDifficulty(99)).toBe(800)
+  })
+
+  it('non-integer difficulties round to the nearest integer (consistent with beatSchedule)', () => {
+    expect(cognitionHoldFloorForDifficulty(4.4)).toBe(1000)
+    expect(cognitionHoldFloorForDifficulty(4.6)).toBe(800)
+  })
+
+  it('absolute floor (800) is the minimum across the table', () => {
+    expect(ABSOLUTE_COGNITION_HOLD_FLOOR_MS).toBe(800)
+    for (const d of [1, 2, 3, 4, 5]) {
+      expect(cognitionHoldFloorForDifficulty(d)).toBeGreaterThanOrEqual(
+        ABSOLUTE_COGNITION_HOLD_FLOOR_MS,
+      )
+    }
+  })
+
+  it('every per-D floor leaves the F5 advantage beat strictly inside the hold', () => {
+    // Cross-check the F1 floor table against the F5 schedule: the
+    // advantage beat must STILL fire strictly before the choice tray
+    // opens at the per-D floor. This is the integration invariant
+    // that keeps F1 + F5 coherent.
+    for (const d of [1, 2, 3, 4, 5]) {
+      const floor = cognitionHoldFloorForDifficulty(d)
+      const sched = beatSchedule('BACKDOOR_WINDOW', d)
+      expect(sched.advantageAtMs).toBeLessThan(floor)
     }
   })
 })

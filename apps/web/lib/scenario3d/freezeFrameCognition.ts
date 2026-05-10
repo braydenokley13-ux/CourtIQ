@@ -239,6 +239,69 @@ export function beatSchedule(
   return BEAT_SCHEDULES_BY_DIFFICULTY[d] ?? DEFAULT_BEAT_SCHEDULE
 }
 
+// --- Pack 2 Teaching-Quality F1 — per-difficulty cognition hold floor ------
+//
+// Risk H1 in docs/pack-2-teaching-quality-risk-report.md: the schema's
+// 1100ms floor on cognitionHoldMs blocks the blueprint's D5 spec of
+// 800ms. The hardest tier silently caps to easier tier's pacing.
+//
+// F1 introduces a per-D floor table:
+//   D1, D2, D3 → 1100ms (unchanged from today's flat floor)
+//   D4         → 1000ms
+//   D5         →  800ms
+//
+// Enforcement points:
+//   - Schemas (apps/web/lib/scenario3d/schema.ts and the template's
+//     packages/db/seed/scenarios/templates/_schema.ts) loosen their
+//     literal `min(1100)` to `min(800)` so the parser admits the
+//     full per-D range. The narrower per-D check happens in the
+//     materializer where effective difficulty is computed.
+//   - Materializer (scripts/materialize-templates.ts) calls
+//     `cognitionHoldFloorForDifficulty(effectiveD)` and throws if the
+//     authored cognitionHoldMs is below that floor.
+//
+// The function lives here in freezeFrameCognition.ts (alongside
+// beatSchedule) so the policy module owns both the per-D timing
+// targets and the per-D floor; future floors (D2 = 1300, etc.) land
+// in this single table.
+
+/** Per-difficulty cognition hold floor in milliseconds. The materializer
+ *  enforces these floors against each variant's effective difficulty
+ *  (template default + disguise bump, optionally overridden by
+ *  variation.difficulty). The schemas accept the absolute floor (800);
+ *  the materializer applies the per-D narrowing. */
+const COGNITION_HOLD_FLOOR_MS_BY_DIFFICULTY: Readonly<Record<number, number>> =
+  Object.freeze({
+    1: 1100,
+    2: 1100,
+    3: 1100,
+    4: 1000,
+    5: 800,
+  })
+
+/** The absolute floor across every difficulty — the schema-level floor.
+ *  No authored hold may go below this regardless of difficulty. */
+export const ABSOLUTE_COGNITION_HOLD_FLOOR_MS = 800
+
+/**
+ * Returns the minimum cognition hold (ms) for a given effective
+ * difficulty. Pure — same input always produces the same output.
+ * Out-of-band inputs collapse to the loosest (D1) floor of 1100ms so
+ * a stray difficulty value never accidentally lets a 200ms hold
+ * through.
+ *
+ * Used by the template materializer to validate authored
+ * timingOverrides.cognitionHoldMs against the variant's effective D.
+ * The schemas only enforce the absolute floor (800ms); per-D
+ * narrowing happens here.
+ */
+export function cognitionHoldFloorForDifficulty(
+  effectiveDifficulty: number,
+): number {
+  const d = _clampDifficulty(effectiveDifficulty)
+  return COGNITION_HOLD_FLOOR_MS_BY_DIFFICULTY[d] ?? 1100
+}
+
 // --- types -----------------------------------------------------------------
 
 export type CognitionPhase =
