@@ -22,6 +22,11 @@ export default defineConfig({
       // The helpers in `_packReader.ts` are pure server-side fs+JSON
       // logic, so they round-trip cleanly under the `node` env.
       'app/dev/**/_packReader.test.ts',
+      // Phase delta-Telemetry (WS-T) — pure analytics helpers live in
+      // features/ and need the node-env runner the rest of the suite
+      // uses. Only .test.ts (no .tsx) so we stay out of the DOM-heavy
+      // component tree.
+      'features/**/*.test.ts',
     ],
     globals: false,
   },
