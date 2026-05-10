@@ -178,6 +178,10 @@ model Attempt {
   @@index([user_id, scenario_id])
   @@index([session_run_id, created_at])
   @@index([user_id, created_at])
+  // Phase delta-Telemetry (WS-T) — descending index on created_at to
+  // back the cross-user "recent attempts" scan that the admin
+  // beat-aggregates endpoint runs. Migration: 20260510140000.
+  @@index([created_at(sort: Desc)], map: "Attempt_created_at_idx")
 }
 
 model Mastery {
