@@ -98,11 +98,18 @@ export type FreezeMarker = z.infer<typeof freezeMarkerSchema>
 // reads opt in to two freeze beats. Both fields are optional everywhere;
 // absent = renderer falls back to the module defaults in
 // freezeFrameCognition.ts. Floors enforced at parse time:
-//   - cognitionHoldMs ≥ 1100ms (qa-checklist §6 readability floor)
+//   - cognitionHoldMs ≥ 800ms (the absolute floor across every difficulty
+//     — see `ABSOLUTE_COGNITION_HOLD_FLOOR_MS` in freezeFrameCognition.ts).
+//     Pack 2 Teaching-Quality F1: the per-difficulty narrowing
+//     (D1–D3 = 1100, D4 = 1000, D5 = 800) is enforced in the template
+//     materializer where effective difficulty is known
+//     (`cognitionHoldFloorForDifficulty`). The runtime parser only checks
+//     the absolute floor so the materialized scene JSON round-trips
+//     unchanged regardless of the variant's authored difficulty.
 //   - all hold values ≤ 4_000ms (anything longer should split into a
 //     HUNT chain, not a stretched single freeze).
 export const timingOverridesSchema = z.object({
-  cognitionHoldMs: z.number().int().min(1100).max(4_000).optional(),
+  cognitionHoldMs: z.number().int().min(800).max(4_000).optional(),
   choiceTrayAtMs: z.number().int().min(0).max(4_000).optional(),
   cueRepaintHoldCorrectMs: z.number().int().min(200).max(4_000).optional(),
   cueRepaintHoldWrongMs: z.number().int().min(200).max(4_000).optional(),
