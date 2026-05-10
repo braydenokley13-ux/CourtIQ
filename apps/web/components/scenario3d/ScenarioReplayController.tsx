@@ -12,7 +12,11 @@ import {
   type Timeline,
 } from '@/lib/scenario3d/timeline'
 import type { CourtPoint } from '@/lib/scenario3d/coords'
-import { PRE_CONSEQUENCE_DELAY_MS } from '@/lib/scenario3d/replayTeachingTimeline'
+import {
+  D4_PLUS_WRONG_DWELL_EXTENSION_MS,
+  D4_PLUS_WRONG_DWELL_MIN_DIFFICULTY,
+  PRE_CONSEQUENCE_DELAY_MS,
+} from '@/lib/scenario3d/replayTeachingTimeline'
 import { resolveFreezeTiming } from '@/lib/scenario3d/freezeFrameCognition'
 
 export type ReplayMode = 'static' | 'intro' | 'answer'
@@ -411,7 +415,18 @@ export function ScenarioReplayController({
     // hot-swap during dev does not need a controller remount.
     const timing = resolveFreezeTiming(scene.timingOverrides)
     if (path === 'wrong') {
-      preDelayMsRef.current = timing.cueRepaintHoldWrongMs
+      // Pack 2 Teaching-Quality F8 — at effective difficulty ≥ 4, add
+      // an extra dwell beat between the consequence ending and the
+      // answer leg starting so the player has cognitive room to
+      // absorb "why wrong" before "what was right" begins. D1-D3
+      // path is unchanged (extension = 0). The extension is additive
+      // on top of any per-scenario timingOverrides.cueRepaintHoldWrongMs.
+      const d = scene.effectiveDifficulty
+      const f8Extension =
+        typeof d === 'number' && d >= D4_PLUS_WRONG_DWELL_MIN_DIFFICULTY
+          ? D4_PLUS_WRONG_DWELL_EXTENSION_MS
+          : 0
+      preDelayMsRef.current = timing.cueRepaintHoldWrongMs + f8Extension
       cueRepaintActiveRef.current = true
       phaseRef.current = 'cueRepaint'
       onPhase?.('cueRepaint')
