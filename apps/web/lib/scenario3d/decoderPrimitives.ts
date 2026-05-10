@@ -243,14 +243,37 @@ const READ_THE_COVERAGE: DecoderVisualPrimitives = {
   },
 }
 
-const HUNT_THE_ADVANTAGE_PACK2_STUB: DecoderVisualPrimitives = {
+// Pack 2 (Phase γ) — HUNT / HUNT_THE_ADVANTAGE D1/D2 entry. Promoted
+// from the original empty scaffold to the real chained-second-read
+// teaching beat: the user (ball-handler / receiver after the switch)
+// reads the post-switch defender's body language across two freezes —
+// beat 1 establishes the matchup, beat 2 reads the recovery angle.
+//
+// `requiredIntents` stays empty because the founder DecoderRole union
+// does not include HUNT-specific roles (mismatch_target, post-switch
+// defender). Adding new DecoderRoles is an animation-intent change
+// owned by a later HUNT slice; today HUNT scenarios ride the existing
+// receiver / closeout_defender clip rails. The runtime contract HUNT
+// requires (secondBeat freeze, consequence overlay phase,
+// chained_freeze_bridge camera) lives in the scene data path, not in
+// the animation-intent dispatch.
+const HUNT_THE_ADVANTAGE: DecoderVisualPrimitives = {
   decoder: 'HUNT_THE_ADVANTAGE',
   label: 'Hunt the Advantage',
   beat: {
+    // The user — ball-handler or receiver after the forced switch — is
+    // the read actor. Mapped to `receiver` because the founder taxonomy
+    // covers post-catch reads under that role and HUNT D1/D2 land at
+    // the same body-language profile.
     readActor: 'receiver',
+    // The post-switch defender is the cue. We map him to
+    // closeout_defender — the existing role with the matching
+    // forward-recovering body-language coverage (closeout +
+    // hip-recovery angles); a future animation-intent expansion can
+    // promote a dedicated mismatch_target / post_switch_defender role.
     cueActor: 'closeout_defender',
     readSentence:
-      'Pack 2 stub — HUNT chained second read. Full beat designed in 3.1.2.',
+      'A switch puts a slower defender on the user — the second read is the recovery angle, not the action; attack the foot pointing away from the rim before help arrives.',
   },
   requiredIntents: [],
   requiredAuthoring: {
@@ -258,7 +281,7 @@ const HUNT_THE_ADVANTAGE_PACK2_STUB: DecoderVisualPrimitives = {
     requiresAnswerDemo: true,
     requiresUserPlayer: true,
     requiresOneBallHolder: true,
-    requiredPlayerRoleSubstrings: ['ball_handler'],
+    requiredPlayerRoleSubstrings: ['ball_handler', 'mismatch_target'],
     requiredAnswerDemoKinds: [],
   },
 }
@@ -275,7 +298,7 @@ export const DECODER_VISUAL_PRIMITIVES: Readonly<
   EMPTY_SPACE_CUT,
   SKIP_THE_ROTATION,
   READ_THE_COVERAGE,
-  HUNT_THE_ADVANTAGE: HUNT_THE_ADVANTAGE_PACK2_STUB,
+  HUNT_THE_ADVANTAGE,
 })
 
 /** Convenience accessor — same shape as a Map.get with a clean fallback. */
