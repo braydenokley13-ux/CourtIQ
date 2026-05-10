@@ -18,7 +18,7 @@
       "baseline_back_cut",
       "cue:hand_in_lane",
       "tpl:BDW.late-clock-corner-deny",
-      "sig:orig|slot:corner_shooter|d:4|disg:moderate|clk:game_clock"
+      "sig:orig|slot:corner_shooter|d:4|disg:moderate|dh:r[defender_hip_arrow|deny_def]b1s300h0|clk:game_clock"
     ],
     "difficulty": 4,
     "user_role": "strong_corner_shooter",
@@ -520,7 +520,7 @@
     },
     "_generated": {
       "template": "BDW.late-clock-corner-deny",
-      "signature": "orig|slot:corner_shooter|d:4|disg:moderate|clk:game_clock"
+      "signature": "orig|slot:corner_shooter|d:4|disg:moderate|dh:r[defender_hip_arrow|deny_def]b1s300h0|clk:game_clock"
     }
   }
 ]

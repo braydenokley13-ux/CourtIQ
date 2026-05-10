@@ -371,6 +371,215 @@ function lintOverlayPresetConformance(loaded: Loaded[]): Issue[] {
   return issues
 }
 
+// ---------------------------------------------------------------------------
+// Pack 2 Teaching-Quality F10 — mirror handedness lint.
+//
+// Risk M2 in docs/pack-2-teaching-quality-risk-report.md: a right-handed
+// back-cut mirrored becomes a left-handed cut. For middle-school players
+// still building handedness, the wrong axis is being taxed — the
+// mirrored variant feels harder for handedness reasons, not for
+// tactical reasons.
+//
+// `tactical.mirror_safety` declares the template's handedness sensitivity:
+//
+//   - 'symmetric'           — mirror=true is fine.
+//   - 'right-handed-only' / 'left-handed-only' — mirror=true is rejected
+//     because the mirrored play loses its handedness alignment.
+//   - 'review-each-mirror'  — mirror=true requires a non-empty
+//     `variation.mirror_review_note` so a human signs off.
+//
+// Lint severity: error. The schema default for new templates is
+// 'symmetric' so existing fixtures keep their behaviour; an author
+// promoting a template to a stricter category surfaces every mirror
+// variant immediately.
+// ---------------------------------------------------------------------------
+
+function lintMirrorHandedness(loaded: Loaded[]): Issue[] {
+  const issues: Issue[] = []
+  for (const { template, variants } of loaded) {
+    const safety = template.tactical.mirror_safety
+    if (safety === 'symmetric') continue
+    for (const v of variants) {
+      if (v.status === 'RETIRED') continue
+      if (!v.variation.mirror) continue
+      if (safety === 'right-handed-only' || safety === 'left-handed-only') {
+        issues.push({
+          severity: 'error',
+          message:
+            `Variant ${template.id}:${v.id} has mirror=true but the parent template declares ` +
+            `tactical.mirror_safety="${safety}". The mirrored play loses its handedness ` +
+            `alignment — switch the variant to mirror=false, or change the template's ` +
+            `mirror_safety to "symmetric" / "review-each-mirror" if both handedness paths ` +
+            `genuinely teach the same concept.`,
+        })
+      } else if (safety === 'review-each-mirror') {
+        const note = v.variation.mirror_review_note?.trim() ?? ''
+        if (note.length === 0) {
+          issues.push({
+            severity: 'error',
+            message:
+              `Variant ${template.id}:${v.id} has mirror=true and the parent template requires ` +
+              `"review-each-mirror" sign-off, but variation.mirror_review_note is empty. Add ` +
+              `a brief note (e.g. "right-hand back-cut mirrors to left-hand back-cut; both ` +
+              `taught in Module 4") confirming the mirrored play teaches the same concept.`,
+          })
+        }
+      }
+    }
+  }
+  return issues
+}
+
+// ---------------------------------------------------------------------------
+// Pack 2 Teaching-Quality F7 — wrong-demo divergence lint.
+//
+// Risk H6 in docs/pack-2-teaching-quality-risk-report.md: the schema
+// requires every wrong choice to declare wrongDemos movements, but it
+// does not require those movements to visually differ from the
+// answerDemo. A wrong choice that plays a path indistinguishable from
+// the right choice teaches nothing — the player can't tell which path
+// was correct.
+//
+// F7 enforces a minimum endpoint divergence: for each (template,
+// wrongDemo), the union of moved player slots across both demos is
+// computed; if EVERY moved slot's final destination in the wrongDemo
+// lies within `WRONG_DEMO_MIN_DIVERGENCE_FT` of the same slot's final
+// destination in the answerDemo, the wrong demo is flagged. A slot
+// moved in one demo but absent from the other counts as structural
+// divergence (no false-positive on asymmetric demos).
+//
+// Endpoint comparison is the audit's spirit ("at +500ms after freeze")
+// applied to the cheapest-to-implement signal that catches the worst
+// authoring failure (a copy-pasted wrongDemo). Per-tick interpolation
+// would catch additional same-endpoint-via-different-path cases; the
+// endpoint check is a lower bound that gates the obvious bugs without
+// requiring a kinematics simulator in the lint script.
+// ---------------------------------------------------------------------------
+
+const WRONG_DEMO_MIN_DIVERGENCE_FT = 1.5
+
+interface CourtPoint {
+  x: number
+  z: number
+}
+
+interface DemoMovementLike {
+  playerSlot: string
+  to: CourtPoint
+  delayMs?: number
+  durationMs?: number
+}
+
+/** For each playerSlot moved by `movements`, return the destination
+ *  of the latest-ending movement. Movements without an explicit
+ *  durationMs are treated as 600ms long (the renderer default). */
+function _finalDestinationsBySlot(
+  movements: ReadonlyArray<DemoMovementLike>,
+): Map<string, CourtPoint> {
+  const latestByEnd = new Map<string, { endMs: number; to: CourtPoint }>()
+  for (const m of movements) {
+    const endMs = (m.delayMs ?? 0) + (m.durationMs ?? 600)
+    const prev = latestByEnd.get(m.playerSlot)
+    if (!prev || endMs >= prev.endMs) {
+      latestByEnd.set(m.playerSlot, { endMs, to: m.to })
+    }
+  }
+  const out = new Map<string, CourtPoint>()
+  for (const [slot, entry] of latestByEnd) out.set(slot, entry.to)
+  return out
+}
+
+function _euclideanFt(a: CourtPoint, b: CourtPoint): number {
+  const dx = a.x - b.x
+  const dz = a.z - b.z
+  return Math.sqrt(dx * dx + dz * dz)
+}
+
+function lintWrongDemoDivergence(loaded: Loaded[]): Issue[] {
+  const issues: Issue[] = []
+  for (const { template } of loaded) {
+    const answerDests = _finalDestinationsBySlot(template.scene.answerDemo)
+    if (answerDests.size === 0) continue
+    for (const wrongDemo of template.scene.wrongDemos) {
+      if (wrongDemo.movements.length === 0) continue
+      const wrongDests = _finalDestinationsBySlot(wrongDemo.movements)
+      const allSlots = new Set<string>([
+        ...answerDests.keys(),
+        ...wrongDests.keys(),
+      ])
+      let diverged = false
+      for (const slot of allSlots) {
+        const a = answerDests.get(slot)
+        const w = wrongDests.get(slot)
+        // Slot moved in one demo but not the other → structural divergence.
+        if (!a || !w) {
+          diverged = true
+          break
+        }
+        if (_euclideanFt(a, w) >= WRONG_DEMO_MIN_DIVERGENCE_FT) {
+          diverged = true
+          break
+        }
+      }
+      if (!diverged) {
+        issues.push({
+          severity: 'error',
+          message:
+            `Template ${template.id}: wrong-demo "${wrongDemo.outcome}" does not visibly ` +
+            `diverge from the answer demo — every moved player ends within ` +
+            `${WRONG_DEMO_MIN_DIVERGENCE_FT}ft of the answer's destination. The wrong-demo ` +
+            `plays a silent failure that teaches nothing. Move at least one player's ` +
+            `final destination ≥ ${WRONG_DEMO_MIN_DIVERGENCE_FT}ft from the answer demo's.`,
+        })
+      }
+    }
+  }
+  return issues
+}
+
+// ---------------------------------------------------------------------------
+// Pack 2 Teaching-Quality F3 — Hard gate on empty preset decoders.
+//
+// Risk H3 (pack-2-teaching-quality-risk-report.md §2): a LIVE D4/D5
+// READ_THE_COVERAGE / HUNT_THE_ADVANTAGE variant can render with zero
+// pre-answer cues today because the decoder presets in
+// `apps/web/lib/scenario3d/decoderOverlayPresets.ts` ship with
+// `preAnswer: []` stubs. The seeder's "level=high needs status=approved"
+// check is a soft gate; it does not stop a REVIEW or LIVE variant whose
+// teaching surface is empty by construction.
+//
+// Policy: any variant on a decoder whose preset preAnswer is empty must
+// stay in DRAFT (or RETIRED). DRAFT lets authoring proceed against the
+// stub; REVIEW/LIVE require the preset to be filled in first.
+// ---------------------------------------------------------------------------
+
+/** A decoder whose preset preAnswer cluster is currently empty (Pack 2 stub). */
+function isEmptyPresetDecoder(decoderTag: string): boolean {
+  const allowed = PRESET_PRE_ANSWER_KINDS_BY_DECODER[decoderTag]
+  return allowed != null && allowed.size === 0
+}
+
+function lintEmptyPresetPromotionGate(loaded: Loaded[]): Issue[] {
+  const issues: Issue[] = []
+  for (const { template, variants } of loaded) {
+    if (!isEmptyPresetDecoder(template.decoder_tag)) continue
+    for (const v of variants) {
+      if (v.status !== 'REVIEW' && v.status !== 'LIVE') continue
+      issues.push({
+        severity: 'error',
+        message:
+          `Variant ${template.id}:${v.id} is ${v.status} but decoder ` +
+          `${template.decoder_tag} ships an empty pre-answer preset. ` +
+          `Promotion past DRAFT would render the freeze with zero teaching cues. ` +
+          `Either keep the variant in DRAFT, or fill in the preset's preAnswer ` +
+          `cluster in apps/web/lib/scenario3d/decoderOverlayPresets.ts (and mirror ` +
+          `the kinds in PRESET_PRE_ANSWER_KINDS_BY_DECODER below).`,
+      })
+    }
+  }
+  return issues
+}
+
 function lintCameraPreset(loaded: Loaded[]): Issue[] {
   const issues: Issue[] = []
   for (const { template } of loaded) {
@@ -678,6 +887,9 @@ async function main(): Promise<void> {
     ...lintCrossPackCollision(loaded, existingPackScenarios),
     ...lintCameraPreset(loaded),
     ...lintOverlayPresetConformance(loaded),
+    ...lintEmptyPresetPromotionGate(loaded),
+    ...lintWrongDemoDivergence(loaded),
+    ...lintMirrorHandedness(loaded),
     ...lintDisguiseProgression(loaded),
     ...lintTodoProse(loaded),
     ...lintProseBankCoverage(loaded),

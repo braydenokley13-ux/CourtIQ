@@ -218,6 +218,27 @@ export const templateWrongDemoSchema = z.object({
   caption: z.string().max(80).optional(),
 })
 
+/**
+ * Pack 2 Teaching-Quality F11 — `acceptable` choice demo path.
+ *
+ * Risk M4: the schema declares an `acceptable` quality but the replay
+ * model has no slot for it — the player can never see what
+ * "second-best" looks like. F11 adds an optional list of demo
+ * movements parallel to wrongDemos, indexed by the same outcome key,
+ * but joining to choices whose quality is `acceptable`. Authors opt
+ * in per template; absence is fine — the controller short-circuits
+ * to the answer leg as today.
+ *
+ * Same shape as templateWrongDemoSchema so the runtime/materializer
+ * paths can mirror the wrong-demo plumbing.
+ */
+export const templateAcceptableDemoSchema = z.object({
+  /** Outcome key — joins to template.choices[*].outcome where quality === 'acceptable'. */
+  outcome: z.string().regex(/^[a-z][a-z0-9_]*$/, 'outcome must be lower_snake_case'),
+  movements: z.array(wrongDemoMovementSchema).max(32),
+  caption: z.string().max(80).optional(),
+})
+
 export const templateChoiceSchema = z.object({
   /** Stable semantic key the variant uses to attach prose. */
   outcome: z.string().regex(/^[a-z][a-z0-9_]*$/, 'outcome must be lower_snake_case'),
@@ -249,12 +270,20 @@ export const freezeMarkerSchema = z.discriminatedUnion('kind', [
  *   - cueRepaintHoldWrongMs   — replaces CUE_REPAINT_HOLD_WRONG_MS (400)
  *
  * Floors:
- *   - cognitionHoldMs has a 1100ms floor (qa-checklist §6 readability).
+ *   - cognitionHoldMs ≥ 800ms (the absolute floor across every
+ *     difficulty — see `ABSOLUTE_COGNITION_HOLD_FLOOR_MS` in
+ *     freezeFrameCognition.ts). Pack 2 Teaching-Quality F1: the
+ *     per-difficulty narrowing (D1-D3=1100, D4=1000, D5=800) is
+ *     enforced in the materializer (scripts/materialize-templates.ts)
+ *     against the variant's effective difficulty
+ *     (`cognitionHoldFloorForDifficulty`). The schema only enforces
+ *     the absolute floor so a template can be parsed in isolation
+ *     before its variants are joined.
  *   - All hold values capped at 4_000ms — anything longer should split
  *     into a HUNT chained-read instead of stretching one freeze.
  */
 export const timingOverridesSchema = z.object({
-  cognitionHoldMs: z.number().int().min(1100).max(4_000).optional(),
+  cognitionHoldMs: z.number().int().min(800).max(4_000).optional(),
   choiceTrayAtMs: z.number().int().min(0).max(4_000).optional(),
   cueRepaintHoldCorrectMs: z.number().int().min(200).max(4_000).optional(),
   cueRepaintHoldWrongMs: z.number().int().min(200).max(4_000).optional(),
@@ -288,8 +317,30 @@ export const disguiseLevelSchema = z.object({
       }),
     )
     .default([]),
-  /** Compress freeze duration when freezeMarker.kind === 'atMs'. */
-  freezeCompressMs: z.number().int().nonnegative().max(2_000).optional(),
+  /** Pack 2 Teaching-Quality F2: shifts the freezeMarker EARLIER by
+   *  this many ms when freezeMarker.kind === 'atMs'. Renamed from the
+   *  legacy `freezeCompressMs` whose name implied it compressed the
+   *  cognition hold — it does not (the hold is fixed by
+   *  cognitionHoldMs). The renamed field accurately describes the
+   *  behaviour: the freeze marker moves earlier in the possession,
+   *  the player gets less time to read pre-freeze motion before the
+   *  freeze hits. To compress thinking time itself, use
+   *  `cognitionHoldCompressMs` below. */
+  freezeShiftEarlierMs: z.number().int().nonnegative().max(2_000).optional(),
+  /** Pack 2 Teaching-Quality F2: subtracts this many ms from the
+   *  resolved cognition hold (template default OR scene
+   *  timingOverrides.cognitionHoldMs) when this disguise level is
+   *  applied. Heavy disguise can now compose two effects: shift
+   *  the freeze earlier (less pre-freeze read time) AND tighten
+   *  thinking time (less cognition hold). The materializer enforces
+   *  the per-D F1 floor on the resolved hold so a heavy disguise
+   *  cannot drag a D1 variant below 1100ms. */
+  cognitionHoldCompressMs: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(2_000)
+    .optional(),
   /** Difficulty bump applied on top of variation.difficulty if author leaves it default. */
   difficultyBump: z.number().int().nonnegative().max(3).default(0),
 })
@@ -334,6 +385,33 @@ export const templateSchema = z.object({
       .regex(/^[a-z0-9-]+$/, 'lesson_connection must be a lowercase, hyphenated module slug'),
     /** Default difficulty for `disguise: 'none'`. */
     difficulty_default: z.number().int().min(1).max(5),
+    /**
+     * Pack 2 Teaching-Quality F10 — handedness sensitivity declaration.
+     *
+     *   - 'symmetric'           — the read teaches the same concept on
+     *     either handedness; mirror=true variants are safe.
+     *   - 'right-handed-only'   — the read assumes a right-handed
+     *     finish (e.g. a back-cut to a right-handed layup). Lint
+     *     rejects mirror=true variants because the mirrored cut
+     *     becomes a left-handed cut, which is cognitively harder
+     *     without being tactically harder (audit Q7 / M2).
+     *   - 'left-handed-only'    — the symmetric case for left-hand finishes.
+     *   - 'review-each-mirror'  — explicit author sign-off required;
+     *     each mirror=true variant must declare a non-empty
+     *     `variation.mirror_review_note` so the lint can confirm a
+     *     human looked at the mirrored play.
+     *
+     * Defaults to 'symmetric' so existing templates keep their current
+     * mirror behaviour until an author opts into stricter handling.
+     */
+    mirror_safety: z
+      .enum([
+        'symmetric',
+        'right-handed-only',
+        'left-handed-only',
+        'review-each-mirror',
+      ])
+      .default('symmetric'),
   }),
 
   scene: z.object({
@@ -348,6 +426,14 @@ export const templateSchema = z.object({
     answerDemo: z.array(templateMovementSchema).max(32).default([]),
     freezeMarker: freezeMarkerSchema.optional(),
     wrongDemos: z.array(templateWrongDemoSchema).max(8).default([]),
+    /** Pack 2 Teaching-Quality F11 — optional demo paths for choices
+     *  with quality === 'acceptable'. Indexed by outcome (mirrors the
+     *  wrongDemos shape). When present and the player picks the
+     *  matching `acceptable` choice, the replay controller plays the
+     *  acceptable-demo as the consequence leg before transitioning to
+     *  the answer demo. Absence preserves Pack 1 behaviour: acceptable
+     *  picks short-circuit to the answer leg. */
+    acceptableDemos: z.array(templateAcceptableDemoSchema).max(8).default([]),
     // Phase 3.1.4 — per-scenario timing override block. The blueprint
     // §2.3 specifies per-difficulty cognition hold targets (D1-D2 =
     // 1400ms, D3 = 1200, D4 = 1000, D5 = 800). Authors opt in by
@@ -426,6 +512,16 @@ export const variationSchema = z.object({
   disguise: z.enum(['none', 'light', 'moderate', 'heavy']).default('none'),
   clock_pressure: z.enum(['none', 'shot_clock', 'game_clock']).default('none'),
   overrides: variantOverrideSchema.default({ players: [], movements: [] }),
+  /**
+   * Pack 2 Teaching-Quality F10 — required when the parent template
+   * declares `tactical.mirror_safety: 'review-each-mirror'` AND
+   * `mirror: true`. The note records the author's confirmation that
+   * the mirrored play teaches the same concept (e.g. "right-hand
+   * back-cut mirrors to a left-hand back-cut; both are taught in
+   * Module 4"). The lint enforces presence; freeform string so
+   * authors can capture nuance without a controlled vocabulary.
+   */
+  mirror_review_note: z.string().min(1).max(280).optional(),
 })
 
 export const variantSchema = z.object({
@@ -553,7 +649,19 @@ export type CueAtom = z.infer<typeof cueAtomSchema>
 // -----------------------------------------------------------------------------
 
 /** Stable signature for repetition lint. Two variants with the same signature
- *  are forbidden in the same template. */
+ *  are forbidden in the same template.
+ *
+ *  Pack 2 Teaching-Quality F9: includes a deterministic content hash of
+ *  the resolved disguise level (its removePre set, difficultyBump, and
+ *  freezeCompressMs). Two variants that pick the same disguise NAME
+ *  always produce the same hash today (disguise content is template-
+ *  level, not variant-level), so this is behaviour-preserving for the
+ *  current data shape. The forward-compat win: when per-variant
+ *  disguise overrides land, or when an existing template's disguise
+ *  config is edited mid-cycle, the signature can no longer accidentally
+ *  collapse two variants with materially different surviving cues into
+ *  the same key.
+ */
 export function variationSignature(v: Variant, template: Template): string {
   const userSlot = v.variation.user_slot ?? template.tactical.user_slot_default
   return [
@@ -561,6 +669,34 @@ export function variationSignature(v: Variant, template: Template): string {
     `slot:${userSlot}`,
     `d:${v.variation.difficulty ?? template.tactical.difficulty_default}`,
     `disg:${v.variation.disguise}`,
+    `dh:${disguiseContentFingerprint(template, v.variation.disguise)}`,
     `clk:${v.variation.clock_pressure}`,
   ].join('|')
+}
+
+/** Deterministic, human-readable fingerprint of a disguise level's
+ *  effective content. Two disguise configs with the same removePre set
+ *  (order-insensitive), the same difficultyBump, the same
+ *  freezeShiftEarlierMs, and the same cognitionHoldCompressMs always
+ *  produce identical fingerprints. Used by `variationSignature` so
+ *  the deduplicator stays honest when disguise content evolves.
+ *
+ *  Returns 'absent' for an unmapped disguise level. The variant
+ *  schema's default is `disguise: 'none'` and the menu's `none` entry
+ *  always exists, so `absent` is a defence-in-depth path.
+ */
+export function disguiseContentFingerprint(
+  template: Template,
+  disguiseName: 'none' | 'light' | 'moderate' | 'heavy',
+): string {
+  const cfg = template.disguises[disguiseName]
+  if (!cfg) return 'absent'
+  const removeSorted = [...(cfg.removePre ?? [])]
+    .map((r) => `${r.kind}|${r.onSlot ?? '_'}`)
+    .sort()
+    .join(',')
+  const bump = cfg.difficultyBump ?? 0
+  const shift = cfg.freezeShiftEarlierMs ?? 0
+  const cogCompress = cfg.cognitionHoldCompressMs ?? 0
+  return `r[${removeSorted}]b${bump}s${shift}h${cogCompress}`
 }

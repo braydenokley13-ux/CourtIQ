@@ -12,7 +12,11 @@ import {
   type Timeline,
 } from '@/lib/scenario3d/timeline'
 import type { CourtPoint } from '@/lib/scenario3d/coords'
-import { PRE_CONSEQUENCE_DELAY_MS } from '@/lib/scenario3d/replayTeachingTimeline'
+import {
+  D4_PLUS_WRONG_DWELL_EXTENSION_MS,
+  D4_PLUS_WRONG_DWELL_MIN_DIFFICULTY,
+  PRE_CONSEQUENCE_DELAY_MS,
+} from '@/lib/scenario3d/replayTeachingTimeline'
 import { resolveFreezeTiming } from '@/lib/scenario3d/freezeFrameCognition'
 
 export type ReplayMode = 'static' | 'intro' | 'answer'
@@ -239,34 +243,54 @@ export function ScenarioReplayController({
     if (hasSecondBeat && beatIndexRef.current === 0) return
     consumedChoiceRef.current = pickedChoiceId
 
+    // Pack 2 Teaching-Quality F11 — check acceptable demos first so a
+    // template that authored both a wrongDemo and an acceptableDemo
+    // for the same choiceId routes to the acceptable branch (an
+    // authoring conflict the scaffolder would otherwise allow). The
+    // acceptableDemos array is keyed by choiceId of `acceptable`-
+    // quality choices only (validated at materialize time), so this
+    // lookup is safe.
+    const acceptableDemo = scene.acceptableDemos.find(
+      (d) => d.choiceId === pickedChoiceId,
+    )
     const wrongDemo = scene.wrongDemos.find((d) => d.choiceId === pickedChoiceId)
-    if (wrongDemo) {
+    const consequenceDemo = acceptableDemo ?? wrongDemo
+    if (consequenceDemo) {
       legRef.current = 'consequence'
-      movementsRef.current = wrongDemo.movements
-      timelineRef.current = buildTimeline(scene, wrongDemo.movements, {
+      movementsRef.current = consequenceDemo.movements
+      timelineRef.current = buildTimeline(scene, consequenceDemo.movements, {
         startOverrides: snapshotRef.current ?? undefined,
       })
       startedAtRef.current = null
       // FR-6 §10.2 — the wrong-choice tile flashes for ~80 ms before
-      // the consequence leg starts moving.
+      // the consequence leg starts moving. Same beat for an
+      // acceptable-demo so the player gets equivalent acknowledgement
+      // before the second-best read plays.
       preDelayMsRef.current = PRE_CONSEQUENCE_DELAY_MS
       cueRepaintActiveRef.current = false
       lastFiredCaptionRef.current = ''
       firedMovementsRef.current.clear()
       phaseRef.current = 'consequence'
       onPhase?.('consequence')
-      if (wrongDemo.caption) onCaption?.(wrongDemo.caption)
+      if (consequenceDemo.caption) onCaption?.(consequenceDemo.caption)
     } else {
       // Best-read short-circuits silently. Any other choiceId reaching
       // here is a missing-wrongDemos authoring fault — emit a
       // breadcrumb (Sentry's nextjs auto-instruments console.warn) so
       // the canvas degrades gracefully without losing the signal.
-      if (scene.wrongDemos.length > 0 && typeof console !== 'undefined') {
-        console.warn('[scenario3d] no wrongDemos entry for choice; falling back to replay leg', {
-          sceneId: scene.id,
-          choiceId: pickedChoiceId,
-          authoredChoiceIds: scene.wrongDemos.map((d) => d.choiceId),
-        })
+      if (
+        (scene.wrongDemos.length > 0 || scene.acceptableDemos.length > 0) &&
+        typeof console !== 'undefined'
+      ) {
+        console.warn(
+          '[scenario3d] no wrongDemos / acceptableDemos entry for choice; falling back to replay leg',
+          {
+            sceneId: scene.id,
+            choiceId: pickedChoiceId,
+            authoredWrongChoiceIds: scene.wrongDemos.map((d) => d.choiceId),
+            authoredAcceptableChoiceIds: scene.acceptableDemos.map((d) => d.choiceId),
+          },
+        )
       }
       // FR-6 — best-read path holds the cue cluster for ~600 ms
       // before motion (§10.2 correct-path beat).
@@ -540,7 +564,18 @@ export function ScenarioReplayController({
     // hot-swap during dev does not need a controller remount.
     const timing = resolveFreezeTiming(scene.timingOverrides)
     if (path === 'wrong') {
-      preDelayMsRef.current = timing.cueRepaintHoldWrongMs
+      // Pack 2 Teaching-Quality F8 — at effective difficulty ≥ 4, add
+      // an extra dwell beat between the consequence ending and the
+      // answer leg starting so the player has cognitive room to
+      // absorb "why wrong" before "what was right" begins. D1-D3
+      // path is unchanged (extension = 0). The extension is additive
+      // on top of any per-scenario timingOverrides.cueRepaintHoldWrongMs.
+      const d = scene.effectiveDifficulty
+      const f8Extension =
+        typeof d === 'number' && d >= D4_PLUS_WRONG_DWELL_MIN_DIFFICULTY
+          ? D4_PLUS_WRONG_DWELL_EXTENSION_MS
+          : 0
+      preDelayMsRef.current = timing.cueRepaintHoldWrongMs + f8Extension
       cueRepaintActiveRef.current = true
       phaseRef.current = 'cueRepaint'
       onPhase?.('cueRepaint')

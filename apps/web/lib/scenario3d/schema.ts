@@ -98,11 +98,18 @@ export type FreezeMarker = z.infer<typeof freezeMarkerSchema>
 // reads opt in to two freeze beats. Both fields are optional everywhere;
 // absent = renderer falls back to the module defaults in
 // freezeFrameCognition.ts. Floors enforced at parse time:
-//   - cognitionHoldMs ≥ 1100ms (qa-checklist §6 readability floor)
+//   - cognitionHoldMs ≥ 800ms (the absolute floor across every difficulty
+//     — see `ABSOLUTE_COGNITION_HOLD_FLOOR_MS` in freezeFrameCognition.ts).
+//     Pack 2 Teaching-Quality F1: the per-difficulty narrowing
+//     (D1–D3 = 1100, D4 = 1000, D5 = 800) is enforced in the template
+//     materializer where effective difficulty is known
+//     (`cognitionHoldFloorForDifficulty`). The runtime parser only checks
+//     the absolute floor so the materialized scene JSON round-trips
+//     unchanged regardless of the variant's authored difficulty.
 //   - all hold values ≤ 4_000ms (anything longer should split into a
 //     HUNT chain, not a stretched single freeze).
 export const timingOverridesSchema = z.object({
-  cognitionHoldMs: z.number().int().min(1100).max(4_000).optional(),
+  cognitionHoldMs: z.number().int().min(800).max(4_000).optional(),
   choiceTrayAtMs: z.number().int().min(0).max(4_000).optional(),
   cueRepaintHoldCorrectMs: z.number().int().min(200).max(4_000).optional(),
   cueRepaintHoldWrongMs: z.number().int().min(200).max(4_000).optional(),
@@ -122,6 +129,19 @@ const wrongDemoSchema = z.object({
   caption: z.string().max(80).optional(),
 })
 export type WrongDemo = z.infer<typeof wrongDemoSchema>
+
+// --- Pack 2 Teaching-Quality F11 — `acceptable` choice demo --------------
+//
+// Same shape as wrongDemoSchema; emitted when the player picks a choice
+// whose quality is `acceptable`. The replay controller plays the
+// acceptable-demo as the consequence leg before transitioning to the
+// answer demo, so the player sees what "second-best" looks like.
+const acceptableDemoSchema = z.object({
+  choiceId: z.string().min(1),
+  movements: z.array(sceneMovementSchema).max(32),
+  caption: z.string().max(80).optional(),
+})
+export type AcceptableDemo = z.infer<typeof acceptableDemoSchema>
 
 // --- Overlay primitives (Section 4.5 / 6) --------------------------------
 // Discriminated union so the seed validator and the renderer share
@@ -255,6 +275,12 @@ export const sceneSchema = z
     // fixtures parse unchanged.
     freezeMarker: freezeMarkerSchema.optional(),
     wrongDemos: z.array(wrongDemoSchema).max(8).default([]),
+    /** Pack 2 Teaching-Quality F11 — optional `acceptable` choice
+     *  demos. Mirrors wrongDemos shape; played as the consequence leg
+     *  when the player picks an acceptable-quality choice. Absence
+     *  preserves Pack 1 behaviour: acceptable picks short-circuit
+     *  to the answer leg. */
+    acceptableDemos: z.array(acceptableDemoSchema).max(8).default([]),
     preAnswerOverlays: z.array(overlayPrimitiveSchema).max(16).default([]),
     postAnswerOverlays: z.array(overlayPrimitiveSchema).max(16).default([]),
     // Pack 2 (3.1.2) — consequence-phase overlays. Render during the
@@ -339,6 +365,20 @@ export const sceneSchema = z
             code: z.ZodIssueCode.custom,
             path: ['wrongDemos', i, 'movements'],
             message: `wrongDemos[${i}].movement "${m.id}" references unknown playerId "${m.playerId}".`,
+          })
+        }
+      }
+    }
+
+    // F11 — same player-set check for acceptableDemos.
+    for (let i = 0; i < scene.acceptableDemos.length; i++) {
+      const demo = scene.acceptableDemos[i]!
+      for (const m of demo.movements) {
+        if (!validMovementTargets.has(m.playerId)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['acceptableDemos', i, 'movements'],
+            message: `acceptableDemos[${i}].movement "${m.id}" references unknown playerId "${m.playerId}".`,
           })
         }
       }

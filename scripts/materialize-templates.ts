@@ -312,6 +312,41 @@ const AUTHORING_OVERLAY_CAPS_BY_DIFFICULTY: Readonly<
   5: { pre: 1, post: 5 },
 })
 
+// ---------------------------------------------------------------------------
+// Pack 2 Teaching-Quality F1 — per-difficulty cognition hold floor.
+//
+// Mirror of `COGNITION_HOLD_FLOOR_MS_BY_DIFFICULTY` in
+// apps/web/lib/scenario3d/freezeFrameCognition.ts. We duplicate the
+// (small) table here rather than importing from apps/web because
+// materialize-templates is a node script and apps/web ships next.js
+// surface (the lint-variants.ts pattern). Any change to the per-D
+// floor must update BOTH tables in lockstep.
+//
+// The schemas (template + runtime) admit the absolute floor (800ms);
+// this helper narrows that to the per-D floor at materialize time
+// when effective difficulty is known.
+// ---------------------------------------------------------------------------
+
+const COGNITION_HOLD_FLOOR_MS_BY_DIFFICULTY: Readonly<Record<number, number>> =
+  Object.freeze({
+    1: 1100,
+    2: 1100,
+    3: 1100,
+    4: 1000,
+    5: 800,
+  })
+
+function _cognitionHoldFloorForDifficulty(effectiveDifficulty: number): number {
+  // Same out-of-band semantics as the apps/web helper: clamp into
+  // [1, 5], collapse to D1 (loosest) when non-finite. The variant
+  // schema bounds difficulty to 1..5 already, so the clamp is
+  // belt-and-braces.
+  if (!Number.isFinite(effectiveDifficulty)) return 1100
+  const rounded = Math.round(effectiveDifficulty)
+  const d = rounded < 1 ? 1 : rounded > 5 ? 5 : rounded
+  return COGNITION_HOLD_FLOOR_MS_BY_DIFFICULTY[d] ?? 1100
+}
+
 function authoringOverlayCap(
   phase: 'pre' | 'post',
   difficulty: number,
@@ -387,6 +422,41 @@ function materialize(template: Template, variant: Variant): MaterializedScenario
     }
   })
 
+  // Pack 2 Teaching-Quality F11 — acceptable demos: same outcome→choiceId
+  // join as wrongDemos. The choice's quality must be `acceptable`; using
+  // an acceptable-demo on a `wrong` or `best` choice is an authoring
+  // mistake (the controller would short-circuit incorrectly). Validate
+  // here so authors see the error at materialize time.
+  const acceptableDemos = template.scene.acceptableDemos.map((ad) => {
+    const choiceId = outcomeToChoiceId.get(ad.outcome)
+    if (!choiceId) {
+      throw new Error(
+        `Template ${template.id} acceptable demo references outcome "${ad.outcome}" with no choice.`,
+      )
+    }
+    const choice = template.choices.find((c) => c.outcome === ad.outcome)
+    if (choice && choice.quality !== 'acceptable') {
+      throw new Error(
+        `Template ${template.id} acceptable demo "${ad.outcome}" maps to a choice with ` +
+          `quality="${choice.quality}". Acceptable demos may only attach to acceptable choices ` +
+          `(use wrongDemos for wrong choices; best choices play the answer demo).`,
+      )
+    }
+    return {
+      choiceId,
+      ...(ad.caption ? { caption: ad.caption } : {}),
+      movements: ad.movements.map((m) => ({
+        id: m.id,
+        playerId: m.playerSlot,
+        kind: m.kind,
+        to: flipX(m.to, mirror),
+        ...(typeof m.delayMs === 'number' ? { delayMs: m.delayMs } : {}),
+        ...(typeof m.durationMs === 'number' ? { durationMs: m.durationMs } : {}),
+        ...(m.caption ? { caption: m.caption } : {}),
+      })),
+    }
+  })
+
   // Disguise application: filter pre overlays + maybe compress freeze.
   const disguise = template.disguises[variant.variation.disguise]
   const removeSet = new Set(
@@ -420,19 +490,81 @@ function materialize(template: Template, variant: Variant): MaterializedScenario
     )
   }
 
+  // Pack 2 Teaching-Quality F1 — per-difficulty cognition hold floor.
+  // Schemas admit ≥800ms (the absolute floor); the per-D narrowing
+  // (D1-D3=1100, D4=1000, D5=800) is enforced here at materialize time
+  // because only the materializer knows the variant's effective
+  // difficulty. A D2 variant authoring an 800ms hold is rejected; a D5
+  // variant authoring 800ms is accepted.
+  const authoredHoldMs = template.scene.timingOverrides?.cognitionHoldMs
+  if (typeof authoredHoldMs === 'number') {
+    const cognitionFloor = _cognitionHoldFloorForDifficulty(effectiveDifficultyForCap)
+    if (authoredHoldMs < cognitionFloor) {
+      throw new Error(
+        `Template ${template.id} (used by ${variant.id} at D${effectiveDifficultyForCap}) ` +
+          `cognitionHoldMs=${authoredHoldMs} is below the per-D floor (${cognitionFloor}ms). ` +
+          `Per-D floors: D1-D3=1100, D4=1000, D5=800. See ` +
+          `cognitionHoldFloorForDifficulty in apps/web/lib/scenario3d/freezeFrameCognition.ts.`,
+      )
+    }
+  }
+
   const preAnswerOverlays = filteredPre.map((o) => resolveOverlay(o, mirror))
   const postAnswerOverlays = template.overlays.post.map((o) => resolveOverlay(o, mirror))
 
-  // Freeze marker — disguise can compress.
+  // Pack 2 Teaching-Quality F2 — disguise can shift the freeze marker
+  // earlier in the possession (renamed from the legacy `freezeCompressMs`,
+  // which mis-named the behaviour as "compression"). The marker moves
+  // earlier; the cognition hold itself stays the same unless
+  // `cognitionHoldCompressMs` is also set (handled below).
   let freezeMarker = template.scene.freezeMarker
   if (
     freezeMarker?.kind === 'atMs' &&
-    typeof disguise?.freezeCompressMs === 'number' &&
-    disguise.freezeCompressMs > 0
+    typeof disguise?.freezeShiftEarlierMs === 'number' &&
+    disguise.freezeShiftEarlierMs > 0
   ) {
     freezeMarker = {
       kind: 'atMs',
-      atMs: Math.max(0, freezeMarker.atMs - disguise.freezeCompressMs),
+      atMs: Math.max(0, freezeMarker.atMs - disguise.freezeShiftEarlierMs),
+    }
+  }
+
+  // Pack 2 Teaching-Quality F2 — disguise can also tighten thinking
+  // time itself by subtracting from the resolved cognition hold.
+  // Composes with `freezeShiftEarlierMs`: heavy disguise can both
+  // move the freeze earlier AND give the player less time to read it.
+  // The F1 per-D floor is enforced after the subtraction so a heavy
+  // disguise cannot drag the hold below the difficulty's floor.
+  let resolvedTimingOverrides = template.scene.timingOverrides
+  if (
+    typeof disguise?.cognitionHoldCompressMs === 'number' &&
+    disguise.cognitionHoldCompressMs > 0
+  ) {
+    // Default cognition hold is FREEZE_COGNITION_HOLD_MS = 1400 (Pack 1
+    // module constant in apps/web/lib/scenario3d/freezeFrameCognition.ts).
+    // Mirror the value here as a literal so the materializer stays
+    // node-only (architecture lock); update both in lockstep when the
+    // default ever changes.
+    const PACK_1_DEFAULT_HOLD_MS = 1400
+    const baseHold =
+      template.scene.timingOverrides?.cognitionHoldMs ?? PACK_1_DEFAULT_HOLD_MS
+    const compressed = Math.max(0, baseHold - disguise.cognitionHoldCompressMs)
+    const cognitionFloor = _cognitionHoldFloorForDifficulty(
+      effectiveDifficultyForCap,
+    )
+    if (compressed < cognitionFloor) {
+      throw new Error(
+        `Template ${template.id} (used by ${variant.id} at D${effectiveDifficultyForCap}) ` +
+          `disguise "${variant.variation.disguise}" cognitionHoldCompressMs=` +
+          `${disguise.cognitionHoldCompressMs} drives the resolved cognition hold ` +
+          `to ${compressed}ms, below the per-D floor (${cognitionFloor}ms). ` +
+          `Reduce cognitionHoldCompressMs or raise the template's ` +
+          `timingOverrides.cognitionHoldMs.`,
+      )
+    }
+    resolvedTimingOverrides = {
+      ...(template.scene.timingOverrides ?? {}),
+      cognitionHoldMs: compressed,
     }
   }
 
@@ -531,14 +663,22 @@ function materialize(template: Template, variant: Variant): MaterializedScenario
       answerDemo,
       ...(freezeMarker ? { freezeMarker } : {}),
       wrongDemos,
+      // Pack 2 Teaching-Quality F11 — emit acceptableDemos only when
+      // the template authored at least one (preserves diff-stable
+      // output for templates that don't use the field).
+      ...(acceptableDemos.length > 0 ? { acceptableDemos } : {}),
       preAnswerOverlays,
       postAnswerOverlays,
       // Phase 3.1.4 — pass through opt-in timing override + multi-beat
       // spec. Both fields are optional in the template schema; we
       // forward them only when authored so materialized JSONs stay
       // diff-stable for templates that don't use them.
-      ...(template.scene.timingOverrides
-        ? { timingOverrides: template.scene.timingOverrides }
+      // Pack 2 Teaching-Quality F2 — `resolvedTimingOverrides` includes
+      // any disguise-driven cognitionHoldCompressMs subtraction
+      // applied above; if no compression and no template override,
+      // we forward nothing.
+      ...(resolvedTimingOverrides
+        ? { timingOverrides: resolvedTimingOverrides }
         : {}),
       ...(template.scene.beatSpec ? { beatSpec: template.scene.beatSpec } : {}),
     },

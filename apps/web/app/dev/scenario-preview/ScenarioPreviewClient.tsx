@@ -634,6 +634,10 @@ function RenderMetadataPanel({
     preAnswer: scene?.preAnswerOverlays ?? [],
     postAnswer: scene?.postAnswerOverlays ?? [],
     level: overlayLevel,
+    // Pack 2 Teaching-Quality F6 — mirror the production renderer
+    // (ScenarioScene3D AuthoredOverlayBridge) so /dev/scenario-preview
+    // shows the same decoder-promoted overlay set.
+    decoderTag: scene?.decoderTag,
   })
   // FR-6 — derive replay-teaching state for the metadata panel.
   const replayLeg =

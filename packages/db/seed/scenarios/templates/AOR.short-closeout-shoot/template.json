@@ -111,7 +111,7 @@
         { "kind": "defender_hip_arrow", "onSlot": "closeout_def" },
         { "kind": "defender_foot_arrow", "onSlot": "closeout_def" }
       ],
-      "freezeCompressMs": 600,
+      "freezeShiftEarlierMs": 600,
       "difficultyBump": 2
     }
   },

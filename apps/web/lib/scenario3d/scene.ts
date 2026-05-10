@@ -91,6 +91,18 @@ export interface SceneWrongDemo {
   caption?: string
 }
 
+/**
+ * Pack 2 Teaching-Quality F11 — per-choice `acceptable` demo. Same shape
+ * as SceneWrongDemo; the replay controller plays it as the consequence
+ * leg when the player picks an acceptable-quality choice. Empty for
+ * legacy scenes.
+ */
+export interface SceneAcceptableDemo {
+  choiceId: string
+  movements: SceneMovement[]
+  caption?: string
+}
+
 export interface Scene3D {
   /** Stable identifier for memoising frames. */
   id: string
@@ -106,6 +118,14 @@ export interface Scene3D {
    * scenes (no authored wrongDemos block).
    */
   wrongDemos: SceneWrongDemo[]
+  /**
+   * Pack 2 Teaching-Quality F11 — `acceptable` choice demos keyed by
+   * choiceId. Empty for legacy scenes; populated from the authored
+   * `scene.acceptableDemos[]` block. The controller plays the
+   * matching demo as the consequence leg when the player picks an
+   * acceptable-quality choice.
+   */
+  acceptableDemos: SceneAcceptableDemo[]
   /**
    * Phase B — resolved freeze cue, in ms from the start of `movements`.
    * `null` means "no freeze authored" (renderer treats this as "freeze at
@@ -170,6 +190,15 @@ export interface Scene3D {
    */
   decoderTag?: DecoderTag
   /**
+   * Pack 2 Teaching-Quality wire-in — the variant's resolved effective
+   * difficulty (1..5). The renderer threads this into the F5
+   * beatSchedule (per-D freeze beat offsets) and the F8 getReplayCadence
+   * (D4+ wrong-answer dwell extension). Legacy / preset / synth scenes
+   * leave it `undefined`; consumers are expected to fall back to a
+   * safe D1 cadence in that case.
+   */
+  effectiveDifficulty?: number
+  /**
    * Phase 3.1.4 — per-scenario freeze-timing overrides. Validated at
    * parse time by `timingOverridesSchema`; missing fields fall back
    * to the renderer's module-level constants in `freezeFrameCognition`.
@@ -199,6 +228,7 @@ interface AuthoredScene {
   movements?: SceneMovement[]
   answerDemo?: SceneMovement[]
   wrongDemos?: SceneWrongDemo[]
+  acceptableDemos?: SceneAcceptableDemo[]
   freezeMarker?: FreezeMarker
   preAnswerOverlays?: OverlayPrimitive[]
   postAnswerOverlays?: OverlayPrimitive[]
@@ -224,6 +254,17 @@ interface SourceScenario {
    * decoder tag fall through.
    */
   decoder_tag?: string
+  /**
+   * Pack 2 Teaching-Quality wire-in — the variant's resolved effective
+   * difficulty (1..5). Read from the scenario's top-level `difficulty`
+   * field (set by the materializer to `variation.difficulty ??
+   * min(5, template.tactical.difficulty_default + disguise.difficultyBump)`)
+   * and propagated onto the resulting Scene3D so the renderer can
+   * thread D into beatSchedule (F5b) and getReplayCadence (F8).
+   * Legacy / preset / synth scenes leave it `undefined`; downstream
+   * helpers fall back to D1 (loosest, safest) cadence in that case.
+   */
+  difficulty?: number
 }
 
 /**
@@ -244,6 +285,10 @@ const _DECODER_TAGS: ReadonlySet<DecoderTag> = new Set<DecoderTag>([
   'EMPTY_SPACE_CUT',
   'SKIP_THE_ROTATION',
   'ADVANTAGE_OR_RESET',
+  // Pack 2 — DROP / HUNT decoder tags. The runtime presets are still
+  // stubs (gated by F3's empty-preset promotion check), but the tag
+  // itself must coerce successfully so the renderer can route F6's
+  // primary-cue promotion / F5's beat schedule by decoder.
   'READ_THE_COVERAGE',
   'HUNT_THE_ADVANTAGE',
 ])
@@ -264,6 +309,11 @@ function _coerceDecoderTag(raw: string | undefined): DecoderTag | undefined {
 export function buildScene(scenario: SourceScenario): Scene3D {
   const id = scenario.id || 'scene'
   const decoderTag = _coerceDecoderTag(scenario.decoder_tag)
+  // Pack 2 Teaching-Quality wire-in — clamp the variant's resolved
+  // difficulty to the schema's [1,5] domain. Out-of-band values
+  // (negative, NaN, > 5) collapse to undefined so downstream helpers
+  // (beatSchedule, getReplayCadence) take their safe-default branch.
+  const effectiveDifficulty = _coerceEffectiveDifficulty(scenario.difficulty)
 
   if (scenario.scene != null) {
     const parsed = sceneSchema.safeParse(scenario.scene)
@@ -271,6 +321,7 @@ export function buildScene(scenario: SourceScenario): Scene3D {
       return sanitiseScene({
         ...normaliseAuthoredScene(id, parsed.data as AuthoredScene),
         decoderTag,
+        effectiveDifficulty,
       })
     }
     if (typeof console !== 'undefined') {
@@ -281,18 +332,26 @@ export function buildScene(scenario: SourceScenario): Scene3D {
   const conceptTags = scenario.concept_tags ?? []
   if (conceptTags.length > 0) {
     const preset = getPresetForConcept(id, conceptTags)
-    if (preset) return sanitiseScene({ ...preset, decoderTag })
+    if (preset) return sanitiseScene({ ...preset, decoderTag, effectiveDifficulty })
   }
 
   if (scenario.court_state) {
     const synth = synthesiseSceneFromCourtState({ ...scenario, id, court_state: scenario.court_state })
     if (synth.players.length > 0) {
-      return sanitiseScene({ ...synth, decoderTag })
+      return sanitiseScene({ ...synth, decoderTag, effectiveDifficulty })
     }
   }
 
   // Last-resort default scene so the renderer always has something to show.
   return sanitiseScene(createDefaultScene(id))
+}
+
+function _coerceEffectiveDifficulty(raw: number | undefined): number | undefined {
+  if (typeof raw !== 'number') return undefined
+  if (!Number.isFinite(raw)) return undefined
+  const rounded = Math.round(raw)
+  if (rounded < 1 || rounded > 5) return undefined
+  return rounded
 }
 
 function normaliseAuthoredScene(id: string, scene: AuthoredScene): Scene3D {
@@ -333,6 +392,7 @@ function normaliseAuthoredScene(id: string, scene: AuthoredScene): Scene3D {
     movements,
     answerDemo: scene.answerDemo ?? [],
     wrongDemos: scene.wrongDemos ?? [],
+    acceptableDemos: scene.acceptableDemos ?? [],
     preAnswerOverlays: scene.preAnswerOverlays ?? [],
     postAnswerOverlays: scene.postAnswerOverlays ?? [],
     consequenceOverlays: scene.consequenceOverlays ?? [],
@@ -370,6 +430,7 @@ function resolveFreezeFromAuthored(
     movements,
     answerDemo: [],
     wrongDemos: [],
+    acceptableDemos: [],
     preAnswerOverlays: [],
     postAnswerOverlays: [],
     consequenceOverlays: [],
@@ -442,6 +503,7 @@ function synthesiseSceneFromCourtState(
     movements: [],
     answerDemo: [],
     wrongDemos: [],
+    acceptableDemos: [],
     preAnswerOverlays: [],
     postAnswerOverlays: [],
     consequenceOverlays: [],
@@ -469,6 +531,7 @@ export function createDefaultScene(id = 'default_3d_scene'): Scene3D {
     movements: [],
     answerDemo: [],
     wrongDemos: [],
+    acceptableDemos: [],
     preAnswerOverlays: [],
     postAnswerOverlays: [],
     consequenceOverlays: [],
@@ -543,6 +606,19 @@ function sanitiseScene(scene: Scene3D): Scene3D {
       }))
   }
 
+  const cleanAcceptableDemos = (
+    list: SceneAcceptableDemo[] | undefined,
+  ): SceneAcceptableDemo[] => {
+    if (!Array.isArray(list)) return []
+    return list
+      .filter((d) => d && typeof d.choiceId === 'string')
+      .map((d) => ({
+        choiceId: d.choiceId,
+        movements: cleanMovements(d.movements),
+        caption: d.caption,
+      }))
+  }
+
   return {
     ...scene,
     players,
@@ -550,6 +626,7 @@ function sanitiseScene(scene: Scene3D): Scene3D {
     movements: cleanMovements(scene.movements),
     answerDemo: cleanMovements(scene.answerDemo),
     wrongDemos: cleanWrongDemos(scene.wrongDemos),
+    acceptableDemos: cleanAcceptableDemos(scene.acceptableDemos),
   }
 }
 
