@@ -1,0 +1,276 @@
+[
+  {
+    "id": "HUNT-01",
+    "version": 1,
+    "status": "DRAFT",
+    "title": "Hunt the Switch — Attack the Recovery Foot",
+    "category": "OFFENSE",
+    "decoder_tag": "HUNT_THE_ADVANTAGE",
+    "concept_tags": ["hunt_chained_read", "mismatch_exploit"],
+    "sub_concepts": ["pre_set_switch", "baseline_drive_against_recovery"],
+    "difficulty": 1,
+    "user_role": "wing_scorer",
+    "game_context": "5-on-5 half-court. A high screen happened a beat before the scene opened — the defense switched, and a slower / smaller defender (x4) is now matched on you on the right wing. The original on-ball defender (x1) has cleared to the screener. You are catching the ball with the mismatch already established.",
+    "possession_setup": "You are on the right wing in triple-threat. x4, the post defender, picked you up after the switch. He is square but his feet are heavier than yours and his hips are not yet under him — the matchup is real. The other three defenders are in shell positions and not yet stunting. No tag is pre-positioned at the rim.",
+    "decision_moment": "You feel the mismatch on the catch. Beat one freezes on the matchup — see who is on you and how he is standing. The play unfreezes for one dribble of probe. Beat two freezes on his recovery — the side he slid to, and the foot he is leaving behind.",
+    "visible_cue": "Beat 1: x4 is on your hip, chest square, but he is the post defender — not your size. Beat 2: after your probe his outside foot has dropped toward the middle; his baseline foot is trailing. The lane along the baseline is open before help can rotate.",
+    "court_state": {
+      "offense": [
+        { "id": "user", "x": 420, "y": 120, "role": "wing_scorer", "hasBall": true },
+        { "id": "ball_handler", "x": 240, "y": 180, "role": "primary_handler", "hasBall": false },
+        { "id": "screener", "x": 60, "y": 80, "role": "lift_big", "hasBall": false },
+        { "id": "corner_strong", "x": 460, "y": 10, "role": "strong_corner", "hasBall": false },
+        { "id": "corner_weak", "x": 20, "y": 10, "role": "weak_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x_user", "x": 415, "y": 140, "role": "mismatch_defender_post", "hasBall": false },
+        { "id": "x_handler", "x": 240, "y": 200, "role": "switched_to_big", "hasBall": false },
+        { "id": "x_screener", "x": 80, "y": 100, "role": "weak_wing_defender", "hasBall": false },
+        { "id": "x_corner_strong", "x": 440, "y": 30, "role": "strong_corner_defender", "hasBall": false },
+        { "id": "x_corner_weak", "x": 50, "y": 30, "role": "weak_corner_defender", "hasBall": false }
+      ],
+      "ball_location": { "x": 420, "y": 120 }
+    },
+    "prompt": "The switch put a slower defender on you. Beat 1 — see the matchup. Beat 2 — read his recovery. What's the read?",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Drive baseline against his recovery foot.",
+        "quality": "best",
+        "feedback_text": "Best read. The mismatch is yours and his trailing foot is on the baseline side. Get to the rim before help can rotate.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Pull up off the dribble — he bit on the probe.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. If he commits forward you can rise, but the baseline drive against the recovery is the cleaner exploit on this mismatch.",
+        "partial_feedback_text": "Pulling up trades a rim attempt for a contested two. Drive the trailing foot — the mismatch is asking you to go.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Pass it back to the point guard and reset.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Resetting gives up the mismatch. The defense forced this matchup on themselves — make them live with it.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Drive at the help defender on the strong-side corner.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. HUNT teaches you to attack the mismatch, not the help. Help is a SKR read — this scenario is about exploiting the switch.",
+        "order": 4
+      }
+    ],
+    "best_read": "Drive the baseline. The switch handed you a slower defender, and his probe recovery left his back foot trailing on the baseline side. Attack that lane before help can rotate over from the weak side. The mismatch is the offer; the recovery foot is the door.",
+    "acceptable_reads": [
+      "Pull up if he bites forward on the dribble — keeps the possession alive but trades a rim attempt for a contested mid-range, so it is worse EV than the baseline drive."
+    ],
+    "bad_reads": [
+      "Pass back and reset — gives up the mismatch the defense just handed you.",
+      "Attack the help — HUNT is about exploiting the new matchup, not chasing a SKR read into rotated help."
+    ],
+    "common_miss_reason": "Treating beat 1 as the decision beat. Players who learned single-read decoders try to answer on the first freeze and miss the recovery cue that only appears at beat 2.",
+    "why_best_read_works": "A switch is a defensive concession: the defense traded their best on-ball matchup for keeping the screen contained. The cost is a slower defender on a quicker offensive player. When he probes his recovery, his weight commits to one side — the side his feet did not cover is the side you attack. Help cannot rotate fast enough on a one-dribble baseline angle if the read is taken on the catch.",
+    "decoder_teaching_point": "HUNT is two reads in a row. Beat 1: see the mismatch (who switched onto you). Beat 2: read the recovery (which foot is trailing). Then attack the trailing foot.",
+    "lesson_connection": "chained-reads-intro",
+    "feedback": {
+      "correct": "Good chain. You saw the mismatch on beat 1 and attacked the recovery foot on beat 2. That is HUNT.",
+      "partial": "Right idea, second-best exploit. The mismatch was bigger than a pull-up — drive the trailing foot next time.",
+      "wrong": "Look at the chain. Beat 1 named the mismatch; beat 2 named the recovery. You skipped step two and went somewhere else."
+    },
+    "self_review_checklist": [
+      "Did I wait for beat 2 before I committed?",
+      "Did I track his feet during the inter-beat probe, not the chest?",
+      "Did I attack the side his recovery foot was leaving open?",
+      "Did I take the mismatch the defense gave me, not the help they kept?"
+    ],
+    "coach_validation": {
+      "level": "medium",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-10T00:00:00.000Z",
+      "notes": "Pack 2 (Phase γ) — HUNT-01 base scenario. D1: pre-set switch, mismatch already established off-screen. Two-beat freeze; beat 1 names the matchup, beat 2 names the recovery. coach_validation.level=medium is permitted at D1/D2 per LINT-HUNT-05; high+approved gates D3+ only."
+    },
+    "source_research_basis": "Standard mismatch-hunting taxonomy. The pre-set switch is the entry-level HUNT shape — the chain skips the 'force the switch' step (HUNT D2) and isolates the 'exploit the switch' cognition. Universally taught at every level above middle-school AAU.",
+    "progression_metadata": {
+      "unlocks": ["HUNT-02"],
+      "prerequisites": []
+    },
+    "explanation_md": "**Hunt the Advantage — Pre-Set Switch.** The defense switched a beat before the scene started, and a slower defender is on you. Beat one shows you the matchup — observe, do not commit. The play unfreezes and you probe with one dribble; the defender slides, and his recovery leaves one foot trailing. Beat two freezes that recovery. The trailing foot points away from the rim — drive baseline against it. HUNT is not asking you to invent a play; it is asking you to read the chain the defense just handed you. **Beat one for looking. Beat two for choosing.**",
+    "xp_reward": 22,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "hunt_preset_switch_mismatch",
+      "court": "half",
+      "camera": "teaching_angle",
+      "players": [
+        { "id": "user", "team": "offense", "role": "wing_scorer", "label": "You", "start": { "x": 18, "z": 12 }, "isUser": true, "hasBall": true },
+        { "id": "ball_handler", "team": "offense", "role": "primary_handler", "label": "1", "start": { "x": 0, "z": 22 } },
+        { "id": "screener", "team": "offense", "role": "lift_big", "label": "5", "start": { "x": -16, "z": 12 } },
+        { "id": "corner_strong", "team": "offense", "role": "strong_corner", "label": "3", "start": { "x": 22, "z": 1 } },
+        { "id": "corner_weak", "team": "offense", "role": "weak_corner", "label": "2", "start": { "x": -22, "z": 1 } },
+        { "id": "x_user", "team": "defense", "role": "mismatch_defender_post", "label": "x4", "start": { "x": 18, "z": 14 } },
+        { "id": "x_handler", "team": "defense", "role": "switched_to_big", "label": "x1", "start": { "x": 0, "z": 24 } },
+        { "id": "x_screener", "team": "defense", "role": "weak_wing_defender", "label": "x5", "start": { "x": -14, "z": 13 } },
+        { "id": "x_corner_strong", "team": "defense", "role": "strong_corner_defender", "label": "x3", "start": { "x": 20, "z": 3 } },
+        { "id": "x_corner_weak", "team": "defense", "role": "weak_corner_defender", "label": "x2", "start": { "x": -20, "z": 3 } }
+      ],
+      "ball": {
+        "start": { "x": 18, "z": 12 },
+        "holderId": "user"
+      },
+      "movements": [
+        {
+          "id": "user_catch_settle",
+          "playerId": "user",
+          "kind": "drift",
+          "to": { "x": 18, "z": 12 },
+          "delayMs": 0,
+          "durationMs": 400
+        },
+        {
+          "id": "x_user_pick_up",
+          "playerId": "x_user",
+          "kind": "rotation",
+          "to": { "x": 18, "z": 14 },
+          "delayMs": 0,
+          "durationMs": 600
+        },
+        {
+          "id": "user_probe_dribble",
+          "playerId": "user",
+          "kind": "drive",
+          "to": { "x": 19, "z": 10 },
+          "delayMs": 1300,
+          "durationMs": 700
+        },
+        {
+          "id": "x_user_slide_recover",
+          "playerId": "x_user",
+          "kind": "rotation",
+          "to": { "x": 19, "z": 12 },
+          "delayMs": 1400,
+          "durationMs": 800
+        }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1100 },
+      "beatSpec": {
+        "firstBeat": { "kind": "atMs", "atMs": 1100 },
+        "secondBeat": { "kind": "atMs", "atMs": 2700 }
+      },
+      "timingOverrides": {
+        "cognitionHoldMs": 1100
+      },
+      "answerDemo": [
+        {
+          "id": "user_drive_baseline",
+          "playerId": "user",
+          "kind": "drive",
+          "to": { "x": 21, "z": 3 },
+          "delayMs": 0,
+          "durationMs": 700
+        },
+        {
+          "id": "user_finish_rim",
+          "playerId": "ball",
+          "kind": "pass",
+          "to": { "x": 23, "z": 1 },
+          "delayMs": 500,
+          "durationMs": 500
+        }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You pulled up. The shot was contested before the mismatch could matter.",
+          "movements": [
+            {
+              "id": "user_pull_up",
+              "playerId": "user",
+              "kind": "lift",
+              "to": { "x": 19, "z": 9 },
+              "delayMs": 0,
+              "durationMs": 350
+            },
+            {
+              "id": "x_user_contest",
+              "playerId": "x_user",
+              "kind": "closeout",
+              "to": { "x": 19, "z": 11 },
+              "delayMs": 150,
+              "durationMs": 400
+            }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You reset to the guard. The switch held and the mismatch was wasted.",
+          "movements": [
+            {
+              "id": "user_pass_reset",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": { "x": 0, "z": 22 },
+              "delayMs": 0,
+              "durationMs": 600
+            },
+            {
+              "id": "x_user_recover_full",
+              "playerId": "x_user",
+              "kind": "rotation",
+              "to": { "x": 18, "z": 13 },
+              "delayMs": 100,
+              "durationMs": 500
+            }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You drove at the corner help. They rotated and stripped it.",
+          "movements": [
+            {
+              "id": "user_drive_help",
+              "playerId": "user",
+              "kind": "drive",
+              "to": { "x": 21, "z": 6 },
+              "delayMs": 0,
+              "durationMs": 600
+            },
+            {
+              "id": "x_corner_strong_step_in",
+              "playerId": "x_corner_strong",
+              "kind": "rotation",
+              "to": { "x": 21, "z": 7 },
+              "delayMs": 100,
+              "durationMs": 500
+            }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "help_pulse", "playerId": "x_user", "role": "mismatch", "beat": 1 },
+        { "kind": "defender_chest_line", "playerId": "x_user", "beat": 1 },
+        { "kind": "help_pulse", "playerId": "x_user", "role": "mismatch", "beat": 2 },
+        { "kind": "defender_foot_arrow", "playerId": "x_user", "beat": 2 }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "open_space_region", "anchor": { "x": 21, "z": 4 }, "radiusFt": 5 },
+        { "kind": "defender_foot_arrow", "playerId": "x_user" },
+        { "kind": "timing_pulse", "anchor": { "x": 23, "z": 1 }, "durationMs": 600 },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "user",
+          "path": [
+            { "x": 18, "z": 12 },
+            { "x": 20, "z": 7 },
+            { "x": 22, "z": 2 }
+          ]
+        }
+      ]
+    }
+  }
+]

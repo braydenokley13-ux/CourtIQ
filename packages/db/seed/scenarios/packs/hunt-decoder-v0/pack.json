@@ -1,0 +1,10 @@
+{
+  "id": "pack-hunt-decoder-v0",
+  "slug": "hunt-decoder-v0",
+  "title": "HUNT Decoder v0 / Chained-Read Foundations",
+  "description": "Pack 2 (Phase γ). Real HUNT (HUNT_THE_ADVANTAGE) base scenarios — two-beat chained reads where action 1 forces a defensive reaction and beat 2's choice exploits the new geometry. D1 ships the pre-set mismatch; D2 introduces the user-forced switch. Concept-level prerequisites live on the Academy lesson `chained-reads-intro`.",
+  "scenarios": [
+    { "id": "HUNT-01", "file": "HUNT-01.json", "prerequisites": [] },
+    { "id": "HUNT-02", "file": "HUNT-02.json", "prerequisites": ["HUNT-01"] }
+  ]
+}
