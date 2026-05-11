@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { SessionMode } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/db/prisma'
@@ -10,6 +10,15 @@ import { checkAndAward } from '@/lib/services/badgeService'
 import { captureServerEvent } from '@/lib/analytics/serverEvents'
 import { sendEmail } from '@/lib/email/sender'
 import { badgeEarnedEmail } from '@/lib/email/templates/badge-earned'
+import { enforceRateLimit } from '@/lib/rateLimit/middleware'
+
+// Attempt submit is the highest-leverage user-write path: each call
+// runs IQ, XP, mastery, streak, badges, and email side effects inside
+// one transaction. A real session caps at ~5 attempts/3 minutes
+// (~1.7/min). 120/min/user is ~70x that — enough headroom for a
+// fast-clicking kid + dev tools, low enough to stop a scripted hammer
+// from flooding the badge engine.
+const ATTEMPT_LIMIT = { windowMs: 60_000, max: 120 }
 
 // Phase γ (HUNT) — per-beat correctness for chained two-beat scenarios.
 // Optional + nullable: present only for HUNT (and any future chained-
@@ -31,7 +40,7 @@ export function parseBeatResults(input: unknown):
 }
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: sessionId } = await params
@@ -46,6 +55,13 @@ export async function POST(
   if (!body.userId || !body.scenarioId || !body.choiceId) {
     return NextResponse.json({ error: 'userId, scenarioId, and choiceId are required' }, { status: 400 })
   }
+
+  const gate = enforceRateLimit(request, {
+    bucket: 'session_attempt',
+    limit: ATTEMPT_LIMIT,
+    userId: body.userId,
+  })
+  if (!gate.ok) return gate.response
 
   // HUNT-only — non-HUNT scenarios omit this and the column stays null.
   const beatResults = parseBeatResults(body.beatResults)
@@ -216,7 +232,7 @@ export async function POST(
     }
   }
 
-  return NextResponse.json({
+  return gate.decorate(NextResponse.json({
     scenario_id: scenario.id,
     choice_id: selectedChoice.id,
     is_correct: selectedChoice.is_correct,
@@ -230,5 +246,5 @@ export async function POST(
     level: result.xp.levelAfter,
     streak: result.streak.current,
     badges_awarded: result.badges,
-  })
+  }))
 }

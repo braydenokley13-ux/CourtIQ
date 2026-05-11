@@ -39,6 +39,7 @@ vi.mock('@/lib/email/templates/badge-earned', () => ({
   badgeEarnedEmail: vi.fn(() => ({ subject: '', html: '' })),
 }))
 
+import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db/prisma'
 import { applyAttempt } from '@/lib/services/iqService'
 import { award } from '@/lib/services/xpService'
@@ -52,7 +53,7 @@ type MockedFn = ReturnType<typeof vi.fn>
 const params = (id: string) => ({ params: Promise.resolve({ id }) })
 
 function reqWith(body: Record<string, unknown>) {
-  return new Request('http://x/api/session/sess/attempt', {
+  return new NextRequest('http://x/api/session/sess/attempt', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
