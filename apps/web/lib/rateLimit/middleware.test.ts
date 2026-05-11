@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { enforceRateLimit, extractClientIp } from './middleware'
 import { InMemoryRateLimitStore } from './slidingWindow'
 
@@ -71,7 +71,6 @@ describe('enforceRateLimit', () => {
     const gate = enforceRateLimit(r, { bucket: 'b', limit, now: () => 1_000, store })
     expect(gate.ok).toBe(true)
     if (!gate.ok) return
-    const { NextResponse } = require('next/server') as typeof import('next/server')
     const decorated = gate.decorate(NextResponse.json({ hi: 'there' }))
     expect(decorated.headers.get('X-RateLimit-Limit')).toBe('2')
     expect(decorated.headers.get('X-RateLimit-Remaining')).toBe('1')
