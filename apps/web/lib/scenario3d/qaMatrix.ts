@@ -402,6 +402,23 @@ export const QA_MATRIX: readonly QaMatrixEntry[] = [
     priority: 'high',
   },
   {
+    id: 'DROP-02-MIRROR',
+    decoder: 'READ_THE_COVERAGE',
+    primaryCue:
+      'Mirrored: x5 chest below the elbow, vision locked on ball-handler, LEFT-side screen',
+    requiredFraming:
+      'Ball-handler turning the LEFT corner, x5 deep, RIGHT middle of the floor visible behind him (DROP-02 framing flipped across y-axis)',
+    requiredHighlight: 'x5 (screen defender, left side) + middle paint',
+    requiredOverlays: [
+      'defender_chest_line',
+      'defender_foot_arrow',
+      'defender_vision_cone',
+    ],
+    knownRisk:
+      'Mirror cognition collapse at D2 — if snake choice rate drops vs DROP-02 the player anchored on right-side geometry. Snake path must paint cleanly across the screen in the mirrored direction too — camera framing must show the right-side middle after the cross-back.',
+    priority: 'high',
+  },
+  {
     id: 'DROP-03',
     decoder: 'READ_THE_COVERAGE',
     primaryCue:

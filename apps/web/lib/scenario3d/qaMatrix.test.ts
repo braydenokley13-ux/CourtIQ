@@ -61,6 +61,7 @@ const PACK2_IDS: readonly string[] = [
   'DROP-01',
   'DROP-01-MIRROR',
   'DROP-02',
+  'DROP-02-MIRROR',
   'DROP-03',
   'HUNT-01',
   'HUNT-01-MIRROR',
@@ -115,11 +116,11 @@ describe('QA_MATRIX', () => {
 
   it('has matching Pack 2 entry counts for the new DROP and HUNT families', () => {
     const grouped = groupQaMatrixByDecoder()
-    // Phase δ-A.M2 — HUNT now ships a mirror at both D1 and D2; DROP
-    // currently ships only the D1 mirror.
-    // DROP: DROP-01, DROP-01-MIRROR, DROP-02, DROP-03 (4 total).
-    // HUNT: HUNT-01, HUNT-01-MIRROR, HUNT-02, HUNT-02-MIRROR, HUNT-03 (5 total).
-    expect(grouped.get('READ_THE_COVERAGE')?.length).toBe(4)
+    // Phase δ-A.M2 / δ-B.M2 — both decoders now ship a mirror at D1 and D2.
+    // DROP: DROP-01, DROP-01-MIRROR, DROP-02, DROP-02-MIRROR, DROP-03 (5).
+    // HUNT: HUNT-01, HUNT-01-MIRROR, HUNT-02, HUNT-02-MIRROR, HUNT-03 (5).
+    // Families are once again symmetric.
+    expect(grouped.get('READ_THE_COVERAGE')?.length).toBe(5)
     expect(grouped.get('HUNT_THE_ADVANTAGE')?.length).toBe(5)
   })
 
