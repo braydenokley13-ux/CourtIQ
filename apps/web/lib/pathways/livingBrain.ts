@@ -100,6 +100,11 @@ export type ObservationKind =
   | 'anticipation_streak'
   | 'archetype_emerging'
   | 'dormant_decoder'
+  // Phase 8 — Applied Recognition. The appliedRecognition.ts module
+  // emits this kind via `kind: 'applied_recognition' & Observation['kind']`,
+  // which resolves to `never` when this union doesn't include it; that
+  // narrowing has been failing `pnpm typecheck` on main.
+  | 'applied_recognition'
 
 export type ObservationSurface =
   /** Home card; user-facing. */
@@ -139,6 +144,11 @@ export const COOLDOWN_DAYS: Record<ObservationKind, number> = {
   anticipation_streak: 7,
   archetype_emerging: 30,
   dormant_decoder: 14,
+  // Applied Recognition manages its own per-tier cooldowns inside
+  // `appliedRecognition.ts` (appliedCooldownActive); this entry keeps
+  // the Record<ObservationKind, ...> exhaustive but is not consulted
+  // by the routing path.
+  applied_recognition: 0,
 }
 
 /** Once an archetype has been earned, hold it for ≥ this many days
