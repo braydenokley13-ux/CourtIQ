@@ -55,7 +55,7 @@ const LANE_BLOCKED_COLOR = '#FF7A40'
 const OPEN_SPACE_COLOR = '#3BE383' // brand accent at low alpha
 const DRIVE_PREVIEW_COLOR = '#46FFA8'
 const HELP_PULSE_COLORS: Record<
-  'tag' | 'low_man' | 'nail' | 'stunter' | 'overhelp',
+  'tag' | 'low_man' | 'nail' | 'stunter' | 'overhelp' | 'mismatch',
   string
 > = {
   tag: '#FFCB44',
@@ -63,6 +63,10 @@ const HELP_PULSE_COLORS: Record<
   nail: '#7BB6FF',
   stunter: '#B083FF', // schema-valid; deferred per Section 6.7
   overhelp: '#FF3F58',
+  // Pack 2 (§2.4) — HUNT mismatch defender. Uses the iq purple-indigo
+  // brand color so the mismatch read is visually distinct from the
+  // help-rotation reds/oranges/yellows.
+  mismatch: '#8B7CFF',
 }
 
 // Body-language anchor heights (court units, feet).
@@ -1515,7 +1519,7 @@ export class TeachingOverlayController {
     target: THREE.Group,
     phase: 'pre' | 'consequence' | 'post',
     playerId: string,
-    role: 'tag' | 'low_man' | 'nail' | 'stunter' | 'overhelp',
+    role: 'tag' | 'low_man' | 'nail' | 'stunter' | 'overhelp' | 'mismatch',
   ): void {
     const player = this.playerById(playerId)
     if (!player) return
