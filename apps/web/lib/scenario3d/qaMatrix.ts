@@ -421,6 +421,23 @@ export const QA_MATRIX: readonly QaMatrixEntry[] = [
     priority: 'high',
   },
   {
+    id: 'HUNT-01-MIRROR',
+    decoder: 'HUNT_THE_ADVANTAGE',
+    primaryCue:
+      'Mirrored: beat 1 mismatch on x4 (left wing); beat 2 trailing recovery foot, LEFT baseline',
+    requiredFraming:
+      'Left-wing user, x4 on the hip, left baseline lane visible at beat 2 (HUNT-01 framing flipped across y-axis)',
+    requiredHighlight: 'x4 (mismatch defender, left side)',
+    requiredOverlays: [
+      'help_pulse',
+      'defender_chest_line',
+      'defender_foot_arrow',
+    ],
+    knownRisk:
+      'Mirror cognition collapse — if recognition drops vs HUNT-01, the player memorized geometry instead of the cue. Treat as a mastery-transfer probe rather than a new puzzle.',
+    priority: 'high',
+  },
+  {
     id: 'HUNT-02',
     decoder: 'HUNT_THE_ADVANTAGE',
     primaryCue:
