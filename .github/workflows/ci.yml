@@ -43,6 +43,13 @@ jobs:
       - name: Prisma validate
         run: pnpm prisma:validate
 
+      # Vitest — runs all package + app unit tests (~2.5k tests).
+      # Gates merges against regressions in the IQ/XP/streak services,
+      # the scenario-engine pure helpers, the adaptive decoder logic,
+      # the renderer determinism contracts, and the route handlers.
+      - name: Unit tests
+        run: pnpm test
+
       # Pack 2 (Phase 3.1.6) — content gates.
       #
       # 1. Materialize check fails on any drift between

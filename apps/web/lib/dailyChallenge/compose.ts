@@ -13,7 +13,7 @@
  * either way.
  */
 import type { DecoderConfidence } from '../adaptive/types'
-import { seedDailyChallenge, type DailyCatalogScenario, type DailySeedResult } from './seed'
+import { seedDailyChallenge, type DailyCatalogScenario } from './seed'
 
 export interface ComposeDailyInput {
   utcDate: Date

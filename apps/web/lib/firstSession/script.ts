@@ -21,7 +21,7 @@
  * best-available match for that step rather than skipping.
  */
 
-import type { DecoderTag } from '../adaptive/types'
+import type { DecoderTag } from '@/lib/decoders/registry'
 
 /**
  * UI-mode flags read by /train per rep. The defaults below describe

@@ -1,0 +1,292 @@
+[
+  {
+    "id": "HUNT-02-MIRROR",
+    "version": 1,
+    "status": "DRAFT",
+    "title": "Force the Switch — Other Side, Same Chain",
+    "category": "OFFENSE",
+    "decoder_tag": "HUNT_THE_ADVANTAGE",
+    "concept_tags": ["hunt_chained_read", "mismatch_exploit", "force_switch"],
+    "sub_concepts": ["user_forced_switch", "baseline_drive_against_mismatch"],
+    "difficulty": 2,
+    "user_role": "pnr_ball_handler",
+    "game_context": "5-on-5 half-court. You are the ball-handler at the top of the key, calling for your post (5) to lift into a high ball-screen on the LEFT side. The defense is a switching unit — x1 is the on-ball guard, x5 is your post defender. Same shape as HUNT-02, mirrored to the left side of the floor.",
+    "possession_setup": "Top-of-the-key high pick-and-roll. The screener (5) lifts on the LEFT; you reject the on-ball pressure and use the screen. x5 reads the screen and shows his hip toward the ball — he is preparing to switch. The other defenders sit in shell positions. No tag is pre-positioned at the rim.",
+    "decision_moment": "Beat one freezes as you turn the corner — see x5's hip rotating toward the ball, telling you the switch is coming. The play unfreezes; the switch completes and you are now matched on x5. Beat two freezes with x5 in front of you, chest square but feet still settling. The matchup is yours.",
+    "visible_cue": "Beat 1: x5's hip is open to the ball — switch tell, same as on the right side. The post-switch matchup target is highlighted. Beat 2: the switch has happened, x5 is on you, his chest is square but his feet are heavier than yours. The LEFT baseline lane is open before help can rotate.",
+    "court_state": {
+      "offense": [
+        { "id": "user", "x": 240, "y": 180, "role": "pnr_ball_handler", "hasBall": true },
+        { "id": "screener", "x": 200, "y": 200, "role": "screener", "hasBall": false },
+        { "id": "wing", "x": 420, "y": 80, "role": "weak_wing", "hasBall": false },
+        { "id": "corner_strong", "x": 20, "y": 10, "role": "strong_corner", "hasBall": false },
+        { "id": "corner_weak", "x": 460, "y": 10, "role": "weak_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x_user", "x": 240, "y": 200, "role": "on_ball", "hasBall": false },
+        { "id": "x_screener", "x": 200, "y": 140, "role": "mismatch_defender_post", "hasBall": false },
+        { "id": "x_wing", "x": 400, "y": 100, "role": "weak_wing_defender", "hasBall": false },
+        { "id": "x_corner_strong", "x": 40, "y": 30, "role": "strong_corner_defender", "hasBall": false },
+        { "id": "x_corner_weak", "x": 430, "y": 30, "role": "weak_corner_defender", "hasBall": false }
+      ],
+      "ball_location": { "x": 240, "y": 180 }
+    },
+    "prompt": "Same chain, screen from the left. Beat 1 — see the switch coming. Beat 2 — read the mismatch. What's the read?",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Drive baseline at the post defender's outside foot.",
+        "quality": "best",
+        "feedback_text": "Best read. Same chain, other side — you forced the switch, the mismatch is yours, and his feet are still settling. Take the rim.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Pull up off the dribble — he's flat-footed.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. If he sits in his stance the pull-up is there, but the baseline drive against a slower defender is the cleaner HUNT exploit on either side.",
+        "partial_feedback_text": "You forced the switch to drive, not to settle. Take the LEFT baseline before help can rotate.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Reject the screen and attack the original on-ball.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Rejecting kills the switch you came to force. The whole action was about getting x5 onto you — see it through, regardless of the side.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Throw the pocket pass to the screener.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. The screener is now guarded by x1 — that is a different read (HUNT in reverse for the rolling big). Hunt your own mismatch first.",
+        "order": 4
+      }
+    ],
+    "best_read": "Drive the LEFT baseline against the slower defender's outside foot. The screen and switch were the first action — they did their job. Beat 2 is the read: the post defender is on you, his feet are still settling, and there is no tag waiting at the rim. Same chain as HUNT-02 — the floor flipped, the read didn't.",
+    "acceptable_reads": [
+      "Pull up if x5 sits in his stance — trades a rim attempt for a contested mid-range, so worse EV than the baseline drive, but it punishes a frozen defender."
+    ],
+    "bad_reads": [
+      "Reject the screen — undoes the forcing move and gives the original matchup back.",
+      "Pocket pass to the screener — hands the read off when the mismatch was on you."
+    ],
+    "common_miss_reason": "Treating each side of the floor as a new chain. Players who learned HUNT-02 on the right side sometimes hesitate when the screen comes from the left because the angle feels new — but the hip arrow at beat 1 and the chest-square mismatch at beat 2 are the same cues. Hesitation lets x5 reset his feet.",
+    "why_best_read_works": "A switch handed off your matchup to a slower body on either side of the floor. The post defender's first job is to stay between you and the rim, but his feet do not move as quickly as yours; in the half-second before he resets, the baseline lane is open. The defense is shell-honest because the switch absorbed their best on-ball matchup — there is no nail-help or low-man rotation pre-loaded. The mirror does not change the geometry of the chain, only the side.",
+    "decoder_teaching_point": "HUNT D2 chains the force and the exploit on either side of the floor. Beat 1: see the switch coming — the hip arrow names it. Beat 2: read the new matchup — the mismatch pulse names it. Then attack the slower foot.",
+    "lesson_connection": "chained-reads-intro",
+    "feedback": {
+      "correct": "Good chain. Same forced switch, other side — you watched it complete, then attacked the slower defender on the left baseline.",
+      "partial": "You took the mismatch but settled for the pull-up. The drive against his foot is the bigger exploit, both sides.",
+      "wrong": "Read the chain. Beat 1 said 'switch is coming.' Beat 2 said 'this matchup is yours.' The side doesn't change the read."
+    },
+    "self_review_checklist": [
+      "Did I commit to the screen knowing the switch was the point, even from the left?",
+      "Did I read beat 1 (the hip arrow) as 'switch coming,' not 'shoot'?",
+      "Did I attack the mismatch's slower foot at beat 2?",
+      "Did I trust the chain to work the same way on the other side?"
+    ],
+    "coach_validation": {
+      "level": "medium",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-11T00:00:00.000Z",
+      "notes": "Pack 2 (Phase δ-A.M2) — HUNT-02 left-side mirror variant. Same force-switch + exploit chain as HUNT-02, mirrored across the y-axis. Validates that D2 chained-read recognition transfers across the floor; if recognition drops vs HUNT-02 the player chained the geometry, not the cues. coach_validation.level=medium tracks HUNT-02 per LINT-HUNT-05."
+    },
+    "source_research_basis": "Mirror variants are the canonical post-mastery exposure pattern (see HUNT-01-MIRROR and BDW-T1-02). Same source taxonomy as HUNT-02: user-forced switch as the canonical D2 chained read.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": ["HUNT-02"]
+    },
+    "explanation_md": "**Hunt the Advantage — Force the Switch, Other Side.** Same chained read as HUNT-02, mirrored to the left side of the floor. Beat one shows you the switch *coming*: the post defender's hip is rotating toward the ball, telling you he will pick you up. The play unfreezes and the switch completes. Beat two shows you the new matchup — slower defender on you, chest square, feet still settling. The exploit is the same as HUNT-02 (drive baseline against the slower foot), but the cognition is new only in framing: you forced this matchup on the left side, so you have to recognize when it has actually arrived. **Beat one is the tell. Beat two is the take. The side doesn't change the chain.**",
+    "xp_reward": 26,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "hunt_force_switch_mismatch",
+      "court": "half",
+      "camera": "teaching_angle",
+      "players": [
+        { "id": "user", "team": "offense", "role": "pnr_ball_handler", "label": "You", "start": { "x": 0, "z": 22 }, "isUser": true, "hasBall": true },
+        { "id": "screener", "team": "offense", "role": "screener", "label": "5", "start": { "x": -4, "z": 20 } },
+        { "id": "wing", "team": "offense", "role": "weak_wing", "label": "3", "start": { "x": 16, "z": 12 } },
+        { "id": "corner_strong", "team": "offense", "role": "strong_corner", "label": "4", "start": { "x": -22, "z": 1 } },
+        { "id": "corner_weak", "team": "offense", "role": "weak_corner", "label": "2", "start": { "x": 22, "z": 1 } },
+        { "id": "x_user", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": 0, "z": 24 } },
+        { "id": "x_screener", "team": "defense", "role": "mismatch_defender_post", "label": "x5", "start": { "x": -4, "z": 17 } },
+        { "id": "x_wing", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": 14, "z": 13 } },
+        { "id": "x_corner_strong", "team": "defense", "role": "strong_corner_defender", "label": "x4", "start": { "x": -20, "z": 3 } },
+        { "id": "x_corner_weak", "team": "defense", "role": "weak_corner_defender", "label": "x2", "start": { "x": 20, "z": 3 } }
+      ],
+      "ball": {
+        "start": { "x": 0, "z": 22 },
+        "holderId": "user"
+      },
+      "movements": [
+        {
+          "id": "screener_lift",
+          "playerId": "screener",
+          "kind": "lift",
+          "to": { "x": -3, "z": 21 },
+          "delayMs": 0,
+          "durationMs": 500
+        },
+        {
+          "id": "user_use_screen",
+          "playerId": "user",
+          "kind": "drive",
+          "to": { "x": -5, "z": 19 },
+          "delayMs": 400,
+          "durationMs": 700
+        },
+        {
+          "id": "x_screener_hip_show",
+          "playerId": "x_screener",
+          "kind": "rotation",
+          "to": { "x": -5, "z": 17 },
+          "delayMs": 500,
+          "durationMs": 600
+        },
+        {
+          "id": "x_user_clear_to_big",
+          "playerId": "x_user",
+          "kind": "rotation",
+          "to": { "x": -3, "z": 22 },
+          "delayMs": 1200,
+          "durationMs": 700
+        },
+        {
+          "id": "x_screener_switch_pickup",
+          "playerId": "x_screener",
+          "kind": "rotation",
+          "to": { "x": -5, "z": 18 },
+          "delayMs": 1300,
+          "durationMs": 800
+        },
+        {
+          "id": "user_settle_for_beat2",
+          "playerId": "user",
+          "kind": "drift",
+          "to": { "x": -6, "z": 18 },
+          "delayMs": 1500,
+          "durationMs": 700
+        }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1100 },
+      "beatSpec": {
+        "firstBeat": { "kind": "atMs", "atMs": 1100 },
+        "secondBeat": { "kind": "atMs", "atMs": 2700 }
+      },
+      "timingOverrides": {
+        "cognitionHoldMs": 1100
+      },
+      "answerDemo": [
+        {
+          "id": "user_drive_baseline",
+          "playerId": "user",
+          "kind": "drive",
+          "to": { "x": -8, "z": 4 },
+          "delayMs": 0,
+          "durationMs": 700
+        },
+        {
+          "id": "user_finish_rim",
+          "playerId": "ball",
+          "kind": "pass",
+          "to": { "x": -9, "z": 1 },
+          "delayMs": 500,
+          "durationMs": 500
+        }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You pulled up. The contest from the post defender was closer than you read it.",
+          "movements": [
+            {
+              "id": "user_pull_up",
+              "playerId": "user",
+              "kind": "lift",
+              "to": { "x": -6, "z": 17 },
+              "delayMs": 0,
+              "durationMs": 350
+            },
+            {
+              "id": "x_screener_contest",
+              "playerId": "x_screener",
+              "kind": "closeout",
+              "to": { "x": -6, "z": 18 },
+              "delayMs": 150,
+              "durationMs": 400
+            }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You rejected the screen. The switch never happened and x1 stayed attached.",
+          "movements": [
+            {
+              "id": "user_reject_screen",
+              "playerId": "user",
+              "kind": "drive",
+              "to": { "x": 4, "z": 19 },
+              "delayMs": 0,
+              "durationMs": 600
+            },
+            {
+              "id": "x_user_stay_attached",
+              "playerId": "x_user",
+              "kind": "rotation",
+              "to": { "x": 4, "z": 21 },
+              "delayMs": 100,
+              "durationMs": 500
+            }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You pocket-passed. x1 was already on the screener — wrong target.",
+          "movements": [
+            {
+              "id": "user_pocket_pass",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": { "x": -3, "z": 16 },
+              "delayMs": 0,
+              "durationMs": 500
+            },
+            {
+              "id": "x_user_close_screener",
+              "playerId": "x_user",
+              "kind": "closeout",
+              "to": { "x": -3, "z": 17 },
+              "delayMs": 100,
+              "durationMs": 500
+            }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "help_pulse", "playerId": "x_screener", "role": "mismatch", "beat": 1 },
+        { "kind": "defender_hip_arrow", "playerId": "x_screener", "beat": 1 },
+        { "kind": "help_pulse", "playerId": "x_screener", "role": "mismatch", "beat": 2 },
+        { "kind": "defender_chest_line", "playerId": "x_screener", "beat": 2 }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "open_space_region", "anchor": { "x": -8, "z": 4 }, "radiusFt": 5 },
+        { "kind": "defender_chest_line", "playerId": "x_screener" },
+        { "kind": "timing_pulse", "anchor": { "x": -9, "z": 1 }, "durationMs": 600 },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "user",
+          "path": [
+            { "x": -5, "z": 19 },
+            { "x": -7, "z": 11 },
+            { "x": -9, "z": 2 }
+          ]
+        }
+      ]
+    }
+  }
+]

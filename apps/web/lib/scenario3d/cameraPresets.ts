@@ -179,6 +179,16 @@ function freezePresetForDecoder(decoder: DecoderTag): DecoderCameraPreset {
       // over-helper and the abandoned weak-side shooter live in the
       // same shot.
       return 'help-defense-angle'
+    case 'READ_THE_COVERAGE':
+      // DROP — the chest-line + pocket read needs the screener and
+      // ball-handler in the same plane; top-down keeps the screen
+      // geometry uncluttered. Matches decoderCameraPresets.ts §1.
+      return 'top-down-coach-board'
+    case 'HUNT_THE_ADVANTAGE':
+      // HUNT — first-beat matchup recognition uses the teaching angle
+      // so the mismatched body is visible from the wing's frame of
+      // reference, parallel to BDW/ESC/AOR.
+      return 'teaching-angle'
   }
 }
 
@@ -203,6 +213,16 @@ function replayPresetForDecoder(
       return 'player-read-angle'
     case 'SKIP_THE_ROTATION':
       return 'top-down-coach-board'
+    case 'READ_THE_COVERAGE':
+      // DROP — replay stays on the coach-board view so the pocket
+      // pull-up or snake path reads cleanly against the screen
+      // geometry, matching the freeze preset.
+      return 'top-down-coach-board'
+    case 'HUNT_THE_ADVANTAGE':
+      // HUNT — second-beat exploit lives on the player-read angle
+      // (same as BDW/ESC/AOR) so the mismatch attack against the
+      // recovery foot reads from the wing's perspective.
+      return 'player-read-angle'
   }
 }
 

@@ -39,6 +39,7 @@ vi.mock('@/lib/email/templates/badge-earned', () => ({
   badgeEarnedEmail: vi.fn(() => ({ subject: '', html: '' })),
 }))
 
+import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db/prisma'
 import { applyAttempt } from '@/lib/services/iqService'
 import { award } from '@/lib/services/xpService'
@@ -52,7 +53,7 @@ type MockedFn = ReturnType<typeof vi.fn>
 const params = (id: string) => ({ params: Promise.resolve({ id }) })
 
 function reqWith(body: Record<string, unknown>) {
-  return new Request('http://x/api/session/sess/attempt', {
+  return new NextRequest('http://x/api/session/sess/attempt', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -126,9 +127,23 @@ describe('POST /api/session/[id]/attempt — beatResults plumbing', () => {
     vi.resetAllMocks()
   })
 
+  // attempt.create takes a `{ data: ... }` arg; declaring it on the
+  // vi.fn so mock.calls is typed instead of `unknown[]`. Without this
+  // `mock.calls[0]?.[0]` resolves to a 0-length tuple and TS rejects
+  // the [0] index.
+  type AttemptCreateArg = { data: Record<string, unknown> }
+  type AttemptCreate = (arg: AttemptCreateArg) => Promise<undefined>
+  type SessionUpdate = (arg: unknown) => Promise<undefined>
+
+  function readAttemptData(fn: ReturnType<typeof vi.fn<AttemptCreate>>): Record<string, unknown> {
+    const call = fn.mock.calls[0]
+    if (!call) throw new Error('attempt.create was not called')
+    return call[0].data
+  }
+
   it('does NOT write beat_results when the field is absent (single-beat scenario)', async () => {
-    const attemptCreate = vi.fn(async () => undefined)
-    const sessionUpdate = vi.fn(async () => undefined)
+    const attemptCreate = vi.fn<AttemptCreate>(async () => undefined)
+    const sessionUpdate = vi.fn<SessionUpdate>(async () => undefined)
     setupHappyPath(attemptCreate, sessionUpdate)
 
     const res = await POST(
@@ -137,14 +152,14 @@ describe('POST /api/session/[id]/attempt — beatResults plumbing', () => {
     )
     expect(res.status).toBe(200)
     expect(attemptCreate).toHaveBeenCalledTimes(1)
-    const data = (attemptCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data
+    const data = readAttemptData(attemptCreate)
     // Absent input → key is omitted, so the DB default (null) takes over.
     expect('beat_results' in data).toBe(false)
   })
 
   it('persists beat_results when a HUNT shape is provided', async () => {
-    const attemptCreate = vi.fn(async () => undefined)
-    const sessionUpdate = vi.fn(async () => undefined)
+    const attemptCreate = vi.fn<AttemptCreate>(async () => undefined)
+    const sessionUpdate = vi.fn<SessionUpdate>(async () => undefined)
     setupHappyPath(attemptCreate, sessionUpdate)
 
     const beatResults = [
@@ -162,13 +177,13 @@ describe('POST /api/session/[id]/attempt — beatResults plumbing', () => {
       params('sess'),
     )
     expect(res.status).toBe(200)
-    const data = (attemptCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data
+    const data = readAttemptData(attemptCreate)
     expect(data.beat_results).toEqual(beatResults)
   })
 
   it('falls back to omitting beat_results when the input is malformed', async () => {
-    const attemptCreate = vi.fn(async () => undefined)
-    const sessionUpdate = vi.fn(async () => undefined)
+    const attemptCreate = vi.fn<AttemptCreate>(async () => undefined)
+    const sessionUpdate = vi.fn<SessionUpdate>(async () => undefined)
     setupHappyPath(attemptCreate, sessionUpdate)
 
     const res = await POST(
@@ -182,7 +197,7 @@ describe('POST /api/session/[id]/attempt — beatResults plumbing', () => {
       params('sess'),
     )
     expect(res.status).toBe(200)
-    const data = (attemptCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data
+    const data = readAttemptData(attemptCreate)
     expect('beat_results' in data).toBe(false)
   })
 })

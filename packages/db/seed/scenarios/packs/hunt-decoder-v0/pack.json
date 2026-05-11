@@ -2,10 +2,12 @@
   "id": "pack-hunt-decoder-v0",
   "slug": "hunt-decoder-v0",
   "title": "HUNT Decoder v0 / Chained-Read Foundations",
-  "description": "Pack 2 (Phases γ + δ-A). Real HUNT (HUNT_THE_ADVANTAGE) base scenarios — chained reads where the first action forces a defensive reaction and the second freeze's choice exploits the new geometry. D1 ships the pre-set mismatch; D2 introduces the user-forced switch; D3 (phase δ-A) introduces decoy actions — a dummy first action that baits the defense, and the real read is what the bite left open. Concept-level prerequisites live on the Academy lesson `chained-reads-intro`.",
+  "description": "Pack 2 (Phases γ + δ-A). Real HUNT (HUNT_THE_ADVANTAGE) base scenarios — chained reads where the first action forces a defensive reaction and the second freeze's choice exploits the new geometry. D1 ships the pre-set mismatch; D2 introduces the user-forced switch; D3 (phase δ-A) introduces decoy actions — a dummy first action that baits the defense, and the real read is what the bite left open. D1 and D2 each also ship a left-side mirror (HUNT-01-MIRROR, HUNT-02-MIRROR) so mastery transfer across the floor is exercised at both tiers. Concept-level prerequisites live on the Academy lesson `chained-reads-intro`.",
   "scenarios": [
     { "id": "HUNT-01", "file": "HUNT-01.json", "prerequisites": [] },
+    { "id": "HUNT-01-MIRROR", "file": "HUNT-01-MIRROR.json", "prerequisites": ["HUNT-01"] },
     { "id": "HUNT-02", "file": "HUNT-02.json", "prerequisites": ["HUNT-01"] },
+    { "id": "HUNT-02-MIRROR", "file": "HUNT-02-MIRROR.json", "prerequisites": ["HUNT-02"] },
     { "id": "HUNT-03", "file": "HUNT-03.json", "prerequisites": ["HUNT-02"] }
   ]
 }

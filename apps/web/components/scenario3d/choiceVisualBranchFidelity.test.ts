@@ -92,6 +92,7 @@ function buildBranchedScene(): Scene3D {
         ],
       },
     ],
+    acceptableDemos: [],
     preAnswerOverlays: [],
     postAnswerOverlays: [],
     freezeAtMs: 500,

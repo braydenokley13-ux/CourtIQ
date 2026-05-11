@@ -51,6 +51,7 @@ function buildScene(): Scene3D {
     movements: [],
     answerDemo: [],
     wrongDemos: [],
+    acceptableDemos: [],
     preAnswerOverlays: [
       { kind: 'defender_vision_cone', playerId: 'd_user', targetId: 'pg' },
       { kind: 'defender_hip_arrow', playerId: 'd_user' },

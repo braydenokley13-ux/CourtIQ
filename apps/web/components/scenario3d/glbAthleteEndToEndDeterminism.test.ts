@@ -163,6 +163,7 @@ function fixtureScene(): Scene3D {
     ],
     answerDemo: [],
     wrongDemos: [],
+    acceptableDemos: [],
     preAnswerOverlays: [],
     postAnswerOverlays: [],
     freezeAtMs: FREEZE_AT_MS,

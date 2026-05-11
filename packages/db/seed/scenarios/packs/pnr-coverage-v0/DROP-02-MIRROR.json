@@ -1,0 +1,269 @@
+[
+  {
+    "id": "DROP-02-MIRROR",
+    "version": 1,
+    "status": "DRAFT",
+    "title": "Snake the Deep Drop — Other Side, Same Middle",
+    "category": "OFFENSE",
+    "decoder_tag": "READ_THE_COVERAGE",
+    "concept_tags": ["pnr_ball_handler_read", "screen_defender_coverage_read"],
+    "sub_concepts": ["drop_snake", "deep_drop_middle"],
+    "difficulty": 2,
+    "user_role": "pnr_ball_handler",
+    "game_context": "5-on-5 half-court. You are the point guard initiating a high ball-screen at the top of the key. Your screener (5) sets a clean screen on your LEFT this time. The screen defender (x5) is coached to drop on every ball-screen, but on this rep he drops *deeper* than D1 — his chest is at the elbow, not the free-throw line, and his feet are at the lane mark. Same coverage as DROP-02, mirrored to the left side.",
+    "possession_setup": "Top-of-the-key high pick-and-roll. The screen comes from the LEFT. x5 reads the ball-screen but drops two extra steps lower than a textbook drop — chest below the elbow, feet pointing at his own rim, eyes locked on the ball-handler. The on-ball defender (x1) is fighting *over* the screen, chasing your hip. The other three defenders are shell-honest.",
+    "decision_moment": "You come off the screen toward the LEFT and the pocket looks open — but x5's drop is so deep that the middle of the floor is wide open behind him. The on-ball defender is over the screen, chasing on your hip. Snake the dribble back across the screen and attack the now-vacated middle.",
+    "visible_cue": "x5's chest is below the elbow — clear deep-drop posture, same as on the right side. His feet point back at his own rim. His vision cone is locked on you (the ball-handler), not the roller. The middle of the floor behind him is empty because his drop conceded it. The snake exits toward the RIGHT middle of the floor — the only side flips, the cue cluster is identical.",
+    "court_state": {
+      "offense": [
+        { "id": "user", "x": 240, "y": 180, "role": "pnr_ball_handler", "hasBall": true },
+        { "id": "screener", "x": 200, "y": 200, "role": "screener", "hasBall": false },
+        { "id": "wing", "x": 420, "y": 80, "role": "weak_wing", "hasBall": false },
+        { "id": "corner_strong", "x": 20, "y": 10, "role": "strong_corner", "hasBall": false },
+        { "id": "corner_weak", "x": 460, "y": 10, "role": "weak_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x_user", "x": 240, "y": 200, "role": "on_ball", "hasBall": false },
+        { "id": "x_screener", "x": 200, "y": 120, "role": "screen_defender", "hasBall": false },
+        { "id": "x_wing", "x": 400, "y": 100, "role": "weak_wing_defender", "hasBall": false },
+        { "id": "x_corner_strong", "x": 40, "y": 30, "role": "strong_corner_defender", "hasBall": false },
+        { "id": "x_corner_weak", "x": 430, "y": 30, "role": "weak_corner_defender", "hasBall": false }
+      ],
+      "ball_location": { "x": 240, "y": 180 }
+    },
+    "prompt": "Screen comes from the left. The big has dropped two steps lower. What's the read?",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Snake the dribble back across the screen — attack the middle.",
+        "quality": "best",
+        "feedback_text": "Best read. Same snake, other side — the deep drop conceded the middle behind it. Cross back across the screen and attack the open paint while x1 is still trailing.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Pull up in the pocket.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. The pocket is still there, but a deep drop opens the middle wider than the pocket — snake is the bigger advantage on either side.",
+        "partial_feedback_text": "Pull-up works against a settled D1 drop. This big is deeper — the middle is the better take, left or right.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Drive at x5's chest into the paint.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Driving straight at a deep-drop big walks you into his lap. The opening is behind him, not at him.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Reset the ball to the wing.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Reset wastes the advantage. A deep drop is even more open than a textbook drop — the middle is yours, regardless of the screen side.",
+        "order": 4
+      }
+    ],
+    "best_read": "Snake the dribble back across the LEFT-side screen and attack the middle of the floor. x5's deep drop conceded the area behind him — his feet are at the lane mark and his chest is below the elbow. The on-ball defender is fighting over the screen on your original hip, so the moment you snake he is on the wrong side of the floor. Same exploit as DROP-02 — the side flips, the open middle is still the answer.",
+    "acceptable_reads": [
+      "Pull up in the pocket — still open against the deep drop, but trades a paint attack for a contested mid-range, so worse EV than the snake."
+    ],
+    "bad_reads": [
+      "Drive at x5's chest — walks into the deepest part of the drop and a stationary contest.",
+      "Reset to the wing — wastes the bigger advantage a deep drop just handed you."
+    ],
+    "common_miss_reason": "Treating each side of the floor as a new puzzle. Players who learned DROP-02 on the right side sometimes settle for the pocket pull-up on the left because the snake angle feels new — but the chest cue, the foot arrow, the vision cone, and the over-the-screen on-ball chase are all the same cluster.",
+    "why_best_read_works": "A deep drop is a coverage trade on either side of the floor: x5 surrenders the middle of the floor in exchange for keeping his body between the ball and the rim. The trade only works if the on-ball defender stays attached on your hip — when x1 fights *over* the screen, he gets stuck on your original side. Snaking back across the screen flips the chase: x1 is now behind you AND on the wrong side, x5 is in front of you but well below the action, and the middle of the floor is empty. Mirroring the screen flips which way you snake but not the cue cluster that names the read.",
+    "decoder_teaching_point": "Read the depth, not just the call — on either side of the floor. A textbook drop hands you the pocket; a deep drop hands you the middle behind it. Chest below the elbow + on-ball over the screen = snake.",
+    "lesson_connection": "pnr-coverage-recognition",
+    "feedback": {
+      "correct": "Good read. The deeper the drop, the more middle there is — you snaked into it from the left, same as on the right.",
+      "partial": "Pull-up was open, but the snake was open wider. Read the depth before you settle, on either side.",
+      "wrong": "Look at his chest *and* his feet. Below the elbow, lane mark — that's deeper than D1. The side of the screen doesn't change the answer."
+    },
+    "self_review_checklist": [
+      "Did I read x5's depth, the same way on the left side?",
+      "Did I notice x1 was over the screen, not under?",
+      "Did I snake into the middle before help could rotate?",
+      "Did I trust that the cue cluster mirrors cleanly when the screen flips sides?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-11T00:00:00.000Z",
+      "notes": "Pack 2 (Phase δ-B.M2) — DROP-02 left-side mirror variant. Same deep-drop snake cognition as DROP-02, mirrored across the y-axis. Validates that D2 coverage recognition transfers across the floor; if snake choice rate drops vs DROP-02 the player anchored on the right-side geometry. Inherits DROP-02 SME approval — no new cognitive surface."
+    },
+    "source_research_basis": "Mirror variants are the canonical post-mastery exposure pattern (see DROP-01-MIRROR, HUNT-02-MIRROR, BDW-T1-02). Same source taxonomy as DROP-02: deep-drop snake as the canonical D2 progression from textbook drop pull-up.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": ["DROP-02"]
+    },
+    "explanation_md": "**Read the Coverage — Deep Drop, Other Side.** Same coverage cognition as DROP-02, mirrored to the left side of the floor. A textbook drop hands you the pull-up pocket. A *deep* drop is the same call run two steps lower — and the trade-off opens further: the deeper the drop, the wider the middle of the floor behind it. The cue cluster is identical (chest line, foot arrow, vision cone locked on you), and the on-ball chasing over the screen still gets stuck on your original side when you snake. **Read the depth. Snake the screen. Attack the middle. The side of the screen does not change the cue cluster.**",
+    "xp_reward": 18,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "pnr_drop_snake",
+      "court": "half",
+      "camera": "top_down",
+      "players": [
+        { "id": "user", "team": "offense", "role": "pnr_ball_handler", "label": "You", "start": { "x": 0, "z": 22 }, "isUser": true, "hasBall": true },
+        { "id": "screener", "team": "offense", "role": "screener", "label": "5", "start": { "x": -4, "z": 20 } },
+        { "id": "wing", "team": "offense", "role": "weak_wing", "label": "3", "start": { "x": 16, "z": 12 } },
+        { "id": "corner_strong", "team": "offense", "role": "strong_corner", "label": "4", "start": { "x": -22, "z": 1 } },
+        { "id": "corner_weak", "team": "offense", "role": "weak_corner", "label": "2", "start": { "x": 22, "z": 1 } },
+        { "id": "x_user", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": 0, "z": 24 } },
+        { "id": "x_screener", "team": "defense", "role": "screen_defender", "label": "x5", "start": { "x": -4, "z": 12 } },
+        { "id": "x_wing", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": 14, "z": 13 } },
+        { "id": "x_corner_strong", "team": "defense", "role": "strong_corner_defender", "label": "x4", "start": { "x": -20, "z": 3 } },
+        { "id": "x_corner_weak", "team": "defense", "role": "weak_corner_defender", "label": "x2", "start": { "x": 20, "z": 3 } }
+      ],
+      "ball": {
+        "start": { "x": 0, "z": 22 },
+        "holderId": "user"
+      },
+      "movements": [
+        {
+          "id": "screener_set",
+          "playerId": "screener",
+          "kind": "lift",
+          "to": { "x": -3, "z": 21 },
+          "delayMs": 0,
+          "durationMs": 500
+        },
+        {
+          "id": "user_use_screen",
+          "playerId": "user",
+          "kind": "drive",
+          "to": { "x": -5, "z": 19 },
+          "delayMs": 400,
+          "durationMs": 700
+        },
+        {
+          "id": "x_user_over_screen",
+          "playerId": "x_user",
+          "kind": "rotation",
+          "to": { "x": -5, "z": 22 },
+          "delayMs": 400,
+          "durationMs": 700
+        },
+        {
+          "id": "x_screener_deep_drop",
+          "playerId": "x_screener",
+          "kind": "drift",
+          "to": { "x": -4, "z": 10 },
+          "delayMs": 0,
+          "durationMs": 900
+        }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1300 },
+      "answerDemo": [
+        {
+          "id": "user_snake_back",
+          "playerId": "user",
+          "kind": "drive",
+          "to": { "x": 2, "z": 18 },
+          "delayMs": 0,
+          "durationMs": 500
+        },
+        {
+          "id": "user_attack_middle",
+          "playerId": "user",
+          "kind": "drive",
+          "to": { "x": 1, "z": 8 },
+          "delayMs": 400,
+          "durationMs": 600
+        },
+        {
+          "id": "user_finish_middle",
+          "playerId": "ball",
+          "kind": "pass",
+          "to": { "x": 0, "z": 1 },
+          "delayMs": 800,
+          "durationMs": 500
+        }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You pulled up in the pocket. Open shot, but the snake was wider.",
+          "movements": [
+            {
+              "id": "user_pull_up_2",
+              "playerId": "user",
+              "kind": "lift",
+              "to": { "x": -5, "z": 18 },
+              "delayMs": 0,
+              "durationMs": 350
+            }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You drove at x5's chest. The deep drop ate the drive.",
+          "movements": [
+            {
+              "id": "user_drive_paint_2",
+              "playerId": "user",
+              "kind": "drive",
+              "to": { "x": -4, "z": 8 },
+              "delayMs": 0,
+              "durationMs": 700
+            },
+            {
+              "id": "x_screener_eat_drive",
+              "playerId": "x_screener",
+              "kind": "closeout",
+              "to": { "x": -4, "z": 9 },
+              "delayMs": 200,
+              "durationMs": 400
+            }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You reset to the wing. The deep-drop middle closed before the ball moved again.",
+          "movements": [
+            {
+              "id": "user_reset_pass_2",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": { "x": 16, "z": 12 },
+              "delayMs": 0,
+              "durationMs": 600
+            },
+            {
+              "id": "x_screener_recover_2",
+              "playerId": "x_screener",
+              "kind": "rotation",
+              "to": { "x": -4, "z": 16 },
+              "delayMs": 100,
+              "durationMs": 500
+            }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "defender_chest_line", "playerId": "x_screener" },
+        { "kind": "defender_foot_arrow", "playerId": "x_screener" },
+        { "kind": "defender_vision_cone", "playerId": "x_screener", "targetId": "user" }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "open_space_region", "anchor": { "x": 1, "z": 8 }, "radiusFt": 5 },
+        { "kind": "defender_chest_line", "playerId": "x_screener" },
+        { "kind": "defender_foot_arrow", "playerId": "x_screener" },
+        { "kind": "timing_pulse", "anchor": { "x": 0, "z": 4 }, "durationMs": 600 },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "user",
+          "path": [
+            { "x": -5, "z": 19 },
+            { "x": 2, "z": 18 },
+            { "x": 1, "z": 8 }
+          ]
+        }
+      ]
+    }
+  }
+]

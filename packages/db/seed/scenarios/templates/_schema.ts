@@ -104,6 +104,15 @@ export const conceptTagSchema = z.enum([
   'chained_swing_decision',
   'closeout_chain',
   'helper_overcommit_punish',
+  // Pack 2 — HUNT family (chained read / mismatch / decoy taxonomy).
+  // These appear on hunt-decoder-v0 base scenarios; they were used in
+  // authoring before being landed in the controlled vocabulary, which
+  // broke `seed:scenarios --dry-run`. Adding them here re-aligns the
+  // enum with what HUNT-01..03 actually ship.
+  'hunt_chained_read',
+  'mismatch_exploit',
+  'force_switch',
+  'decoy_action',
   // Pack 2 — situational / transition.
   'transition_secondary_break',
   'transition_stop_ball',
@@ -193,8 +202,12 @@ export const templateOverlaySchema = z.discriminatedUnion('kind', [
   }),
   z.object({
     kind: z.literal('help_pulse'),
+    // `mismatch` named the HUNT pack's mismatch defender; it shipped in
+    // the runtime schema (`apps/web/lib/scenario3d/schema.ts`) but the
+    // seed-side mirror was missed, breaking `seed:scenarios --dry-run`
+    // for every HUNT scenario that uses it.
     onSlot: z.string(),
-    role: z.enum(['tag', 'low_man', 'nail', 'stunter', 'overhelp']),
+    role: z.enum(['tag', 'low_man', 'nail', 'stunter', 'overhelp', 'mismatch']),
   }),
   z.object({
     kind: z.literal('drive_cut_preview'),

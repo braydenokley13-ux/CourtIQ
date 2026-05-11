@@ -123,6 +123,38 @@ that runs `pnpm qa:preview:diff` (strict) for that pack.
 
 ---
 
+## Production Hardening
+
+The web app ships with the following production safeguards:
+
+### Health checks
+
+- `GET /api/health` — shallow liveness probe. Returns `{ ok, uptime_s, commit, db: null }` with no I/O. Cheap enough for 1Hz uptime monitors.
+- `GET /api/health?deep=1` — readiness probe. Pings the database via `SELECT 1`. Returns 503 on failure so a misconfigured `DATABASE_URL` surfaces on the first request after deploy, not the first user action.
+
+Point Vercel's health check and external uptime monitors (Better Uptime, Checkly, etc.) at `/api/health?deep=1` with a 5–10s interval.
+
+### Rate limiting
+
+In-memory sliding-window limiter at `apps/web/lib/rateLimit/`. Currently applied to:
+
+| Endpoint | Cap | Key |
+| --- | --- | --- |
+| `POST /api/session/start` | 30 / 60s | Supabase user id |
+| `POST /api/session/[id]/attempt` | 120 / 60s | request body `userId` |
+
+Limits are conservative — a real player runs ~1.7 attempts/min during a session, so the caps leave ~70× headroom while still cutting off scripted abuse. Responses include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`; 429s include `Retry-After` per RFC 6585.
+
+Memory-only storage is fine for single-instance Vercel functions; the `RateLimitStore` interface is the swap point for an Upstash Redis backend when traffic justifies it.
+
+### Security headers
+
+`apps/web/lib/securityHeaders.ts` ships HSTS (2y, preload-eligible), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, a locked-down `Permissions-Policy` (camera/mic/geo/usb/payment/motion off), and `X-DNS-Prefetch-Control: on`.
+
+CSP is intentionally not enforced yet — it requires an allowlist pass for Sentry, PostHog, Supabase, Vercel monitoring, the GLB CDN, and three.js workers. Plan: ship `Content-Security-Policy-Report-Only` first, observe in Sentry, then enforce.
+
+---
+
 ## License
 
 TBD — will be set before first external contributor or public launch. Default to "All rights reserved" until then.

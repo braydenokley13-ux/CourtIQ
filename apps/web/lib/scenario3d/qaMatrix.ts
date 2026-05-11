@@ -369,6 +369,23 @@ export const QA_MATRIX: readonly QaMatrixEntry[] = [
     priority: 'high',
   },
   {
+    id: 'DROP-01-MIRROR',
+    decoder: 'READ_THE_COVERAGE',
+    primaryCue:
+      'Mirrored: x5 chest below the screen, screen set from the left side',
+    requiredFraming:
+      'Ball-handler off a LEFT-side screen, x5 in drop posture, left-side pocket visible (DROP-01 framing flipped across y-axis)',
+    requiredHighlight: 'x5 (screen defender, left side of screen)',
+    requiredOverlays: [
+      'defender_chest_line',
+      'defender_foot_arrow',
+      'label',
+    ],
+    knownRisk:
+      'Mirror cognition collapse — if pull-up choice rate drops vs DROP-01, the chest cue did not transfer. Treat as a mastery-transfer probe rather than a new puzzle.',
+    priority: 'high',
+  },
+  {
     id: 'DROP-02',
     decoder: 'READ_THE_COVERAGE',
     primaryCue: 'x5 chest below the elbow, vision locked on ball-handler',
@@ -382,6 +399,23 @@ export const QA_MATRIX: readonly QaMatrixEntry[] = [
     ],
     knownRisk:
       'Snake path must paint cleanly across the screen — risk of camera hiding the cross-back',
+    priority: 'high',
+  },
+  {
+    id: 'DROP-02-MIRROR',
+    decoder: 'READ_THE_COVERAGE',
+    primaryCue:
+      'Mirrored: x5 chest below the elbow, vision locked on ball-handler, LEFT-side screen',
+    requiredFraming:
+      'Ball-handler turning the LEFT corner, x5 deep, RIGHT middle of the floor visible behind him (DROP-02 framing flipped across y-axis)',
+    requiredHighlight: 'x5 (screen defender, left side) + middle paint',
+    requiredOverlays: [
+      'defender_chest_line',
+      'defender_foot_arrow',
+      'defender_vision_cone',
+    ],
+    knownRisk:
+      'Mirror cognition collapse at D2 — if snake choice rate drops vs DROP-02 the player anchored on right-side geometry. Snake path must paint cleanly across the screen in the mirrored direction too — camera framing must show the right-side middle after the cross-back.',
     priority: 'high',
   },
   {
@@ -421,6 +455,23 @@ export const QA_MATRIX: readonly QaMatrixEntry[] = [
     priority: 'high',
   },
   {
+    id: 'HUNT-01-MIRROR',
+    decoder: 'HUNT_THE_ADVANTAGE',
+    primaryCue:
+      'Mirrored: beat 1 mismatch on x4 (left wing); beat 2 trailing recovery foot, LEFT baseline',
+    requiredFraming:
+      'Left-wing user, x4 on the hip, left baseline lane visible at beat 2 (HUNT-01 framing flipped across y-axis)',
+    requiredHighlight: 'x4 (mismatch defender, left side)',
+    requiredOverlays: [
+      'help_pulse',
+      'defender_chest_line',
+      'defender_foot_arrow',
+    ],
+    knownRisk:
+      'Mirror cognition collapse — if recognition drops vs HUNT-01, the player memorized geometry instead of the cue. Treat as a mastery-transfer probe rather than a new puzzle.',
+    priority: 'high',
+  },
+  {
     id: 'HUNT-02',
     decoder: 'HUNT_THE_ADVANTAGE',
     primaryCue:
@@ -435,6 +486,23 @@ export const QA_MATRIX: readonly QaMatrixEntry[] = [
     ],
     knownRisk:
       'Switch animation must complete inside the inter-beat window — late switch breaks the chain',
+    priority: 'high',
+  },
+  {
+    id: 'HUNT-02-MIRROR',
+    decoder: 'HUNT_THE_ADVANTAGE',
+    primaryCue:
+      'Mirrored: beat 1 hip arrow on x5 (LEFT-side screen, switch coming); beat 2 mismatch chest square',
+    requiredFraming:
+      'PnR ball-handler off a LEFT-side screen, x5 visibly switching, LEFT baseline lane visible at beat 2 (HUNT-02 framing flipped across y-axis)',
+    requiredHighlight: 'x5 (post defender, post-switch, left side)',
+    requiredOverlays: [
+      'help_pulse',
+      'defender_hip_arrow',
+      'defender_chest_line',
+    ],
+    knownRisk:
+      'Mirror cognition collapse at D2 — if recognition drops vs HUNT-02 the player chained geometry instead of the cues. Switch animation timing must also stay inside the inter-beat window on the left side; mirroring movement coords can re-introduce drift if not tuned.',
     priority: 'high',
   },
   {

@@ -33,6 +33,7 @@ function buildScene(overrides: Partial<Scene3D> = {}): Scene3D {
     movements: [],
     answerDemo: [],
     wrongDemos: [],
+    acceptableDemos: [],
     preAnswerOverlays: [],
     postAnswerOverlays: [],
     freezeAtMs: null,
