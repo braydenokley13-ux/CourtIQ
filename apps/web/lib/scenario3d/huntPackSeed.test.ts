@@ -73,7 +73,7 @@ async function loadScenario(file: string): Promise<HuntScenarioJson> {
 }
 
 describe('hunt-decoder-v0 pack manifest', () => {
-  it('lists HUNT-01, HUNT-01-MIRROR, HUNT-02, and HUNT-03 with the expected files', async () => {
+  it('lists HUNT-01..03 plus both D1/D2 mirrors with the expected files', async () => {
     const raw = await fs.readFile(PACK_PATH, 'utf8')
     const manifest = JSON.parse(raw) as {
       slug: string
@@ -81,19 +81,28 @@ describe('hunt-decoder-v0 pack manifest', () => {
     }
     expect(manifest.slug).toBe('hunt-decoder-v0')
     const ids = manifest.scenarios.map((s) => s.id)
-    expect(ids).toEqual(['HUNT-01', 'HUNT-01-MIRROR', 'HUNT-02', 'HUNT-03'])
+    expect(ids).toEqual([
+      'HUNT-01',
+      'HUNT-01-MIRROR',
+      'HUNT-02',
+      'HUNT-02-MIRROR',
+      'HUNT-03',
+    ])
     expect(manifest.scenarios[0]!.file).toBe('HUNT-01.json')
     expect(manifest.scenarios[1]!.file).toBe('HUNT-01-MIRROR.json')
     expect(manifest.scenarios[2]!.file).toBe('HUNT-02.json')
-    expect(manifest.scenarios[3]!.file).toBe('HUNT-03.json')
-    // Mirror gates on HUNT-01 — you don't see it until you've seen the base.
+    expect(manifest.scenarios[3]!.file).toBe('HUNT-02-MIRROR.json')
+    expect(manifest.scenarios[4]!.file).toBe('HUNT-03.json')
+    // Mirrors gate on their respective base — you don't see the
+    // mirror until you've seen the base.
     expect(manifest.scenarios[1]!.prerequisites).toEqual(['HUNT-01'])
     expect(manifest.scenarios[2]!.prerequisites).toEqual(['HUNT-01'])
     expect(manifest.scenarios[3]!.prerequisites).toEqual(['HUNT-02'])
+    expect(manifest.scenarios[4]!.prerequisites).toEqual(['HUNT-02'])
   })
 })
 
-for (const id of ['HUNT-01', 'HUNT-01-MIRROR', 'HUNT-02', 'HUNT-03'] as const) {
+for (const id of ['HUNT-01', 'HUNT-01-MIRROR', 'HUNT-02', 'HUNT-02-MIRROR', 'HUNT-03'] as const) {
   describe(`${id} — Pack 2 (Phase γ) HUNT base scenario authoring lock`, () => {
     it('parses through the runtime scene schema', async () => {
       const scenario = await loadScenario(`${id}.json`)
@@ -205,6 +214,43 @@ describe('HUNT-01-MIRROR — Phase δ-A.M mirror-variant authoring lock', () => 
       .progression_metadata
     expect(meta?.prerequisites).toEqual(['HUNT-01'])
     expect(meta?.unlocks).toEqual(['HUNT-02'])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// HUNT-02-MIRROR (Phase δ-A.M2) — D2 mirror-variant authoring lock
+// ---------------------------------------------------------------------------
+//
+// Same contract as HUNT-01-MIRROR: identical chained shape to the
+// base (HUNT-02), screener + user on the LEFT half of the floor,
+// progression gated on HUNT-02. D2 has the extra cognitive load of
+// recognizing the switch as it happens, so the mirror lives on the
+// same prereq edge as the base (you don't see it until you've seen
+// HUNT-02).
+
+describe('HUNT-02-MIRROR — Phase δ-A.M2 D2 mirror-variant authoring lock', () => {
+  it('declares difficulty=2 (same tier as HUNT-02)', async () => {
+    const scenario = await loadScenario('HUNT-02-MIRROR.json')
+    expect(scenario.difficulty).toBe(2)
+  })
+
+  it('places the screener on the LEFT half of the floor (mirrored from HUNT-02)', async () => {
+    const scenario = await loadScenario('HUNT-02-MIRROR.json')
+    const players = (scenario.scene as unknown as { players: Array<{ id: string; start: { x: number } }> })
+      .players
+    const screener = players.find((p) => p.id === 'screener')
+    expect(screener, 'screener player must exist').toBeDefined()
+    // HUNT-02 puts the screener at x=+4; the mirror must put it at
+    // x<0 (left of the user). A copy-paste regression would land it
+    // back on the right side and this assertion fails.
+    expect(screener!.start.x).toBeLessThan(0)
+  })
+
+  it('inherits HUNT-02 progression — prereq HUNT-02', async () => {
+    const scenario = await loadScenario('HUNT-02-MIRROR.json')
+    const meta = (scenario as unknown as { progression_metadata?: { prerequisites: string[] } })
+      .progression_metadata
+    expect(meta?.prerequisites).toEqual(['HUNT-02'])
   })
 })
 

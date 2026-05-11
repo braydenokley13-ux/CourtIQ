@@ -472,6 +472,23 @@ export const QA_MATRIX: readonly QaMatrixEntry[] = [
     priority: 'high',
   },
   {
+    id: 'HUNT-02-MIRROR',
+    decoder: 'HUNT_THE_ADVANTAGE',
+    primaryCue:
+      'Mirrored: beat 1 hip arrow on x5 (LEFT-side screen, switch coming); beat 2 mismatch chest square',
+    requiredFraming:
+      'PnR ball-handler off a LEFT-side screen, x5 visibly switching, LEFT baseline lane visible at beat 2 (HUNT-02 framing flipped across y-axis)',
+    requiredHighlight: 'x5 (post defender, post-switch, left side)',
+    requiredOverlays: [
+      'help_pulse',
+      'defender_hip_arrow',
+      'defender_chest_line',
+    ],
+    knownRisk:
+      'Mirror cognition collapse at D2 — if recognition drops vs HUNT-02 the player chained geometry instead of the cues. Switch animation timing must also stay inside the inter-beat window on the left side; mirroring movement coords can re-introduce drift if not tuned.',
+    priority: 'high',
+  },
+  {
     id: 'HUNT-03',
     decoder: 'HUNT_THE_ADVANTAGE',
     primaryCue:
