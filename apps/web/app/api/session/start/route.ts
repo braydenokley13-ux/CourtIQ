@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import {
   InvalidScenarioIdsError,
   generateSessionBundle,
@@ -7,6 +7,13 @@ import { listValidConcepts } from '@/lib/services/academyService'
 import { prisma } from '@/lib/db/prisma'
 import { captureServerEvent } from '@/lib/analytics/serverEvents'
 import { createClient } from '@/lib/supabase/server'
+import { enforceRateLimit } from '@/lib/rateLimit/middleware'
+
+// Session-start is a paid action (it consumes IQ-tuned content and
+// runs a heavier query path). 30/min/user is well above any real
+// player's pace (a session is 5 scenarios and takes ~3 minutes) and
+// well below a scripted hammer.
+const SESSION_START_LIMIT = { windowMs: 60_000, max: 30 }
 
 function parseScenarioIds(raw: unknown): string[] | null {
   if (Array.isArray(raw)) {
@@ -26,12 +33,19 @@ function parseScenarioIds(raw: unknown): string[] | null {
   return null
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const gate = enforceRateLimit(request, {
+    bucket: 'session_start',
+    limit: SESSION_START_LIMIT,
+    userId: user.id,
+  })
+  if (!gate.ok) return gate.response
 
   const body = (await request.json().catch(() => ({}))) as {
     n?: number
@@ -130,5 +144,5 @@ export async function POST(request: Request) {
     })
   })
 
-  return NextResponse.json(bundle)
+  return gate.decorate(NextResponse.json(bundle))
 }
