@@ -31,6 +31,10 @@ function preset(
     movements,
     answerDemo,
     wrongDemos: [],
+    // Pack 2 F11 — required on Scene3D; presets author no acceptable
+    // demos by default. Authored scenarios populate this through the
+    // schema's default([]).
+    acceptableDemos: [],
     preAnswerOverlays: [],
     postAnswerOverlays: [],
     consequenceOverlays: [],

@@ -35,6 +35,7 @@ function buildSceneWithSingleMovement(kind: SceneMovementKind): Scene3D {
     ],
     answerDemo: [],
     wrongDemos: [],
+    acceptableDemos: [],
     preAnswerOverlays: [],
     postAnswerOverlays: [],
     freezeAtMs: null,
