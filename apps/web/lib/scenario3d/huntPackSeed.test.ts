@@ -73,7 +73,7 @@ async function loadScenario(file: string): Promise<HuntScenarioJson> {
 }
 
 describe('hunt-decoder-v0 pack manifest', () => {
-  it('lists HUNT-01, HUNT-02, and HUNT-03 with the expected files', async () => {
+  it('lists HUNT-01, HUNT-01-MIRROR, HUNT-02, and HUNT-03 with the expected files', async () => {
     const raw = await fs.readFile(PACK_PATH, 'utf8')
     const manifest = JSON.parse(raw) as {
       slug: string
@@ -81,16 +81,19 @@ describe('hunt-decoder-v0 pack manifest', () => {
     }
     expect(manifest.slug).toBe('hunt-decoder-v0')
     const ids = manifest.scenarios.map((s) => s.id)
-    expect(ids).toEqual(['HUNT-01', 'HUNT-02', 'HUNT-03'])
+    expect(ids).toEqual(['HUNT-01', 'HUNT-01-MIRROR', 'HUNT-02', 'HUNT-03'])
     expect(manifest.scenarios[0]!.file).toBe('HUNT-01.json')
-    expect(manifest.scenarios[1]!.file).toBe('HUNT-02.json')
-    expect(manifest.scenarios[2]!.file).toBe('HUNT-03.json')
+    expect(manifest.scenarios[1]!.file).toBe('HUNT-01-MIRROR.json')
+    expect(manifest.scenarios[2]!.file).toBe('HUNT-02.json')
+    expect(manifest.scenarios[3]!.file).toBe('HUNT-03.json')
+    // Mirror gates on HUNT-01 — you don't see it until you've seen the base.
     expect(manifest.scenarios[1]!.prerequisites).toEqual(['HUNT-01'])
-    expect(manifest.scenarios[2]!.prerequisites).toEqual(['HUNT-02'])
+    expect(manifest.scenarios[2]!.prerequisites).toEqual(['HUNT-01'])
+    expect(manifest.scenarios[3]!.prerequisites).toEqual(['HUNT-02'])
   })
 })
 
-for (const id of ['HUNT-01', 'HUNT-02', 'HUNT-03'] as const) {
+for (const id of ['HUNT-01', 'HUNT-01-MIRROR', 'HUNT-02', 'HUNT-03'] as const) {
   describe(`${id} — Pack 2 (Phase γ) HUNT base scenario authoring lock`, () => {
     it('parses through the runtime scene schema', async () => {
       const scenario = await loadScenario(`${id}.json`)
@@ -171,6 +174,39 @@ for (const id of ['HUNT-01', 'HUNT-02', 'HUNT-03'] as const) {
     })
   })
 }
+
+// ---------------------------------------------------------------------------
+// HUNT-01-MIRROR (Phase δ-A.M) — mirror-variant authoring lock
+// ---------------------------------------------------------------------------
+//
+// The mirror's contract: same chained-read shape as HUNT-01, mirrored
+// across the y-axis. If a future edit nudges the user start back to
+// the right wing the variant stops being a mirror — these assertions
+// fail loudly so the mistake doesn't sneak in via a copy-paste.
+
+describe('HUNT-01-MIRROR — Phase δ-A.M mirror-variant authoring lock', () => {
+  it('declares difficulty=1 (same tier as HUNT-01)', async () => {
+    const scenario = await loadScenario('HUNT-01-MIRROR.json')
+    expect(scenario.difficulty).toBe(1)
+  })
+
+  it('places the user on the LEFT half of the floor (mirrored from HUNT-01)', async () => {
+    const scenario = await loadScenario('HUNT-01-MIRROR.json')
+    const players = (scenario.scene as unknown as { players: Array<{ id: string; start: { x: number } }> })
+      .players
+    const user = players.find((p) => p.id === 'user')
+    expect(user, 'user player must exist').toBeDefined()
+    expect(user!.start.x).toBeLessThan(0)
+  })
+
+  it('inherits HUNT-01 progression — prereq HUNT-01, unlocks HUNT-02', async () => {
+    const scenario = await loadScenario('HUNT-01-MIRROR.json')
+    const meta = (scenario as unknown as { progression_metadata?: { prerequisites: string[]; unlocks: string[] } })
+      .progression_metadata
+    expect(meta?.prerequisites).toEqual(['HUNT-01'])
+    expect(meta?.unlocks).toEqual(['HUNT-02'])
+  })
+})
 
 // ---------------------------------------------------------------------------
 // HUNT-03 (Phase δ-A) — D3 decoy-action specific assertions
