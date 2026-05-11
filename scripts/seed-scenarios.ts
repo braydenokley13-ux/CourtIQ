@@ -67,6 +67,12 @@ const conceptTagSchema = z.enum([
   'chained_swing_decision',
   'closeout_chain',
   'helper_overcommit_punish',
+  // HUNT taxonomy used by hunt-decoder-v0 base scenarios. Keep in lockstep
+  // with `templates/_schema.ts` conceptTagSchema.
+  'hunt_chained_read',
+  'mismatch_exploit',
+  'force_switch',
+  'decoy_action',
   'transition_secondary_break',
   'transition_stop_ball',
   'late_clock_mismatch_hunt',
@@ -233,7 +239,10 @@ const overlayPrimitiveSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('help_pulse'),
     playerId: z.string().min(1),
-    role: z.enum(['tag', 'low_man', 'nail', 'stunter', 'overhelp']),
+    // `mismatch` mirrors the runtime + templates/_schema.ts enums so
+    // HUNT scenarios that tag the mismatch defender pass seed
+    // validation. Pack 2 architecture change §2.4.
+    role: z.enum(['tag', 'low_man', 'nail', 'stunter', 'overhelp', 'mismatch']),
   }),
   z.object({
     kind: z.literal('drive_cut_preview'),
