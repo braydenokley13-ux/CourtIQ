@@ -1,8 +1,20 @@
 import type { NextConfig } from 'next'
 import { withSentryConfig } from '@sentry/nextjs'
+import { PRODUCTION_SECURITY_HEADERS } from './lib/securityHeaders'
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Production security headers. Scoped to all paths via
+  // `source: '/:path*'`. CSP is intentionally out — needs an explicit
+  // allowlist pass first; see lib/securityHeaders.ts.
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: PRODUCTION_SECURITY_HEADERS,
+      },
+    ]
+  },
   // Expose the Vercel git SHA so client-side Sentry can tag releases.
   env: {
     NEXT_PUBLIC_COMMIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA ?? 'local',
