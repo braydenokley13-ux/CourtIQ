@@ -59,6 +59,7 @@ const PACK2_DECODER_TAGS: readonly DecoderTag[] = [
 /** Pack 2 ids the matrix is expected to surface. */
 const PACK2_IDS: readonly string[] = [
   'DROP-01',
+  'DROP-01-MIRROR',
   'DROP-02',
   'DROP-03',
   'HUNT-01',
@@ -113,10 +114,10 @@ describe('QA_MATRIX', () => {
 
   it('has matching Pack 2 entry counts for the new DROP and HUNT families', () => {
     const grouped = groupQaMatrixByDecoder()
-    // DROP rises to 3 entries at Phase δ-B (DROP-01..03); HUNT rises to
-    // 4 at Phase δ-A.M (HUNT-01..03 plus the HUNT-01-MIRROR left-wing
-    // mastery-transfer probe).
-    expect(grouped.get('READ_THE_COVERAGE')?.length).toBe(3)
+    // Phase δ-A.M / δ-B.M — both decoders now ship a D1 mirror.
+    // DROP: DROP-01, DROP-01-MIRROR, DROP-02, DROP-03 (4 total).
+    // HUNT: HUNT-01, HUNT-01-MIRROR, HUNT-02, HUNT-03 (4 total).
+    expect(grouped.get('READ_THE_COVERAGE')?.length).toBe(4)
     expect(grouped.get('HUNT_THE_ADVANTAGE')?.length).toBe(4)
   })
 

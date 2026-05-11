@@ -369,6 +369,23 @@ export const QA_MATRIX: readonly QaMatrixEntry[] = [
     priority: 'high',
   },
   {
+    id: 'DROP-01-MIRROR',
+    decoder: 'READ_THE_COVERAGE',
+    primaryCue:
+      'Mirrored: x5 chest below the screen, screen set from the left side',
+    requiredFraming:
+      'Ball-handler off a LEFT-side screen, x5 in drop posture, left-side pocket visible (DROP-01 framing flipped across y-axis)',
+    requiredHighlight: 'x5 (screen defender, left side of screen)',
+    requiredOverlays: [
+      'defender_chest_line',
+      'defender_foot_arrow',
+      'label',
+    ],
+    knownRisk:
+      'Mirror cognition collapse — if pull-up choice rate drops vs DROP-01, the chest cue did not transfer. Treat as a mastery-transfer probe rather than a new puzzle.',
+    priority: 'high',
+  },
+  {
     id: 'DROP-02',
     decoder: 'READ_THE_COVERAGE',
     primaryCue: 'x5 chest below the elbow, vision locked on ball-handler',
