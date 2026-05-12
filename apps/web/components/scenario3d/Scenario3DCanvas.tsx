@@ -80,8 +80,10 @@ interface Scenario3DCanvasProps {
   children?: React.ReactNode
   /** Optional className passed to the outer wrapper. */
   className?: string
-  /** Optional explicit pixel height. Defaults to 320px. */
-  height?: number
+  /** Optional explicit height. Number is treated as pixels; a string
+   *  is passed through as a CSS length (e.g. `'min(70vh, 560px)'`).
+   *  Defaults to 320px. */
+  height?: number | string
   /** Fill the parent height, used by the fullscreen film-room shell. */
   fillParent?: boolean
   /** Normalised scene to render. If omitted, the built-in default is used. */
