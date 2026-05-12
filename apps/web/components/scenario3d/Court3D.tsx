@@ -320,6 +320,13 @@ function Hoop() {
         <boxGeometry args={[6, 3.6, 0.18]} />
         <meshBasicMaterial color={BACKBOARD_COLOR} toneMapped={false} />
       </mesh>
+      {/* AAA polish — chrome bezel highlight along the top of the
+          backboard frame. Reads as a polished aluminum lip without a
+          separate light or texture. */}
+      <mesh position={[0, COURT.rimHeightFt + 1.4 + 1.85, -1.18]}>
+        <boxGeometry args={[6.2, 0.08, 0.05]} />
+        <meshBasicMaterial color="#B6C3D2" toneMapped={false} />
+      </mesh>
       {/* Backboard target square */}
       <mesh position={[0, COURT.rimHeightFt + 0.8, -1.1]}>
         <boxGeometry args={[2, 1.4, 0.04]} />
