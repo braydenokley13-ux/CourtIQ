@@ -14,8 +14,11 @@
 
 import { describe, it, expect } from 'vitest'
 import {
+  getCourtSpotPulseAlpha,
+  getGlassShimmerAlpha,
   getKeyDefenderPulseAlpha,
   getRimHaloPulseAlpha,
+  getRimMetalShimmerIntensity,
 } from './atmosphere'
 
 describe('getRimHaloPulseAlpha', () => {
@@ -101,5 +104,91 @@ describe('V4-D — getKeyDefenderPulseAlpha', () => {
       prevKey = k
     }
     expect(keyCrossings).toBeGreaterThan(rimCrossings)
+  })
+})
+
+describe('AAA polish — getRimMetalShimmerIntensity', () => {
+  it('returns the identity multiplier on non-finite input', () => {
+    expect(getRimMetalShimmerIntensity(Number.NaN)).toBe(1)
+    expect(getRimMetalShimmerIntensity(Number.POSITIVE_INFINITY)).toBe(1)
+  })
+
+  it('is deterministic — same time → same value', () => {
+    expect(getRimMetalShimmerIntensity(1234)).toBe(getRimMetalShimmerIntensity(1234))
+  })
+
+  it('stays inside the [0.78, 1.22] band for any time', () => {
+    for (let t = 0; t < 30_000; t += 41) {
+      const v = getRimMetalShimmerIntensity(t)
+      expect(v).toBeGreaterThanOrEqual(0.78)
+      expect(v).toBeLessThanOrEqual(1.22)
+      expect(Number.isFinite(v)).toBe(true)
+    }
+  })
+
+  it('produces a non-trivial dynamic range across a few seconds', () => {
+    // Locks the contract that the shimmer is actually moving — a
+    // bug that pinned the multiplier to a constant would silently
+    // disable the AAA chrome glint.
+    let min = Infinity
+    let max = -Infinity
+    for (let t = 0; t < 6000; t += 50) {
+      const v = getRimMetalShimmerIntensity(t)
+      if (v < min) min = v
+      if (v > max) max = v
+    }
+    expect(max - min).toBeGreaterThan(0.15)
+  })
+})
+
+describe('AAA polish — getCourtSpotPulseAlpha', () => {
+  it('returns the identity multiplier on non-finite input', () => {
+    expect(getCourtSpotPulseAlpha(Number.NaN)).toBe(1)
+    expect(getCourtSpotPulseAlpha(Number.POSITIVE_INFINITY)).toBe(1)
+  })
+
+  it('stays inside the [0.93, 1.07] band for any time', () => {
+    // Court spot swells gently — band must be narrower than the
+    // rim shimmer so the painted key never reads as flickering.
+    for (let t = 0; t < 30_000; t += 47) {
+      const v = getCourtSpotPulseAlpha(t)
+      expect(v).toBeGreaterThanOrEqual(0.93)
+      expect(v).toBeLessThanOrEqual(1.07)
+    }
+  })
+
+  it('is slower than the rim shimmer (fewer cycles per second)', () => {
+    let spotCrossings = 0
+    let shimmerCrossings = 0
+    let prevSpot = getCourtSpotPulseAlpha(0) - 1
+    let prevShim = getRimMetalShimmerIntensity(0) - 1
+    for (let t = 50; t < 10_000; t += 50) {
+      const s = getCourtSpotPulseAlpha(t) - 1
+      const r = getRimMetalShimmerIntensity(t) - 1
+      if (Math.sign(s) !== Math.sign(prevSpot)) spotCrossings++
+      if (Math.sign(r) !== Math.sign(prevShim)) shimmerCrossings++
+      prevSpot = s
+      prevShim = r
+    }
+    expect(spotCrossings).toBeLessThan(shimmerCrossings)
+  })
+})
+
+describe('AAA polish — getGlassShimmerAlpha', () => {
+  it('returns the identity multiplier on non-finite input', () => {
+    expect(getGlassShimmerAlpha(Number.NaN)).toBe(1)
+    expect(getGlassShimmerAlpha(Number.POSITIVE_INFINITY)).toBe(1)
+  })
+
+  it('is deterministic — same time → same value', () => {
+    expect(getGlassShimmerAlpha(777)).toBe(getGlassShimmerAlpha(777))
+  })
+
+  it('stays inside the [0.85, 1.15] band for any time', () => {
+    for (let t = 0; t < 30_000; t += 41) {
+      const v = getGlassShimmerAlpha(t)
+      expect(v).toBeGreaterThanOrEqual(0.85)
+      expect(v).toBeLessThanOrEqual(1.15)
+    }
   })
 })

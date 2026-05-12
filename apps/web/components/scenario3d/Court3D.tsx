@@ -180,6 +180,23 @@ export function Court3D({ floorY = 0 }: Court3DProps) {
         <meshBasicMaterial color={RIM_COLOR} transparent opacity={0.16} toneMapped={false} />
       </mesh>
 
+      {/* AAA polish — broader warm court pool. A larger, much fainter
+          halo around the painted key fades the warm rim glow into the
+          hardwood. Mirrors the imperative path so both renderers
+          ship the same broadcast venue feel. */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, Y_FLOOR_GLOW - 0.005, 4]}>
+        <circleGeometry args={[18, 64]} />
+        <meshBasicMaterial color="#FFBC74" transparent opacity={0.07} toneMapped={false} depthWrite={false} />
+      </mesh>
+
+      {/* AAA polish — polished-finish reflection ring under the rim.
+          Reads as honest lacquer gloss when the camera dollies over
+          the baseline. */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, Y_FLOOR_GLOW + 0.005, 0]}>
+        <ringGeometry args={[5.2, 9.0, 56, 1, 0, Math.PI]} />
+        <meshBasicMaterial color="#FFE7B6" transparent opacity={0.1} toneMapped={false} depthWrite={false} />
+      </mesh>
+
       {/* Royal blue paint */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
@@ -318,9 +335,17 @@ function Hoop() {
         <cylinderGeometry args={[0.55, 0.7, 0.4, 16]} />
         <meshBasicMaterial color={POLE_COLOR} toneMapped={false} />
       </mesh>
-      {/* Rim — bright orange torus, unlit. */}
+      {/* AAA polish — outer bloom halo torus. A larger, faint warm
+          glow sits behind the rim and reads like a real bloom pass
+          without the cost of post-processing. */}
       <mesh position={[0, COURT.rimHeightFt, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.85, 0.1, 12, 36]} />
+        <torusGeometry args={[0.89, 0.16, 12, 36]} />
+        <meshBasicMaterial color="#FFB070" transparent opacity={0.35} depthWrite={false} toneMapped={false} />
+      </mesh>
+      {/* Rim — bright orange torus, unlit. Slightly chunkier than
+          the legacy 0.1 tube so the rim reads as cast-iron weight. */}
+      <mesh position={[0, COURT.rimHeightFt, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.85, 0.11, 14, 44]} />
         <meshBasicMaterial color={RIM_COLOR} toneMapped={false} />
       </mesh>
       {/* Net */}
