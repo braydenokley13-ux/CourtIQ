@@ -36,7 +36,7 @@ export interface IntroCard {
  *
  *   1. What CourtIQ is — watch, freeze, pick.
  *   2. What you train — the four reads, named.
- *   3. How you progress — Pathway → Boss → Final Mix.
+ *   3. The journey — Learn → Train → Test (Boss) → Master (Final Mix).
  *   4. Start.
  */
 export const INTRO_CARDS: readonly IntroCard[] = [
@@ -45,18 +45,18 @@ export const INTRO_CARDS: readonly IntroCard[] = [
     eyebrow: 'CourtIQ',
     title: 'Watch the play. Pick the read.',
     body:
-      'Basketball IQ is how fast you see what should happen next. We train it the way you train a jumper — one rep at a time.',
+      'Basketball IQ is how fast you see what should happen next. We train it like a jumper — one rep at a time.',
     bullets: [
-      'Real play freezes at the read.',
-      'You pick. You see what would have happened.',
+      'A real play freezes at the read.',
+      'You pick what to do. We show you what would have happened.',
     ],
   },
   {
     id: 'decoders',
     eyebrow: 'The four reads',
-    title: 'See it. Pick it. Win the play.',
+    title: 'These show up every possession.',
     body:
-      'These four reads show up every possession. We start here.',
+      'You train one at a time so each read becomes second nature before the next.',
     bullets: [
       'Backdoor Window · cut behind the defender.',
       'Empty-Space Cut · fill the spot help just left.',
@@ -66,17 +66,23 @@ export const INTRO_CARDS: readonly IntroCard[] = [
   },
   {
     id: 'pathways',
-    eyebrow: 'Your route',
-    title: 'Build the read, then test it.',
+    eyebrow: 'The journey',
+    title: 'Four steps. Same for every read.',
     body:
-      'You train one read at a time. The Boss tests you on it. The Final Mix takes the labels off and you have to call it yourself.',
+      "Here's exactly what your day-to-day looks like on CourtIQ:",
+    bullets: [
+      '1. Learn the read · short video breakdown.',
+      '2. Train it · run reps until it clicks.',
+      '3. Test it · the Boss removes the hints.',
+      '4. Master it · the Final Mix takes the labels off completely.',
+    ],
   },
   {
     id: 'start',
     eyebrow: 'Ready',
     title: 'Run your first rep.',
     body:
-      'Foundation is where you start. About 25 minutes total. The first read is two taps away.',
+      "Foundation is your starting Pathway. About 25 min total — the first read is two taps away.",
     ctaLabel: 'Start Foundation',
   },
 ] as const
@@ -86,7 +92,7 @@ export const INTRO_CARDS: readonly IntroCard[] = [
 export const INTRO_HOME_BANNER = {
   eyebrow: 'New here',
   title: 'See how CourtIQ trains your reads.',
-  body: '30 seconds. Then your first rep.',
+  body: '4 steps, 30 seconds. Then your first rep.',
   ctaLabel: 'Watch',
   skipLabel: 'Skip',
 } as const
