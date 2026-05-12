@@ -81,7 +81,6 @@ const BACKBOARD_FRAME_COLOR = '#0F1320'
 const BACKBOARD_TARGET_COLOR = '#FFFFFF'
 const POLE_COLOR = '#1F2733'
 const PADDING_COLOR = '#0F1218'
-const NET_COLOR = '#FAFAFA'
 // Visual upgrade — pushed offense/defense saturation and lifted the
 // user mint so all three jerseys read clearly against both the warm
 // hardwood and the gym backdrop. User's mint is the brightest of the
@@ -3045,6 +3044,29 @@ function buildHoopAssembly(): THREE.Group {
   pole.receiveShadow = true
   hoop.add(pole)
 
+  // AAA polish — thin chrome highlight strip running up the front
+  // face of the pole above the padding. Reads as the polished edge a
+  // real venue stanchion has so the pole stops looking like a flat
+  // matte cylinder under the existing key light. Single thin box,
+  // shared color with the backboard bezel so the whole stanchion-to-
+  // backboard chain reads as one coordinated trim.
+  const poleHighlight = new THREE.Mesh(
+    new THREE.BoxGeometry(0.08, poleHeight - 6.4, 0.05),
+    new THREE.MeshStandardMaterial({
+      color: '#B6C3D2',
+      roughness: 0.32,
+      metalness: 0.82,
+      emissive: new THREE.Color('#3A4252'),
+      emissiveIntensity: 0.18,
+    }),
+  )
+  poleHighlight.position.set(
+    0,
+    6.2 + (poleHeight - 6.4) / 2,
+    POLE_BASE_Z + POLE_RADIUS + 0.02,
+  )
+  hoop.add(poleHighlight)
+
   // Floor plate at the base of the pole — small square hint of bolts.
   const basePlate = new THREE.Mesh(
     new THREE.CylinderGeometry(POLE_RADIUS * 2.2, POLE_RADIUS * 2.4, 0.18, 16),
@@ -3442,6 +3464,27 @@ function buildHoopAssembly(): THREE.Group {
   // vertical strands plus a few horizontal rings tying them together.
   hoop.add(buildHoopNet())
 
+  // AAA polish — warm tint disc inside the rim opening. A faint
+  // orange-tinted disc sits a hair above the floor below the net
+  // and lets the rim color bleed visually down through the net
+  // strands, so the net reads as catching real rim light instead of
+  // hanging in unrelated white. Hidden from below by the renderOrder
+  // and the rim's own bracket geometry.
+  const rimWarmBleed = new THREE.Mesh(
+    new THREE.CircleGeometry(RIM_RADIUS * 1.05, 36),
+    new THREE.MeshBasicMaterial({
+      color: '#FFB070',
+      toneMapped: false,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+    }),
+  )
+  rimWarmBleed.rotation.x = -Math.PI / 2
+  rimWarmBleed.position.set(0, COURT.rimHeightFt - 0.02, 0)
+  rimWarmBleed.renderOrder = -1
+  hoop.add(rimWarmBleed)
+
   return hoop
 }
 
@@ -3518,13 +3561,14 @@ function buildHoopNet(): THREE.LineSegments {
     'position',
     new THREE.Float32BufferAttribute(positions, 3),
   )
-  // Phase 4: opacity 0.85 → 0.92 so the denser strand grid doesn't
-  // wash out at the default broadcast camera. Still LineSegments —
-  // no expensive cloth simulation per Section 8.
+  // AAA polish — net opacity 0.92 → 0.96 so the denser strand grid
+  // doesn't wash out at the broadcast camera, and the line color is
+  // warmed a hair so the net reads as catching the rim's orange
+  // emissive instead of looking like a cold white scrim.
   const mat = new THREE.LineBasicMaterial({
-    color: NET_COLOR,
+    color: '#FFF6E8',
     transparent: true,
-    opacity: 0.92,
+    opacity: 0.96,
     toneMapped: false,
   })
   const net = new THREE.LineSegments(geom, mat)
@@ -4449,6 +4493,24 @@ function buildScoreboard(): THREE.Group {
     )
     face.position.set(0, y, z + depth / 2 + 0.01)
     group.add(face)
+
+    // AAA polish — additive warm glow plane sitting a hair in front
+    // of the scoreboard face so the digits read as lit LEDs from the
+    // broadcast camera. Pure decoration — no texture, low alpha,
+    // additive blending so it never washes the underlying digits.
+    const faceGlow = new THREE.Mesh(
+      new THREE.PlaneGeometry(width - 0.6, height - 0.7),
+      new THREE.MeshBasicMaterial({
+        color: '#FFCB44',
+        toneMapped: false,
+        transparent: true,
+        opacity: 0.12,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    )
+    faceGlow.position.set(0, y, z + depth / 2 + 0.02)
+    group.add(faceGlow)
   }
 
   // Two thin mounting brackets running from the body to the back
@@ -4503,10 +4565,17 @@ function buildHangingBanners(): THREE.Group {
     banner.position.set(x, topY - bannerHeight / 2, z)
     group.add(banner)
 
+    // AAA polish — trim now has a quiet emissive bleed so the top
+    // and bottom bars catch the existing key light like real
+    // championship-banner metallic edging instead of a flat gray
+    // bar. Emissive color matches the warm gold of the rest of the
+    // hoop trim palette so the room reads as one coordinated venue.
     const trimMat = new THREE.MeshStandardMaterial({
       color: BANNER_TRIM_COLOR,
-      roughness: 0.5,
-      metalness: 0.6,
+      roughness: 0.45,
+      metalness: 0.7,
+      emissive: new THREE.Color('#FFCB44'),
+      emissiveIntensity: 0.12,
     })
     // Top + bottom trim strips.
     for (const sign of [-1, 1]) {
