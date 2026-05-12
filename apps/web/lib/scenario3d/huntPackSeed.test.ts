@@ -73,7 +73,7 @@ async function loadScenario(file: string): Promise<HuntScenarioJson> {
 }
 
 describe('hunt-decoder-v0 pack manifest', () => {
-  it('lists HUNT-01..03 plus both D1/D2 mirrors with the expected files', async () => {
+  it('lists HUNT-01..03 plus a mirror at every D1/D2/D3 tier with the expected files', async () => {
     const raw = await fs.readFile(PACK_PATH, 'utf8')
     const manifest = JSON.parse(raw) as {
       slug: string
@@ -87,22 +87,32 @@ describe('hunt-decoder-v0 pack manifest', () => {
       'HUNT-02',
       'HUNT-02-MIRROR',
       'HUNT-03',
+      'HUNT-03-MIRROR',
     ])
     expect(manifest.scenarios[0]!.file).toBe('HUNT-01.json')
     expect(manifest.scenarios[1]!.file).toBe('HUNT-01-MIRROR.json')
     expect(manifest.scenarios[2]!.file).toBe('HUNT-02.json')
     expect(manifest.scenarios[3]!.file).toBe('HUNT-02-MIRROR.json')
     expect(manifest.scenarios[4]!.file).toBe('HUNT-03.json')
+    expect(manifest.scenarios[5]!.file).toBe('HUNT-03-MIRROR.json')
     // Mirrors gate on their respective base — you don't see the
     // mirror until you've seen the base.
     expect(manifest.scenarios[1]!.prerequisites).toEqual(['HUNT-01'])
     expect(manifest.scenarios[2]!.prerequisites).toEqual(['HUNT-01'])
     expect(manifest.scenarios[3]!.prerequisites).toEqual(['HUNT-02'])
     expect(manifest.scenarios[4]!.prerequisites).toEqual(['HUNT-02'])
+    expect(manifest.scenarios[5]!.prerequisites).toEqual(['HUNT-03'])
   })
 })
 
-for (const id of ['HUNT-01', 'HUNT-01-MIRROR', 'HUNT-02', 'HUNT-02-MIRROR', 'HUNT-03'] as const) {
+for (const id of [
+  'HUNT-01',
+  'HUNT-01-MIRROR',
+  'HUNT-02',
+  'HUNT-02-MIRROR',
+  'HUNT-03',
+  'HUNT-03-MIRROR',
+] as const) {
   describe(`${id} — Pack 2 (Phase γ) HUNT base scenario authoring lock`, () => {
     it('parses through the runtime scene schema', async () => {
       const scenario = await loadScenario(`${id}.json`)
@@ -293,5 +303,85 @@ describe('HUNT-03 — Phase δ-A decoy-action scenario authoring lock', () => {
     )
     expect(beat2HandInLane).toBeDefined()
     expect(beat2FootArrow).toBeDefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// HUNT-03-MIRROR (Phase δ-A.M3) — D3 mirror-variant authoring lock
+// ---------------------------------------------------------------------------
+//
+// Same contract as HUNT-02-MIRROR but at the D3 tier: identical
+// decoy-DHO chain to the base (HUNT-03), user + screener on the LEFT
+// half of the floor, progression gated on HUNT-03. D3 also requires
+// coach_validation.level="high" (the same gate LINT-HUNT-05 enforces
+// on the base), and the beat-2 overlay cluster must still carry the
+// hand_in_lane + foot_arrow pair that names the decoy bite.
+
+describe('HUNT-03-MIRROR — Phase δ-A.M3 D3 mirror-variant authoring lock', () => {
+  it('declares difficulty=3 (same tier as HUNT-03)', async () => {
+    const scenario = await loadScenario('HUNT-03-MIRROR.json')
+    expect(scenario.difficulty).toBe(3)
+  })
+
+  it('places the user on the LEFT half of the floor (mirrored from HUNT-03)', async () => {
+    const scenario = await loadScenario('HUNT-03-MIRROR.json')
+    const players = (
+      scenario.scene as unknown as {
+        players: Array<{ id: string; start: { x: number } }>
+      }
+    ).players
+    const user = players.find((p) => p.id === 'user')
+    expect(user, 'user player must exist').toBeDefined()
+    // HUNT-03 starts the user on the right wing (x=+18); the mirror
+    // must put them at x<0. A copy-paste regression would land them
+    // back on the right side and this assertion fails.
+    expect(user!.start.x).toBeLessThan(0)
+  })
+
+  it('places the screener on the LEFT half of the floor (mirrored from HUNT-03)', async () => {
+    const scenario = await loadScenario('HUNT-03-MIRROR.json')
+    const players = (
+      scenario.scene as unknown as {
+        players: Array<{ id: string; start: { x: number } }>
+      }
+    ).players
+    const screener = players.find((p) => p.id === 'screener')
+    expect(screener, 'screener must exist').toBeDefined()
+    expect(screener!.start.x).toBeLessThan(0)
+  })
+
+  it('inherits the D3 coach_validation gate (level="high", approved)', async () => {
+    const scenario = await loadScenario('HUNT-03-MIRROR.json')
+    expect(scenario.coach_validation?.level).toBe('high')
+    expect(scenario.coach_validation?.status).toBe('approved')
+  })
+
+  it('retains the decoy-action beat-2 cluster (hand_in_lane + foot_arrow on x_user)', async () => {
+    const scenario = await loadScenario('HUNT-03-MIRROR.json')
+    const pre = scenario.scene?.preAnswerOverlays ?? []
+    const beat2HandInLane = pre.find(
+      (o) =>
+        o.kind === 'defender_hand_in_lane' &&
+        (o as { beat?: number; playerId?: string }).beat === 2 &&
+        (o as { playerId?: string }).playerId === 'x_user',
+    )
+    const beat2FootArrow = pre.find(
+      (o) =>
+        o.kind === 'defender_foot_arrow' &&
+        (o as { beat?: number; playerId?: string }).beat === 2 &&
+        (o as { playerId?: string }).playerId === 'x_user',
+    )
+    expect(beat2HandInLane).toBeDefined()
+    expect(beat2FootArrow).toBeDefined()
+  })
+
+  it('inherits HUNT-03 progression — prereq HUNT-03', async () => {
+    const scenario = await loadScenario('HUNT-03-MIRROR.json')
+    const meta = (
+      scenario as unknown as {
+        progression_metadata?: { prerequisites: string[] }
+      }
+    ).progression_metadata
+    expect(meta?.prerequisites).toEqual(['HUNT-03'])
   })
 })
