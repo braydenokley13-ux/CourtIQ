@@ -4,48 +4,49 @@
   "status": "DRAFT",
   "version": 1,
   "copy": {
-    "title": "TODO: AOR.short-closeout-shoot — short identity line",
-    "prompt": "TODO: ≤140 chars, imperative, basketball-first voice.",
-    "game_context": "TODO: 4-on-4 half-court setup line. Where the ball started, what the clock says.",
-    "possession_setup": "TODO: where you are, where the ball is, what the defense is doing.",
-    "decision_moment": "TODO: the precise body cue at the freeze.",
-    "visible_cue": "TODO: the single most readable thing the player should look at.",
-    "best_read": "TODO: 1–2 sentence player-voice description of the best action (corresponds to template outcome \"shoot\").",
-    "explanation_md": "TODO: **AOR.short-closeout-shoot.** Re-state the cue, then the decision, then the consequence. Tie back to lesson \"advantage-or-reset\".",
+    "title": "Catch-and-Shoot — Left Wing, Short Closeout",
+    "prompt": "Help-side closeout, short. Catch on rhythm.",
+    "game_context": "4-on-4 half-court. Ball reversed from the right slot to the left wing on a swing pass; no shot-clock pressure.",
+    "possession_setup": "The ball is at the right slot. You are the left wing. x2 was helping one pass away; he is closing out short, hips already turned back toward the ball.",
+    "decision_moment": "You catch in your shooting pocket. x2 is still two strides out, feet under him but his cushion is yours.",
+    "visible_cue": "x2's feet are pointed at the ball, not at you. The cushion in front of your release is open.",
+    "best_read": "Catch on the lift and release into your pocket before his second step. The shot is open because he bet on helping.",
+    "explanation_md": "**Advantage or Reset — same read, other side.** A short closeout is a short closeout. Left wing, right wing — the cue is his cushion, not your spot. When the defender's feet are still pointed at the ball and his hands aren't up, the shot is open before his second step. **Catch in your pocket. Lift. Release.**",
     "feedback": {
-      "correct": "TODO: short praise that names the cue.",
-      "partial": "TODO: short nudge for the acceptable read.",
-      "wrong": "TODO: short coach voice that points at the cue without giving the answer."
+      "correct": "Right read. Same closeout, other side — his cushion was yours and you took it.",
+      "partial": "You drove past, but the catch-and-shoot was the bigger advantage. He sold the help; punish it on the lift.",
+      "wrong": "Read his cushion, not your spot. Short closeout = open shot."
     },
     "self_review_checklist": [
-      "TODO: yes/no question about the player's body, not the defender's.",
-      "TODO: yes/no about the action.",
-      "TODO: yes/no about the timing.",
-      "TODO: yes/no about the finish."
+      "Did I read his cushion before the catch?",
+      "Did I catch in my shooting pocket (knees bent, hands ready)?",
+      "Did I release before his second step?",
+      "Did I follow through, not retreat?"
     ],
     "acceptable_reads": [
-      "TODO: explanation of the rip_and_drive branch."
+      "Rip and drive past the closeout — gets you to the rim, but a clean catch-and-shoot was the bigger advantage."
     ],
     "bad_reads": [
-      "TODO: short consequence line for each wrong outcome."
+      "Swing the ball back — wastes the help-side advantage the rotation just gave you.",
+      "Pump-fake and hold — gives x2 the time he was missing; the shot is gone."
     ],
     "choices": {
       "shoot": {
-        "label": "TODO: variant label for \"shoot\" (best)",
-        "feedback_text": "TODO: feedback if user picks \"shoot\"."
+        "label": "Catch and shoot in rhythm.",
+        "feedback_text": "Best read. Same short closeout, other side. His cushion was yours — you released before his second step."
       },
       "rip_and_drive": {
-        "label": "TODO: variant label for \"rip_and_drive\" (acceptable)",
-        "feedback_text": "TODO: feedback if user picks \"rip_and_drive\".",
-        "partial_feedback_text": "TODO: shorter post-rep nudge for \"rip_and_drive\"."
+        "label": "Rip the ball and drive past the closeout.",
+        "feedback_text": "Okay. The rip works once he commits to the contest, but the open shot off the catch was the cleaner advantage.",
+        "partial_feedback_text": "The drive got you something, but the shot was the bigger advantage. Take the cushion first."
       },
       "pass_back": {
-        "label": "TODO: variant label for \"pass_back\" (wrong)",
-        "feedback_text": "TODO: feedback if user picks \"pass_back\"."
+        "label": "Swing it back to the passer.",
+        "feedback_text": "Not yet. Passing back kills the help-side advantage — x2 resets and your shot is gone."
       },
       "pump_fake_hold": {
-        "label": "TODO: variant label for \"pump_fake_hold\" (wrong)",
-        "feedback_text": "TODO: feedback if user picks \"pump_fake_hold\"."
+        "label": "Pump-fake and hold the ball.",
+        "feedback_text": "Not yet. The pump gives him the half-second he was missing. The catch was the shot."
       }
     }
   },
