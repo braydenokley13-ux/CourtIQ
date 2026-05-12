@@ -6,52 +6,52 @@
 
   "copy": {
     "title": "End-Clock Corner Backdoor (Disguised)",
-    "prompt": "TODO: 1-line decision prompt. Down 2, 6 on the game clock — corner is denied with no hip tell.",
-    "game_context": "TODO: Pack 2 game-context — 4-on-4 half-court, down 2, 6.0 on the game clock, ball at top of key.",
-    "possession_setup": "TODO: where the ball is, where you are, what the defense is showing. Note: x2 has buried the hip arrow into the lane — denial is read off the hand alone.",
-    "decision_moment": "TODO: what beat the player is reading at D4 — hand-in-lane only, freeze is 300ms tighter, clock decides on the next bounce.",
-    "visible_cue": "TODO: x2 cue at D4 — hand alone in the corner-pass lane (hip tell hidden), low-man hovering at nail, x4 already half-rotating off help.",
-    "best_read": "TODO: rip baseline early, plant outside foot, back-cut behind x2 to the front of the rim before x4 finishes the rotation up.",
-    "explanation_md": "TODO: full markdown explanation. 4–6 lines. Reference the missing hip tell (only the hand reads the denial), the compressed cognition window (300ms shorter), the lead pass timing, and the game-clock decision (no shot-clock buy-back this time).",
+    "prompt": "Down 2. 6 on the game clock. The corner is denied — no hip tell.",
+    "game_context": "4-on-4 half-court. Down 2 with 6.0 on the game clock. Ball at the top of the key; defense is denying the swing.",
+    "possession_setup": "The ball is at the top of the key. You are in the strong corner. x2 has buried the hip arrow into the lane — the only tell is his hand in the passing lane. x4 is hovering at the nail and has already started half-rotating off help.",
+    "decision_moment": "x2's hand is in your lane, but the hip arrow is hidden against his body — the read sits on the hand alone. Freeze is 300ms tighter than the base. The game clock is at 6 and the next bounce decides it.",
+    "visible_cue": "x2's hand is in your lane (no hip tell to back it up). x4 is mid-rotation up from the nail; the rim corridor is open but closing.",
+    "best_read": "Rip baseline early on the hand cue alone, plant the outside foot, and back-cut hard behind x2 to the front of the rim before x4 finishes the rotation. The lead pass arrives with two seconds to lift — no shot-clock buy-back this time, the game clock is the only clock that matters.",
+    "explanation_md": "**End-Clock, Disguised.** D4: the denial is read off the hand alone — the hip arrow is hidden, the cognition window is 300ms tighter, and the only clock is the game clock. You don't get a swing-pass reset. The cue you trusted at D3 is still there; you just have less of it and less time. **Read the hand. Rip early. Cut hard before x4 finishes rotating. Commit before the clock crosses 4.**",
 
     "feedback": {
-      "correct": "TODO: best-read prose — 1–2 sentences. Note that you read the hand without the hip backup.",
-      "partial": "TODO: acceptable-read prose — 1–2 sentences. The v-cut keeps the play alive but the game clock will run.",
-      "wrong": "TODO: wrong-read prose — 1 sentence reframing the cue."
+      "correct": "Right read at D4. You took the denial off the hand alone, no hip backup, and beat x4 to the rim before the clock decided.",
+      "partial": "Relief catch keeps the play alive — but the game clock will decide the next bounce. The disguised denial was the only rim window you get.",
+      "wrong": "Read the hand, not the hip. The hip's hidden — the hand is the whole cue."
     },
 
     "self_review_checklist": [
-      "TODO: Did I read x2's hand alone (no hip arrow this time)?",
-      "TODO: Did I rip outside before the freeze compressed?",
-      "TODO: Did I cut hard enough to beat x4's rotation up from the nail?",
-      "TODO: Did I commit before the game clock crossed 4?"
+      "Did I read x2's hand alone (no hip arrow this time)?",
+      "Did I rip outside before the freeze compressed?",
+      "Did I cut hard enough to beat x4's rotation up from the nail?",
+      "Did I commit before the game clock crossed 4?"
     ],
 
     "acceptable_reads": [
-      "TODO: V-cut to the wing relief — keeps the play alive but the game clock decides on the next pass."
+      "V-cut up to the wing relief — keeps the play alive, but the game clock decides on the next pass and there's no shot-clock buy-back."
     ],
     "bad_reads": [
-      "TODO: Force the corner pass — x2's hand deflects, ball out of bounds with 5 left.",
-      "TODO: Front-cut into the paint — x4 was already rotating; the cut dies at the rim."
+      "Stand in the corner and call for it — x2's hand deflects, ball out of bounds with 5 left.",
+      "Front-cut into the paint — x4 was already rotating; the cut dies and the clock runs."
     ],
 
     "choices": {
       "back_cut_baseline_to_rim": {
-        "label": "TODO: Best — baseline back-cut to the rim before x4 finishes rotating.",
-        "feedback_text": "TODO: best feedback for the disguised D4 read."
+        "label": "Rip baseline early and back-cut before x4 finishes rotating.",
+        "feedback_text": "Best read at D4. You took the denial off the hand alone and beat x4 to the rim before the game clock decided."
       },
       "v_cut_to_relief": {
-        "label": "TODO: Acceptable — v-cut up to the wing relief; live with the clock.",
-        "feedback_text": "TODO: acceptable feedback for the disguised D4 read.",
-        "partial_feedback_text": "TODO: partial feedback for the acceptable choice at game-clock pressure."
+        "label": "V-cut up to the wing for a relief catch; live with the clock.",
+        "feedback_text": "Okay at D3 pace. At D4 with the game clock, the relief catch hands the next read back to the defense.",
+        "partial_feedback_text": "Relief keeps the possession — trades the rim window for one more bounce of clock. The denial was the layup."
       },
       "stand_in_corner": {
-        "label": "TODO: Wrong — stand in the corner and call for it.",
-        "feedback_text": "TODO: wrong-1 feedback at game-clock pressure."
+        "label": "Stand in the corner and call for it.",
+        "feedback_text": "Not yet. With his hand in the lane and 5 left, standing still gives him the deflection and ends the possession."
       },
       "front_cut_to_paint": {
-        "label": "TODO: Wrong — front-cut into the paint.",
-        "feedback_text": "TODO: wrong-2 feedback at D4 pacing."
+        "label": "Front-cut up into the paint.",
+        "feedback_text": "Not yet. x4 was already half-rotating; the front cut dies at the rim and the game clock runs out."
       }
     }
   },
