@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { SessionMode } from '@prisma/client'
-import { z } from 'zod'
 import { prisma } from '@/lib/db/prisma'
 import { applyAttempt } from '@/lib/services/iqService'
 import { award } from '@/lib/services/xpService'
@@ -11,6 +10,7 @@ import { captureServerEvent } from '@/lib/analytics/serverEvents'
 import { sendEmail } from '@/lib/email/sender'
 import { badgeEarnedEmail } from '@/lib/email/templates/badge-earned'
 import { enforceRateLimit } from '@/lib/rateLimit/middleware'
+import { parseBeatResults } from './beatResults'
 
 // Attempt submit is the highest-leverage user-write path: each call
 // runs IQ, XP, mastery, streak, badges, and email side effects inside
@@ -19,25 +19,6 @@ import { enforceRateLimit } from '@/lib/rateLimit/middleware'
 // fast-clicking kid + dev tools, low enough to stop a scripted hammer
 // from flooding the badge engine.
 const ATTEMPT_LIMIT = { windowMs: 60_000, max: 120 }
-
-// Phase γ (HUNT) — per-beat correctness for chained two-beat scenarios.
-// Optional + nullable: present only for HUNT (and any future chained-
-// beat decoder), null/absent for single-beat scenarios so the replay
-// teaching layer falls back to the legacy correct / wrong cadences.
-// Persisted on Attempt.beat_results for downstream replay dispatch.
-const BeatResultSchema = z.object({
-  beatIndex: z.number().int().nonnegative(),
-  correct: z.boolean(),
-})
-const BeatResultsSchema = z.array(BeatResultSchema).optional()
-
-export function parseBeatResults(input: unknown):
-  | Array<{ beatIndex: number; correct: boolean }>
-  | undefined {
-  const parsed = BeatResultsSchema.safeParse(input)
-  if (!parsed.success) return undefined
-  return parsed.data
-}
 
 export async function POST(
   request: NextRequest,

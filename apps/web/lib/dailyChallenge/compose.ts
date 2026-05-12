@@ -63,7 +63,7 @@ export function composeDailyChallenge(input: ComposeDailyInput): DailyChallengeB
   // decoder, if any of today's slots land on it.
   const memorizationDecoder = pickMemorizationDecoder(input.decoderConfidences)
   let swappedSlotIndex: number | null = null
-  let scenarioIds = [...seed.scenarioIds]
+  const scenarioIds = [...seed.scenarioIds]
 
   if (memorizationDecoder) {
     const slotIdx = seed.slotPicks.findIndex(
