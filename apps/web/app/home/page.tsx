@@ -14,6 +14,8 @@ import {
 import { INTRO_HOME_BANNER } from '@/lib/onboarding/introCopy'
 import { deriveReturnFocus, type ReturnFocus } from '@/lib/retention/todayFocus'
 import { pickHomePathwayCta } from '@/lib/retention/homePathwayCta'
+import { deriveJourneyState } from '@/lib/journey/journeyStep'
+import { JourneyMap } from '@/components/JourneyMap'
 import type { DecoderRingData } from '@/lib/recognitionSurface'
 
 const ease = [0.22, 1, 0.36, 1]
@@ -487,13 +489,15 @@ export default function HomePage() {
           initial="hidden"
           animate="show"
           variants={fadeUp}
-          className="mb-8"
+          className="mb-5"
         >
           <p className="text-[13px] text-[#6B7280]">
             {greeting()}{userName ? `, ${userName.split(' ')[0]}` : ''} 👋
           </p>
-          <h1 className="mt-1 font-display text-[28px] font-black tracking-tight text-[#F9FAFB]">
-            Your Basketball <span style={{ color: '#3BE383' }}>IQ</span>
+          <h1 className="mt-1 font-display text-[26px] font-black tracking-tight text-[#F9FAFB]">
+            {(data?.attemptsCount ?? 0) === 0
+              ? <>Welcome to <span style={{ color: '#3BE383' }}>CourtIQ</span>.</>
+              : <>Let&apos;s train your <span style={{ color: '#3BE383' }}>IQ</span>.</>}
           </h1>
         </motion.div>
 
@@ -515,7 +519,7 @@ export default function HomePage() {
             animate="show"
             variants={fadeUp}
             data-testid="home-intro-banner"
-            className="ciq-lift mb-5 flex w-full items-center justify-between gap-3 rounded-2xl border border-[#1F2937] bg-[#0E1B16] px-4 py-3 text-left transition-colors hover:border-[#3BE383]/40"
+            className="ciq-lift mb-4 flex w-full items-center justify-between gap-3 rounded-2xl border border-[#1F2937] bg-[#0E1B16] px-4 py-3 text-left transition-colors hover:border-[#3BE383]/40"
           >
             <div className="min-w-0 flex-1">
               <p className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#3BE383]">
@@ -534,47 +538,109 @@ export default function HomePage() {
           </motion.button>
         ) : null}
 
-        {/* V3 P11 P1 — IQ hero, toned down. The 64px / heavy-glow Vegas
-            treatment reads as XP-leaderboard; we keep the number but
-            give it a quieter premium frame so /home reads as a training
-            space, not a high-score screen. */}
-        <motion.div
-          custom={1}
-          initial="hidden"
-          animate="show"
-          variants={fadeUp}
-          className="relative mb-4 overflow-hidden rounded-3xl border border-[#1F2937] bg-gradient-to-br from-[#111827] to-[#0D1B2A] p-5"
-          style={{ boxShadow: '0 0 28px rgba(59,227,131,0.04), 0 1px 0 rgba(255,255,255,0.04) inset' }}
-        >
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[1.8px] text-[#6B7280]">Basketball IQ</p>
-          {loading ? (
-            <div className="h-12 w-24 animate-pulse rounded-xl bg-[#1F2937]" />
-          ) : (
+        {/* Journey Map — the single "where am I" surface. Renders the
+            same 4-step spine the intro cards explain, with the current
+            step highlighted. Sits above every action card so the player
+            never has to guess what they should be doing right now. */}
+        {!loading ? (
+          <motion.div
+            custom={0.5}
+            initial="hidden"
+            animate="show"
+            variants={fadeUp}
+            className="mb-4"
+          >
+            <JourneyMap
+              state={deriveJourneyState({
+                attemptsCount: data?.attemptsCount ?? 0,
+                decoders: data?.decoders ?? [],
+                pathway,
+              })}
+            />
+          </motion.div>
+        ) : null}
+
+        {/* V3 P4 — single primary action, Pathway-driven.
+            This is the most important thing on the page: ONE obvious
+            next step. Cold-start → "Start Foundation"; mid-pathway →
+            "Continue: [chapter]"; mastered → "Run it back". */}
+        <motion.div custom={1} initial="hidden" animate="show" variants={fadeUp} className="mb-4">
+          <PathwayPrimaryCard pathway={pathway} loading={loading} attempts={data?.attemptsCount ?? 0} />
+        </motion.div>
+
+        {/* Phase 8 — Daily Challenge card.
+            One row, three states:
+              - completed_today  → green, "X-day streak" + "See result"
+              - started, not done → green, "Resume daily"
+              - not started, available → green, "Take today's daily"
+              - unavailable (catalog too thin) → muted "coming soon" */}
+        {!loading && spine ? <DailyChallengeCard daily={spine.daily} /> : null}
+
+        {/* V3 P4 — Quick rep secondary action. Demoted from the green
+            slab so it no longer competes with the Pathway CTA, but
+            kept reachable for impatient players who want a random 5-
+            pack outside the Pathway flow. Empty-state hides it for
+            cold-start users so the page focuses on the one action. */}
+        {!loading && (data?.attemptsCount ?? 0) > 0 ? (
+          <motion.div
+            custom={1.5}
+            initial="hidden"
+            animate="show"
+            variants={fadeUp}
+            className="mb-5"
+          >
+            <Link
+              href="/train"
+              className="ciq-press-soft flex items-center justify-between rounded-2xl border border-[#1F2937] bg-[#111827] px-4 py-3 transition-colors hover:border-[#374151]"
+            >
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-[#9CA3AF]">
+                  Off the clock
+                </p>
+                <p className="mt-0.5 text-[13px] font-semibold text-[#F9FAFB]">
+                  Five quick reads. No path. ~3 min.
+                </p>
+              </div>
+              <span aria-hidden className="text-[18px] text-[#3BE383]">→</span>
+            </Link>
+          </motion.div>
+        ) : null}
+
+        {/* V3 P11 P1 — IQ hero, demoted below the primary action. The
+            number still anchors the player's progress story, but now it
+            sits AFTER the one obvious next step instead of competing
+            with it. Cold-start (no attempts) hides it so a brand-new
+            player isn't greeted with a "500 IQ" badge before they've
+            played a single rep. */}
+        {!loading && (data?.attemptsCount ?? 0) > 0 ? (
+          <motion.div
+            custom={2}
+            initial="hidden"
+            animate="show"
+            variants={fadeUp}
+            className="relative mb-4 overflow-hidden rounded-3xl border border-[#1F2937] bg-gradient-to-br from-[#111827] to-[#0D1B2A] p-5"
+            style={{ boxShadow: '0 0 28px rgba(59,227,131,0.04), 0 1px 0 rgba(255,255,255,0.04) inset' }}
+          >
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-[1.8px] text-[#6B7280]">Basketball IQ</p>
             <div
-              className="font-display text-[48px] font-black leading-none tracking-[-2px]"
+              className="font-display text-[44px] font-black leading-none tracking-[-2px]"
               style={{ color: '#3BE383' }}
             >
               <NumberTicker value={iq} format={(n) => Math.round(n).toLocaleString()} />
             </div>
-          )}
-          <p className="mt-2 text-[12px] text-[#6B7280]">
-            {data?.rankLabel ?? 'Rookie'}
-            {!loading && (data?.attemptsCount ?? 0) > 0 ? (
-              <>
-                <span className="px-1.5 text-[#374151]">·</span>
-                {streak > 0
-                  ? `${streak}-day streak`
-                  : `${accuracyPct}% reads`}
-              </>
-            ) : null}
-          </p>
+            <p className="mt-2 text-[12px] text-[#6B7280]">
+              {data?.rankLabel ?? 'Rookie'}
+              <span className="px-1.5 text-[#374151]">·</span>
+              {streak > 0
+                ? `${streak}-day streak`
+                : `${accuracyPct}% reads`}
+            </p>
 
-          {!loading && (
             <div className="mt-3">
               <XPBar xp={xpInLevel} xpForNextLevel={100} level={level} />
             </div>
-          )}
-        </motion.div>
+          </motion.div>
+        ) : null}
 
         {/* V3 P6 — return-loop chip. ONE coaching line that names what
             the player is becoming better at, derived from the data we
@@ -598,7 +664,7 @@ export default function HomePage() {
             block stays empty. */}
         {!loading && spine?.fasterCallout?.line ? (
           <motion.div
-            custom={1.8}
+            custom={2.5}
             initial="hidden"
             animate="show"
             variants={fadeUp}
@@ -623,7 +689,7 @@ export default function HomePage() {
             against a sentence the player just read. */}
         {!loading && spine?.focusLine ? (
           <motion.div
-            custom={2}
+            custom={3}
             initial="hidden"
             animate="show"
             variants={fadeUp}
@@ -646,13 +712,24 @@ export default function HomePage() {
             first-session arc carry the moment. */}
         {!loading && spine && spine.decoderRing.length > 0 ? (
           <motion.div
-            custom={2.5}
+            custom={3.5}
             initial="hidden"
             animate="show"
             variants={fadeUp}
             className="mb-4"
             data-testid="home-decoder-ring-strip"
           >
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-[#6B7280]">
+                Your reads
+              </p>
+              <Link
+                href="/pathways/complete-iq-foundation/progress"
+                className="text-[11px] font-semibold text-[#3BE383]"
+              >
+                See progress →
+              </Link>
+            </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {spine.decoderRing.map((d) => (
                 <DecoderRingTile key={d.decoder} ring={d} />
@@ -661,84 +738,15 @@ export default function HomePage() {
           </motion.div>
         ) : null}
 
-        {/* Phase 8 — Daily Challenge card.
-            One row, three states:
-              - completed_today  → green, "X-day streak" + "See result"
-              - started, not done → green, "Resume daily"
-              - not started, available → green, "Take today's daily"
-              - unavailable (catalog too thin) → muted "coming soon" */}
-        {!loading && spine ? <DailyChallengeCard daily={spine.daily} /> : null}
-
-        {/* V3 P11 P1 — the previous 3-card stat grid (Streak / Accuracy
-            / Sessions) was the loudest dashboard energy on /home. The
-            ReturnFocusChip above already names what the player is
-            training, and the IQ hero now folds streak/accuracy into a
-            calm subtitle, so the grid is gone. Drop a hairline so the
-            Pathway primary card sits in its own breathing room. */}
-        {!loading && (data?.attemptsCount ?? 0) > 0 ? (
-          <div aria-hidden className="mb-4 h-px bg-[#1F2937]/60" />
-        ) : null}
-
-        {/* V3 P4 — single primary action, Pathway-driven.
-            The card combines the Pathway context (title, % progress)
-            with the actionable "what comes next" /train deep-link the
-            recommendedNext API already provides. New users see "Start
-            Foundation"; mid-pathway users see "Continue: [chapter]";
-            mastered users get a "Run it back" review affordance. The
-            small "see chapters" link gives a one-tap path to the map
-            for anyone who wants to browse before training. */}
-        <motion.div custom={4.5} initial="hidden" animate="show" variants={fadeUp} className="mb-3">
-          <PathwayPrimaryCard pathway={pathway} loading={loading} attempts={data?.attemptsCount ?? 0} />
-        </motion.div>
-
-        {/* V3 P4 — Quick rep secondary action. Demoted from the green
-            slab so it no longer competes with the Pathway CTA, but
-            kept reachable for impatient players who want a random 5-
-            pack outside the Pathway flow. Empty-state hides it for
-            cold-start users so the page focuses on the one action. */}
-        {!loading && (data?.attemptsCount ?? 0) > 0 ? (
-          <motion.div
-            custom={5}
-            initial="hidden"
-            animate="show"
-            variants={fadeUp}
-            className="mb-5"
-          >
-            <Link
-              href="/train"
-              className="ciq-press-soft flex items-center justify-between rounded-2xl border border-[#1F2937] bg-[#111827] px-4 py-3 transition-colors hover:border-[#374151]"
-            >
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-[#9CA3AF]">
-                  Off the clock
-                </p>
-                <p className="mt-0.5 text-[13px] font-semibold text-[#F9FAFB]">
-                  Five quick reads. No path. ~3 min.
-                </p>
-              </div>
-              <span aria-hidden className="text-[18px] text-[#3BE383]">→</span>
-            </Link>
-          </motion.div>
-        ) : null}
-
-        {/* V3 P7 — "Your reads" — renamed from "Decoder Mastery" so the
-            section reads in the player's voice. The section still
-            mirrors per-decoder accuracy + mastery, but the title and
-            mastered tag are pure-text (no checkmark emoji) so the
-            block feels premium, not gamified. */}
+        {/* Accuracy by read — per-decoder accuracy bars.
+            Complements the ring strip above (which shows mastery
+            progress) by exposing the raw % so the player can see which
+            reads are clicking and which still need work. */}
         {!loading && (data?.decoders?.some((d) => d.attempts > 0) ?? false) && (
-          <motion.div custom={5.5} initial="hidden" animate="show" variants={fadeUp} className="mb-5">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-[#6B7280]">
-                Your reads
-              </p>
-              <Link
-                href="/pathways/complete-iq-foundation/progress"
-                className="text-[11px] font-semibold text-[#3BE383]"
-              >
-                Progress →
-              </Link>
-            </div>
+          <motion.div custom={4} initial="hidden" animate="show" variants={fadeUp} className="mb-5">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[1.5px] text-[#6B7280]">
+              Accuracy by read
+            </p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {data!.decoders
                 .filter((d) => d.attempts > 0)
@@ -829,36 +837,53 @@ export default function HomePage() {
           </motion.div>
         ) : null}
 
-        {/* V3 P7 — slim nav. Two primary tiles (Pathways, Progress) are
-            the daily destinations; everything else collapses into a
-            single hairline footer strip so /home reads as a coaching
-            page, not a menu of pages. Replay walkthrough sits in the
-            footer too — discoverable, not loud. */}
+        {/* Slim nav — three destinations players use day-to-day, plus
+            a hairline footer for everything else. "How CourtIQ works"
+            is the journey-walkthrough replay, kept discoverable for
+            anyone who wants the orientation again. */}
         <motion.div custom={7} initial="hidden" animate="show" variants={fadeUp} className="mt-5 space-y-2">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-2">
             <Link
               href="/pathways"
-              className="flex flex-col items-center justify-center gap-0.5 rounded-2xl border border-[#1F2937] bg-[#111827] px-4 py-3 transition-colors hover:border-[#374151]"
+              className="flex flex-col items-center justify-center gap-0.5 rounded-2xl border border-[#1F2937] bg-[#111827] px-3 py-3 text-center transition-colors hover:border-[#374151]"
             >
               <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#3BE383]">
                 Pathways
               </span>
-              <span className="text-[12px] text-[#9CA3AF]">Your training route</span>
+              <span className="text-[11px] text-[#9CA3AF]">Your route</span>
             </Link>
             <Link
               href="/pathways/complete-iq-foundation/progress"
-              className="flex flex-col items-center justify-center gap-0.5 rounded-2xl border border-[#1F2937] bg-[#111827] px-4 py-3 transition-colors hover:border-[#374151]"
+              className="flex flex-col items-center justify-center gap-0.5 rounded-2xl border border-[#1F2937] bg-[#111827] px-3 py-3 text-center transition-colors hover:border-[#374151]"
             >
               <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#3BE383]">
                 Progress
               </span>
-              <span className="text-[12px] text-[#9CA3AF]">Strengths & gaps</span>
+              <span className="text-[11px] text-[#9CA3AF]">Strengths & gaps</span>
+            </Link>
+            <Link
+              href="/academy"
+              className="flex flex-col items-center justify-center gap-0.5 rounded-2xl border border-[#1F2937] bg-[#111827] px-3 py-3 text-center transition-colors hover:border-[#374151]"
+            >
+              <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#3BE383]">
+                Lessons
+              </span>
+              <span className="text-[11px] text-[#9CA3AF]">Learn the reads</span>
             </Link>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-2 text-[11px] font-semibold uppercase tracking-[1.5px] text-[#6B7280]">
-            <Link href="/academy" className="transition-colors hover:text-[#F9FAFB]">
-              Academy
-            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                clearIntroDismissal()
+                setIntroDismissed(false)
+                setIntroOpen(true)
+              }}
+              data-testid="home-intro-replay"
+              className="font-semibold uppercase tracking-[1.5px] text-[#3BE383]/80 transition-colors hover:text-[#3BE383]"
+            >
+              How CourtIQ works
+            </button>
             <span aria-hidden className="text-[#374151]">·</span>
             <Link href="/profile" className="transition-colors hover:text-[#F9FAFB]">
               Profile
@@ -871,19 +896,6 @@ export default function HomePage() {
             <Link href="/settings" className="transition-colors hover:text-[#F9FAFB]">
               Settings
             </Link>
-            <span aria-hidden className="text-[#374151]">·</span>
-            <button
-              type="button"
-              onClick={() => {
-                clearIntroDismissal()
-                setIntroDismissed(false)
-                setIntroOpen(true)
-              }}
-              data-testid="home-intro-replay"
-              className="font-semibold uppercase tracking-[1.5px] text-[#6B7280] transition-colors hover:text-[#F9FAFB]"
-            >
-              Walkthrough
-            </button>
           </div>
         </motion.div>
       </div>
