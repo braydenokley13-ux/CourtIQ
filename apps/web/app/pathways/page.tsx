@@ -56,32 +56,31 @@ export default async function PathwaysHubPage() {
           </Link>
           <h1 className="font-display text-[28px] font-bold leading-tight">Pathways</h1>
           <p className="text-sm text-text-dim">
-            Your basketball IQ route. Chapter by chapter. Hints come off
-            in the Boss and the Final Mix — that&apos;s where the read shows up.
+            Your training path. You learn one play, then the next.
+            The Boss round and Final Mix take away the hints — that&apos;s
+            when you find out if it really stuck.
           </p>
         </header>
 
-        {/* V3 P4 — at-a-glance "how this works" strip. Three small
-            tiles ground the player in the vocabulary the rest of the
-            hub uses (decoder / chapter / boss + final mix) before any
-            CTA. Mounted above the active Pathway card so a returning
-            user has the option to skip past it visually but a brand-
-            new user gets the language baked in. */}
+        {/* Three small tiles ground the player in the vocabulary the rest
+            of the hub uses (plays / chapters / boss + final mix). Kept
+            kid-readable so a brand-new player who hasn't seen the intro
+            walkthrough can still tell what a pathway is. */}
         <section className="grid grid-cols-1 gap-2 sm:grid-cols-3" aria-label="How Pathways work">
           <HowItWorksTile
             step="1"
-            label="Decoders"
-            body="Patterns you learn to spot. Backdoor, empty space, advantage, skip."
+            label="Plays"
+            body="The 4 plays we teach: backdoor, empty space, advantage, and skip."
           />
           <HowItWorksTile
             step="2"
             label="Chapters"
-            body="One decoder per chapter. Watch, freeze, pick the read."
+            body="One play per chapter. Watch, freeze, pick what to do."
           />
           <HowItWorksTile
             step="3"
             label="Boss & Final Mix"
-            body="No decoder label on screen. You have to read the play yourself."
+            body="No hints. You have to call the play yourself."
           />
         </section>
 

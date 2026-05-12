@@ -23,22 +23,22 @@ export const JOURNEY_STEPS: readonly JourneyStep[] = [
   {
     id: 'learn',
     label: 'Learn',
-    description: 'See what a read looks like.',
+    description: 'We show you a play and explain it.',
   },
   {
     id: 'train',
     label: 'Train',
-    description: 'Run reps, one read at a time.',
+    description: 'You practice the same play until it clicks.',
   },
   {
     id: 'test',
     label: 'Test',
-    description: 'Boss check — no hints.',
+    description: 'Boss round. No hints this time.',
   },
   {
     id: 'master',
     label: 'Master',
-    description: 'Final Mix. Call it yourself.',
+    description: 'All plays mixed together. Can you still call it?',
   },
 ] as const
 
@@ -85,20 +85,20 @@ export function deriveJourneyState(input: {
 
   if (input.pathway?.pathwayMastered) {
     current = 'master'
-    headline = 'Final Mix unlocked.'
-    sub = 'Run a chapter back any time to stay sharp.'
+    headline = 'You finished Foundation!'
+    sub = 'Replay any chapter to stay sharp.'
   } else if (masteredCount >= 1 && pathwayPct >= 50) {
     current = 'test'
-    headline = "You're ready to be tested."
-    sub = 'Boss reps come without the decoder label.'
+    headline = 'Time to test what you know.'
+    sub = 'Boss plays come with no hints. Just you and the play.'
   } else if (input.attemptsCount > 0 || inProgressCount > 0) {
     current = 'train'
-    headline = 'Train one read at a time.'
-    sub = pathwayPct > 0 ? `Foundation · ${pathwayPct}% in.` : 'Pick up where you left off.'
+    headline = 'Learn one play at a time.'
+    sub = pathwayPct > 0 ? `Foundation · ${pathwayPct}% done.` : 'Pick up where you left off.'
   } else {
     current = 'learn'
-    headline = 'See how the reads work.'
-    sub = 'Two taps to your first rep.'
+    headline = 'Watch your first play.'
+    sub = 'Two taps and you’re playing.'
   }
 
   const status: Record<JourneyStepId, 'done' | 'current' | 'next'> = {

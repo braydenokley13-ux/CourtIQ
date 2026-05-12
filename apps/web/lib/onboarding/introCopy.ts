@@ -43,46 +43,46 @@ export const INTRO_CARDS: readonly IntroCard[] = [
   {
     id: 'welcome',
     eyebrow: 'CourtIQ',
-    title: 'Watch the play. Pick the read.',
+    title: 'Watch the play. Pick what to do.',
     body:
-      'Basketball IQ is how fast you see what should happen next. We train it like a jumper — one rep at a time.',
+      "Basketball IQ is just knowing what to do next, fast. We teach it like a video game — one play at a time.",
     bullets: [
-      'A real play freezes at the read.',
-      'You pick what to do. We show you what would have happened.',
+      'A real play freezes right before the big choice.',
+      'You pick. We show you if you were right.',
     ],
   },
   {
     id: 'decoders',
-    eyebrow: 'The four reads',
-    title: 'These show up every possession.',
+    eyebrow: 'The four plays',
+    title: "You'll see these in every game.",
     body:
-      'You train one at a time so each read becomes second nature before the next.',
+      'You learn one at a time so it sticks before the next one.',
     bullets: [
-      'Backdoor Window · cut behind the defender.',
-      'Empty-Space Cut · fill the spot help just left.',
-      'Advantage or Reset · attack the closeout or move it.',
-      'Skip the Rotation · cross-court past the help.',
+      'Backdoor Window · cut behind your defender.',
+      'Empty-Space Cut · fill the empty spot on the floor.',
+      'Advantage or Reset · attack, or pass it back.',
+      'Skip the Rotation · throw it across the court.',
     ],
   },
   {
     id: 'pathways',
     eyebrow: 'The journey',
-    title: 'Four steps. Same for every read.',
+    title: '4 steps. Same for every play.',
     body:
-      "Here's exactly what your day-to-day looks like on CourtIQ:",
+      "Here's what every play looks like on CourtIQ:",
     bullets: [
-      '1. Learn the read · short video breakdown.',
-      '2. Train it · run reps until it clicks.',
-      '3. Test it · the Boss removes the hints.',
-      '4. Master it · the Final Mix takes the labels off completely.',
+      '1. Learn · we show you the play and explain it.',
+      '2. Train · you try it. We tell you if you got it.',
+      '3. Test · no more hints. This is the Boss round.',
+      '4. Master · all the plays mixed up — the Final Mix.',
     ],
   },
   {
     id: 'start',
     eyebrow: 'Ready',
-    title: 'Run your first rep.',
+    title: 'Run your first play.',
     body:
-      "Foundation is your starting Pathway. About 25 min total — the first read is two taps away.",
+      "Foundation is where everyone starts. About 25 minutes total. Your first play is two taps away.",
     ctaLabel: 'Start Foundation',
   },
 ] as const
@@ -91,8 +91,8 @@ export const INTRO_CARDS: readonly IntroCard[] = [
  *  been seen yet. Coaching-voice; not a "tutorial" pitch. */
 export const INTRO_HOME_BANNER = {
   eyebrow: 'New here',
-  title: 'See how CourtIQ trains your reads.',
-  body: '4 steps, 30 seconds. Then your first rep.',
+  title: 'See how CourtIQ works.',
+  body: '4 steps. Takes 30 seconds. Then we play.',
   ctaLabel: 'Watch',
   skipLabel: 'Skip',
 } as const

@@ -29,7 +29,8 @@ describe('deriveJourneyState', () => {
     expect(state.current).toBe('learn')
     expect(state.status.learn).toBe('current')
     expect(state.status.train).toBe('next')
-    expect(state.headline).toContain('reads')
+    // Kid-friendly cold-start framing: invite to watch / play.
+    expect(state.headline.toLowerCase()).toMatch(/play|watch|read/)
   })
 
   it('first attempts move the player to Train', () => {

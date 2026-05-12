@@ -29,12 +29,12 @@ export default function LandingPage() {
             CourtIQ
           </p>
           <h1 className="mt-3 font-display text-[40px] font-black leading-tight tracking-tight">
-            Train basketball IQ — the reads pros make in real time.
+            Learn what to do on a basketball court — fast.
           </h1>
           <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-text-dim">
-            Watch the play. Freeze at the read. Pick. CourtIQ scores
-            your decision-making the same way a coach watches film —
-            one rep at a time.
+            We show you a real play. It stops right before the big
+            choice. You pick what to do. We tell you if you got it.
+            That&apos;s it. One play at a time, like a video game.
           </p>
         </header>
 
@@ -65,8 +65,8 @@ export default function LandingPage() {
         </section>
 
         <p className="mt-6 text-[13px] leading-relaxed text-text-mute">
-          Four reads to start. About 25 minutes total in the Foundation
-          Pathway. The first read is two taps from sign-up.
+          You start with 4 plays. About 25 minutes total. Your first
+          play is two taps after you sign up.
         </p>
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
