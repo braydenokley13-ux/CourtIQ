@@ -86,12 +86,18 @@ function setupHappyPath(
       { id: 'ch-2', is_correct: false, quality: 'wrong', feedback_text: '' },
     ],
   })
-  ;(prisma.$transaction as MockedFn).mockImplementation(async (fn: any) => {
-    return fn({
-      attempt: { create: attemptCreate },
-      sessionRun: { update: sessionUpdate },
-    })
-  })
+  type TxClient = {
+    attempt: { create: MockedFn }
+    sessionRun: { update: MockedFn }
+  }
+  ;(prisma.$transaction as MockedFn).mockImplementation(
+    async (fn: (tx: TxClient) => unknown) => {
+      return fn({
+        attempt: { create: attemptCreate },
+        sessionRun: { update: sessionUpdate },
+      })
+    },
+  )
 }
 
 describe('parseBeatResults', () => {

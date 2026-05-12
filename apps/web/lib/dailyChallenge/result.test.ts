@@ -72,8 +72,8 @@ describe('inAppResultLines', () => {
       attempts: [att(), att(), att(), att(), att()],
     })
     const lines = inAppResultLines(r)
-    expect(lines.headline).not.toMatch(/[🟢⚫!]/)
-    expect(lines.sub).not.toMatch(/[🟢⚫!]/)
+    expect(lines.headline).not.toMatch(/[🟢⚫!]/u)
+    expect(lines.sub).not.toMatch(/[🟢⚫!]/u)
     expect(lines.headline).toContain('5 of 5')
   })
 })
