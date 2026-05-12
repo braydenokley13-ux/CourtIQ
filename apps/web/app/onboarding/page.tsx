@@ -329,7 +329,7 @@ export default function OnboardingPage() {
               <StepContainer
                 eyebrow="Step 1 of 5"
                 title="When were you born?"
-                subtitle="We use this to match you with age-appropriate scenarios. You can skip if you prefer."
+                subtitle="We pick plays the right level for your age. Skip if you'd rather not say."
               >
                 <div className="space-y-3">
                   <input
@@ -360,7 +360,7 @@ export default function OnboardingPage() {
               <StepContainer
                 eyebrow="Step 2 of 5"
                 title="What position do you play?"
-                subtitle="Your scenarios will lean into decisions that matter most for your role."
+                subtitle="We'll show you the plays your position sees most."
               >
                 <div className="grid grid-cols-3 gap-2.5">
                   {POSITIONS.map(p => {
@@ -391,7 +391,7 @@ export default function OnboardingPage() {
               <StepContainer
                 eyebrow="Step 3 of 5"
                 title="What level are you playing at?"
-                subtitle="Drives the difficulty mix of your calibration and first sessions."
+                subtitle="Sets how hard your first plays will be."
               >
                 <div className="space-y-2.5">
                   {SKILL_LEVELS.map(s => {
@@ -422,7 +422,7 @@ export default function OnboardingPage() {
               <StepContainer
                 eyebrow="Step 4 of 5"
                 title="What&apos;s your goal?"
-                subtitle="No wrong answer — this sets the tone of the coaching you&apos;ll get."
+                subtitle="No wrong answer. This just helps us talk to you the right way."
               >
                 <div className="space-y-2.5">
                   {GOALS.map(g => {
@@ -451,13 +451,13 @@ export default function OnboardingPage() {
             {step === 5 && (
               <StepContainer
                 eyebrow="Step 5 of 5"
-                title="Let&apos;s calibrate your IQ"
-                subtitle="3 quick reads. No pressure — we&apos;re just finding your starting line."
+                title="3 quick plays to start"
+                subtitle="No pressure. We're just figuring out where to start you."
               >
                 {calibrationError ? (
                   <div className="flex flex-col items-stretch gap-3 py-6">
                     <div className="rounded-2xl border border-[rgba(255,77,109,0.25)] bg-[rgba(255,77,109,0.06)] p-4">
-                      <p className="font-display text-[14px] font-bold text-[#FF4D6D]">Couldn&apos;t load scenarios</p>
+                      <p className="font-display text-[14px] font-bold text-[#FF4D6D]">Couldn&apos;t load your plays</p>
                       <p className="mt-1 text-[13px] leading-relaxed text-text-dim">{calibrationError}</p>
                     </div>
                     <button
@@ -471,12 +471,12 @@ export default function OnboardingPage() {
                 ) : calibrationLoading || !currentScenario ? (
                   <div className="flex flex-col items-center justify-center gap-3 py-10">
                     <div className="h-8 w-8 animate-spin rounded-full border-2 border-hairline-2 border-t-brand" />
-                    <p className="text-[13px] text-text-dim">Loading calibration scenarios…</p>
+                    <p className="text-[13px] text-text-dim">Getting your first plays…</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between text-[12px] text-text-dim">
-                      <span>Scenario {calibrationIdx + 1} of {scenarios.length}</span>
+                      <span>Play {calibrationIdx + 1} of {scenarios.length}</span>
                       <span>IQ {startingIq ?? 500}</span>
                     </div>
                     <div className="rounded-2xl border border-hairline-2 overflow-hidden bg-bg-1">
@@ -530,8 +530,8 @@ export default function OnboardingPage() {
                           className="w-full rounded-xl bg-brand py-3 font-display text-[14px] font-bold uppercase tracking-[0.3px] text-brand-ink disabled:opacity-50"
                         >
                           {calibrationIdx >= scenarios.length - 1
-                            ? (submitting ? 'Finishing…' : finishError ? 'Retry' : 'Finish calibration')
-                            : 'Next scenario'}
+                            ? (submitting ? 'Finishing…' : finishError ? 'Retry' : 'All done')
+                            : 'Next play'}
                         </button>
                       </div>
                     )}
@@ -558,7 +558,7 @@ export default function OnboardingPage() {
                 onClick={() => canAdvance && advance()}
                 disabled={!canAdvance}
               >
-                {step === 4 ? 'Start calibration' : 'Continue'}
+                {step === 4 ? 'Start playing' : 'Continue'}
               </PrimaryButton>
             </div>
           </div>

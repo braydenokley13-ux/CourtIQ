@@ -48,7 +48,7 @@ export function pickHomePathwayCta(input: {
       band: 'loading',
       eyebrow: 'Your Pathway',
       primaryLabel: 'Loading…',
-      primarySubline: 'Pulling your next read.',
+      primarySubline: 'Getting your next play.',
       primaryHref: FOUNDATION_DETAIL_HREF,
     }
   }
@@ -56,9 +56,9 @@ export function pickHomePathwayCta(input: {
   if (pathway?.pathwayMastered) {
     return {
       band: 'mastered',
-      eyebrow: 'Foundation mastered',
-      primaryLabel: 'Run it back',
-      primarySubline: 'Re-run a chapter — keeps the reads sharp.',
+      eyebrow: 'Foundation done',
+      primaryLabel: 'Play it again',
+      primarySubline: 'Replay any chapter to stay sharp.',
       primaryHref: FOUNDATION_DETAIL_HREF,
     }
   }
@@ -69,16 +69,16 @@ export function pickHomePathwayCta(input: {
       band: 'cold-start',
       eyebrow: 'Start here',
       primaryLabel: 'Start Foundation',
-      primarySubline: 'Four reads. ~25 min total. First read is two taps away.',
+      primarySubline: '4 plays to learn. About 25 minutes. Two taps to start.',
       primaryHref: pathway?.recommendedNext?.trainHref ?? FOUNDATION_DETAIL_HREF,
     }
   }
 
   return {
     band: 'continue',
-    eyebrow: "Today's reps",
+    eyebrow: 'Today’s plays',
     primaryLabel: pathway!.recommendedNext!.label,
-    primarySubline: `Foundation · ${progressPct}% in.`,
+    primarySubline: `Foundation · ${progressPct}% done.`,
     primaryHref: pathway!.recommendedNext!.trainHref,
   }
 }

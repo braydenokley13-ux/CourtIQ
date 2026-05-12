@@ -23,7 +23,7 @@ export function JourneyMap({ state }: JourneyMapProps) {
       className="rounded-2xl border border-[#1F2937] bg-[#0E1B16] p-4"
     >
       <p className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#9CA3AF]">
-        Your Journey
+        How CourtIQ works · where you are
       </p>
 
       <ol className="mt-3 flex items-stretch gap-1" aria-label="Your CourtIQ journey">

@@ -329,12 +329,12 @@ function DailyChallengeCard({
     ? `${daily.streak}-day daily streak`
     : started
       ? 'Daily — in progress'
-      : "Today's daily"
+      : "Today's daily challenge"
   const title = completed
-    ? 'See your result.'
+    ? 'See how you did.'
     : started
-      ? 'Resume the daily.'
-      : 'Five reads. Mystery Mode.'
+      ? 'Pick up where you left off.'
+      : '5 mystery plays. No hints.'
   const ctaHref = completed && daily.session_run_id
     ? `/daily/result?id=${daily.session_run_id}`
     : '/daily'
@@ -497,8 +497,14 @@ export default function HomePage() {
           <h1 className="mt-1 font-display text-[26px] font-black tracking-tight text-[#F9FAFB]">
             {(data?.attemptsCount ?? 0) === 0
               ? <>Welcome to <span style={{ color: '#3BE383' }}>CourtIQ</span>.</>
-              : <>Let&apos;s train your <span style={{ color: '#3BE383' }}>IQ</span>.</>}
+              : <>Ready to <span style={{ color: '#3BE383' }}>play</span>?</>}
           </h1>
+          {(data?.attemptsCount ?? 0) === 0 ? (
+            <p className="mt-2 text-[13px] leading-relaxed text-[#9CA3AF]">
+              Watch a play. Pick what to do. We tell you if you got it right.
+              That&apos;s the whole thing.
+            </p>
+          ) : null}
         </motion.div>
 
         {/* V3 P2 — first-run banner. Only renders when the player has
@@ -595,10 +601,10 @@ export default function HomePage() {
             >
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-[#9CA3AF]">
-                  Off the clock
+                  Just for fun
                 </p>
                 <p className="mt-0.5 text-[13px] font-semibold text-[#F9FAFB]">
-                  Five quick reads. No path. ~3 min.
+                  5 quick plays. About 3 minutes.
                 </p>
               </div>
               <span aria-hidden className="text-[18px] text-[#3BE383]">→</span>
@@ -721,7 +727,7 @@ export default function HomePage() {
           >
             <div className="mb-2 flex items-center justify-between">
               <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-[#6B7280]">
-                Your reads
+                How well you know each play
               </p>
               <Link
                 href="/pathways/complete-iq-foundation/progress"
@@ -745,7 +751,7 @@ export default function HomePage() {
         {!loading && (data?.decoders?.some((d) => d.attempts > 0) ?? false) && (
           <motion.div custom={4} initial="hidden" animate="show" variants={fadeUp} className="mb-5">
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-[1.5px] text-[#6B7280]">
-              Accuracy by read
+              Your scores by play
             </p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {data!.decoders
@@ -794,7 +800,7 @@ export default function HomePage() {
         {!loading && sessions.length > 0 ? (
           <motion.div custom={6} initial="hidden" animate="show" variants={fadeUp}>
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-[1.5px] text-[#6B7280]">
-              Last few sets
+              How you played recently
             </p>
             <div className="space-y-1.5">
               {sessions.slice(0, 4).map((s) => {
@@ -809,13 +815,13 @@ export default function HomePage() {
                 const acc = total > 0 ? Math.round((s.correct_count / total) * 100) : 0
                 const summary =
                   acc >= 90
-                    ? 'cleanly read'
+                    ? 'crushed it'
                     : acc >= 70
-                      ? 'sharp set'
+                      ? 'played sharp'
                       : acc >= 50
-                        ? 'mixed reads'
+                        ? 'mixed bag'
                         : acc > 0
-                          ? 'tough set'
+                          ? 'tough one'
                           : 'reset'
                 return (
                   <div

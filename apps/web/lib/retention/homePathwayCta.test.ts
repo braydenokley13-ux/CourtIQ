@@ -63,15 +63,19 @@ describe('pickHomePathwayCta', () => {
     expect(cta.primarySubline).toContain('42%')
   })
 
-  it('celebrates a mastered pathway with "Run it back"', () => {
+  it('celebrates a mastered pathway with a replay-style CTA', () => {
     const cta = pickHomePathwayCta({
       pathway: { pathwayProgress: 1, pathwayMastered: true, recommendedNext: RECOMMENDED },
       attempts: 99,
       loading: false,
     })
     expect(cta.band).toBe('mastered')
-    expect(cta.primaryLabel).toBe('Run it back')
-    expect(cta.eyebrow.toLowerCase()).toContain('mastered')
+    // Kid-friendly replay framing: must invite the player to play it
+    // again, not say "continue" or "start".
+    expect(cta.primaryLabel.toLowerCase()).toMatch(/again|back|replay/)
+    // Eyebrow tells the player the pathway is finished, in any voice
+    // ("Foundation done", "Foundation mastered", etc.).
+    expect(cta.eyebrow.toLowerCase()).toMatch(/done|mastered|finished/)
     expect(cta.primaryHref).toBe(FOUNDATION_DETAIL_HREF)
   })
 
