@@ -2,12 +2,13 @@
   "id": "pack-pnr-coverage-v0",
   "slug": "pnr-coverage-v0",
   "title": "PnR Coverage Recognition v0 / DROP Foundations",
-  "description": "Pack 2 (Phase β/γ/δ). Real DROP (READ_THE_COVERAGE) base scenarios — single-freeze ball-handler reads of screen-defender posture. D1 ships the textbook drop pull-up; D2 introduces the deep-drop snake variant; D3 layers a second cue (weak-side low-man tag) and the kick-the-tag read. D1 and D2 each also ship a left-side mirror (DROP-01-MIRROR, DROP-02-MIRROR) so mastery transfer across the floor is exercised at both tiers, parallel to the HUNT mirror set.",
+  "description": "Pack 2 (Phase β/γ/δ). Real DROP (READ_THE_COVERAGE) base scenarios — single-freeze ball-handler reads of screen-defender posture. D1 ships the textbook drop pull-up; D2 introduces the deep-drop snake variant; D3 layers a second cue (weak-side low-man tag) and the kick-the-tag read. D1, D2, and D3 each also ship a left-side mirror (DROP-01-MIRROR, DROP-02-MIRROR, DROP-03-MIRROR) so mastery transfer across the floor is exercised at every tier, parallel to the HUNT mirror set.",
   "scenarios": [
     { "id": "DROP-01", "file": "DROP-01.json", "prerequisites": [] },
     { "id": "DROP-01-MIRROR", "file": "DROP-01-MIRROR.json", "prerequisites": ["DROP-01"] },
     { "id": "DROP-02", "file": "DROP-02.json", "prerequisites": ["DROP-01"] },
     { "id": "DROP-02-MIRROR", "file": "DROP-02-MIRROR.json", "prerequisites": ["DROP-02"] },
-    { "id": "DROP-03", "file": "DROP-03.json", "prerequisites": ["DROP-01", "DROP-02"] }
+    { "id": "DROP-03", "file": "DROP-03.json", "prerequisites": ["DROP-01", "DROP-02"] },
+    { "id": "DROP-03-MIRROR", "file": "DROP-03-MIRROR.json", "prerequisites": ["DROP-03"] }
   ]
 }
