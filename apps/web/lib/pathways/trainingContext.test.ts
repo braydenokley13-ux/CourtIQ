@@ -172,7 +172,7 @@ describe('resolvePathwayTrainingContext — pathway only', () => {
 
 describe('resolvePathwayTrainingContext — error paths', () => {
   it('refuses coming-soon pathways', () => {
-    const ctx = resolvePathwayTrainingContext({ pathwaySlug: 'closeout-killer' })
+    const ctx = resolvePathwayTrainingContext({ pathwaySlug: 'wing-decision-maker' })
     expect(ctx!.error).toBe('pathway-coming-soon')
     expect(ctx!.scenarioIds).toEqual([])
   })
@@ -202,7 +202,7 @@ describe('resolvePathwayTrainingContext — error paths', () => {
 
   it('refuses challenge context for coming-soon pathways', () => {
     const ctx = resolvePathwayTrainingContext({
-      pathwaySlug: 'closeout-killer',
+      pathwaySlug: 'wing-decision-maker',
       mode: 'boss-challenge',
     })
     expect(ctx!.error).toBe('pathway-coming-soon')
