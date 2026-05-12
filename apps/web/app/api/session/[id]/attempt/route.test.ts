@@ -46,7 +46,8 @@ import { award } from '@/lib/services/xpService'
 import { tick as tickStreak } from '@/lib/services/streakService'
 import { checkAndAward } from '@/lib/services/badgeService'
 import { update as updateMastery } from '@/lib/services/masteryService'
-import { parseBeatResults, POST } from './route'
+import { POST } from './route'
+import { parseBeatResults } from './beatResults'
 
 type MockedFn = ReturnType<typeof vi.fn>
 
