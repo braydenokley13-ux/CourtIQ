@@ -435,6 +435,23 @@ export const QA_MATRIX: readonly QaMatrixEntry[] = [
       'Two-defender cue cluster — the chest_line on x5 must not steal attention from the help_pulse on x2; intermediate cluster cap is 4 and this scene runs to the cap',
     priority: 'high',
   },
+  {
+    id: 'DROP-03-MIRROR',
+    decoder: 'READ_THE_COVERAGE',
+    primaryCue:
+      'Mirrored: x5 in drop on the LEFT-side screen AND x2 (low man, RIGHT corner) both feet in the lane — full tag commit',
+    requiredFraming:
+      'Ball-handler off a LEFT-side screen, x5 in drop, roller in the lane, x2 stepped fully into the tag from the RIGHT, weak corner on the RIGHT empty behind x2 (DROP-03 framing flipped across y-axis)',
+    requiredHighlight: 'x2 (low man tagger, right side) + the vacated right corner',
+    requiredOverlays: [
+      'defender_chest_line',
+      'help_pulse',
+      'defender_hip_arrow',
+    ],
+    knownRisk:
+      'Mirror cognition collapse at D3 — if kick choice rate drops vs DROP-03 the player anchored on the right-side geometry rather than the two-defender cluster. The right-side weak-corner shooter must read as the kick target; camera framing must keep that corner visible past the moment the tag commits.',
+    priority: 'high',
+  },
 
   // -- HUNT family (Pack 2 / Phase γ) ---------------------------------------
   {
