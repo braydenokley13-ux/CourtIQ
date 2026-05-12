@@ -1,0 +1,298 @@
+[
+  {
+    "id": "HUNT-03-MIRROR",
+    "version": 1,
+    "status": "DRAFT",
+    "title": "Decoy Handoff — Other Side, Same Slip",
+    "category": "OFFENSE",
+    "decoder_tag": "HUNT_THE_ADVANTAGE",
+    "concept_tags": ["hunt_chained_read", "decoy_action", "helper_overcommit_punish"],
+    "sub_concepts": ["dummy_dho", "screener_slip", "x1_bait_then_slip"],
+    "difficulty": 3,
+    "user_role": "pnr_ball_handler",
+    "game_context": "5-on-5 half-court. You are on the LEFT wing in triple-threat. Your post (5) is at the elbow and walks into a dribble-handoff at you — but the handoff is a decoy. The scouting report says x1 (on-ball) jumps every DHO. Beat 1 freezes on the matchup. The dummy DHO fires; x1 commits to the handoff (the bait). The screener pivots and slips behind him to the rim. Beat 2 freezes on the slip — the real read. Same chain as HUNT-03, mirrored to the left side of the floor.",
+    "possession_setup": "LEFT-wing triple-threat. 5 walks toward you to set up the DHO at the left elbow extended. x1 is shaded hard to the handoff side — your scouting says he will jump it. x5 is in soft drop, expecting to absorb a roll. Weak-side defenders are in shell: x3 in the strong-side (left) corner is shaded slightly toward the gap, x2 sits in the weak-side (right) corner, x4 is one pass away from the weak slot. No tag pre-positioned at the rim.",
+    "decision_moment": "Beat one freezes on the matchup — observe x1's shading, x5's drop, the empty rim. The play unfreezes; 5 starts the DHO, x1 jumps the handoff (the bait), 5 fakes the handoff and slips behind him to the rim. Beat two freezes on the slip — x1's hand is reaching toward the empty ball-fake, his foot has crossed over and is gone, x5 is a half-step late, x4 has not started his rotation. The LEFT-side lane to the rim is open. The choice tray opens here.",
+    "visible_cue": "Beat 1: x1 shaded to the handoff side (hip arrow), mismatch pulse on x1, LEFT-side rim corridor visible. Beat 2: x1's hand reaching where the handoff would have been (hand in lane), his recovery foot pointing back toward the handoff side (foot arrow), mismatch pulse retained — the screener has slipped behind him and the LEFT-side lane is open. Same cluster as HUNT-03; only the side flips.",
+    "court_state": {
+      "offense": [
+        { "id": "user", "x": 60, "y": 120, "role": "pnr_ball_handler", "hasBall": true },
+        { "id": "screener", "x": 140, "y": 90, "role": "screener", "hasBall": false },
+        { "id": "wing", "x": 420, "y": 80, "role": "weak_wing", "hasBall": false },
+        { "id": "corner_strong", "x": 20, "y": 10, "role": "strong_corner", "hasBall": false },
+        { "id": "corner_weak", "x": 460, "y": 10, "role": "weak_corner", "hasBall": false }
+      ],
+      "defense": [
+        { "id": "x_user", "x": 70, "y": 100, "role": "on_ball", "hasBall": false },
+        { "id": "x_screener", "x": 140, "y": 70, "role": "screen_defender", "hasBall": false },
+        { "id": "x_wing", "x": 400, "y": 100, "role": "weak_wing_defender", "hasBall": false },
+        { "id": "x_corner_strong", "x": 40, "y": 30, "role": "strong_corner_defender", "hasBall": false },
+        { "id": "x_corner_weak", "x": 430, "y": 30, "role": "weak_corner_defender", "hasBall": false }
+      ],
+      "ball_location": { "x": 60, "y": 120 }
+    },
+    "prompt": "Same chain, DHO from the left. Beat 1 — see the matchup. Beat 2 — read the slip. What's the real read?",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Skip the handoff — slip-pass to the screener at the rim.",
+        "quality": "best",
+        "feedback_text": "Best read. Same chain, other side — the DHO was the decoy; x1 bit; your screener slipped behind him before x5 could rotate. Take the LEFT-side rim.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Take the handoff anyway and attack x5 in drop.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Taking the handoff means going where the defense expects you, regardless of which side you set it on. You read the bait, not the slip.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Pull the ball back out and reset the action.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Resetting wastes the trap your screener just sprung. The decoy worked once on either side — the defense's recovery will close the window next possession.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Swing the ball weak-side to the wing for the open three.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. x4 has not over-helped — he is still home on the weak wing. That is a SKR read (no rotation to punish) and it skips the slip the defense actually gave you.",
+        "order": 4
+      }
+    ],
+    "best_read": "Slip-pass the screener to the rim on the LEFT side. The dummy DHO was bait for x1; he bit, and his back foot is gone. Your screener slipped behind him before x5 could close the pocket and before x4 could tag. The rim corridor is open for exactly the moment the choice tray is open — read the second freeze, not the bait. Same chain as HUNT-03; the floor flipped, the read didn't.",
+    "acceptable_reads": [],
+    "bad_reads": [
+      "Take the handoff — going where the defense set the bait undoes the decoy, either side.",
+      "Reset — wastes the slip; defense's next coverage will not bite the same way.",
+      "Swing weak-side — chases a SKR read against a defense that has not rotated."
+    ],
+    "common_miss_reason": "Treating each side of the floor as a new chain. Players who learned HUNT-03 on the right side sometimes hesitate when the DHO comes from the left because the bait angle feels new — but the hip arrow at beat 1 and the hand-in-lane + foot-arrow cluster at beat 2 are the same cues. Hesitation lets x1 recover.",
+    "why_best_read_works": "A decoy action is a question the defense answers with their body, regardless of which side the floor is on. The dummy DHO asks x1 'will you jump this?' and x1 answers yes — the moment his outside foot crosses over is the moment his recovery angle commits. The slip pass behind him exploits that commitment before x5 can close the rim or x4 can leave his man. The window is small (under 400ms) but unmissable when the read is taken on the second freeze, not the bait. Mirroring the action flips the geometry of the slip but not the cue cluster that names the read.",
+    "decoder_teaching_point": "HUNT D3 chains the bait and the slip on either side of the floor. Beat 1: see the matchup — the hip arrow names it. Beat 2: read what the defense's reaction to the decoy left open — the hand-in-lane + foot-arrow cluster names it. Take that, not the bait.",
+    "lesson_connection": "chained-reads-intro",
+    "feedback": {
+      "correct": "Good chain. Same decoy, other side — you let the DHO be bait, x1 bit, and you took the slip the bite created.",
+      "wrong": "Read the second freeze. Beat 1 named the matchup; the unfreeze fired the bait; beat 2 was the slip. The side doesn't change the read."
+    },
+    "self_review_checklist": [
+      "Did I treat the DHO as a question, not the answer — on the left side too?",
+      "Did I wait for beat 2 before committing?",
+      "Did I track the screener's slip behind x1, not the ball?",
+      "Did I trust the chain to work the same way on the other side?"
+    ],
+    "coach_validation": {
+      "level": "high",
+      "status": "approved",
+      "reviewerId": "courtiq-founder",
+      "reviewedAt": "2026-05-12T00:00:00.000Z",
+      "notes": "Pack 2 (Phase δ-A.M3) — HUNT-03 left-side mirror variant. Same decoy-DHO + screener-slip chain as HUNT-03, mirrored across the y-axis. Validates that D3 chained-read recognition transfers across the floor; if recognition drops vs HUNT-03 the player chained the geometry, not the cues. coach_validation.level=high is required at D3+ per LINT-HUNT-05 (inherits the HUNT-03 gate). The cognition module's HUNT_TEMPLATES carries a beat-3 cue/action/advantage triad reused across both freezes per §9.1 cadence reuse."
+    },
+    "source_research_basis": "Mirror variants are the canonical post-mastery exposure pattern (see HUNT-01-MIRROR, HUNT-02-MIRROR, BDW-T1-02). Same source taxonomy as HUNT-03: dummy DHO into a screener slip as the canonical D3 decoy-action chained read.",
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": ["HUNT-03"]
+    },
+    "explanation_md": "**Hunt the Advantage — Decoy Actions, Other Side.** Same chained read as HUNT-03, mirrored to the LEFT side of the floor. A decoy action is a basketball move whose only job is to make the defense move. The handoff is not the play; the handoff is the *question*. Beat one shows you the matchup — your post is in DHO range, x1 is shaded hard to the handoff. The unfreeze fires the bait: the handoff motion starts, x1 jumps it, his outside foot crosses over, and your screener slips behind him to the rim. Beat two freezes on the slip — x1's hand is in the lane where the ball would have been, his recovery foot is gone, x5 is late, x4 has not committed. **Beat one for the matchup. Beat two for the slip. The side doesn't change the chain.**",
+    "xp_reward": 34,
+    "mastery_weight": 1.0,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "hunt_decoy_dho_slip",
+      "court": "half",
+      "camera": "teaching_angle",
+      "players": [
+        { "id": "user", "team": "offense", "role": "pnr_ball_handler", "label": "You", "start": { "x": -18, "z": 12 }, "isUser": true, "hasBall": true },
+        { "id": "screener", "team": "offense", "role": "screener", "label": "5", "start": { "x": -10, "z": 16 } },
+        { "id": "wing", "team": "offense", "role": "weak_wing", "label": "3", "start": { "x": 16, "z": 12 } },
+        { "id": "corner_strong", "team": "offense", "role": "strong_corner", "label": "4", "start": { "x": -22, "z": 1 } },
+        { "id": "corner_weak", "team": "offense", "role": "weak_corner", "label": "2", "start": { "x": 22, "z": 1 } },
+        { "id": "x_user", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": -17, "z": 14 } },
+        { "id": "x_screener", "team": "defense", "role": "screen_defender", "label": "x5", "start": { "x": -10, "z": 18 } },
+        { "id": "x_wing", "team": "defense", "role": "weak_wing_defender", "label": "x3", "start": { "x": 14, "z": 13 } },
+        { "id": "x_corner_strong", "team": "defense", "role": "strong_corner_defender", "label": "x4", "start": { "x": -20, "z": 3 } },
+        { "id": "x_corner_weak", "team": "defense", "role": "weak_corner_defender", "label": "x2", "start": { "x": 20, "z": 3 } }
+      ],
+      "ball": {
+        "start": { "x": -18, "z": 12 },
+        "holderId": "user"
+      },
+      "movements": [
+        {
+          "id": "user_settle_for_beat1",
+          "playerId": "user",
+          "kind": "drift",
+          "to": { "x": -18, "z": 12 },
+          "delayMs": 0,
+          "durationMs": 400
+        },
+        {
+          "id": "screener_walk_to_dho",
+          "playerId": "screener",
+          "kind": "lift",
+          "to": { "x": -14, "z": 14 },
+          "delayMs": 0,
+          "durationMs": 600
+        },
+        {
+          "id": "x_user_shade_handoff",
+          "playerId": "x_user",
+          "kind": "rotation",
+          "to": { "x": -16, "z": 14 },
+          "delayMs": 0,
+          "durationMs": 500
+        },
+        {
+          "id": "screener_dho_fire",
+          "playerId": "screener",
+          "kind": "lift",
+          "to": { "x": -16, "z": 13 },
+          "delayMs": 1300,
+          "durationMs": 600
+        },
+        {
+          "id": "x_user_jump_handoff",
+          "playerId": "x_user",
+          "kind": "closeout",
+          "to": { "x": -15, "z": 12 },
+          "delayMs": 1400,
+          "durationMs": 700
+        },
+        {
+          "id": "screener_slip_to_rim",
+          "playerId": "screener",
+          "kind": "back_cut",
+          "to": { "x": -19, "z": 6 },
+          "delayMs": 2900,
+          "durationMs": 800
+        },
+        {
+          "id": "x_screener_step_late",
+          "playerId": "x_screener",
+          "kind": "rotation",
+          "to": { "x": -14, "z": 16 },
+          "delayMs": 3000,
+          "durationMs": 700
+        }
+      ],
+      "freezeMarker": { "kind": "atMs", "atMs": 1100 },
+      "beatSpec": {
+        "firstBeat": { "kind": "atMs", "atMs": 1100 },
+        "secondBeat": { "kind": "atMs", "atMs": 4400 }
+      },
+      "timingOverrides": {
+        "cognitionHoldMs": 1200
+      },
+      "answerDemo": [
+        {
+          "id": "user_slip_pass",
+          "playerId": "ball",
+          "kind": "pass",
+          "to": { "x": -19, "z": 6 },
+          "delayMs": 0,
+          "durationMs": 500
+        },
+        {
+          "id": "screener_finish_rim",
+          "playerId": "screener",
+          "kind": "drive",
+          "to": { "x": -21, "z": 2 },
+          "delayMs": 500,
+          "durationMs": 500
+        }
+      ],
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You took the handoff. x1 recovered into the lane and x5 was set in the pocket.",
+          "movements": [
+            {
+              "id": "user_take_dho",
+              "playerId": "user",
+              "kind": "drive",
+              "to": { "x": -14, "z": 13 },
+              "delayMs": 0,
+              "durationMs": 600
+            },
+            {
+              "id": "x_user_recover_dho",
+              "playerId": "x_user",
+              "kind": "rotation",
+              "to": { "x": -14, "z": 15 },
+              "delayMs": 100,
+              "durationMs": 500
+            }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You reset. The decoy worked once and you spent it.",
+          "movements": [
+            {
+              "id": "user_pull_back",
+              "playerId": "user",
+              "kind": "drift",
+              "to": { "x": -20, "z": 14 },
+              "delayMs": 0,
+              "durationMs": 500
+            },
+            {
+              "id": "x_user_recover_full",
+              "playerId": "x_user",
+              "kind": "rotation",
+              "to": { "x": -19, "z": 15 },
+              "delayMs": 100,
+              "durationMs": 500
+            }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You swung weak-side. x4 was already home; x3 closed out clean.",
+          "movements": [
+            {
+              "id": "user_swing_weak",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": { "x": 16, "z": 12 },
+              "delayMs": 0,
+              "durationMs": 600
+            },
+            {
+              "id": "x_wing_closeout",
+              "playerId": "x_wing",
+              "kind": "closeout",
+              "to": { "x": 15, "z": 13 },
+              "delayMs": 200,
+              "durationMs": 500
+            }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        { "kind": "help_pulse", "playerId": "x_user", "role": "mismatch", "beat": 1 },
+        { "kind": "defender_hip_arrow", "playerId": "x_user", "beat": 1 },
+        { "kind": "help_pulse", "playerId": "x_user", "role": "mismatch", "beat": 2 },
+        { "kind": "defender_hand_in_lane", "playerId": "x_user", "beat": 2 },
+        { "kind": "defender_foot_arrow", "playerId": "x_user", "beat": 2 }
+      ],
+      "postAnswerOverlays": [
+        { "kind": "open_space_region", "anchor": { "x": -20, "z": 4 }, "radiusFt": 5 },
+        { "kind": "defender_hand_in_lane", "playerId": "x_user" },
+        { "kind": "timing_pulse", "anchor": { "x": -21, "z": 2 }, "durationMs": 600 },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "screener",
+          "path": [
+            { "x": -16, "z": 13 },
+            { "x": -18, "z": 9 },
+            { "x": -20, "z": 4 }
+          ]
+        }
+      ]
+    }
+  }
+]
