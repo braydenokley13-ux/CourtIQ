@@ -522,6 +522,23 @@ export const QA_MATRIX: readonly QaMatrixEntry[] = [
       'Decoy DHO must read as a fake — risk that the handoff animation looks committed and the slip reads as a turnover',
     priority: 'high',
   },
+  {
+    id: 'HUNT-03-MIRROR',
+    decoder: 'HUNT_THE_ADVANTAGE',
+    primaryCue:
+      'Mirrored: beat 1 mismatch + hip arrow on x1 (LEFT-side DHO); beat 2 hand-in-lane + foot arrow on x1 after the bait fires',
+    requiredFraming:
+      'LEFT-wing ball-handler with screener walking into a DHO, x1 shaded to the handoff, LEFT-side slip lane to rim visible at beat 2 (HUNT-03 framing flipped across y-axis)',
+    requiredHighlight: 'x1 (on-ball, baited, left side)',
+    requiredOverlays: [
+      'help_pulse',
+      'defender_hand_in_lane',
+      'defender_foot_arrow',
+    ],
+    knownRisk:
+      'Mirror cognition collapse at D3 — if slip-pass choice rate drops vs HUNT-03 the player chained the right-side geometry, not the cues. The DHO fake must also still read as a decoy when mirrored — copy-paste of the right-side animation curve into the left side can re-introduce drift that makes the handoff look committed.',
+    priority: 'high',
+  },
 ] as const
 
 /** All twenty founder-v0 ids in the canonical order the matrix uses. */

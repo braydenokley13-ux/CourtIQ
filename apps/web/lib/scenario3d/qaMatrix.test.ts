@@ -68,6 +68,7 @@ const PACK2_IDS: readonly string[] = [
   'HUNT-02',
   'HUNT-02-MIRROR',
   'HUNT-03',
+  'HUNT-03-MIRROR',
 ] as const
 
 const EXPECTED_TOTAL = FOUNDER_V0_IDS.length + PACK2_IDS.length
@@ -116,12 +117,13 @@ describe('QA_MATRIX', () => {
 
   it('has matching Pack 2 entry counts for the new DROP and HUNT families', () => {
     const grouped = groupQaMatrixByDecoder()
-    // Phase δ-A.M2 / δ-B.M2 — both decoders now ship a mirror at D1 and D2.
+    // Phase δ-A.M3 — HUNT now ships a mirror at every D1/D2/D3 tier.
+    // DROP still has the D1/D2 mirrors only (D3 mirror tracked separately).
     // DROP: DROP-01, DROP-01-MIRROR, DROP-02, DROP-02-MIRROR, DROP-03 (5).
-    // HUNT: HUNT-01, HUNT-01-MIRROR, HUNT-02, HUNT-02-MIRROR, HUNT-03 (5).
-    // Families are once again symmetric.
+    // HUNT: HUNT-01, HUNT-01-MIRROR, HUNT-02, HUNT-02-MIRROR, HUNT-03,
+    //       HUNT-03-MIRROR (6).
     expect(grouped.get('READ_THE_COVERAGE')?.length).toBe(5)
-    expect(grouped.get('HUNT_THE_ADVANTAGE')?.length).toBe(5)
+    expect(grouped.get('HUNT_THE_ADVANTAGE')?.length).toBe(6)
   })
 
   it('every entry has at least one required overlay', () => {
