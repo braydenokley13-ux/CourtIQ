@@ -1049,7 +1049,10 @@ const COMING_SOON: PathwayConfig[] = [
           slug: 'x-out-boss',
           title: 'Boss — X-Out Punisher',
           subtitle: '5 reps. No hints. 80% to pass.',
-          scenarioIds: ['SKR-04', 'SKR-05'],
+          // Same shape as PGB's X-Out boss: anchor on SKR-03 (wing-double
+          // rotation that sets up the X-out) and repeat SKR-04/05 so the
+          // boss skews toward X-out reads while honoring bossMinAttempts.
+          scenarioIds: ['SKR-03', 'SKR-04', 'SKR-05', 'SKR-04', 'SKR-05'],
           passCriteria: { bossBestRatio: 0.8, bossMinAttempts: 5 },
           hideDecoderPill: true,
         },
