@@ -1204,7 +1204,7 @@ const COMING_SOON: PathwayConfig[] = [
             subtitle: 'Read the lesson, then take one easy rep.',
             kind: 'learn-cue',
             trainingMode: 'learn-the-cue',
-            academyLessonSlug: 'advantage-or-reset',
+            academyLessonSlug: 'pnr-coverage-recognition',
             scenarioIds: ['DROP-01'],
           },
           {
@@ -1336,7 +1336,12 @@ const COMING_SOON: PathwayConfig[] = [
           slug: 'x-out-beater',
           title: 'Boss — X-Out Beater',
           subtitle: '5 reps. No hints. 80% to pass.',
-          scenarioIds: ['SKR-04', 'SKR-05'],
+          // X-out chapter focuses on SKR-04/05, but the boss needs at
+          // least 5 distinct reps to match bossMinAttempts. Anchor on
+          // SKR-03 (wing-double rotation that sets up the X-out) and
+          // repeat the two X-out scenarios so the boss skews toward
+          // X-out reads without short-changing the rep count.
+          scenarioIds: ['SKR-03', 'SKR-04', 'SKR-05', 'SKR-04', 'SKR-05'],
           passCriteria: { bossBestRatio: 0.8, bossMinAttempts: 5 },
           hideDecoderPill: true,
         },
