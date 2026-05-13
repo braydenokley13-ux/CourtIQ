@@ -1296,6 +1296,43 @@ const COMING_SOON: PathwayConfig[] = [
           hideDecoderPill: true,
         },
       },
+      {
+        slug: 'beat-the-x-out',
+        order: 3,
+        title: 'Beat the X-Out',
+        subtitle: 'The slow rotation is the open one.',
+        basketballCue:
+          'First help recovers; a second defender X-outs to cover the kick. The slot he just vacated is open by a step.',
+        decoderTag: 'SKIP_THE_ROTATION',
+        decoderTags: ['SKIP_THE_ROTATION'],
+        goal: 'Read the X-out rotation off your drive and skip the ball to the slot the second helper had to leave.',
+        parentSummary:
+          'Player handles the harder two-step rotation read — the X-out — and finds the second open shooter instead of forcing into the first recovery.',
+        coachSummary:
+          'X-outs are how teams survive the first kick. The PG who beats them with one more pass is the one who breaks defenses.',
+        passCriteria: CHAPTER_PASS,
+        masteryCriteria: CHAPTER_MASTERY,
+        skillNodes: [
+          {
+            slug: 'second-rotation-reads',
+            order: 1,
+            title: 'Second-Rotation Reads',
+            subtitle: 'Read the X-out, hit the abandoned slot.',
+            kind: 'scenario-set',
+            trainingMode: 'freeze-frame-read',
+            scenarioIds: ['SKR-04', 'SKR-05'],
+            prerequisiteNodeSlugs: [],
+          },
+        ],
+        bossChallenge: {
+          slug: 'x-out-beater',
+          title: 'Boss — X-Out Beater',
+          subtitle: '5 reps. No hints. 80% to pass.',
+          scenarioIds: ['SKR-04', 'SKR-05'],
+          passCriteria: { bossBestRatio: 0.8, bossMinAttempts: 5 },
+          hideDecoderPill: true,
+        },
+      },
     ],
     unlockCriteria: { pathwaysMastered: ['complete-iq-foundation'] },
     passCriteria: {},
