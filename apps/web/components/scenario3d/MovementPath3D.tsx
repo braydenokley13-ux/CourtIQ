@@ -77,16 +77,49 @@ export function MovementPath3D({
     return new THREE.TubeGeometry(curveObj, 48, thickness * 2.3, 10, false)
   }, [curveObj, thickness])
 
-  // Pulse dot — a small sphere we slide along the curve every frame.
+  // AAA polish — outer feather glow. A third, even-thicker tube with
+  // very low alpha behind both the halo and the main tube, so the
+  // path's silhouette feathers into the floor instead of stopping at
+  // a hard edge. Costs one more tube geometry per path (≈ 480 tris at
+  // 48 segments × 10 radials × 2 sides) which is well inside the
+  // medium-tier per-scene budget.
+  const featherGeom = useMemo(() => {
+    if (!curveObj) return null
+    return new THREE.TubeGeometry(curveObj, 48, thickness * 4.4, 10, false)
+  }, [curveObj, thickness])
+
+  // AAA polish — second pulse dot trailing the leader by ~25% of the
+  // curve. Gives the path a "leader + follower" comet feel without
+  // adding a new geometry — same sphere we re-allocate via ref.
+  // Pulse dots — leader + trailing follower we slide along the curve every frame.
   const pulseRef = useRef<THREE.Mesh | null>(null)
+  const pulseFollowerRef = useRef<THREE.Mesh | null>(null)
   const tmp = useMemo(() => new THREE.Vector3(), [])
+  const featherRef = useRef<THREE.MeshBasicMaterial | null>(null)
   useFrame((state) => {
-    if (reduced || !pulse || !curveObj || !pulseRef.current) return
-    const t = (state.clock.getElapsedTime() * 0.45) % 1
-    curveObj.getPoint(t, tmp)
-    pulseRef.current.position.set(tmp.x, tmp.y + 0.05, tmp.z)
-    const s = 1 + Math.sin(state.clock.getElapsedTime() * 5) * 0.18
-    pulseRef.current.scale.set(s, s, s)
+    if (reduced || !curveObj) return
+    const elapsed = state.clock.getElapsedTime()
+    if (pulse && pulseRef.current) {
+      const t = (elapsed * 0.45) % 1
+      curveObj.getPoint(t, tmp)
+      pulseRef.current.position.set(tmp.x, tmp.y + 0.05, tmp.z)
+      const s = 1 + Math.sin(elapsed * 5) * 0.18
+      pulseRef.current.scale.set(s, s, s)
+    }
+    if (pulse && pulseFollowerRef.current) {
+      // Trailing pulse 25% behind the leader. Wraps modulo 1 so it
+      // re-enters from the start when the leader laps.
+      const t = ((elapsed * 0.45) - 0.25 + 1) % 1
+      curveObj.getPoint(t, tmp)
+      pulseFollowerRef.current.position.set(tmp.x, tmp.y + 0.05, tmp.z)
+      // Smaller + dimmer than the leader so the comet read holds.
+      const s = 0.75 + Math.sin(elapsed * 5 + Math.PI) * 0.12
+      pulseFollowerRef.current.scale.set(s, s, s)
+    }
+    if (featherRef.current) {
+      // Subtle "breath" on the feather alpha so the path feels alive.
+      featherRef.current.opacity = 0.12 + Math.sin(elapsed * 1.7) * 0.04
+    }
   })
 
   // Arrowhead — a cone aligned with the curve's final tangent.
@@ -101,16 +134,28 @@ export function MovementPath3D({
     return () => {
       tubeGeom?.dispose()
       haloGeom?.dispose()
+      featherGeom?.dispose()
     }
-  }, [tubeGeom, haloGeom])
+  }, [tubeGeom, haloGeom, featherGeom])
 
-  if (!curveObj || !tubeGeom || !haloGeom) return null
+  if (!curveObj || !tubeGeom || !haloGeom || !featherGeom) return null
 
   return (
     <group>
+      {/* AAA outer feather — widest, faintest tube that fades into floor. */}
+      <mesh geometry={featherGeom}>
+        <meshBasicMaterial
+          ref={featherRef}
+          color={color}
+          transparent
+          opacity={0.12}
+          toneMapped={false}
+          depthWrite={false}
+        />
+      </mesh>
       {/* Outer glow halo — translucent fat tube behind the main path. */}
       <mesh geometry={haloGeom}>
-        <meshBasicMaterial color={color} transparent opacity={0.25} toneMapped={false} depthWrite={false} />
+        <meshBasicMaterial color={color} transparent opacity={0.32} toneMapped={false} depthWrite={false} />
       </mesh>
       {/* Main path tube — bright and thick. */}
       <mesh geometry={tubeGeom}>
@@ -121,11 +166,19 @@ export function MovementPath3D({
         <meshBasicMaterial color={DEFAULT_DEEP} transparent opacity={0.35} toneMapped={false} />
       </mesh>
 
-      {/* Travelling pulse dot. */}
+      {/* Travelling pulse dot — bright comet head. */}
       {pulse ? (
         <mesh ref={pulseRef}>
           <sphereGeometry args={[thickness * 1.6, 16, 16]} />
           <meshBasicMaterial color="#FFFFFF" toneMapped={false} />
+        </mesh>
+      ) : null}
+      {/* AAA polish — trailing follower dot, color-matched to the path
+          so it reads as comet tail. */}
+      {pulse ? (
+        <mesh ref={pulseFollowerRef}>
+          <sphereGeometry args={[thickness * 1.4, 14, 14]} />
+          <meshBasicMaterial color={color} transparent opacity={0.78} toneMapped={false} />
         </mesh>
       ) : null}
 
@@ -163,7 +216,10 @@ function DestinationMarker3D({ position, color }: DestinationMarker3DProps) {
   const { reduced } = useSceneMotion()
   const ringARef = useRef<THREE.Mesh | null>(null)
   const ringBRef = useRef<THREE.Mesh | null>(null)
+  const ringCRef = useRef<THREE.Mesh | null>(null)
   const beamRef = useRef<THREE.Mesh | null>(null)
+  const beamWideRef = useRef<THREE.Mesh | null>(null)
+  const tipRef = useRef<THREE.Mesh | null>(null)
 
   useFrame((state) => {
     if (reduced) return
@@ -182,20 +238,56 @@ function DestinationMarker3D({ position, color }: DestinationMarker3DProps) {
       const m = ringBRef.current.material as THREE.MeshBasicMaterial | undefined
       if (m) m.opacity = (1 - u) * 0.7
     }
+    // AAA polish — third pulse ring offset by another third of the
+    // cycle, so the floor reads as having a continuous out-going wave
+    // rather than two synced rings. Slightly slower speed than the
+    // others so the rings don't all walk together at the cycle peaks.
+    if (ringCRef.current) {
+      const u = ((t + 1.0) * 0.52) % 1
+      const s = 0.55 + u * 1.55
+      ringCRef.current.scale.set(s, s, 1)
+      const m = ringCRef.current.material as THREE.MeshBasicMaterial | undefined
+      if (m) m.opacity = (1 - u) * 0.45
+    }
     if (beamRef.current) {
       const m = beamRef.current.material as THREE.MeshBasicMaterial | undefined
       if (m) m.opacity = 0.55 + Math.sin(t * 3) * 0.15
+    }
+    // AAA polish — wider faded outer beam breathes in counter-phase
+    // so the column reads as a real lit volume rather than a single
+    // hard cylinder.
+    if (beamWideRef.current) {
+      const m = beamWideRef.current.material as THREE.MeshBasicMaterial | undefined
+      if (m) m.opacity = 0.22 + Math.sin(t * 3 + Math.PI) * 0.08
+    }
+    // AAA polish — slow rotation of the floating cone tip so it
+    // tracks the eye like a real waypoint marker.
+    if (tipRef.current) {
+      tipRef.current.rotation.y = t * 0.4
     }
   })
 
   return (
     <group position={position}>
+      {/* AAA polish — outer feather ring lifted just above the floor
+          so the destination has a wider footprint than just the
+          inner solid ring. */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.16, 0]}>
+        <ringGeometry args={[1.45, 2.4, 48]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.18}
+          toneMapped={false}
+          depthWrite={false}
+        />
+      </mesh>
       {/* Solid base ring on the floor */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.18, 0]}>
         <ringGeometry args={[1.2, 1.45, 48]} />
         <meshBasicMaterial color={color} toneMapped={false} />
       </mesh>
-      {/* Two expanding pulse rings */}
+      {/* Two expanding pulse rings + AAA third ring on a different cycle */}
       <mesh ref={ringARef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.2, 0]}>
         <ringGeometry args={[1.55, 1.85, 48]} />
         <meshBasicMaterial color={color} transparent opacity={0.7} toneMapped={false} />
@@ -203,6 +295,22 @@ function DestinationMarker3D({ position, color }: DestinationMarker3DProps) {
       <mesh ref={ringBRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.22, 0]}>
         <ringGeometry args={[1.55, 1.85, 48]} />
         <meshBasicMaterial color={color} transparent opacity={0.5} toneMapped={false} />
+      </mesh>
+      <mesh ref={ringCRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.21, 0]}>
+        <ringGeometry args={[1.65, 1.95, 48]} />
+        <meshBasicMaterial color="#FFFFFF" transparent opacity={0.4} toneMapped={false} />
+      </mesh>
+      {/* AAA polish — wider faded beam wrapping the main glow column. */}
+      <mesh ref={beamWideRef} position={[0, 1.6, 0]}>
+        <cylinderGeometry args={[0.32, 0.95, 3.2, 16, 1, true]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.22}
+          toneMapped={false}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+        />
       </mesh>
       {/* Glow column — narrow vertical beam that reads as "stand here" */}
       <mesh ref={beamRef} position={[0, 1.4, 0]}>
@@ -216,8 +324,9 @@ function DestinationMarker3D({ position, color }: DestinationMarker3DProps) {
           depthWrite={false}
         />
       </mesh>
-      {/* Inverted cone tip pointing down to the spot */}
-      <mesh position={[0, 3.2, 0]} rotation={[Math.PI, 0, 0]}>
+      {/* Inverted cone tip pointing down to the spot — slowly spins
+          like a waypoint flag. */}
+      <mesh ref={tipRef} position={[0, 3.2, 0]} rotation={[Math.PI, 0, 0]}>
         <coneGeometry args={[0.55, 1.4, 18]} />
         <meshBasicMaterial color={color} toneMapped={false} />
       </mesh>

@@ -3,15 +3,22 @@
  *
  * Currently exposes:
  *   - `buildDustMotes` — slow drifting dust-mote field; high-tier only.
- *   - `getRimHaloPulseAlpha` — V2-A pure helper that returns the
- *     deterministic alpha multiplier the rim glow should sit at for a
- *     given wall-clock ms. Pulses once every ~6 seconds at very low
- *     amplitude; the renderer's per-frame loop multiplies the rim
- *     glow's authored opacity by this value so the gym reads as
- *     softly breathing rather than a static still life.
+ *   - `buildFloorSparkles` — AAA upgrade — sparse polished-floor twinkles
+ *     that catch the eye like overhead arena lights glinting off lacquer.
+ *     High-tier only.
+ *   - `getRimHaloPulseAlpha` — pure helper that returns the deterministic
+ *     alpha multiplier the rim glow should sit at for a given wall-clock
+ *     ms. Pulses once every ~6 seconds at very low amplitude.
+ *   - `getKeyDefenderPulseAlpha` — faster pulse for the key-defender ring.
+ *   - `getRimMetalShimmerIntensity` — AAA upgrade — fast micro-shimmer
+ *     applied to the rim's emissive intensity so the orange torus catches
+ *     stadium lights like real chromed steel.
+ *   - `getCourtSpotPulseAlpha` — AAA upgrade — slow broadcast spotlight
+ *     breath multiplier for the warm court pool glow.
  *
  * All resources owned here (geometry, material, alphaMap) are GPU-bound
- * and must be disposed via `disposeDustMotes()` when the scene unmounts.
+ * and must be disposed via the corresponding handle's `dispose()` when
+ * the scene unmounts.
  */
 import * as THREE from 'three'
 import { COURT } from './coords'
@@ -61,6 +68,87 @@ export function getKeyDefenderPulseAlpha(nowMs: number): number {
   if (!Number.isFinite(nowMs)) return 1
   const t = (nowMs / 1000) / KEY_DEFENDER_PULSE_PERIOD_S
   return 1 + KEY_DEFENDER_PULSE_AMPLITUDE * Math.sin(2 * Math.PI * t)
+}
+
+// AAA polish — rim metal micro-shimmer.
+//
+// Real broadcast hoops show subtle bright flecks moving across the rim
+// as overhead venue lights catch the chrome. A two-frequency sin keeps
+// the shimmer interesting (it never sits at a single phase for long)
+// while staying deterministic. Output multiplier band [0.78, 1.22]
+// scales the rim material's authored `emissiveIntensity` so the
+// average emissive level is preserved.
+const RIM_SHIMMER_PRIMARY_PERIOD_S = 2.3
+const RIM_SHIMMER_SECONDARY_PERIOD_S = 0.71
+const RIM_SHIMMER_AMPLITUDE = 0.22
+
+/**
+ * Returns the multiplier the rim's authored emissive intensity should
+ * be scaled by at the given wall-clock millisecond. Stays in
+ * [1 - amp, 1 + amp]. Pure / deterministic. SSR-safe.
+ */
+export function getRimMetalShimmerIntensity(nowMs: number): number {
+  if (!Number.isFinite(nowMs)) return 1
+  const t = nowMs / 1000
+  // Two-frequency sin so the shimmer never lands on the same phase
+  // twice in a row — reads as a wandering glint across the chrome.
+  const primary = Math.sin((2 * Math.PI * t) / RIM_SHIMMER_PRIMARY_PERIOD_S)
+  const secondary = Math.sin(
+    (2 * Math.PI * t) / RIM_SHIMMER_SECONDARY_PERIOD_S + Math.PI / 3,
+  )
+  // Weighted blend; primary dominates so the shimmer reads as a single
+  // moving highlight rather than buzzing high-frequency noise.
+  const blended = primary * 0.7 + secondary * 0.3
+  return 1 + RIM_SHIMMER_AMPLITUDE * blended
+}
+
+// AAA polish — court spot breathing.
+//
+// The warm court pool light beneath the rim is given a slow swell so
+// the painted key reads like a live broadcast venue (lights gently
+// catching their cue) rather than a static decal. Slower than the rim
+// halo so the two effects don't sync up; amplitude smaller so the
+// painted key doesn't appear to "blink."
+const COURT_SPOT_PULSE_PERIOD_S = 8.4
+const COURT_SPOT_PULSE_AMPLITUDE = 0.07
+
+/**
+ * Returns the multiplier the warm court spotlight intensity should be
+ * scaled by at the given wall-clock millisecond. Stays in
+ * [1 - amp, 1 + amp]. Pure / deterministic. SSR-safe.
+ */
+export function getCourtSpotPulseAlpha(nowMs: number): number {
+  if (!Number.isFinite(nowMs)) return 1
+  const t = (nowMs / 1000) / COURT_SPOT_PULSE_PERIOD_S
+  return 1 + COURT_SPOT_PULSE_AMPLITUDE * Math.sin(2 * Math.PI * t)
+}
+
+// AAA polish — backboard glass shimmer.
+//
+// The backboard glass front catches stadium light like a real piece of
+// tempered glass — a soft moving highlight that walks across the
+// surface. Slower and quieter than the rim shimmer so the two glints
+// never fight, but the same two-frequency construction so the
+// highlight wanders rather than blinking. Output multiplier band
+// [0.85, 1.15] scales the glass highlight's authored opacity.
+const GLASS_SHIMMER_PRIMARY_PERIOD_S = 4.7
+const GLASS_SHIMMER_SECONDARY_PERIOD_S = 1.31
+const GLASS_SHIMMER_AMPLITUDE = 0.15
+
+/**
+ * Returns the multiplier the backboard glass highlight should sit at
+ * for the given wall-clock millisecond. Stays in [1 - amp, 1 + amp].
+ * Pure / deterministic. SSR-safe.
+ */
+export function getGlassShimmerAlpha(nowMs: number): number {
+  if (!Number.isFinite(nowMs)) return 1
+  const t = nowMs / 1000
+  const primary = Math.sin((2 * Math.PI * t) / GLASS_SHIMMER_PRIMARY_PERIOD_S)
+  const secondary = Math.sin(
+    (2 * Math.PI * t) / GLASS_SHIMMER_SECONDARY_PERIOD_S + Math.PI / 4,
+  )
+  const blended = primary * 0.65 + secondary * 0.35
+  return 1 + GLASS_SHIMMER_AMPLITUDE * blended
 }
 
 const DUST_PARTICLE_COUNT = 110
@@ -167,6 +255,124 @@ export function buildDustMotes(): DustMotes {
       // around the court rather than drifting into the bleachers.
     }
     positionAttr.needsUpdate = true
+  }
+
+  const dispose = () => {
+    geometry.dispose()
+    material.dispose()
+    alphaMap.dispose()
+  }
+
+  return { points, tick, dispose }
+}
+
+// AAA polish — sparse polished-floor twinkles. Tiny additive points
+// scattered across the wood inside the half-court box that brighten
+// and dim deterministically, reading as overhead venue lights catching
+// the lacquer at glancing angles. Built once per scene, animated by
+// mutating per-vertex alpha values so the same Points object stays in
+// the scene graph.
+const FLOOR_SPARKLE_COUNT = 38
+const FLOOR_SPARKLE_COLOR = '#FFE9B6'
+const FLOOR_SPARKLE_SIZE = 0.28
+const FLOOR_SPARKLE_BASE_OPACITY = 0.55
+const FLOOR_SPARKLE_PERIOD_S = 4.6
+
+export interface FloorSparkles {
+  /** The Points object the caller adds to the scene graph. */
+  points: THREE.Points
+  /** Mutates per-vertex alpha for the current time. Allocates nothing. */
+  tick: (nowMs: number) => void
+  /** Disposes geometry, material, and alphaMap texture. */
+  dispose: () => void
+}
+
+/**
+ * Builds the polished-floor sparkle field. Positions are seeded
+ * deterministically so replays paint identical sparkle locations. Each
+ * sparkle has its own phase so the field reads as a constellation of
+ * independent glints rather than a single synchronized flash.
+ */
+export function buildFloorSparkles(): FloorSparkles {
+  const halfW = COURT.halfWidthFt
+  const halfL = COURT.halfLengthFt
+
+  const positions = new Float32Array(FLOOR_SPARKLE_COUNT * 3)
+  const alphas = new Float32Array(FLOOR_SPARKLE_COUNT)
+  const phases = new Float32Array(FLOOR_SPARKLE_COUNT)
+
+  // Park-Miller LCG, same approach as the dust motes — same seed yields
+  // same sparkle layout, so replays stay byte-identical.
+  let seed = 9173
+  const rand = () => {
+    seed = (seed * 16807) % 2147483647
+    return (seed - 1) / 2147483646
+  }
+
+  for (let i = 0; i < FLOOR_SPARKLE_COUNT; i++) {
+    // Bias placement to the area where the camera dwells (mid-court
+    // through the painted key) so the glints land where the eye is
+    // already looking. The bias keeps sparkles out of the far
+    // baselines where they would compete with the rim cluster.
+    const x = (rand() - 0.5) * 2 * halfW * 0.9
+    const z = 2 + rand() * halfL * 0.85
+    // Lift a hair above the hardwood + arc lines so the sparkle reads
+    // as a finish highlight rather than punching through line decals.
+    positions[i * 3 + 0] = x
+    positions[i * 3 + 1] = 0.15
+    positions[i * 3 + 2] = z
+    phases[i] = rand() * Math.PI * 2
+    alphas[i] = FLOOR_SPARKLE_BASE_OPACITY
+  }
+
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+
+  const alphaMap = makeSoftCircleTexture()
+  const material = new THREE.PointsMaterial({
+    color: FLOOR_SPARKLE_COLOR,
+    size: FLOOR_SPARKLE_SIZE,
+    sizeAttenuation: true,
+    transparent: true,
+    opacity: FLOOR_SPARKLE_BASE_OPACITY,
+    alphaMap,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  })
+
+  const points = new THREE.Points(geometry, material)
+  points.name = 'floor-sparkles'
+  // Render after the hardwood + lines but before player markers so a
+  // sparkle never punches over a jersey number.
+  points.renderOrder = 1
+  // Same rationale as dust motes: the field is tiny so frustum-culling
+  // savings are negligible, but pop-in artifacts from a tight bounding
+  // sphere look bad on a slow pan.
+  points.frustumCulled = false
+
+  const tick = (nowMs: number) => {
+    const t = nowMs * 0.001 / FLOOR_SPARKLE_PERIOD_S
+    const positionAttr = geometry.getAttribute('position') as THREE.BufferAttribute
+    const arr = positionAttr.array as Float32Array
+    // We animate the alpha via a per-sparkle on/off twinkle by remapping
+    // sin into the per-point alpha. Three.js PointsMaterial only honors
+    // a single opacity, so we modulate opacity globally and add a tiny
+    // vertical shimmer to the y-position for a "shimmering finish" feel.
+    let avg = 0
+    for (let i = 0; i < FLOOR_SPARKLE_COUNT; i++) {
+      const phase = phases[i]!
+      const wave = Math.sin(2 * Math.PI * t + phase)
+      const a = FLOOR_SPARKLE_BASE_OPACITY * (0.4 + 0.6 * Math.max(0, wave) ** 2)
+      alphas[i] = a
+      avg += a
+      const idx = i * 3
+      // Subtle vertical jitter so a fixed-camera frame never reads as
+      // perfectly still under the sparkles.
+      arr[idx + 1] = 0.15 + wave * 0.02
+    }
+    positionAttr.needsUpdate = true
+    material.opacity = avg / FLOOR_SPARKLE_COUNT
   }
 
   const dispose = () => {

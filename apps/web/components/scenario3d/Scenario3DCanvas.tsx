@@ -50,9 +50,14 @@ import {
 } from '@/lib/scenario3d/quality'
 import {
   buildDustMotes,
+  buildFloorSparkles,
+  getCourtSpotPulseAlpha,
+  getGlassShimmerAlpha,
   getKeyDefenderPulseAlpha,
   getRimHaloPulseAlpha,
+  getRimMetalShimmerIntensity,
   type DustMotes,
+  type FloorSparkles,
 } from '@/lib/scenario3d/atmosphere'
 import { FramePacingTracker } from '@/lib/scenario3d/framePacing'
 import {
@@ -290,6 +295,10 @@ export function Scenario3DCanvas({
   // tier only. Owns its own GPU resources, disposed alongside the
   // imperative scene group. Null on medium/low tiers.
   const dustMotesRef = useRef<DustMotes | null>(null)
+  // AAA polish — sparse polished-floor twinkles. Same lifecycle shape
+  // as the dust motes (build-once, animate via in-place mutation,
+  // dispose on unmount). High-tier only.
+  const floorSparklesRef = useRef<FloorSparkles | null>(null)
   // Polish pass: tiny decaying camera shake triggered on pass-arrival
   // events. Applied to camera.position AFTER CameraController.tick so
   // it offsets the controller's resolved framing for a few frames and
@@ -953,6 +962,11 @@ export function Scenario3DCanvas({
           // medium/low devices skip the cost entirely.
           const dust = dustMotesRef.current
           if (dust) dust.tick(nowMs)
+          // AAA polish — twinkle the polished-floor sparkles. Same
+          // gating as dust (high tier only) and same shape (O(N) in-
+          // place mutation).
+          const sparkles = floorSparklesRef.current
+          if (sparkles) sparkles.tick(nowMs)
 
           // V2-A — rim halo ambient breath. One material lookup per
           // frame; the helper is a single sin() call. The base opacity
@@ -988,6 +1002,60 @@ export function Scenario3DCanvas({
             if (keyRing && typeof keyBase === 'number') {
               const mat = keyRing.material as THREE.MeshBasicMaterial
               mat.opacity = keyBase * getKeyDefenderPulseAlpha(nowMs)
+            }
+            // AAA polish — rim metal micro-shimmer. Lifts the orange
+            // torus's emissive intensity in a deterministic ±22%
+            // band so the chrome catches stadium lights like a real
+            // broadcast hoop. Base intensity is stamped on the rim's
+            // userData at build time so the multiplier never drifts.
+            const rimMesh = threeScene.getObjectByName('hoop-rim') as
+              | THREE.Mesh
+              | undefined
+            const rimBase = rimMesh?.userData.baseEmissiveIntensity as
+              | number
+              | undefined
+            if (rimMesh && typeof rimBase === 'number') {
+              const mat = rimMesh.material as THREE.MeshStandardMaterial
+              mat.emissiveIntensity = rimBase * getRimMetalShimmerIntensity(nowMs)
+            }
+            // AAA polish — rim bloom halo subtle breath, locked to
+            // the same shimmer phase so the halo "blooms with" the
+            // chrome highlight instead of fighting it.
+            const rimHaloMesh = threeScene.getObjectByName('rim-bloom-halo') as
+              | THREE.Mesh
+              | undefined
+            const rimHaloBase = rimHaloMesh?.userData.baseOpacity as
+              | number
+              | undefined
+            if (rimHaloMesh && typeof rimHaloBase === 'number') {
+              const mat = rimHaloMesh.material as THREE.MeshBasicMaterial
+              mat.opacity = rimHaloBase * getRimMetalShimmerIntensity(nowMs)
+            }
+            // AAA polish — slow swell on the warm court spot so the
+            // painted key reads as a live broadcast venue rather
+            // than a static decal.
+            const courtSpot = threeScene.getObjectByName('court-spot') as
+              | THREE.PointLight
+              | undefined
+            const spotBase = courtSpot?.userData.baseIntensity as
+              | number
+              | undefined
+            if (courtSpot && typeof spotBase === 'number') {
+              courtSpot.intensity = spotBase * getCourtSpotPulseAlpha(nowMs)
+            }
+            // AAA polish — wandering glass highlight shimmer. The
+            // backboard's bright sheen breathes off a two-frequency
+            // sin so the glass reads as real tempered glass instead
+            // of a static decal.
+            const glassHL = threeScene.getObjectByName(
+              'backboard-glass-highlight',
+            ) as THREE.Mesh | undefined
+            const glassBase = glassHL?.userData.baseOpacity as
+              | number
+              | undefined
+            if (glassHL && typeof glassBase === 'number') {
+              const mat = glassHL.material as THREE.MeshBasicMaterial
+              mat.opacity = glassBase * getGlassShimmerAlpha(nowMs)
             }
           }
 
@@ -1347,6 +1415,18 @@ export function Scenario3DCanvas({
             console.warn('[scenario3d] dust motes build failed', error)
             dustMotesRef.current = null
           }
+          // AAA polish — polished-floor twinkles. Same lifecycle and
+          // gating as the dust motes (high tier only, build-once,
+          // animate-in-place, dispose-on-unmount).
+          try {
+            const sparkles = buildFloorSparkles()
+            result.root.add(sparkles.points)
+            floorSparklesRef.current = sparkles
+          } catch (error) {
+            // eslint-disable-next-line no-console
+            console.warn('[scenario3d] floor sparkles build failed', error)
+            floorSparklesRef.current = null
+          }
         }
 
         if (typeof console !== 'undefined') {
@@ -1430,6 +1510,14 @@ export function Scenario3DCanvas({
         if (dust.points.parent) dust.points.parent.remove(dust.points)
         dust.dispose()
         dustMotesRef.current = null
+      }
+      // AAA polish — same disposal contract for the polished-floor
+      // sparkles handle. Owns its own canvas-generated alphaMap.
+      const sparkles = floorSparklesRef.current
+      if (sparkles) {
+        if (sparkles.points.parent) sparkles.points.parent.remove(sparkles.points)
+        sparkles.dispose()
+        floorSparklesRef.current = null
       }
       // Packet E — dispose the teaching overlay BEFORE disposeGroup
       // walks the scene root. disposeGroup() would still free the
@@ -1746,7 +1834,14 @@ export function Scenario3DCanvas({
             // is tuned a hair above 1 so the mid-gray gym walls read
             // as a real lit room rather than crushed shadow.
             gl.toneMapping = THREE.ACESFilmicToneMapping
-            gl.toneMappingExposure = 1.18
+            // AAA polish — exposure bumped 1.18 → 1.24 for a richer
+            // broadcast feel. The lit gym shell, hoop, and players
+            // get more highlight rolloff without crushing the warm
+            // hardwood mid-tones, since the MeshBasic floor/lines
+            // opt out of tone mapping. Stays well below clipping on
+            // the rim emissive + court-spot shimmer multiplier
+            // peaks (rim base 0.32 * 1.22 max ≈ 0.39 emissive).
+            gl.toneMappingExposure = 1.24
             // Output color space — explicit to survive future Three.js
             // default changes. SRGB matches the textures + DOM.
             gl.outputColorSpace = THREE.SRGBColorSpace
@@ -1900,6 +1995,27 @@ export function Scenario3DCanvas({
           </SceneMotionProvider>
         )}
       </Canvas>
+
+      {/* AAA polish — cinematic vignette overlay. A radial transparent-to-
+          dark gradient sits over the canvas via DOM so the corners of
+          the frame fade into a soft falloff. Pure CSS so the cost is
+          a single composited layer; no WebGL post-processing pass.
+          Pointer-events disabled so any in-canvas / overlay
+          interactions still pass through. Skipped when the scene is
+          mounted in debug/emergency mode so QA can see the raw
+          canvas. */}
+      {!emergencyMode && !debugMode ? (
+        <div
+          className="pointer-events-none absolute inset-0"
+          aria-hidden
+          style={{
+            background:
+              'radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,0.22) 88%, rgba(0,0,0,0.42) 100%)',
+            mixBlendMode: 'multiply',
+            zIndex: 1,
+          }}
+        />
+      ) : null}
 
       <CanvasDiagnostics
         canvasMounted={canvasMounted}
@@ -2144,12 +2260,20 @@ function getSceneValidationStatus(
  * meshBasicMaterial (unlit), so lighting here is purely decorative and
  * cannot make the scene go black. We keep a bright ambient + hemisphere
  * fill so any future lit material (e.g. backboard) still renders well.
+ *
+ * AAA polish — added a warm directional key and a cool back rim so any
+ * lit material (PBR glass, rim metalness, padded posts) catches a real
+ * three-light setup instead of flat fill. Pure scene-graph additions,
+ * no extra textures.
  */
 function SceneLighting() {
   return (
     <>
-      <ambientLight intensity={1.2} color="#FFF1E0" />
-      <hemisphereLight args={['#D7E2F4', '#1A1408', 0.6]} />
+      <ambientLight intensity={1.05} color="#FFF1E0" />
+      <hemisphereLight args={['#D7E2F4', '#1A1408', 0.55]} />
+      {/* AAA polish — warm broadcast key, cool back rim. */}
+      <directionalLight intensity={0.85} color="#FFF1D6" position={[20, 38, 24]} />
+      <directionalLight intensity={0.45} color="#C6DCFF" position={[0, 32, -22]} />
     </>
   )
 }

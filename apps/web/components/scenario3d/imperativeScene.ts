@@ -81,7 +81,6 @@ const BACKBOARD_FRAME_COLOR = '#0F1320'
 const BACKBOARD_TARGET_COLOR = '#FFFFFF'
 const POLE_COLOR = '#1F2733'
 const PADDING_COLOR = '#0F1218'
-const NET_COLOR = '#FAFAFA'
 // Visual upgrade — pushed offense/defense saturation and lifted the
 // user mint so all three jerseys read clearly against both the warm
 // hardwood and the gym backdrop. User's mint is the brightest of the
@@ -276,9 +275,26 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   const sideRim = new THREE.DirectionalLight(0xa0c8ff, 0.42)
   sideRim.position.set(-40, 36, 38)
   root.add(sideRim)
+  // AAA polish — warm court spot. Tagged with a stable name so the
+  // per-frame loop can find it and apply the broadcast-light breath
+  // multiplier. Base intensity is stamped into userData so the multi-
+  // plier never drifts off-spec. The spot owns no shadows (cheap), but
+  // its warm tint paints the painted key in a real "venue-light pool"
+  // tone that AAA broadcast games rely on for atmosphere.
   const courtSpot = new THREE.PointLight(0xffd8a0, 0.55, 75, 1.6)
   courtSpot.position.set(0, 24, 8)
+  courtSpot.name = 'court-spot'
+  ;(courtSpot.userData as Record<string, unknown>).baseIntensity = 0.55
   root.add(courtSpot)
+  // AAA polish — secondary cool back-of-house light. A low-intensity
+  // directional sitting high above the rear bleachers gives the back
+  // wall and rafters a soft ice-blue rim that reads as overhead house
+  // lighting. Cheap (one extra THREE.DirectionalLight, no shadows)
+  // and pulls the gym envelope into the read instead of flat-shading
+  // it.
+  const houseLight = new THREE.DirectionalLight(0x9fc6ff, 0.32)
+  houseLight.position.set(0, 60, -38)
+  root.add(houseLight)
 
   const halfW = COURT.halfWidthFt
   const halfL = COURT.halfLengthFt
@@ -332,6 +348,55 @@ export function buildBasketballGroup(scene: Scene3D): SceneBuildResult {
   rimGlow.name = 'rim-glow'
   ;(rimGlow.userData as Record<string, unknown>).baseOpacity = 0.12
   root.add(rimGlow)
+
+  // AAA polish — broader warm court pool. A larger, much fainter
+  // halo around the painted key fades the warm rim glow into the
+  // hardwood. Reads as overhead venue lights spilling beyond the
+  // rim cluster. Pure decoration — depthWrite off, no lighting
+  // contribution, unlit.
+  const courtPoolMat = new THREE.MeshBasicMaterial({
+    color: '#FFBC74',
+    toneMapped: false,
+    transparent: true,
+    opacity: 0.05,
+    depthWrite: false,
+  })
+  const courtPool = new THREE.Mesh(
+    new THREE.CircleGeometry(18, 64),
+    courtPoolMat,
+  )
+  courtPool.rotation.x = -Math.PI / 2
+  courtPool.position.set(0, FLOOR_LIFT + 0.003, 4)
+  courtPool.renderOrder = -3
+  courtPool.name = 'court-pool-glow'
+  root.add(courtPool)
+
+  // AAA polish — polished-finish reflection band under the rim.
+  // A faint ring-shaped gradient that fakes a lacquered floor's
+  // ability to bounce overhead lights back up. Sits between the
+  // hardwood and the painted key so it never washes the paint, but
+  // the band itself reads as honest gloss when the camera dollies
+  // over the baseline.
+  const polishBandMat = new THREE.MeshBasicMaterial({
+    color: '#FFE7B6',
+    toneMapped: false,
+    transparent: true,
+    opacity: 0.09,
+    depthWrite: false,
+  })
+  const polishBand = new THREE.Mesh(
+    new THREE.RingGeometry(5.2, 9.0, 56, 1, 0, Math.PI),
+    polishBandMat,
+  )
+  polishBand.rotation.x = -Math.PI / 2
+  // RingGeometry default orientation gives the half-ring facing +x
+  // when laid flat; rotate Z so the open half lands toward +z (the
+  // play area), giving the rim a "spotlight pool tail" cue without
+  // forming a closed loop that would advertise as a geometric ring.
+  polishBand.position.set(0, FLOOR_LIFT + 0.006, 0)
+  polishBand.renderOrder = -1
+  polishBand.name = 'rim-polish-band'
+  root.add(polishBand)
 
   // Royal blue paint. Slightly translucent so a hint of the hardwood
   // texture shows through and the painted area reads as actual paint
@@ -2979,6 +3044,29 @@ function buildHoopAssembly(): THREE.Group {
   pole.receiveShadow = true
   hoop.add(pole)
 
+  // AAA polish — thin chrome highlight strip running up the front
+  // face of the pole above the padding. Reads as the polished edge a
+  // real venue stanchion has so the pole stops looking like a flat
+  // matte cylinder under the existing key light. Single thin box,
+  // shared color with the backboard bezel so the whole stanchion-to-
+  // backboard chain reads as one coordinated trim.
+  const poleHighlight = new THREE.Mesh(
+    new THREE.BoxGeometry(0.08, poleHeight - 6.4, 0.05),
+    new THREE.MeshStandardMaterial({
+      color: '#B6C3D2',
+      roughness: 0.32,
+      metalness: 0.82,
+      emissive: new THREE.Color('#3A4252'),
+      emissiveIntensity: 0.18,
+    }),
+  )
+  poleHighlight.position.set(
+    0,
+    6.2 + (poleHeight - 6.4) / 2,
+    POLE_BASE_Z + POLE_RADIUS + 0.02,
+  )
+  hoop.add(poleHighlight)
+
   // Floor plate at the base of the pole — small square hint of bolts.
   const basePlate = new THREE.Mesh(
     new THREE.CylinderGeometry(POLE_RADIUS * 2.2, POLE_RADIUS * 2.4, 0.18, 16),
@@ -3067,6 +3155,21 @@ function buildHoopAssembly(): THREE.Group {
   paddingAccent.position.set(0, 5.7, POLE_BASE_Z)
   hoop.add(paddingAccent)
 
+  // AAA polish — matching warm-gold band at the bottom of the
+  // padding so the stanchion reads as a real branded pad (top + bottom
+  // accents) instead of a single floating stripe. Cheap (one
+  // CylinderGeometry, shared material color).
+  const paddingAccentBottom = new THREE.Mesh(
+    new THREE.CylinderGeometry(POLE_RADIUS + 0.21, POLE_RADIUS + 0.21, 0.14, 18),
+    new THREE.MeshStandardMaterial({
+      color: PADDING_ACCENT_COLOR,
+      roughness: 0.6,
+      metalness: 0.15,
+    }),
+  )
+  paddingAccentBottom.position.set(0, 0.45, POLE_BASE_Z)
+  hoop.add(paddingAccentBottom)
+
   // --- Backboard. Tinted, transparent glass with a thin dark frame.
   // Phase 4: opacity 0.32 → 0.42 so the glass reads as glass-on-frame
   // (Section 8) rather than a flat plate, but stays low enough that
@@ -3094,16 +3197,16 @@ function buildHoopAssembly(): THREE.Group {
   hoop.add(glass)
 
   // Soft glass highlight — a thin bright plane painted on the front
-  // face that catches the eye like a real-glass reflection. Cheap
-  // (single PlaneGeometry, MeshBasicMaterial, low alpha) and sits
-  // a hair in front of the glass so it never z-fights.
+  // face that catches the eye like a real-glass reflection. AAA
+  // polish: tagged with stable name + base opacity so the per-frame
+  // loop applies the slow wandering shimmer used for tempered glass.
   const glassHighlight = new THREE.Mesh(
     new THREE.PlaneGeometry(BACKBOARD_WIDTH * 0.92, BACKBOARD_HEIGHT * 0.18),
     new THREE.MeshBasicMaterial({
       color: '#E9F5FF',
       toneMapped: false,
       transparent: true,
-      opacity: 0.18,
+      opacity: 0.22,
       depthWrite: false,
     }),
   )
@@ -3112,7 +3215,32 @@ function buildHoopAssembly(): THREE.Group {
     BACKBOARD_CENTER_Y + BACKBOARD_HEIGHT * 0.28,
     BACKBOARD_FRONT_Z + 0.005,
   )
+  glassHighlight.name = 'backboard-glass-highlight'
+  ;(glassHighlight.userData as Record<string, unknown>).baseOpacity = 0.22
   hoop.add(glassHighlight)
+
+  // AAA polish — diagonal sweep highlight on the lower half of the
+  // glass. Pairs with the upper bar above so the backboard reads as
+  // a real piece of curved-edge tempered glass catching house lights
+  // from two directions. Slight rotation breaks the parallel-stripe
+  // feel of the existing top bar.
+  const glassSweep = new THREE.Mesh(
+    new THREE.PlaneGeometry(BACKBOARD_WIDTH * 0.55, BACKBOARD_HEIGHT * 0.08),
+    new THREE.MeshBasicMaterial({
+      color: '#D6EBFF',
+      toneMapped: false,
+      transparent: true,
+      opacity: 0.12,
+      depthWrite: false,
+    }),
+  )
+  glassSweep.position.set(
+    -BACKBOARD_WIDTH * 0.12,
+    BACKBOARD_CENTER_Y - BACKBOARD_HEIGHT * 0.18,
+    BACKBOARD_FRONT_Z + 0.006,
+  )
+  glassSweep.rotation.z = Math.PI / 14
+  hoop.add(glassSweep)
 
   // Backboard frame — slim dark border around the glass.
   const frameMat = new THREE.MeshStandardMaterial({
@@ -3130,6 +3258,32 @@ function buildHoopAssembly(): THREE.Group {
   )
   frameTop.position.set(0, BACKBOARD_CENTER_Y + BACKBOARD_HEIGHT / 2, frameZ)
   hoop.add(frameTop)
+
+  // AAA polish — thin chrome bezel highlight sitting just in front of
+  // the top frame. Reads as the polished aluminum lip that runs along
+  // the top of a real broadcast backboard. Single thin box, no
+  // texture, low emissive tint that lifts under the existing key
+  // light without competing with the rim.
+  const bezelTop = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      BACKBOARD_WIDTH + frameThickness * 0.7,
+      frameThickness * 0.32,
+      0.04,
+    ),
+    new THREE.MeshStandardMaterial({
+      color: '#B6C3D2',
+      roughness: 0.35,
+      metalness: 0.78,
+      emissive: new THREE.Color('#3A4252'),
+      emissiveIntensity: 0.18,
+    }),
+  )
+  bezelTop.position.set(
+    0,
+    BACKBOARD_CENTER_Y + BACKBOARD_HEIGHT / 2 + frameThickness * 0.1,
+    BACKBOARD_FRONT_Z + 0.03,
+  )
+  hoop.add(bezelTop)
 
   const frameBottom = new THREE.Mesh(
     new THREE.BoxGeometry(BACKBOARD_WIDTH + frameThickness, frameThickness, frameDepth),
@@ -3224,24 +3378,53 @@ function buildHoopAssembly(): THREE.Group {
   hoop.add(targetRight)
 
   // --- Rim. Bright orange torus with a small mounting plate connecting
-  // back to the backboard. Phase 4: chunkier tube (constant change),
-  // higher emissive intensity so the rim reads as the brightest spot
-  // on the hoop end of the floor — Section 8: "slightly brighter than
-  // the paint so it always reads."
+  // back to the backboard. AAA polish: cast-iron rim now reads as
+  // chromed steel — metalness lifted, roughness tightened so the
+  // overhead key + side rim catch the tube with a real specular
+  // highlight instead of matte plastic. Emissive intensity nearly
+  // tripled and the per-frame loop multiplies it by
+  // `getRimMetalShimmerIntensity` so a moving glint walks the chrome.
+  // Base intensity is stamped in userData so the multiplier never
+  // drifts off-spec across frames.
+  const rimMat = new THREE.MeshStandardMaterial({
+    color: RIM_COLOR,
+    roughness: 0.22,
+    metalness: 0.85,
+    emissive: RIM_COLOR,
+    emissiveIntensity: 0.32,
+  })
   const rim = new THREE.Mesh(
-    new THREE.TorusGeometry(RIM_RADIUS, RIM_TUBE, 18, 56),
-    new THREE.MeshStandardMaterial({
-      color: RIM_COLOR,
-      roughness: 0.4,
-      metalness: 0.6,
-      emissive: RIM_COLOR,
-      emissiveIntensity: 0.12,
-    }),
+    new THREE.TorusGeometry(RIM_RADIUS, RIM_TUBE, 22, 64),
+    rimMat,
   )
+  rim.name = 'hoop-rim'
+  ;(rim.userData as Record<string, unknown>).baseEmissiveIntensity = 0.32
   rim.position.set(0, COURT.rimHeightFt, 0)
   rim.rotation.x = Math.PI / 2
   rim.castShadow = true
   hoop.add(rim)
+
+  // AAA polish — additive bloom halo around the rim. A slightly
+  // larger torus with an unlit basic material sits directly behind
+  // the rim, providing a fake bloom feel without a post-processing
+  // pass. Renders behind the rim so the chrome highlight sits on top
+  // of the warm glow. Cheap (one torus, one MeshBasicMaterial).
+  const rimHalo = new THREE.Mesh(
+    new THREE.TorusGeometry(RIM_RADIUS + 0.04, RIM_TUBE * 1.6, 12, 48),
+    new THREE.MeshBasicMaterial({
+      color: '#FFB070',
+      toneMapped: false,
+      transparent: true,
+      opacity: 0.35,
+      depthWrite: false,
+    }),
+  )
+  rimHalo.position.set(0, COURT.rimHeightFt, 0)
+  rimHalo.rotation.x = Math.PI / 2
+  rimHalo.renderOrder = -1
+  rimHalo.name = 'rim-bloom-halo'
+  ;(rimHalo.userData as Record<string, unknown>).baseOpacity = 0.35
+  hoop.add(rimHalo)
 
   // Mounting bracket from the rim's back to the backboard front face.
   const bracketLength = Math.abs(BACKBOARD_FRONT_Z - (-RIM_RADIUS))
@@ -3280,6 +3463,27 @@ function buildHoopAssembly(): THREE.Group {
   // --- Net. Lightweight LineSegments hung from the rim. A small set of
   // vertical strands plus a few horizontal rings tying them together.
   hoop.add(buildHoopNet())
+
+  // AAA polish — warm tint disc inside the rim opening. A faint
+  // orange-tinted disc sits a hair above the floor below the net
+  // and lets the rim color bleed visually down through the net
+  // strands, so the net reads as catching real rim light instead of
+  // hanging in unrelated white. Hidden from below by the renderOrder
+  // and the rim's own bracket geometry.
+  const rimWarmBleed = new THREE.Mesh(
+    new THREE.CircleGeometry(RIM_RADIUS * 1.05, 36),
+    new THREE.MeshBasicMaterial({
+      color: '#FFB070',
+      toneMapped: false,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+    }),
+  )
+  rimWarmBleed.rotation.x = -Math.PI / 2
+  rimWarmBleed.position.set(0, COURT.rimHeightFt - 0.02, 0)
+  rimWarmBleed.renderOrder = -1
+  hoop.add(rimWarmBleed)
 
   return hoop
 }
@@ -3357,13 +3561,14 @@ function buildHoopNet(): THREE.LineSegments {
     'position',
     new THREE.Float32BufferAttribute(positions, 3),
   )
-  // Phase 4: opacity 0.85 → 0.92 so the denser strand grid doesn't
-  // wash out at the default broadcast camera. Still LineSegments —
-  // no expensive cloth simulation per Section 8.
+  // AAA polish — net opacity 0.92 → 0.96 so the denser strand grid
+  // doesn't wash out at the broadcast camera, and the line color is
+  // warmed a hair so the net reads as catching the rim's orange
+  // emissive instead of looking like a cold white scrim.
   const mat = new THREE.LineBasicMaterial({
-    color: NET_COLOR,
+    color: '#FFF6E8',
     transparent: true,
-    opacity: 0.92,
+    opacity: 0.96,
     toneMapped: false,
   })
   const net = new THREE.LineSegments(geom, mat)
@@ -3594,6 +3799,22 @@ function addCeilingPendants(
     roughness: 0.85,
     metalness: 0.2,
   })
+  // AAA polish — additive fake-volumetric light cone hung below each
+  // lens. Reads as a real volume of warm light pouring down toward
+  // the floor without a single extra THREE.Light. Shared material so
+  // every pendant points at the same texture upload; back-side
+  // rendering so the cone reads from both inside and outside on a
+  // wide lens. depthWrite off so a player walking under a fixture
+  // never punches a hard edge through the light volume.
+  const lightVolumeMat = new THREE.MeshBasicMaterial({
+    color: PENDANT_LENS_COLOR,
+    transparent: true,
+    opacity: 0.09,
+    toneMapped: false,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+  })
 
   // Pendant grid — 3 along x (sidelines), 2 along z (ends). Skip the
   // back row (-z) so the camera looking into the gym sees lights
@@ -3656,6 +3877,30 @@ function addCeilingPendants(
         0,
       )
       pendant.add(lens)
+
+      // AAA polish — fake-volumetric light cone hanging below the lens.
+      // The cone spreads from the lens radius out to ~3x at the bottom
+      // and stops ~half-way to the floor so it never punches the
+      // hardwood. Open-ended cylinder so the inside renders cleanly.
+      // Cost: one geometry, one shared material (no per-pendant material).
+      const volumeTopY =
+        ceilingY - cableLength - housingHeight - lensHeight - 0.02
+      const volumeHeight = 12
+      const volumeBottomR = lensRadius * 3.4
+      const lightVolume = new THREE.Mesh(
+        new THREE.CylinderGeometry(
+          lensRadius * 0.95,
+          volumeBottomR,
+          volumeHeight,
+          14,
+          1,
+          true,
+        ),
+        lightVolumeMat,
+      )
+      lightVolume.position.set(0, volumeTopY - volumeHeight / 2, 0)
+      lightVolume.renderOrder = 1
+      pendant.add(lightVolume)
 
       gym.add(pendant)
     }
@@ -3736,6 +3981,32 @@ function addGymBackdrop(
     seat.receiveShadow = true
     gym.add(seat)
   }
+
+  // AAA polish — soft crowd silhouette band running across the
+  // baseline bleachers. A single dark, semi-translucent panel sitting
+  // a hair in front of the back rows reads as a sea of seated figures
+  // without modeling people. Sits at typical seated-shoulder height,
+  // wider than the stand so the side edges fade into the bleacher
+  // block. Cost: one PlaneGeometry, one MeshBasic material.
+  const crowdHeight = rowCount * rowHeight * 0.95
+  const crowdY = rowCount * rowHeight * 0.55
+  const crowdZ = bleacherStartZ + rowCount * rowDepth * 0.55
+  const crowdMat = new THREE.MeshBasicMaterial({
+    color: '#10131A',
+    toneMapped: false,
+    transparent: true,
+    opacity: 0.55,
+    depthWrite: false,
+  })
+  const crowd = new THREE.Mesh(
+    new THREE.PlaneGeometry(bleacherWidth * 0.92, crowdHeight * 0.85),
+    crowdMat,
+  )
+  crowd.position.set(0, crowdY, crowdZ)
+  // Slight forward lean so the crowd band catches the existing key
+  // light from the front-overhead direction.
+  crowd.rotation.x = -Math.PI / 14
+  gym.add(crowd)
 
   // ----- Side-wall bleacher silhouettes -----
   // Two short stepped blocks that hug the side walls between the
@@ -3984,23 +4255,59 @@ function makeHardwoodTexture(): THREE.CanvasTexture | null {
   }
 
   // Soft varnish highlight — a single broad diagonal sweep that
-  // suggests a lacquered finish. Phase 4: paired with a perpendicular
-  // sweep so the highlight reads from both broadcast and tactical
-  // camera modes.
+  // suggests a lacquered finish. AAA polish: lifted center alpha so
+  // the sheen reads as a real high-gloss lacquer band, paired with a
+  // perpendicular sweep so the highlight catches from both broadcast
+  // and tactical camera modes.
   const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
   grad.addColorStop(0, 'rgba(244, 217, 168, 0.0)')
-  grad.addColorStop(0.45, `rgba(244, 217, 168, 0.12)`)
-  grad.addColorStop(0.55, `rgba(244, 217, 168, 0.12)`)
+  grad.addColorStop(0.4, 'rgba(255, 232, 196, 0.18)')
+  grad.addColorStop(0.55, 'rgba(255, 232, 196, 0.16)')
   grad.addColorStop(1, 'rgba(244, 217, 168, 0.0)')
   ctx.fillStyle = grad
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 
   const grad2 = ctx.createLinearGradient(canvas.width, 0, 0, canvas.height)
   grad2.addColorStop(0, 'rgba(244, 217, 168, 0.0)')
-  grad2.addColorStop(0.5, `rgba(244, 217, 168, 0.06)`)
+  grad2.addColorStop(0.5, 'rgba(244, 217, 168, 0.09)')
   grad2.addColorStop(1, 'rgba(244, 217, 168, 0.0)')
   ctx.fillStyle = grad2
   ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+  // AAA polish — radial polish hot-spot near canvas center.
+  // Suggests an overhead lacquer hot-spot where house lights catch
+  // the lacquer. Falls off well before the canvas edges so the
+  // tiling repeat (2,1) does not visibly seam.
+  const polish = ctx.createRadialGradient(
+    canvas.width * 0.5,
+    canvas.height * 0.5,
+    0,
+    canvas.width * 0.5,
+    canvas.height * 0.5,
+    canvas.width * 0.45,
+  )
+  polish.addColorStop(0, 'rgba(255, 240, 210, 0.22)')
+  polish.addColorStop(0.4, 'rgba(255, 240, 210, 0.10)')
+  polish.addColorStop(1, 'rgba(255, 240, 210, 0.0)')
+  ctx.fillStyle = polish
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+  // AAA polish — subtle low-frequency burl darks. A handful of
+  // sparse low-alpha dark blobs read as natural wood character
+  // (knots, mineral streaks) without injecting high-frequency noise
+  // that fights the painted court lines. Position is derived from
+  // a fixed phase, so the texture stays byte-identical run-to-run
+  // (no Math.random()).
+  for (let k = 0; k < 9; k++) {
+    const bx = ((Math.sin(k * 12.91) * 0.5 + 0.5) * canvas.width) | 0
+    const by = ((Math.cos(k * 8.17) * 0.5 + 0.5) * canvas.height) | 0
+    const br = 18 + ((Math.sin(k * 3.7) * 0.5 + 0.5) * 30) | 0
+    const burl = ctx.createRadialGradient(bx, by, 0, bx, by, br)
+    burl.addColorStop(0, 'rgba(70, 38, 14, 0.18)')
+    burl.addColorStop(1, 'rgba(70, 38, 14, 0.0)')
+    ctx.fillStyle = burl
+    ctx.fillRect(bx - br, by - br, br * 2, br * 2)
+  }
 
   const tex = new THREE.CanvasTexture(canvas)
   tex.colorSpace = THREE.SRGBColorSpace
@@ -4011,7 +4318,12 @@ function makeHardwoodTexture(): THREE.CanvasTexture | null {
   tex.repeat.set(2, 1)
   tex.minFilter = THREE.LinearMipMapLinearFilter
   tex.magFilter = THREE.LinearFilter
-  tex.anisotropy = 8
+  // AAA polish — anisotropy bumped 8 → 16 so plank seams stay crisp at
+  // the high 3/4 broadcast camera's grazing angle. The texture itself
+  // is unchanged; the GPU just samples more taps along the steepest
+  // axis. Cost: a handful of extra ALUs per pixel covered by the
+  // floor, well inside the medium/high tier budget.
+  tex.anisotropy = 16
   tex.needsUpdate = true
   return tex
 }
@@ -4181,6 +4493,24 @@ function buildScoreboard(): THREE.Group {
     )
     face.position.set(0, y, z + depth / 2 + 0.01)
     group.add(face)
+
+    // AAA polish — additive warm glow plane sitting a hair in front
+    // of the scoreboard face so the digits read as lit LEDs from the
+    // broadcast camera. Pure decoration — no texture, low alpha,
+    // additive blending so it never washes the underlying digits.
+    const faceGlow = new THREE.Mesh(
+      new THREE.PlaneGeometry(width - 0.6, height - 0.7),
+      new THREE.MeshBasicMaterial({
+        color: '#FFCB44',
+        toneMapped: false,
+        transparent: true,
+        opacity: 0.12,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    )
+    faceGlow.position.set(0, y, z + depth / 2 + 0.02)
+    group.add(faceGlow)
   }
 
   // Two thin mounting brackets running from the body to the back
@@ -4235,10 +4565,17 @@ function buildHangingBanners(): THREE.Group {
     banner.position.set(x, topY - bannerHeight / 2, z)
     group.add(banner)
 
+    // AAA polish — trim now has a quiet emissive bleed so the top
+    // and bottom bars catch the existing key light like real
+    // championship-banner metallic edging instead of a flat gray
+    // bar. Emissive color matches the warm gold of the rest of the
+    // hoop trim palette so the room reads as one coordinated venue.
     const trimMat = new THREE.MeshStandardMaterial({
       color: BANNER_TRIM_COLOR,
-      roughness: 0.5,
-      metalness: 0.6,
+      roughness: 0.45,
+      metalness: 0.7,
+      emissive: new THREE.Color('#FFCB44'),
+      emissiveIntensity: 0.12,
     })
     // Top + bottom trim strips.
     for (const sign of [-1, 1]) {
@@ -4267,10 +4604,36 @@ function buildHangingBanners(): THREE.Group {
  * Returns null on SSR / non-DOM contexts so the renderer never
  * attempts to allocate a CanvasTexture without document.
  */
-function buildCenterCourtMark(): THREE.Mesh | null {
+function buildCenterCourtMark(): THREE.Group | null {
   if (typeof document === 'undefined') return null
   const tex = makeCenterCourtTexture()
   if (!tex) return null
+
+  const group = new THREE.Group()
+  group.name = 'center-court-mark'
+
+  // Place the mark in the open hardwood between the top of the
+  // three-point arc and the half-court line, where a real court logo
+  // sits on a half-court layout. Lifted a hair above the floor so the
+  // painted court lines still draw cleanly on top from any angle.
+  const markZ = (COURT.threePointRadiusFt + COURT.halfLengthFt) / 2
+
+  // AAA polish — soft warm glow halo behind the logo so the mark
+  // reads as a lit emblem rather than a flat painted decal. Wider
+  // than the logo plane, lower alpha, depthWrite off so the painted
+  // lines above it never get muddied.
+  const haloMat = new THREE.MeshBasicMaterial({
+    color: '#FFCB44',
+    toneMapped: false,
+    transparent: true,
+    opacity: 0.12,
+    depthWrite: false,
+  })
+  const halo = new THREE.Mesh(new THREE.CircleGeometry(7.4, 48), haloMat)
+  halo.rotation.x = -Math.PI / 2
+  halo.position.set(0, FLOOR_LIFT + 0.034, markZ)
+  halo.renderOrder = 0
+  group.add(halo)
 
   const mat = new THREE.MeshBasicMaterial({
     map: tex,
@@ -4281,14 +4644,11 @@ function buildCenterCourtMark(): THREE.Mesh | null {
   const size = 9
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat)
   mesh.rotation.x = -Math.PI / 2
-  // Place the mark in the open hardwood between the top of the
-  // three-point arc and the half-court line, where a real court logo
-  // sits on a half-court layout. Lifted a hair above the floor so the
-  // painted court lines still draw cleanly on top from any angle.
-  const markZ = (COURT.threePointRadiusFt + COURT.halfLengthFt) / 2
   mesh.position.set(0, FLOOR_LIFT + 0.04, markZ)
   mesh.renderOrder = 1
-  return mesh
+  group.add(mesh)
+
+  return group
 }
 
 /**
@@ -7681,18 +8041,40 @@ function buildBasketball(seed: number): THREE.Group {
 
   // Subtle bright highlight halo — a faint orange ring around the
   // ball makes it pop from the broadcast camera so the eye finds the
-  // ball even when it sits next to a player.
+  // ball even when it sits next to a player. AAA polish: opacity
+  // 0.14 → 0.18 so the ball reads as a tracked highlight even from
+  // the widest broadcast frame.
   const halo = new THREE.Mesh(
     new THREE.SphereGeometry(BALL_RADIUS * 1.45, 16, 16),
     new THREE.MeshBasicMaterial({
       color: '#FFB070',
       toneMapped: false,
       transparent: true,
-      opacity: 0.14,
+      opacity: 0.18,
       depthWrite: false,
     }),
   )
   group.add(halo)
+
+  // AAA polish — small specular hot-spot on top of the ball. A tiny
+  // bright sphere that reads as the overhead key light catching the
+  // leather. Sits a hair forward of the dead-top so the highlight
+  // doesn't park itself at the seam crossing. Pure decoration —
+  // unlit basic material, low alpha so it never washes the pebble
+  // texture below it.
+  const specular = new THREE.Mesh(
+    new THREE.SphereGeometry(BALL_RADIUS * 0.32, 12, 12),
+    new THREE.MeshBasicMaterial({
+      color: '#FFE9B6',
+      toneMapped: false,
+      transparent: true,
+      opacity: 0.55,
+      depthWrite: false,
+    }),
+  )
+  specular.position.set(0, BALL_RADIUS * 0.78, BALL_RADIUS * 0.18)
+  specular.renderOrder = 2
+  group.add(specular)
 
   const seamMat = new THREE.MeshStandardMaterial({
     color: BALL_SEAM_COLOR,
