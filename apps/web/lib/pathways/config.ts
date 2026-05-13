@@ -19,6 +19,14 @@ const BDW_IDS = ['BDW-01', 'BDW-02', 'BDW-03', 'BDW-04', 'BDW-05'] as const
 const ESC_IDS = ['ESC-01', 'ESC-02', 'ESC-03', 'ESC-04', 'ESC-05'] as const
 const AOR_IDS = ['AOR-01', 'AOR-02', 'AOR-03', 'AOR-04', 'AOR-05'] as const
 const SKR_IDS = ['SKR-01', 'SKR-02', 'SKR-03', 'SKR-04', 'SKR-05'] as const
+const DROP_IDS = [
+  'DROP-01',
+  'DROP-01-MIRROR',
+  'DROP-02',
+  'DROP-02-MIRROR',
+  'DROP-03',
+  'DROP-03-MIRROR',
+] as const
 
 /**
  * Foundation chapter mastery thresholds. Mirror §6 of the planning doc:
@@ -1158,11 +1166,80 @@ const COMING_SOON: PathwayConfig[] = [
   {
     slug: 'point-guard-brain',
     title: 'Point Guard Brain',
-    subtitle: 'See the second-side action before you start the first.',
-    description: 'Reset discipline. Dribble-at reads. Skip rhythm. Re-screen calls.',
+    subtitle: 'Read the coverage before you read the help.',
+    description:
+      'Read drop coverage. Skip past the first helper. Beat the X-out. Reset when the catch is not an advantage.',
     accentToken: 'iq',
-    decoderTags: ['ADVANTAGE_OR_RESET', 'SKIP_THE_ROTATION'],
-    chapters: [],
+    decoderTags: ['READ_THE_COVERAGE', 'SKIP_THE_ROTATION', 'ADVANTAGE_OR_RESET'],
+    chapters: [
+      {
+        slug: 'read-the-drop',
+        order: 1,
+        title: 'Read the Drop',
+        subtitle: 'When the big stays back, the pocket is yours.',
+        basketballCue:
+          'On the high ball-screen, the screen defender sits below the level of the screen — his chest is back, feet pointing toward his own rim.',
+        decoderTag: 'READ_THE_COVERAGE',
+        decoderTags: ['READ_THE_COVERAGE'],
+        goal: 'Read the screen defender on a high ball-screen and pick pull-up, snake, or kick based on his posture and the help.',
+        parentSummary:
+          'Player recognizes drop coverage on the high pick-and-roll and chooses between the pocket pull-up, the deep-drop snake, and the kick-out when a help defender tags.',
+        coachSummary:
+          'PnR ball-handlers who can read the screen defender from the first dribble unlock the offense. This chapter trains the three drop reads in order: pocket, snake, and kick-the-tag.',
+        passCriteria: CHAPTER_PASS,
+        masteryCriteria: CHAPTER_MASTERY,
+        skillNodes: [
+          {
+            slug: 'learn-the-cue',
+            order: 1,
+            title: 'Learn the Cue',
+            subtitle: 'Read the lesson, then take one easy rep.',
+            kind: 'learn-cue',
+            trainingMode: 'learn-the-cue',
+            academyLessonSlug: 'advantage-or-reset',
+            scenarioIds: ['DROP-01'],
+          },
+          {
+            slug: 'pocket-pull-up',
+            order: 2,
+            title: 'Pocket Pull-Up',
+            subtitle: 'Drop chest below the screen — take the pocket two.',
+            kind: 'scenario-set',
+            trainingMode: 'freeze-frame-read',
+            scenarioIds: ['DROP-01', 'DROP-01-MIRROR'],
+            prerequisiteNodeSlugs: ['learn-the-cue'],
+          },
+          {
+            slug: 'deep-drop-snake',
+            order: 3,
+            title: 'Deep Drop, Snake It',
+            subtitle: 'When the drop is deeper, snake the dribble downhill.',
+            kind: 'scenario-set',
+            trainingMode: 'freeze-frame-read',
+            scenarioIds: ['DROP-02', 'DROP-02-MIRROR'],
+            prerequisiteNodeSlugs: ['pocket-pull-up'],
+          },
+          {
+            slug: 'kick-the-tag',
+            order: 4,
+            title: 'Kick the Tag',
+            subtitle: 'Low-man steps up — drop dies, corner opens.',
+            kind: 'scenario-set',
+            trainingMode: 'freeze-frame-read',
+            scenarioIds: ['DROP-03', 'DROP-03-MIRROR'],
+            prerequisiteNodeSlugs: ['deep-drop-snake'],
+          },
+        ],
+        bossChallenge: {
+          slug: 'drop-reader',
+          title: 'Boss — Drop Reader',
+          subtitle: '6 reps. No hints. 80% to pass.',
+          scenarioIds: [...DROP_IDS],
+          passCriteria: { bossBestRatio: 0.8, bossMinAttempts: 6 },
+          hideDecoderPill: true,
+        },
+      },
+    ],
     unlockCriteria: { pathwaysMastered: ['complete-iq-foundation'] },
     passCriteria: {},
     estimatedMinutes: 75,
