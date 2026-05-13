@@ -2171,7 +2171,7 @@ const COMING_SOON: PathwayConfig[] = [
     estimatedMinutes: 60,
     recommendedFor: ['floor-general', 'attacker'],
     targetArchetype: 'floor-general',
-    comingSoon: true,
+    comingSoon: false,
     parentSummary:
       'Player can recognize and execute the correct read at varsity / AAU game speed without pre-freeze prompts.',
     coachSummary:
