@@ -2373,7 +2373,7 @@ const COMING_SOON: PathwayConfig[] = [
     estimatedMinutes: 60,
     recommendedFor: ['floor-general'],
     targetArchetype: 'floor-general',
-    comingSoon: true,
+    comingSoon: false,
     parentSummary:
       'Player demonstrates cross-decoder cue identification and multi-step decision-making — the threshold between trainee and decoder.',
     coachSummary:
