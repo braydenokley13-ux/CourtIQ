@@ -1448,15 +1448,15 @@ const COMING_SOON: PathwayConfig[] = [
       },
     ],
     unlockCriteria: { pathwaysMastered: ['complete-iq-foundation'] },
-    passCriteria: {},
+    passCriteria: { minBest: 16, minDecoderAccuracy: 0.7 },
     estimatedMinutes: 75,
     recommendedFor: ['floor-general'],
     targetArchetype: 'floor-general',
-    comingSoon: true,
+    comingSoon: false,
     parentSummary:
-      'Player anticipates defensive rotations and organizes spacing accordingly; capable of the right read under shot-clock pressure.',
+      'Player reads pick-and-roll coverage on the screen, finds the helper the drive draws, and disciplines the catch — the three jobs every point guard holds every trip down.',
     coachSummary:
-      'PGs who reset the right way get the ball back. This Pathway trains the patience that separates a primary creator from a turnover machine.',
+      'PGs run the offense by reading three things in order: the coverage on the screen, the rotation on the drive, and the closeout on the catch. This Pathway trains all three until the read order is automatic.',
     basketballProblem:
       'Player isn’t seeing the second-side action; runs the same play into a wall.',
     difficultyRange: [3, 5],
