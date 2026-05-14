@@ -1,0 +1,159 @@
+{
+  "id": "ESC.weak-corner-drift",
+  "decoder_tag": "EMPTY_SPACE_CUT",
+  "category": "OFFENSE",
+  "concept_tags": ["off_ball_movement", "reading_help", "spacing"],
+  "sub_concepts": ["weak_side_drift", "vacated_arc", "kickout_relocation"],
+
+  "tactical": {
+    "cue_atoms": ["stunt_and_recover", "hips_turned_to_ball"],
+    "primary_defender_slot": "stunt_def",
+    "user_slot_default": "drifter",
+    "teaching_point": "When your defender stunts at the ball, slide wider on the arc. The kickout lane opens, and his closeout has to cover a longer distance.",
+    "common_miss_reason": "Weak-side shooters hold their spot waiting for the kickout. The stunt only buys a half-second window — if the shooter doesn't widen, the defender recovers before the pass can arrive clean.",
+    "why_best_read_works": "The stunt commits the defender's hips and weight to the ball. A drift wider on the arc moves the catch point further from his recovery path — the pass arrives clean and the closeout is too long to contest the shot.",
+    "lesson_connection": "empty-space-cut",
+    "difficulty_default": 2,
+    "mirror_safety": "symmetric"
+  },
+
+  "scene": {
+    "type": "weak_wing_drift_on_stunt",
+    "court": "half",
+    "camera": "passer_side_three_quarter",
+    "players": [
+      { "slot": "passer", "team": "offense", "role": "ball_handler", "label": "PG", "start": { "x": 4, "z": 14 }, "hasBall": true },
+      { "slot": "drifter", "team": "offense", "role": "weak_wing_drifter", "label": "You", "start": { "x": -16, "z": 9 } },
+      { "slot": "strong_wing", "team": "offense", "role": "strong_wing", "label": "3", "start": { "x": 16, "z": 9 } },
+      { "slot": "strong_corner", "team": "offense", "role": "strong_corner", "label": "4", "start": { "x": 22, "z": 1 } },
+      { "slot": "on_ball_def", "team": "defense", "role": "on_ball", "label": "x1", "start": { "x": 4, "z": 16 } },
+      { "slot": "strong_wing_def", "team": "defense", "role": "strong_wing_defender", "label": "x2", "start": { "x": 14, "z": 11 } },
+      { "slot": "stunt_def", "team": "defense", "role": "weak_wing_helper_stunter", "label": "x3", "start": { "x": -13, "z": 10 } },
+      { "slot": "low_man", "team": "defense", "role": "low_man", "label": "x4", "start": { "x": 18, "z": 3 } }
+    ],
+    "ball": { "holderSlot": "passer" },
+    "movements": [
+      {
+        "id": "user_show_hands",
+        "playerSlot": "drifter",
+        "kind": "lift",
+        "to": { "x": -16, "z": 10 },
+        "delayMs": 0,
+        "durationMs": 500
+      },
+      {
+        "id": "passer_threat_middle",
+        "playerSlot": "passer",
+        "kind": "drive",
+        "to": { "x": -1, "z": 9 },
+        "delayMs": 150,
+        "durationMs": 800,
+        "caption": "PG threatens the middle"
+      },
+      {
+        "id": "stunt_step_to_ball",
+        "playerSlot": "stunt_def",
+        "kind": "rotation",
+        "to": { "x": -7, "z": 9 },
+        "delayMs": 500,
+        "durationMs": 600,
+        "caption": "x3 stunts at the ball"
+      }
+    ],
+    "answerDemo": [
+      { "id": "user_drift_wider", "playerSlot": "drifter", "kind": "drift", "to": { "x": -21, "z": 10 }, "delayMs": 0, "durationMs": 500 },
+      { "id": "passer_kickout", "playerSlot": "ball", "kind": "pass", "to": { "x": -21, "z": 10 }, "delayMs": 300, "durationMs": 500 },
+      { "id": "user_set_feet", "playerSlot": "drifter", "kind": "lift", "to": { "x": -21, "z": 10 }, "delayMs": 0, "durationMs": 100 },
+      { "id": "shot_release", "playerSlot": "ball", "kind": "pass", "to": { "x": 0, "z": 0.5 }, "delayMs": 250, "durationMs": 600 }
+    ],
+    "freezeMarker": { "kind": "atMs", "atMs": 1500 },
+    "wrongDemos": [
+      {
+        "outcome": "fade_to_corner",
+        "caption": "You faded to the corner. The kickout came late and the closeout caught up.",
+        "movements": [
+          { "id": "user_fade", "playerSlot": "drifter", "kind": "drift", "to": { "x": -22, "z": 1 }, "delayMs": 0, "durationMs": 600 },
+          { "id": "passer_late_corner", "playerSlot": "ball", "kind": "pass", "to": { "x": -22, "z": 1 }, "delayMs": 250, "durationMs": 600 },
+          { "id": "stunt_recover_corner", "playerSlot": "stunt_def", "kind": "closeout", "to": { "x": -20, "z": 2 }, "delayMs": 250, "durationMs": 600 }
+        ]
+      },
+      {
+        "outcome": "stand_in_wing",
+        "caption": "You stood still. x3 recovered before the pass.",
+        "movements": [
+          { "id": "stunt_recover", "playerSlot": "stunt_def", "kind": "closeout", "to": { "x": -14, "z": 10 }, "delayMs": 0, "durationMs": 500 },
+          { "id": "passer_force_kickout", "playerSlot": "ball", "kind": "pass", "to": { "x": -16, "z": 10 }, "delayMs": 200, "durationMs": 500 }
+        ]
+      },
+      {
+        "outcome": "cut_into_paint",
+        "caption": "You cut into the help. The lane was already full.",
+        "movements": [
+          { "id": "user_cut_paint", "playerSlot": "drifter", "kind": "cut", "to": { "x": -6, "z": 5 }, "delayMs": 0, "durationMs": 700 },
+          { "id": "low_man_wall_up", "playerSlot": "low_man", "kind": "rotation", "to": { "x": -4, "z": 4 }, "delayMs": 200, "durationMs": 600 }
+        ]
+      }
+    ],
+    "acceptableDemos": [
+      {
+        "outcome": "fade_to_corner",
+        "caption": "Fade kept spacing — the wing kickout was the cleaner shot.",
+        "movements": [
+          { "id": "user_fade_relocate", "playerSlot": "drifter", "kind": "drift", "to": { "x": -22, "z": 1 }, "delayMs": 0, "durationMs": 600 },
+          { "id": "passer_relief_corner", "playerSlot": "ball", "kind": "pass", "to": { "x": -22, "z": 1 }, "delayMs": 350, "durationMs": 600 }
+        ]
+      }
+    ]
+  },
+
+  "overlays": {
+    "pre": [
+      { "kind": "defender_vision_cone", "onSlot": "stunt_def", "targetSlot": "passer" },
+      { "kind": "defender_hip_arrow", "onSlot": "stunt_def" },
+      { "kind": "help_pulse", "onSlot": "stunt_def", "role": "stunter" }
+    ],
+    "post": [
+      { "kind": "passing_lane_open", "fromSlot": "passer", "toSlot": "drifter" },
+      { "kind": "open_space_region", "anchor": { "x": -21, "z": 10 }, "radiusFt": 3 },
+      { "kind": "drive_cut_preview", "onSlot": "drifter", "path": [
+        { "x": -16, "z": 10 },
+        { "x": -21, "z": 10 }
+      ]},
+      { "kind": "timing_pulse", "anchor": { "x": -21, "z": 10 }, "durationMs": 600 }
+    ]
+  },
+
+  "choices": [
+    { "outcome": "drift_wider_on_arc", "quality": "best", "order": 1 },
+    { "outcome": "fade_to_corner", "quality": "acceptable", "order": 2 },
+    { "outcome": "stand_in_wing", "quality": "wrong", "order": 3 },
+    { "outcome": "cut_into_paint", "quality": "wrong", "order": 4 }
+  ],
+
+  "disguises": {
+    "none": { "removePre": [], "difficultyBump": 0 },
+    "light": {
+      "removePre": [{ "kind": "defender_hip_arrow", "onSlot": "stunt_def" }],
+      "difficultyBump": 1
+    },
+    "moderate": {
+      "removePre": [
+        { "kind": "defender_hip_arrow", "onSlot": "stunt_def" },
+        { "kind": "defender_vision_cone", "onSlot": "stunt_def" }
+      ],
+      "difficultyBump": 1
+    }
+  },
+
+  "coach_validation": {
+    "level": "low",
+    "status": "approved",
+    "notes": "Weak-side drift on stunt is a universally taught spacing read. Template inherits the founder ESC pack SME approval; cue cluster (stunt + hips) matches the founder template. Re-review at variant promotion to LIVE."
+  },
+
+  "defaults": {
+    "xp_reward": 12,
+    "mastery_weight": 1.0,
+    "render_tier": 1
+  }
+}
