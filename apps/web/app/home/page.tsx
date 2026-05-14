@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { NumberTicker } from '@/components/ui/NumberTicker'
 import { XPBar } from '@/components/ui/XPBar'
 import {
   IntroCardsModal,
@@ -12,11 +11,9 @@ import {
   clearIntroDismissal,
 } from '@/features/onboarding/IntroCards'
 import { INTRO_HOME_BANNER } from '@/lib/onboarding/introCopy'
-import { deriveReturnFocus, type ReturnFocus } from '@/lib/retention/todayFocus'
 import { pickHomePathwayCta } from '@/lib/retention/homePathwayCta'
 import { deriveJourneyState } from '@/lib/journey/journeyStep'
 import { JourneyMap } from '@/components/JourneyMap'
-import type { DecoderRingData } from '@/lib/recognitionSurface'
 
 const ease = [0.22, 1, 0.36, 1]
 
@@ -51,16 +48,6 @@ interface ProfileData {
   decoders: DecoderProgress[]
 }
 
-interface RecentSession {
-  id: string
-  started_at: string
-  ended_at: string | null
-  correct_count: number
-  scenario_ids: string[]
-  xp_earned: number
-  iq_delta: number
-}
-
 /** Minimal shape we read off /api/pathways/:slug/progress. */
 interface PathwayProgressLite {
   pathwayProgress: number
@@ -68,19 +55,11 @@ interface PathwayProgressLite {
   recommendedNext: { trainHref: string; label: string } | null
 }
 
-/** Phase 8 — payload from /api/home/spine. Aggregates the recognition
- *  surface ring + today's-focus line + daily-challenge status so the
- *  home page can render the spine in one round-trip.
- *  Phase 9 — adds fasterCallout: a strictly one-directional "you got
- *  faster" line that the server confidence-gates (≥ 8 attempts in
- *  each window) and threshold-gates (≥ 200ms improvement). */
+/** Payload from /api/home/spine. The redesigned home page only reads
+ *  the daily-challenge slice; the older recognition ring, today's
+ *  focus, and faster-callout fields are still returned by the
+ *  endpoint but no longer surfaced here. */
 interface HomeSpine {
-  decoderRing: DecoderRingData[]
-  focusLine: string | null
-  fasterCallout: {
-    line: string | null
-    improvedMs: number | null
-  }
   daily: {
     available: boolean
     date: string
@@ -100,87 +79,6 @@ function greeting(): string {
   return 'Good evening'
 }
 
-
-/**
- * V3 P6 — Return-loop chip.
- *
- * Single coaching line that names the player's current focus in
- * basketball-IQ terms ("Close on Skip the Rotation. A few sharp reads
- * from mastery."). Tap target falls through to the recommendedNext
- * train if available, otherwise renders as static copy.
- *
- * The chip is visually small — it is NOT another CTA. The Pathway
- * primary card below it owns the action. This chip exists to tell the
- * returning player WHY they should tap that card.
- */
-function ReturnFocusChip({ focus }: { focus: ReturnFocus | null }) {
-  if (!focus) return null
-
-  const accent =
-    focus.band === 'mastered'
-      ? '#3BE383'
-      : focus.band === 'close-to-mastery'
-        ? '#3BE383'
-        : focus.band === 'in-progress'
-          ? '#8B7CFF'
-          : '#5AC8FF'
-
-  const eyebrow =
-    focus.band === 'mastered'
-      ? 'Pathway mastered'
-      : focus.band === 'close-to-mastery'
-        ? "You're close"
-        : focus.band === 'in-progress'
-          ? "Today's focus"
-          : 'Pick up where you left off'
-
-  const Wrapper = focus.href
-    ? ({ children }: { children: React.ReactNode }) => (
-        <Link
-          href={focus.href!}
-          data-testid="home-return-focus"
-          className="ciq-lift block rounded-2xl border border-[#1F2937] bg-[#0E1B16] p-3 transition-colors hover:border-[#3BE383]/40"
-        >
-          {children}
-        </Link>
-      )
-    : ({ children }: { children: React.ReactNode }) => (
-        <div
-          data-testid="home-return-focus"
-          className="rounded-2xl border border-[#1F2937] bg-[#0E1B16] p-3"
-        >
-          {children}
-        </div>
-      )
-
-  return (
-    <motion.div
-      custom={1.5}
-      initial="hidden"
-      animate="show"
-      variants={fadeUp}
-      className="mb-4"
-    >
-      <Wrapper>
-        <p
-          className="text-[10px] font-bold uppercase tracking-[1.5px]"
-          style={{ color: accent }}
-        >
-          {eyebrow}
-        </p>
-        <p className="mt-0.5 font-display text-[14px] font-bold leading-snug text-[#F9FAFB]">
-          {focus.headline}
-        </p>
-        {focus.sub ? (
-          <p className="mt-0.5 text-[12px] leading-snug text-[#9CA3AF]">
-            {focus.sub}
-          </p>
-        ) : null}
-      </Wrapper>
-    </motion.div>
-  )
-}
-
 /**
  * V3 P4 — Pathway-driven home primary CTA.
  *
@@ -192,8 +90,8 @@ function ReturnFocusChip({ focus }: { focus: ReturnFocus | null }) {
  *   - mid-pathway → "Continue: <chapter>" → drops into recommendedNext.
  *   - mastered → "Run it back" → links to detail page.
  *
- * Falls back to a hero-detail link only while the pathway progress is
- * still loading.
+ * Redesign note: the primary button is now huge — a 6-year-old should
+ * recognise it as the one obvious thing to tap from across the room.
  */
 function PathwayPrimaryCard({
   pathway,
@@ -204,99 +102,61 @@ function PathwayPrimaryCard({
   loading: boolean
   attempts: number
 }) {
-  // V3 P8 — banding extracted to lib/retention/homePathwayCta.ts so
-  // the cold-start / continue / mastered split is unit-testable.
   const cta = pickHomePathwayCta({ pathway, attempts, loading })
   const { eyebrow, primaryLabel, primarySubline, primaryHref } = cta
   const progressPct = Math.round((pathway?.pathwayProgress ?? 0) * 100)
+  const isColdStart = attempts === 0
 
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border-2 border-[#3BE383]/30 bg-gradient-to-br from-[#0F1F1A] to-[#091812] p-4"
-      style={{ boxShadow: '0 0 32px rgba(59,227,131,0.10), 0 1px 0 rgba(255,255,255,0.04) inset' }}
+      className="relative overflow-hidden rounded-3xl border-2 border-[#3BE383]/30 bg-gradient-to-br from-[#0F1F1A] to-[#091812] p-5"
+      style={{ boxShadow: '0 0 36px rgba(59,227,131,0.14), 0 1px 0 rgba(255,255,255,0.04) inset' }}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#3BE383]">
             {eyebrow}
           </p>
-          <p className="mt-1 font-display text-[18px] font-black leading-tight text-[#F9FAFB]">
-            Complete IQ Foundation
+          <p className="mt-1 font-display text-[20px] font-black leading-tight text-[#F9FAFB]">
+            {isColdStart ? 'Your first play' : 'Keep going'}
           </p>
-          <p className="mt-0.5 text-[12px] text-[#9CA3AF]">{primarySubline}</p>
+          <p className="mt-1 text-[13px] leading-snug text-[#9CA3AF]">{primarySubline}</p>
         </div>
-        <div className="flex shrink-0 flex-col items-end">
-          <p className="font-display text-[20px] font-black leading-none text-[#3BE383]">
-            {progressPct}%
-          </p>
-          <p className="text-[10px] uppercase tracking-[1.2px] text-[#4B5563]">progress</p>
-        </div>
+        {!isColdStart && (
+          <div className="flex shrink-0 flex-col items-end">
+            <p className="font-display text-[24px] font-black leading-none text-[#3BE383]">
+              {progressPct}%
+            </p>
+            <p className="text-[10px] uppercase tracking-[1.2px] text-[#4B5563]">done</p>
+          </div>
+        )}
       </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
-        <Link
-          href={primaryHref}
-          className="ciq-press flex items-center justify-center gap-2 rounded-xl px-5 py-3 font-display text-[14px] font-black uppercase tracking-[0.5px]"
-          style={{
-            background: 'linear-gradient(135deg, #3BE383 0%, #22C55E 100%)',
-            color: '#09111E',
-            boxShadow: '0 0 24px rgba(59,227,131,0.35), 0 1px 0 rgba(255,255,255,0.18) inset',
-          }}
-          data-testid="home-pathway-primary"
-        >
-          {primaryLabel}
-          <span aria-hidden>→</span>
-        </Link>
-        <Link
-          href={FOUNDATION_DETAIL_HREF}
-          className="ciq-press-soft flex items-center justify-center rounded-xl border border-[#1F2937] bg-[#0E1B16] px-4 py-3 font-display text-[12px] font-semibold uppercase tracking-[1.5px] text-[#9CA3AF] transition-colors hover:text-[#F9FAFB]"
-        >
-          See chapters
-        </Link>
-      </div>
+      <Link
+        href={primaryHref}
+        className="ciq-press mt-4 flex w-full items-center justify-center gap-3 rounded-2xl py-5 font-display text-[20px] font-black uppercase tracking-[1px]"
+        style={{
+          background: 'linear-gradient(135deg, #3BE383 0%, #22C55E 100%)',
+          color: '#09111E',
+          boxShadow: '0 0 28px rgba(59,227,131,0.40), 0 1px 0 rgba(255,255,255,0.18) inset',
+        }}
+        data-testid="home-pathway-primary"
+      >
+        {isColdStart ? '▶ Play' : primaryLabel}
+        <span aria-hidden>→</span>
+      </Link>
+
+      <Link
+        href={FOUNDATION_DETAIL_HREF}
+        className="mt-2 block text-center text-[12px] font-semibold uppercase tracking-[1.5px] text-[#6B7280] transition-colors hover:text-[#F9FAFB]"
+      >
+        See all the chapters
+      </Link>
     </div>
   )
 }
 
-/** Phase 8 — single decoder ring tile.
- *  Renders the 3-segment progress ring (recognizing → reflexive →
- *  mastered) backed by `decoderRingData`. Pure presentation — the
- *  segment states + status copy come straight from the spine. */
-function DecoderRingTile({ ring }: { ring: DecoderRingData }) {
-  const segs = [ring.segments.recognizing, ring.segments.reflexive, ring.segments.mastered]
-  return (
-    <div
-      aria-label={ring.ariaLabel}
-      className="flex flex-col gap-1.5 rounded-2xl border border-[#1F2937] bg-[#111827] p-3"
-    >
-      <p className="text-[11px] font-semibold leading-tight text-[#F9FAFB]">{ring.label}</p>
-      <div className="flex items-center gap-1">
-        {segs.map((state, i) => (
-          <span
-            key={i}
-            className={[
-              'h-1.5 flex-1 rounded-full transition-colors',
-              state === 'lit'
-                ? 'bg-[#3BE383]'
-                : state === 'progress'
-                  ? ring.showProgressPulse
-                    ? 'animate-pulse bg-[#3BE383]/50'
-                    : 'bg-[#3BE383]/40'
-                  : 'bg-[#1F2937]',
-            ].join(' ')}
-          />
-        ))}
-      </div>
-      <p className="text-[10px] font-semibold uppercase tracking-[1.2px] text-[#3BE383]">
-        {ring.status}
-      </p>
-      <p className="text-[10px] text-[#9CA3AF]">{ring.evidence}</p>
-    </div>
-  )
-}
-
-/** Phase 8 — Daily Challenge card. The "fourth surface" beside
- *  IQ hero / focus card / decoder ring. Independent from training —
+/** Phase 8 — Daily Challenge card. Independent from training —
  *  hits the daily ritual streak, not the training streak. */
 function DailyChallengeCard({
   daily,
@@ -326,10 +186,10 @@ function DailyChallengeCard({
   const completed = daily.completed_today
   const started = daily.started_today && !completed
   const eyebrow = completed
-    ? `${daily.streak}-day daily streak`
+    ? `🔥 ${daily.streak}-day daily streak`
     : started
-      ? 'Daily — in progress'
-      : "Today's daily challenge"
+      ? "Today's daily — keep going"
+      : "Today's daily — 5 plays"
   const title = completed
     ? 'See how you did.'
     : started
@@ -387,16 +247,70 @@ function CourtLines() {
   )
 }
 
+/**
+ * StatusStrip — kid-friendly status row. Streak + level + IQ in three
+ * pill-style cells, plus a slim XP-to-next-level bar underneath.
+ * Hidden during cold-start (no attempts) so a brand-new player doesn't
+ * see a meaningless "500 IQ · Level 1" badge before they've played.
+ */
+function StatusStrip({
+  streak,
+  level,
+  xpInLevel,
+  iq,
+}: {
+  streak: number
+  level: number
+  xpInLevel: number
+  iq: number
+}) {
+  return (
+    <div
+      className="mb-4 rounded-2xl border border-[#1F2937] bg-[#111827] p-3"
+      data-testid="home-status-strip"
+    >
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div>
+          <p className="font-display text-[20px] font-black leading-none text-[#3BE383]">
+            🔥 {streak}
+          </p>
+          <p className="mt-1 text-[10px] font-bold uppercase tracking-[1.2px] text-[#6B7280]">
+            day streak
+          </p>
+        </div>
+        <div className="border-x border-[#1F2937]">
+          <p className="font-display text-[20px] font-black leading-none text-[#F9FAFB]">
+            Lv {level}
+          </p>
+          <p className="mt-1 text-[10px] font-bold uppercase tracking-[1.2px] text-[#6B7280]">
+            level
+          </p>
+        </div>
+        <div>
+          <p className="font-display text-[20px] font-black leading-none text-[#F9FAFB]">
+            {iq}
+          </p>
+          <p className="mt-1 text-[10px] font-bold uppercase tracking-[1.2px] text-[#6B7280]">
+            IQ
+          </p>
+        </div>
+      </div>
+      <div className="mt-3">
+        <XPBar xp={xpInLevel} xpForNextLevel={100} level={level} />
+      </div>
+    </div>
+  )
+}
+
 export default function HomePage() {
   const [userName, setUserName] = useState<string | null>(null)
   const [data, setData] = useState<ProfileData | null>(null)
-  const [sessions, setSessions] = useState<RecentSession[]>([])
   const [pathway, setPathway] = useState<PathwayProgressLite | null>(null)
   const [spine, setSpine] = useState<HomeSpine | null>(null)
   const [loading, setLoading] = useState(true)
   // V3 P2 — first-time intro modal. Auto-opens for cold-start players;
   // subsequent loads reopen only when the player explicitly taps the
-  // "Show me" banner (or "Replay walkthrough" link in the nav grid).
+  // "Show me" banner (or the "How CourtIQ works" link in the footer).
   const [introOpen, setIntroOpen] = useState(false)
   const [introDismissed, setIntroDismissed] = useState(true)
 
@@ -413,21 +327,17 @@ export default function HomePage() {
       const name = user.user_metadata?.full_name ?? user.email?.split('@')[0] ?? 'Player'
       setUserName(name)
 
-      // Fetch profile + recent sessions + foundation pathway progress
-      // in parallel. Pathway endpoint is auth-cookie-based; failing it
-      // shouldn't block the rest of the home dashboard.
-      const [profileRes, sessionsRes, pathwayRes, spineRes] = await Promise.all([
+      // Fetch profile + foundation pathway progress + daily spine in
+      // parallel. The redesigned home page no longer surfaces recent
+      // sessions, so /api/sessions/recent is intentionally dropped.
+      const [profileRes, pathwayRes, spineRes] = await Promise.all([
         fetch(`/api/profile?userId=${user.id}`),
-        fetch(`/api/sessions/recent?userId=${user.id}`),
         fetch(`/api/pathways/complete-iq-foundation/progress`),
         fetch(`/api/home/spine`),
       ])
 
       if (profileRes.ok) {
         setData(await profileRes.json())
-      }
-      if (sessionsRes.ok) {
-        setSessions(await sessionsRes.json())
       }
       if (pathwayRes.ok) {
         setPathway(await pathwayRes.json())
@@ -458,7 +368,9 @@ export default function HomePage() {
   const level = data?.profile?.level ?? 1
   const xpTotal = data?.profile?.xp_total ?? 0
   const xpInLevel = xpTotal % 100
-  const accuracyPct = Math.round((data?.accuracy ?? 0) * 100)
+  const attempts = data?.attemptsCount ?? 0
+  const isColdStart = attempts === 0
+  const firstName = userName ? userName.split(' ')[0] : null
 
   return (
     <div className="relative min-h-dvh overflow-hidden bg-[#09111E]">
@@ -467,7 +379,7 @@ export default function HomePage() {
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(59,227,131,0.08) 0%, transparent 70%)',
+            'radial-gradient(ellipse 80% 55% at 50% -5%, rgba(59,227,131,0.12) 0%, transparent 70%)',
         }}
       />
       <CourtLines />
@@ -482,8 +394,9 @@ export default function HomePage() {
       />
 
       <div className="relative z-10 mx-auto max-w-lg px-4 pb-24 pt-10">
-
-        {/* Greeting */}
+        {/* Greeting — small, kid-friendly. The h1 below is the headline.
+            Cold-start gets a one-line explanation; returning players
+            just see "Let's play." so the page jumps to the big button. */}
         <motion.div
           custom={0}
           initial="hidden"
@@ -492,27 +405,29 @@ export default function HomePage() {
           className="mb-5"
         >
           <p className="text-[13px] text-[#6B7280]">
-            {greeting()}{userName ? `, ${userName.split(' ')[0]}` : ''} 👋
+            {greeting()}{firstName ? `, ${firstName}` : ''} 👋
           </p>
-          <h1 className="mt-1 font-display text-[26px] font-black tracking-tight text-[#F9FAFB]">
-            {(data?.attemptsCount ?? 0) === 0
-              ? <>Welcome to <span style={{ color: '#3BE383' }}>CourtIQ</span>.</>
-              : <>Ready to <span style={{ color: '#3BE383' }}>play</span>?</>}
+          <h1 className="mt-1 font-display text-[32px] font-black leading-tight tracking-tight text-[#F9FAFB]">
+            {isColdStart ? (
+              <>Welcome to <span style={{ color: '#3BE383' }}>CourtIQ</span>.</>
+            ) : (
+              <>Let&apos;s <span style={{ color: '#3BE383' }}>play</span>.</>
+            )}
           </h1>
-          {(data?.attemptsCount ?? 0) === 0 ? (
-            <p className="mt-2 text-[13px] leading-relaxed text-[#9CA3AF]">
-              Watch a play. Pick what to do. We tell you if you got it right.
-              That&apos;s the whole thing.
+          {isColdStart ? (
+            <p className="mt-2 text-[14px] leading-relaxed text-[#9CA3AF]">
+              Watch a play. Pick what you would do. We tell you if you
+              got it. That&apos;s the whole app.
             </p>
           ) : null}
         </motion.div>
 
         {/* V3 P2 — first-run banner. Only renders when the player has
             zero recorded attempts AND has explicitly skipped the intro
-            modal (or the modal closed without seeing every card). The
-            banner gives them a one-tap path back into the walkthrough
-            so the explanation is never lost. */}
-        {!loading && (data?.attemptsCount ?? 0) === 0 && introDismissed && !introOpen ? (
+            modal (or the modal closed without seeing every card). One
+            tap reopens the walkthrough so the explanation is never
+            lost. */}
+        {!loading && isColdStart && introDismissed && !introOpen ? (
           <motion.button
             type="button"
             onClick={() => {
@@ -544,13 +459,35 @@ export default function HomePage() {
           </motion.button>
         ) : null}
 
-        {/* Journey Map — the single "where am I" surface. Renders the
-            same 4-step spine the intro cards explain, with the current
-            step highlighted. Sits above every action card so the player
-            never has to guess what they should be doing right now. */}
+        {/* THE BUTTON — single primary action, intentionally large.
+            A six-year-old should land on this page and have no question
+            about what to tap next. Everything below this card is
+            supporting context, not competing actions. */}
+        <motion.div custom={1} initial="hidden" animate="show" variants={fadeUp} className="mb-4">
+          <PathwayPrimaryCard pathway={pathway} loading={loading} attempts={attempts} />
+        </motion.div>
+
+        {/* Status strip — streak + level + IQ. Cold-start hides it so
+            a brand-new player isn't greeted with a "500 IQ · Level 1"
+            badge before they've played a single rep. */}
+        {!loading && !isColdStart ? (
+          <motion.div custom={1.5} initial="hidden" animate="show" variants={fadeUp}>
+            <StatusStrip streak={streak} level={level} xpInLevel={xpInLevel} iq={iq} />
+          </motion.div>
+        ) : null}
+
+        {/* Daily Challenge — separate streak surface for the daily
+            ritual. Rendered for everyone (cold-start included) so the
+            second-ever play has a reason to come back. */}
+        {!loading && spine ? <DailyChallengeCard daily={spine.daily} /> : null}
+
+        {/* Journey Map — the 4-step spine (Learn → Train → Test →
+            Master). Already lives off `deriveJourneyState`; copy is
+            kid-readable. Sits below the action so a returning player
+            who just wants to tap PLAY doesn't have to scroll past it. */}
         {!loading ? (
           <motion.div
-            custom={0.5}
+            custom={2}
             initial="hidden"
             animate="show"
             variants={fadeUp}
@@ -558,7 +495,7 @@ export default function HomePage() {
           >
             <JourneyMap
               state={deriveJourneyState({
-                attemptsCount: data?.attemptsCount ?? 0,
+                attemptsCount: attempts,
                 decoders: data?.decoders ?? [],
                 pathway,
               })}
@@ -566,315 +503,37 @@ export default function HomePage() {
           </motion.div>
         ) : null}
 
-        {/* V3 P4 — single primary action, Pathway-driven.
-            This is the most important thing on the page: ONE obvious
-            next step. Cold-start → "Start Foundation"; mid-pathway →
-            "Continue: [chapter]"; mastered → "Run it back". */}
-        <motion.div custom={1} initial="hidden" animate="show" variants={fadeUp} className="mb-4">
-          <PathwayPrimaryCard pathway={pathway} loading={loading} attempts={data?.attemptsCount ?? 0} />
-        </motion.div>
-
-        {/* Phase 8 — Daily Challenge card.
-            One row, three states:
-              - completed_today  → green, "X-day streak" + "See result"
-              - started, not done → green, "Resume daily"
-              - not started, available → green, "Take today's daily"
-              - unavailable (catalog too thin) → muted "coming soon" */}
-        {!loading && spine ? <DailyChallengeCard daily={spine.daily} /> : null}
-
-        {/* V3 P4 — Quick rep secondary action. Demoted from the green
-            slab so it no longer competes with the Pathway CTA, but
-            kept reachable for impatient players who want a random 5-
-            pack outside the Pathway flow. Empty-state hides it for
-            cold-start users so the page focuses on the one action. */}
-        {!loading && (data?.attemptsCount ?? 0) > 0 ? (
-          <motion.div
-            custom={1.5}
-            initial="hidden"
-            animate="show"
-            variants={fadeUp}
-            className="mb-5"
-          >
-            <Link
-              href="/train"
-              className="ciq-press-soft flex items-center justify-between rounded-2xl border border-[#1F2937] bg-[#111827] px-4 py-3 transition-colors hover:border-[#374151]"
-            >
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-[#9CA3AF]">
-                  Just for fun
-                </p>
-                <p className="mt-0.5 text-[13px] font-semibold text-[#F9FAFB]">
-                  5 quick plays. About 3 minutes.
-                </p>
-              </div>
-              <span aria-hidden className="text-[18px] text-[#3BE383]">→</span>
-            </Link>
-          </motion.div>
-        ) : null}
-
-        {/* V3 P11 P1 — IQ hero, demoted below the primary action. The
-            number still anchors the player's progress story, but now it
-            sits AFTER the one obvious next step instead of competing
-            with it. Cold-start (no attempts) hides it so a brand-new
-            player isn't greeted with a "500 IQ" badge before they've
-            played a single rep. */}
-        {!loading && (data?.attemptsCount ?? 0) > 0 ? (
-          <motion.div
-            custom={2}
-            initial="hidden"
-            animate="show"
-            variants={fadeUp}
-            className="relative mb-4 overflow-hidden rounded-3xl border border-[#1F2937] bg-gradient-to-br from-[#111827] to-[#0D1B2A] p-5"
-            style={{ boxShadow: '0 0 28px rgba(59,227,131,0.04), 0 1px 0 rgba(255,255,255,0.04) inset' }}
-          >
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-[1.8px] text-[#6B7280]">Basketball IQ</p>
-            <div
-              className="font-display text-[44px] font-black leading-none tracking-[-2px]"
-              style={{ color: '#3BE383' }}
-            >
-              <NumberTicker value={iq} format={(n) => Math.round(n).toLocaleString()} />
-            </div>
-            <p className="mt-2 text-[12px] text-[#6B7280]">
-              {data?.rankLabel ?? 'Rookie'}
-              <span className="px-1.5 text-[#374151]">·</span>
-              {streak > 0
-                ? `${streak}-day streak`
-                : `${accuracyPct}% reads`}
-            </p>
-
-            <div className="mt-3">
-              <XPBar xp={xpInLevel} xpForNextLevel={100} level={level} />
-            </div>
-          </motion.div>
-        ) : null}
-
-        {/* V3 P6 — return-loop chip. ONE coaching line that names what
-            the player is becoming better at, derived from the data we
-            already fetch. Cold-start (no attempts) hides the chip; the
-            home Pathway CTA does the work for those users. */}
-        {!loading ? (
-          <ReturnFocusChip
-            focus={deriveReturnFocus({
-              attemptsCount: data?.attemptsCount ?? 0,
-              decoders: data?.decoders ?? [],
-              pathway,
-            })}
-          />
-        ) : null}
-
-        {/* Phase 9 — fasterCallout. The single most addictive metric
-            in the product. Strictly one-directional: we only render
-            when the line is non-null (≥ 8 admissible attempts in
-            each window AND ≥ 200ms improvement). When the player
-            slowed down or hasn't accumulated enough signal, this
-            block stays empty. */}
-        {!loading && spine?.fasterCallout?.line ? (
-          <motion.div
-            custom={2.5}
-            initial="hidden"
-            animate="show"
-            variants={fadeUp}
-            className="mb-3 rounded-2xl border border-brand/30 bg-brand/5 p-3"
-            data-testid="home-faster-callout"
-          >
-            <p className="text-[10px] font-bold uppercase tracking-[1.5px] text-brand">
-              You got faster
-            </p>
-            <p className="mt-0.5 font-display text-[14px] font-bold leading-snug text-[#F9FAFB]">
-              {spine.fasterCallout.line}
-            </p>
-          </motion.div>
-        ) : null}
-
-        {/* Phase 8 — Today's focus card.
-            Single sentence sourced from `todaysFocusLine(decoders)` —
-            names the player's strongest in-progress decoder + the
-            specific next milestone. Hidden when the player has no
-            in-progress decoders (the Pathway CTA below covers that
-            case). Sits ABOVE the decoder ring so the ring lights up
-            against a sentence the player just read. */}
-        {!loading && spine?.focusLine ? (
-          <motion.div
-            custom={3}
-            initial="hidden"
-            animate="show"
-            variants={fadeUp}
-            className="mb-3 rounded-2xl border border-[#1F2937] bg-[#0E1B16] p-3"
-            data-testid="home-todays-focus"
-          >
-            <p className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#3BE383]">
-              Today&apos;s focus
-            </p>
-            <p className="mt-0.5 font-display text-[14px] font-bold leading-snug text-[#F9FAFB]">
-              {spine.focusLine}
-            </p>
-          </motion.div>
-        ) : null}
-
-        {/* Phase 8 — Decoder ring strip.
-            The 3-segment ring is the player's long-term scoreboard.
-            `decoderRingStrip` returns [] when every decoder is still
-            untested — in that case we render nothing and let the
-            first-session arc carry the moment. */}
-        {!loading && spine && spine.decoderRing.length > 0 ? (
-          <motion.div
-            custom={3.5}
-            initial="hidden"
-            animate="show"
-            variants={fadeUp}
-            className="mb-4"
-            data-testid="home-decoder-ring-strip"
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-[#6B7280]">
-                How well you know each play
-              </p>
-              <Link
-                href="/pathways/complete-iq-foundation/progress"
-                className="text-[11px] font-semibold text-[#3BE383]"
-              >
-                See progress →
-              </Link>
-            </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {spine.decoderRing.map((d) => (
-                <DecoderRingTile key={d.decoder} ring={d} />
-              ))}
-            </div>
-          </motion.div>
-        ) : null}
-
-        {/* Accuracy by read — per-decoder accuracy bars.
-            Complements the ring strip above (which shows mastery
-            progress) by exposing the raw % so the player can see which
-            reads are clicking and which still need work. */}
-        {!loading && (data?.decoders?.some((d) => d.attempts > 0) ?? false) && (
-          <motion.div custom={4} initial="hidden" animate="show" variants={fadeUp} className="mb-5">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[1.5px] text-[#6B7280]">
-              Your scores by play
-            </p>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {data!.decoders
-                .filter((d) => d.attempts > 0)
-                .map((d) => {
-                  const pct = Math.round(d.rolling_accuracy * 100)
-                  const mastered = d.state === 'mastered'
-                  return (
-                    <div
-                      key={d.tag}
-                      className="flex flex-col gap-2 rounded-2xl border border-[#1F2937] bg-[#111827] p-3"
-                    >
-                      <div className="flex items-center justify-between">
-                        <p className="text-[13px] font-semibold text-[#F9FAFB]">{d.title}</p>
-                        <span
-                          className="text-[10px] font-bold uppercase tracking-wide"
-                          style={{ color: mastered ? '#3BE383' : '#F59E0B' }}
-                        >
-                          {mastered ? 'Mastered' : `${pct}%`}
-                        </span>
-                      </div>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-[#1F2937]">
-                        <div
-                          className="h-full transition-all"
-                          style={{
-                            width: `${mastered ? 100 : pct}%`,
-                            background: mastered ? '#3BE383' : '#F59E0B',
-                          }}
-                        />
-                      </div>
-                      <p className="text-[10px] text-[#4B5563]">
-                        {d.attempts} {d.attempts === 1 ? 'rep' : 'reps'}
-                      </p>
-                    </div>
-                  )
-                })}
-            </div>
-          </motion.div>
-        )}
-
-        {/* V3 P11 P1 — Recent Sessions reframed as coaching narrative.
-            Was a log table (date · X/Y · IQ delta · XP); now a small
-            list of past sets in basketball voice. The IQ delta + XP
-            are gone from the line — those are P4 reward surfaces and
-            shouldn't dominate the daily return moment. */}
-        {!loading && sessions.length > 0 ? (
-          <motion.div custom={6} initial="hidden" animate="show" variants={fadeUp}>
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[1.5px] text-[#6B7280]">
-              How you played recently
-            </p>
-            <div className="space-y-1.5">
-              {sessions.slice(0, 4).map((s) => {
-                const date = new Date(s.started_at)
-                const now = new Date()
-                const diffDays = Math.floor((now.getTime() - date.getTime()) / 86400000)
-                const dateLabel =
-                  diffDays === 0 ? 'Today'
-                  : diffDays === 1 ? 'Yesterday'
-                  : `${diffDays} days ago`
-                const total = s.scenario_ids.length
-                const acc = total > 0 ? Math.round((s.correct_count / total) * 100) : 0
-                const summary =
-                  acc >= 90
-                    ? 'crushed it'
-                    : acc >= 70
-                      ? 'played sharp'
-                      : acc >= 50
-                        ? 'mixed bag'
-                        : acc > 0
-                          ? 'tough one'
-                          : 'reset'
-                return (
-                  <div
-                    key={s.id}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-transparent px-1 py-1.5"
-                  >
-                    <p className="min-w-0 flex-1 truncate text-[13px] text-[#9CA3AF]">
-                      <span className="text-[#F9FAFB]">{dateLabel}</span>
-                      <span className="px-1.5 text-[#374151]">·</span>
-                      <span>{summary}</span>
-                    </p>
-                    <span className="shrink-0 text-[12px] tabular-nums text-[#6B7280]">
-                      {s.correct_count}/{total}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          </motion.div>
-        ) : null}
-
-        {/* Slim nav — three destinations players use day-to-day, plus
-            a hairline footer for everything else. "How CourtIQ works"
-            is the journey-walkthrough replay, kept discoverable for
+        {/* Slim nav — three core destinations + a hairline footer. The
+            footer keeps the "How CourtIQ works" replay reachable for
             anyone who wants the orientation again. */}
-        <motion.div custom={7} initial="hidden" animate="show" variants={fadeUp} className="mt-5 space-y-2">
+        <motion.div custom={3} initial="hidden" animate="show" variants={fadeUp} className="mt-5 space-y-2">
           <div className="grid grid-cols-3 gap-2">
             <Link
               href="/pathways"
               className="flex flex-col items-center justify-center gap-0.5 rounded-2xl border border-[#1F2937] bg-[#111827] px-3 py-3 text-center transition-colors hover:border-[#374151]"
             >
-              <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#3BE383]">
-                Pathways
+              <span aria-hidden className="text-[20px]">🗺️</span>
+              <span className="text-[11px] font-bold uppercase tracking-[1.2px] text-[#F9FAFB]">
+                Paths
               </span>
-              <span className="text-[11px] text-[#9CA3AF]">Your route</span>
-            </Link>
-            <Link
-              href="/pathways/complete-iq-foundation/progress"
-              className="flex flex-col items-center justify-center gap-0.5 rounded-2xl border border-[#1F2937] bg-[#111827] px-3 py-3 text-center transition-colors hover:border-[#374151]"
-            >
-              <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#3BE383]">
-                Progress
-              </span>
-              <span className="text-[11px] text-[#9CA3AF]">Strengths & gaps</span>
             </Link>
             <Link
               href="/academy"
               className="flex flex-col items-center justify-center gap-0.5 rounded-2xl border border-[#1F2937] bg-[#111827] px-3 py-3 text-center transition-colors hover:border-[#374151]"
             >
-              <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#3BE383]">
+              <span aria-hidden className="text-[20px]">📚</span>
+              <span className="text-[11px] font-bold uppercase tracking-[1.2px] text-[#F9FAFB]">
                 Lessons
               </span>
-              <span className="text-[11px] text-[#9CA3AF]">Learn the reads</span>
+            </Link>
+            <Link
+              href="/profile"
+              className="flex flex-col items-center justify-center gap-0.5 rounded-2xl border border-[#1F2937] bg-[#111827] px-3 py-3 text-center transition-colors hover:border-[#374151]"
+            >
+              <span aria-hidden className="text-[20px]">⭐</span>
+              <span className="text-[11px] font-bold uppercase tracking-[1.2px] text-[#F9FAFB]">
+                You
+              </span>
             </Link>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-2 text-[11px] font-semibold uppercase tracking-[1.5px] text-[#6B7280]">
@@ -890,10 +549,6 @@ export default function HomePage() {
             >
               How CourtIQ works
             </button>
-            <span aria-hidden className="text-[#374151]">·</span>
-            <Link href="/profile" className="transition-colors hover:text-[#F9FAFB]">
-              Profile
-            </Link>
             <span aria-hidden className="text-[#374151]">·</span>
             <Link href="/leaderboard" className="transition-colors hover:text-[#F9FAFB]">
               Leaderboard
