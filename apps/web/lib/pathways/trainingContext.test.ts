@@ -11,10 +11,41 @@
  *   - invalid pathway / chapter / node → error context
  */
 
-import { describe, expect, it } from 'vitest'
-import { buildTrainHrefFromContext, resolvePathwayTrainingContext } from './trainingContext'
-import { getFoundationPathway } from './helpers'
-import type { PathwayProgressSummary } from './types'
+import { describe, expect, it, vi } from 'vitest'
+import type { PathwayConfig, PathwayProgressSummary } from './types'
+
+// The coming-soon guard test needs a real pathway with comingSoon: true
+// to drive the resolver. We used to point it at whichever pathway was
+// still queued in the catalog, but now that every catalog pathway has
+// shipped we inject a synthetic clone so the guard keeps its target
+// independent of catalog state. The override falls through to the real
+// `getPathwayBySlug` for every other slug so the rest of the suite is
+// unaffected.
+const SYNTHETIC_COMING_SOON_SLUG = '__test-coming-soon-pathway__'
+
+vi.mock('./helpers', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./helpers')>()
+  return {
+    ...actual,
+    getPathwayBySlug: (slug: string) => {
+      if (slug === SYNTHETIC_COMING_SOON_SLUG) {
+        const base = actual.getFoundationPathway()
+        const clone: PathwayConfig = {
+          ...base,
+          slug: SYNTHETIC_COMING_SOON_SLUG,
+          comingSoon: true,
+        }
+        return clone
+      }
+      return actual.getPathwayBySlug(slug)
+    },
+  }
+})
+
+const { buildTrainHrefFromContext, resolvePathwayTrainingContext } = await import(
+  './trainingContext'
+)
+const { getFoundationPathway } = await import('./helpers')
 
 const FOUNDATION = getFoundationPathway()
 
@@ -172,7 +203,9 @@ describe('resolvePathwayTrainingContext — pathway only', () => {
 
 describe('resolvePathwayTrainingContext — error paths', () => {
   it('refuses coming-soon pathways', () => {
-    const ctx = resolvePathwayTrainingContext({ pathwaySlug: 'wing-decision-maker' })
+    const ctx = resolvePathwayTrainingContext({
+      pathwaySlug: SYNTHETIC_COMING_SOON_SLUG,
+    })
     expect(ctx!.error).toBe('pathway-coming-soon')
     expect(ctx!.scenarioIds).toEqual([])
   })
@@ -202,7 +235,7 @@ describe('resolvePathwayTrainingContext — error paths', () => {
 
   it('refuses challenge context for coming-soon pathways', () => {
     const ctx = resolvePathwayTrainingContext({
-      pathwaySlug: 'wing-decision-maker',
+      pathwaySlug: SYNTHETIC_COMING_SOON_SLUG,
       mode: 'boss-challenge',
     })
     expect(ctx!.error).toBe('pathway-coming-soon')
