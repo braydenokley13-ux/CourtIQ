@@ -1,0 +1,66 @@
+{
+  "id": "ESC-T1-01",
+  "template": "ESC.weak-corner-drift",
+  "status": "LIVE",
+  "version": 1,
+
+  "copy": {
+    "title": "Drift Wider on the Stunt",
+    "prompt": "Your defender stunted at the ball. The wider arc is open.",
+    "game_context": "4-on-4 half-court shell. The point guard threatens a middle drive. You are the weak-side wing. Your defender steps off you to stunt at the ball.",
+    "possession_setup": "The ball is at the right slot. You are the left wing. Your defender (x3) is one pass away and helps off you as the PG dribbles into the middle.",
+    "decision_moment": "x3 takes a hop toward the ball. His hips and chest turn to the drive. The wider spot on the wing arc is empty.",
+    "visible_cue": "x3 has both hands at the ball, hips turned to the drive, and a clear gap is open between you and the sideline.",
+    "best_read": "Drift wider on the wing arc to the open three. The pass arrives clean while x3 is still committed to the ball.",
+    "explanation_md": "**Drift wider when he stunts.** Your defender helped at the ball — for a half-second, you are open. The cleanest catch is the one furthest from his recovery path. Slide one big step wider on the arc. The pass arrives before he can close out, and his closeout is too long to contest the shot. Watch his body. Stunts are short — you only get the window if you move the second he leans.",
+
+    "feedback": {
+      "correct": "Good read. He leaned at the ball, you slid wider. The kickout was clean.",
+      "partial": "Fading to the corner kept spacing — but the wing kickout was the cleaner shot. Stay wide on the arc next time.",
+      "wrong": "Watch his body. The instant he stunts, slide wider. If you stand still, he recovers in time."
+    },
+
+    "self_review_checklist": [
+      "Did I see x3 lean at the ball before I moved?",
+      "Did I slide wider on the arc, not into the paint?",
+      "Did I keep my shooting feet ready for the catch?",
+      "Did I move the instant he stunted, not after?"
+    ],
+
+    "acceptable_reads": [
+      "Fade to the corner — keeps spacing, but the closeout is shorter from the slot and you traded a clean wing shot for a contested corner three."
+    ],
+    "bad_reads": [
+      "Stand still at the wing — defender recovers before the pass arrives.",
+      "Cut into the paint — walks into the low man's wall."
+    ],
+
+    "choices": {
+      "drift_wider_on_arc": {
+        "label": "Slide one step wider on the wing arc.",
+        "feedback_text": "Best read. He stunted at the ball and the closeout to the wider arc is too long. The kickout was clean."
+      },
+      "fade_to_corner": {
+        "label": "Fade down to the corner.",
+        "feedback_text": "Okay. The fade keeps spacing, but you traded a clean wing three for a contested corner three.",
+        "partial_feedback_text": "Fading kept spacing — the wing drift was the cleaner shot."
+      },
+      "stand_in_wing": {
+        "label": "Stay on the wing and call for the kickout.",
+        "feedback_text": "Not yet. Stunts are short. If you stand still, x3 recovers before the pass arrives."
+      },
+      "cut_into_paint": {
+        "label": "Cut into the paint to fill the rim.",
+        "feedback_text": "Not yet. The low man is already in the lane. Stay outside and widen the kickout window instead."
+      }
+    }
+  },
+
+  "variation": {
+    "user_slot": "drifter",
+    "mirror": false,
+    "disguise": "none",
+    "clock_pressure": "none",
+    "overrides": { "players": [], "movements": [] }
+  }
+}

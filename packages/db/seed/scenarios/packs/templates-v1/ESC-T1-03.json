@@ -1,0 +1,528 @@
+[
+  {
+    "id": "ESC-T1-03",
+    "version": 1,
+    "status": "LIVE",
+    "title": "Drift Wider — No Hip Arrow",
+    "category": "OFFENSE",
+    "decoder_tag": "EMPTY_SPACE_CUT",
+    "concept_tags": [
+      "off_ball_movement",
+      "reading_help",
+      "spacing"
+    ],
+    "sub_concepts": [
+      "weak_side_drift",
+      "vacated_arc",
+      "kickout_relocation",
+      "cue:stunt_and_recover",
+      "cue:hips_turned_to_ball",
+      "tpl:ESC.weak-corner-drift",
+      "sig:orig|slot:drifter|d:2|disg:light|dh:r[defender_hip_arrow|stunt_def]b1s0h0|clk:none"
+    ],
+    "difficulty": 3,
+    "user_role": "weak_wing_drifter",
+    "game_context": "4-on-4 half-court shell. PG threatens a middle drive. You are the weak-side wing. Your defender stunts off you — but the on-screen hip arrow is gone. Read the body itself.",
+    "possession_setup": "The ball is at the right slot. You are the left wing. Your defender (x3) is one pass away and leans toward the ball as the PG drives.",
+    "decision_moment": "x3 takes a hop at the ball. No hip arrow this time — read his chest and his head. The wider spot on the wing arc is open.",
+    "visible_cue": "x3's hands are at the ball and his head is on the drive. Your sideline gap is empty.",
+    "court_state": {
+      "offense": [
+        {
+          "id": "passer",
+          "x": 290,
+          "y": 140,
+          "role": "ball_handler",
+          "hasBall": true
+        },
+        {
+          "id": "drifter",
+          "x": 90,
+          "y": 90,
+          "role": "weak_wing_drifter",
+          "hasBall": false
+        },
+        {
+          "id": "strong_wing",
+          "x": 410,
+          "y": 90,
+          "role": "strong_wing",
+          "hasBall": false
+        },
+        {
+          "id": "strong_corner",
+          "x": 470,
+          "y": 10,
+          "role": "strong_corner",
+          "hasBall": false
+        }
+      ],
+      "defense": [
+        {
+          "id": "on_ball_def",
+          "x": 290,
+          "y": 160,
+          "role": "on_ball",
+          "hasBall": false
+        },
+        {
+          "id": "strong_wing_def",
+          "x": 390,
+          "y": 110,
+          "role": "strong_wing_defender",
+          "hasBall": false
+        },
+        {
+          "id": "stunt_def",
+          "x": 120,
+          "y": 100,
+          "role": "weak_wing_helper_stunter",
+          "hasBall": false
+        },
+        {
+          "id": "low_man",
+          "x": 430,
+          "y": 30,
+          "role": "low_man",
+          "hasBall": false
+        }
+      ],
+      "ball_location": {
+        "x": 290,
+        "y": 140
+      }
+    },
+    "prompt": "He stunted. Read it without the hip cue.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Slide one step wider on the wing arc.",
+        "quality": "best",
+        "feedback_text": "Best read. You picked up the stunt from his chest. The kickout was clean.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Fade down to the corner.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. Corner relocation kept spacing, but the wider wing was the cleaner shot.",
+        "partial_feedback_text": "Fading kept spacing — the wider wing was the cleaner shot.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Hold the wing and call for the ball.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. The stunt window is short. Standing still lets him recover.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Cut into the paint to fill the rim.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. The low man is already in the lane. Widen the kickout instead.",
+        "order": 4
+      }
+    ],
+    "best_read": "Slide wider on the wing arc. The kickout arrives before he can stop watching the drive.",
+    "acceptable_reads": [
+      "Fade to the corner — keeps spacing but trades the clean wing shot."
+    ],
+    "bad_reads": [
+      "Stand still — he recovers before the pass.",
+      "Cut into the paint — collides with the low man."
+    ],
+    "common_miss_reason": "Weak-side shooters hold their spot waiting for the kickout. The stunt only buys a half-second window — if the shooter doesn't widen, the defender recovers before the pass can arrive clean.",
+    "why_best_read_works": "The stunt commits the defender's hips and weight to the ball. A drift wider on the arc moves the catch point further from his recovery path — the pass arrives clean and the closeout is too long to contest the shot.",
+    "decoder_teaching_point": "When your defender stunts at the ball, slide wider on the arc. The kickout lane opens, and his closeout has to cover a longer distance.",
+    "lesson_connection": "empty-space-cut",
+    "explanation_md": "**Same stunt, fewer hints.** The hip arrow is gone — the cue is still the same. Look at his chest. If it's pointed at the ball instead of at you, he's helping. Slide wider the instant you see it. Real defenders don't paint arrows on themselves; you have to read the body itself.",
+    "feedback": {
+      "correct": "Good read. You picked it up from his chest, not from an arrow. The kickout was clean.",
+      "partial": "Fade kept spacing — the wider wing was still the cleaner catch.",
+      "wrong": "Look at his chest. If it's on the ball instead of on you, he's helping. Move wider."
+    },
+    "self_review_checklist": [
+      "Did I read his chest, not wait for the arrow?",
+      "Did I move the instant he leaned?",
+      "Did I drift along the arc, not into the paint?",
+      "Did I keep my feet ready for the catch?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "notes": "Weak-side drift on stunt is a universally taught spacing read. Template inherits the founder ESC pack SME approval; cue cluster (stunt + hips) matches the founder template. Re-review at variant promotion to LIVE."
+    },
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": []
+    },
+    "xp_reward": 12,
+    "mastery_weight": 1,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "weak_wing_drift_on_stunt",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        {
+          "id": "passer",
+          "team": "offense",
+          "role": "ball_handler",
+          "label": "PG",
+          "start": {
+            "x": 4,
+            "z": 14
+          },
+          "hasBall": true
+        },
+        {
+          "id": "drifter",
+          "team": "offense",
+          "role": "weak_wing_drifter",
+          "label": "You",
+          "start": {
+            "x": -16,
+            "z": 9
+          },
+          "isUser": true
+        },
+        {
+          "id": "strong_wing",
+          "team": "offense",
+          "role": "strong_wing",
+          "label": "3",
+          "start": {
+            "x": 16,
+            "z": 9
+          }
+        },
+        {
+          "id": "strong_corner",
+          "team": "offense",
+          "role": "strong_corner",
+          "label": "4",
+          "start": {
+            "x": 22,
+            "z": 1
+          }
+        },
+        {
+          "id": "on_ball_def",
+          "team": "defense",
+          "role": "on_ball",
+          "label": "x1",
+          "start": {
+            "x": 4,
+            "z": 16
+          }
+        },
+        {
+          "id": "strong_wing_def",
+          "team": "defense",
+          "role": "strong_wing_defender",
+          "label": "x2",
+          "start": {
+            "x": 14,
+            "z": 11
+          }
+        },
+        {
+          "id": "stunt_def",
+          "team": "defense",
+          "role": "weak_wing_helper_stunter",
+          "label": "x3",
+          "start": {
+            "x": -13,
+            "z": 10
+          }
+        },
+        {
+          "id": "low_man",
+          "team": "defense",
+          "role": "low_man",
+          "label": "x4",
+          "start": {
+            "x": 18,
+            "z": 3
+          }
+        }
+      ],
+      "ball": {
+        "start": {
+          "x": 4,
+          "z": 14
+        },
+        "holderId": "passer"
+      },
+      "movements": [
+        {
+          "id": "user_show_hands",
+          "playerId": "drifter",
+          "kind": "lift",
+          "to": {
+            "x": -16,
+            "z": 10
+          },
+          "delayMs": 0,
+          "durationMs": 500
+        },
+        {
+          "id": "passer_threat_middle",
+          "playerId": "passer",
+          "kind": "drive",
+          "to": {
+            "x": -1,
+            "z": 9
+          },
+          "delayMs": 150,
+          "durationMs": 800,
+          "caption": "PG threatens the middle"
+        },
+        {
+          "id": "stunt_step_to_ball",
+          "playerId": "stunt_def",
+          "kind": "rotation",
+          "to": {
+            "x": -7,
+            "z": 9
+          },
+          "delayMs": 500,
+          "durationMs": 600,
+          "caption": "x3 stunts at the ball"
+        }
+      ],
+      "answerDemo": [
+        {
+          "id": "user_drift_wider",
+          "playerId": "drifter",
+          "kind": "drift",
+          "to": {
+            "x": -21,
+            "z": 10
+          },
+          "delayMs": 0,
+          "durationMs": 500
+        },
+        {
+          "id": "passer_kickout",
+          "playerId": "ball",
+          "kind": "pass",
+          "to": {
+            "x": -21,
+            "z": 10
+          },
+          "delayMs": 300,
+          "durationMs": 500
+        },
+        {
+          "id": "user_set_feet",
+          "playerId": "drifter",
+          "kind": "lift",
+          "to": {
+            "x": -21,
+            "z": 10
+          },
+          "delayMs": 0,
+          "durationMs": 100
+        },
+        {
+          "id": "shot_release",
+          "playerId": "ball",
+          "kind": "pass",
+          "to": {
+            "x": 0,
+            "z": 0.5
+          },
+          "delayMs": 250,
+          "durationMs": 600
+        }
+      ],
+      "freezeMarker": {
+        "kind": "atMs",
+        "atMs": 1500
+      },
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You faded to the corner. The kickout came late and the closeout caught up.",
+          "movements": [
+            {
+              "id": "user_fade",
+              "playerId": "drifter",
+              "kind": "drift",
+              "to": {
+                "x": -22,
+                "z": 1
+              },
+              "delayMs": 0,
+              "durationMs": 600
+            },
+            {
+              "id": "passer_late_corner",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": {
+                "x": -22,
+                "z": 1
+              },
+              "delayMs": 250,
+              "durationMs": 600
+            },
+            {
+              "id": "stunt_recover_corner",
+              "playerId": "stunt_def",
+              "kind": "closeout",
+              "to": {
+                "x": -20,
+                "z": 2
+              },
+              "delayMs": 250,
+              "durationMs": 600
+            }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "You stood still. x3 recovered before the pass.",
+          "movements": [
+            {
+              "id": "stunt_recover",
+              "playerId": "stunt_def",
+              "kind": "closeout",
+              "to": {
+                "x": -14,
+                "z": 10
+              },
+              "delayMs": 0,
+              "durationMs": 500
+            },
+            {
+              "id": "passer_force_kickout",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": {
+                "x": -16,
+                "z": 10
+              },
+              "delayMs": 200,
+              "durationMs": 500
+            }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "You cut into the help. The lane was already full.",
+          "movements": [
+            {
+              "id": "user_cut_paint",
+              "playerId": "drifter",
+              "kind": "cut",
+              "to": {
+                "x": -6,
+                "z": 5
+              },
+              "delayMs": 0,
+              "durationMs": 700
+            },
+            {
+              "id": "low_man_wall_up",
+              "playerId": "low_man",
+              "kind": "rotation",
+              "to": {
+                "x": -4,
+                "z": 4
+              },
+              "delayMs": 200,
+              "durationMs": 600
+            }
+          ]
+        }
+      ],
+      "acceptableDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "Fade kept spacing — the wing kickout was the cleaner shot.",
+          "movements": [
+            {
+              "id": "user_fade_relocate",
+              "playerId": "drifter",
+              "kind": "drift",
+              "to": {
+                "x": -22,
+                "z": 1
+              },
+              "delayMs": 0,
+              "durationMs": 600
+            },
+            {
+              "id": "passer_relief_corner",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": {
+                "x": -22,
+                "z": 1
+              },
+              "delayMs": 350,
+              "durationMs": 600
+            }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        {
+          "kind": "defender_vision_cone",
+          "playerId": "stunt_def",
+          "targetId": "passer"
+        },
+        {
+          "kind": "help_pulse",
+          "playerId": "stunt_def",
+          "role": "stunter"
+        }
+      ],
+      "postAnswerOverlays": [
+        {
+          "kind": "passing_lane_open",
+          "from": "passer",
+          "to": "drifter"
+        },
+        {
+          "kind": "open_space_region",
+          "anchor": {
+            "x": -21,
+            "z": 10
+          },
+          "radiusFt": 3
+        },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "drifter",
+          "path": [
+            {
+              "x": -16,
+              "z": 10
+            },
+            {
+              "x": -21,
+              "z": 10
+            }
+          ]
+        },
+        {
+          "kind": "timing_pulse",
+          "anchor": {
+            "x": -21,
+            "z": 10
+          },
+          "durationMs": 600
+        }
+      ]
+    },
+    "_generated": {
+      "template": "ESC.weak-corner-drift",
+      "signature": "orig|slot:drifter|d:2|disg:light|dh:r[defender_hip_arrow|stunt_def]b1s0h0|clk:none"
+    }
+  }
+]

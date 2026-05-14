@@ -33,6 +33,21 @@
       "id": "BDW-T2-02",
       "file": "BDW-T2-02.json",
       "prerequisites": []
+    },
+    {
+      "id": "ESC-T1-01",
+      "file": "ESC-T1-01.json",
+      "prerequisites": []
+    },
+    {
+      "id": "ESC-T1-02",
+      "file": "ESC-T1-02.json",
+      "prerequisites": []
+    },
+    {
+      "id": "ESC-T1-03",
+      "file": "ESC-T1-03.json",
+      "prerequisites": []
     }
   ]
 }
