@@ -48,6 +48,16 @@
       "id": "ESC-T1-03",
       "file": "ESC-T1-03.json",
       "prerequisites": []
+    },
+    {
+      "id": "ESC-T1-04",
+      "file": "ESC-T1-04.json",
+      "prerequisites": []
+    },
+    {
+      "id": "ESC-T1-05",
+      "file": "ESC-T1-05.json",
+      "prerequisites": []
     }
   ]
 }
