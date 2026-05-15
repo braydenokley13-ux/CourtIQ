@@ -1,0 +1,66 @@
+{
+  "id": "AOR-T1-05",
+  "template": "AOR.short-closeout-shoot",
+  "status": "LIVE",
+  "version": 1,
+
+  "copy": {
+    "title": "Catch and Read — Left Wing",
+    "prompt": "The ball is coming to the other side. Read the closeout.",
+    "game_context": "4-on-4 half-court shell. Ball reverses from the slot to the left wing. Your defender was helping in the paint and has to close out to you.",
+    "possession_setup": "You are the left wing. Your defender (x2) was helping one pass away in the paint. As the pass arrives he sprints out at you, still a step or two short of his cushion.",
+    "decision_moment": "The ball arrives at your hands. x2 is closing hard but is still short and decelerating.",
+    "visible_cue": "x2 is closing fast but has not closed the cushion. Hands are not up. Clean catch, clear sightline.",
+    "best_read": "Catch in the shooting pocket and rise immediately. The closeout is short and under control — no contest at the catch.",
+    "explanation_md": "**Advantage or Reset — other side.** A short closeout works the same on the left wing as the right. Your defender was helping when the pass left — he's running while you're catching. If the closeout is short and under control, catch and shoot. If he flies past, drive. If he's set, reset. Read his cushion, not your spot.",
+
+    "feedback": {
+      "correct": "Good read. Same short closeout, left side. You caught and shot before he could contest.",
+      "partial": "A drive can work against a flying closeout. This one was short and under control — the shot was open.",
+      "wrong": "Look at the closeout. Short and under control means the shot is open. Catch and shoot."
+    },
+
+    "self_review_checklist": [
+      "Did I see the defender helping before the pass arrived?",
+      "Did I catch in my shooting pocket?",
+      "Did I read the cushion before I dribbled?",
+      "Did I shoot before his hands were up?"
+    ],
+
+    "acceptable_reads": [
+      "Rip and drive baseline if the defender is sprinting past — produces a layup or kickout, but loses the clean catch-and-shoot."
+    ],
+    "bad_reads": [
+      "Pass back to the point — gives up the open look and resets the defense.",
+      "Hold and pump fake — the defender closes the cushion and contests."
+    ],
+
+    "choices": {
+      "shoot": {
+        "label": "Shoot it.",
+        "feedback_text": "Best read. The defender was helping and is still a step short. Take the shot off the catch."
+      },
+      "rip_and_drive": {
+        "label": "Rip and drive past him.",
+        "feedback_text": "Okay. Driving works against a flying closeout, but this defender is under control. The shot was the cleaner read.",
+        "partial_feedback_text": "A drive can work, but you gave up the open jumper. Short closeout — shoot."
+      },
+      "pass_back": {
+        "label": "Pass it back to the point.",
+        "feedback_text": "Not yet. You had an open shot. Passing it back lets the defense set up."
+      },
+      "pump_fake_hold": {
+        "label": "Hold the ball and pump fake.",
+        "feedback_text": "Not yet. The defender catches up while you hesitate. The shot was open at the catch."
+      }
+    }
+  },
+
+  "variation": {
+    "user_slot": "shooter",
+    "mirror": true,
+    "disguise": "none",
+    "clock_pressure": "none",
+    "overrides": { "players": [], "movements": [] }
+  }
+}

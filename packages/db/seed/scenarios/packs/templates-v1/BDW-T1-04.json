@@ -1,0 +1,488 @@
+[
+  {
+    "id": "BDW-T1-04",
+    "version": 1,
+    "status": "LIVE",
+    "title": "Denied Wing Backdoor — Decide Fast",
+    "category": "OFFENSE",
+    "decoder_tag": "BACKDOOR_WINDOW",
+    "concept_tags": [
+      "off_ball_movement",
+      "reading_denial"
+    ],
+    "sub_concepts": [
+      "backdoor_cut",
+      "denial_read",
+      "cue:hand_in_lane",
+      "cue:foot_in_lane",
+      "tpl:BDW.denied-wing",
+      "sig:orig|slot:cutter|d:1|disg:heavy|dh:r[defender_hip_arrow|deny_def,defender_vision_cone|deny_def]b2s600h0|clk:shot_clock"
+    ],
+    "difficulty": 3,
+    "user_role": "off_ball_wing",
+    "game_context": "4-on-4 half-court shell. Ball reversal from the left slot, 10 on the shot clock. No hip arrow, no vision cone — just his hand — and the read window is compressed.",
+    "possession_setup": "The ball is at the left slot. You are the right wing. Your defender is denying the reversal with his hand in the lane. The only cue left on screen is the hand itself, and you get a short window to act.",
+    "decision_moment": "Your defender's hand is in the passing lane. No arrows, no cone. You have to read the denial and commit before the window closes.",
+    "visible_cue": "x2's hand is in your lane. That's the whole cue. The lane behind him is open — for a beat.",
+    "court_state": {
+      "offense": [
+        {
+          "id": "passer",
+          "x": 160,
+          "y": 140,
+          "role": "ball_handler",
+          "hasBall": true
+        },
+        {
+          "id": "cutter",
+          "x": 430,
+          "y": 80,
+          "role": "off_ball_wing",
+          "hasBall": false
+        },
+        {
+          "id": "weak_wing",
+          "x": 70,
+          "y": 90,
+          "role": "weak_wing",
+          "hasBall": false
+        },
+        {
+          "id": "strong_corner",
+          "x": 470,
+          "y": 10,
+          "role": "strong_corner",
+          "hasBall": false
+        }
+      ],
+      "defense": [
+        {
+          "id": "on_ball_def",
+          "x": 160,
+          "y": 160,
+          "role": "on_ball",
+          "hasBall": false
+        },
+        {
+          "id": "deny_def",
+          "x": 400,
+          "y": 100,
+          "role": "denying_wing_defender",
+          "hasBall": false
+        },
+        {
+          "id": "weak_wing_def",
+          "x": 100,
+          "y": 100,
+          "role": "weak_wing_defender",
+          "hasBall": false
+        },
+        {
+          "id": "low_man",
+          "x": 440,
+          "y": 30,
+          "role": "low_man",
+          "hasBall": false
+        }
+      ],
+      "ball_location": {
+        "x": 160,
+        "y": 140
+      }
+    },
+    "prompt": "He's denying you. No arrows, less time. Read and go.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Cut behind him to the basket.",
+        "quality": "best",
+        "feedback_text": "Best read. Tight window, just the hand — you planted and cut behind him before it closed.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "Step back out and ask for the ball.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. You kept the play alive, but at game speed the backdoor was the open layup.",
+        "partial_feedback_text": "Stepping back keeps the play alive. The backdoor was right there.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Stay still and call for the ball.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. His hand is in the way. Standing still hands him the steal.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Cut in front of the defender.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Cutting in front lets him follow you. Cut behind him instead.",
+        "order": 4
+      }
+    ],
+    "best_read": "Plant the outside foot and back-cut hard behind x2 the instant you see the hand. The lead pass meets you at the rim before x4 can rotate.",
+    "acceptable_reads": [
+      "V-cut out to a deeper catch point. Possession kept, but the layup window is gone before you get there."
+    ],
+    "bad_reads": [
+      "Stay on the wing and call for the ball — defender deflects the reversal.",
+      "Slow front cut — defender rides the route and the window closes."
+    ],
+    "common_miss_reason": "Loyalty to the spot. Wings keep fighting for the assigned catch even after the defender has visibly given up the basket to take away the pass.",
+    "why_best_read_works": "The defender is guarding the pass, not the basket. The denial removes the wing catch but opens the layup window behind it — the back-cut punishes the very stance that denied the reversal.",
+    "decoder_teaching_point": "When your defender blocks the pass, the space behind him is open. Cut there.",
+    "lesson_connection": "backdoor-window",
+    "explanation_md": "**The Backdoor Window — game speed.** No arrows, no cone, tight window. This is the read in a real game: nobody marks the denial for you, and you don't get time to think. Train the instinct — hand in the lane means the basket is behind him, so plant and go the moment you see it. Hesitate and the window is gone. **See the hand. Cut hard. Show your hands at the rim.**",
+    "feedback": {
+      "correct": "Great read at speed. Just the hand to go on — you planted and cut behind him for the layup.",
+      "partial": "Stepping back kept the play alive, but at this speed the backdoor was the play. Trust the hand.",
+      "wrong": "Too slow. Hand in the lane means cut behind him — decide the instant you see it."
+    },
+    "self_review_checklist": [
+      "Did I commit the moment I saw his hand in the lane?",
+      "Did I cut behind him, not in front?",
+      "Did I cut hard enough to beat x4's rotation?",
+      "Did I show my hands at the rim?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "notes": "Backdoor against denial is universally taught. Template inherits BDW-01 SME approval."
+    },
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": []
+    },
+    "xp_reward": 12,
+    "mastery_weight": 1,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "denied_wing_backdoor",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        {
+          "id": "passer",
+          "team": "offense",
+          "role": "ball_handler",
+          "label": "PG",
+          "start": {
+            "x": -9,
+            "z": 14
+          },
+          "hasBall": true
+        },
+        {
+          "id": "cutter",
+          "team": "offense",
+          "role": "off_ball_wing",
+          "label": "You",
+          "start": {
+            "x": 18,
+            "z": 8
+          },
+          "isUser": true
+        },
+        {
+          "id": "weak_wing",
+          "team": "offense",
+          "role": "weak_wing",
+          "label": "3",
+          "start": {
+            "x": -18,
+            "z": 9
+          }
+        },
+        {
+          "id": "strong_corner",
+          "team": "offense",
+          "role": "strong_corner",
+          "label": "4",
+          "start": {
+            "x": 22,
+            "z": 1
+          }
+        },
+        {
+          "id": "on_ball_def",
+          "team": "defense",
+          "role": "on_ball",
+          "label": "x1",
+          "start": {
+            "x": -9,
+            "z": 16
+          }
+        },
+        {
+          "id": "deny_def",
+          "team": "defense",
+          "role": "denying_wing_defender",
+          "label": "x2",
+          "start": {
+            "x": 15,
+            "z": 10
+          }
+        },
+        {
+          "id": "weak_wing_def",
+          "team": "defense",
+          "role": "weak_wing_defender",
+          "label": "x3",
+          "start": {
+            "x": -15,
+            "z": 10
+          }
+        },
+        {
+          "id": "low_man",
+          "team": "defense",
+          "role": "low_man",
+          "label": "x4",
+          "start": {
+            "x": 19,
+            "z": 3
+          }
+        }
+      ],
+      "ball": {
+        "start": {
+          "x": -9,
+          "z": 14
+        },
+        "holderId": "passer"
+      },
+      "movements": [
+        {
+          "id": "user_show_hands",
+          "playerId": "cutter",
+          "kind": "lift",
+          "to": {
+            "x": 18,
+            "z": 9
+          },
+          "delayMs": 0,
+          "durationMs": 600
+        },
+        {
+          "id": "deny_step_into_lane",
+          "playerId": "deny_def",
+          "kind": "rotation",
+          "to": {
+            "x": 14,
+            "z": 11
+          },
+          "delayMs": 400,
+          "durationMs": 600
+        }
+      ],
+      "answerDemo": [
+        {
+          "id": "user_jab",
+          "playerId": "cutter",
+          "kind": "jab",
+          "to": {
+            "x": 19,
+            "z": 9
+          },
+          "delayMs": 0,
+          "durationMs": 250
+        },
+        {
+          "id": "user_plant_and_go",
+          "playerId": "cutter",
+          "kind": "back_cut",
+          "to": {
+            "x": 4,
+            "z": 2
+          },
+          "delayMs": 100,
+          "durationMs": 750
+        },
+        {
+          "id": "passer_lead_pass",
+          "playerId": "ball",
+          "kind": "pass",
+          "to": {
+            "x": 4,
+            "z": 2
+          },
+          "delayMs": 500,
+          "durationMs": 600
+        },
+        {
+          "id": "user_catch_at_rim",
+          "playerId": "cutter",
+          "kind": "lift",
+          "to": {
+            "x": 4,
+            "z": 2
+          },
+          "delayMs": 0,
+          "durationMs": 100
+        },
+        {
+          "id": "user_finish",
+          "playerId": "cutter",
+          "kind": "cut",
+          "to": {
+            "x": 0,
+            "z": 0.5
+          },
+          "delayMs": 30,
+          "durationMs": 320
+        }
+      ],
+      "freezeMarker": {
+        "kind": "atMs",
+        "atMs": 900
+      },
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You kept the ball. You missed the open layup.",
+          "movements": [
+            {
+              "id": "user_v_cut",
+              "playerId": "cutter",
+              "kind": "cut",
+              "to": {
+                "x": 21,
+                "z": 10
+              },
+              "delayMs": 0,
+              "durationMs": 600
+            },
+            {
+              "id": "passer_late_pass",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": {
+                "x": 21,
+                "z": 10
+              },
+              "delayMs": 200,
+              "durationMs": 500
+            }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "The defender stole the pass.",
+          "movements": [
+            {
+              "id": "passer_force_pass",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": {
+                "x": 18,
+                "z": 8
+              },
+              "delayMs": 0,
+              "durationMs": 450
+            },
+            {
+              "id": "deny_deflect",
+              "playerId": "deny_def",
+              "kind": "rotation",
+              "to": {
+                "x": 16,
+                "z": 9
+              },
+              "delayMs": 100,
+              "durationMs": 350
+            },
+            {
+              "id": "ball_loose",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": {
+                "x": 18,
+                "z": 12
+              },
+              "delayMs": 300,
+              "durationMs": 350
+            }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "The defender followed your cut. No layup.",
+          "movements": [
+            {
+              "id": "user_front_cut",
+              "playerId": "cutter",
+              "kind": "cut",
+              "to": {
+                "x": 8,
+                "z": 6
+              },
+              "delayMs": 0,
+              "durationMs": 800
+            },
+            {
+              "id": "deny_ride",
+              "playerId": "deny_def",
+              "kind": "rotation",
+              "to": {
+                "x": 9,
+                "z": 7
+              },
+              "delayMs": 120,
+              "durationMs": 850
+            }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        {
+          "kind": "defender_hand_in_lane",
+          "playerId": "deny_def"
+        }
+      ],
+      "postAnswerOverlays": [
+        {
+          "kind": "passing_lane_blocked",
+          "from": "passer",
+          "to": "cutter"
+        },
+        {
+          "kind": "open_space_region",
+          "anchor": {
+            "x": 5,
+            "z": 4
+          },
+          "radiusFt": 4
+        },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "cutter",
+          "path": [
+            {
+              "x": 18,
+              "z": 8
+            },
+            {
+              "x": 19,
+              "z": 9
+            },
+            {
+              "x": 4,
+              "z": 2
+            },
+            {
+              "x": 0,
+              "z": 0.5
+            }
+          ]
+        }
+      ]
+    },
+    "_generated": {
+      "template": "BDW.denied-wing",
+      "signature": "orig|slot:cutter|d:1|disg:heavy|dh:r[defender_hip_arrow|deny_def,defender_vision_cone|deny_def]b2s600h0|clk:shot_clock"
+    }
+  }
+]
