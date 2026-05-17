@@ -26,6 +26,10 @@ import {
   type ResolvedMovement,
   type Timeline,
 } from '@/lib/scenario3d/timeline'
+import {
+  athleticMotionEnvelope,
+  rotationEffortScale,
+} from '@/lib/scenario3d/movementCurvesV2'
 import { samplePassArc } from '@/lib/scenario3d/passArc'
 export {
   BALL_PEAK_MULT_PASS,
@@ -1798,22 +1802,24 @@ const YAW_TIME_CONSTANT_DEFENSE_S = 0.14
  * axis of the figure root) per movement kind. Pure data; consumed by
  * `MotionController.applyAthleticLean`.
  *
- * The lean is applied through a triangular envelope across the
- * movement's [startMs, endMs) so a runner ramps the lean in as they
- * accelerate, holds it through the middle of the segment, and decays
- * it as they brake into the endpoint. Outside of any active segment
- * the lean is 0 (upright).
+ * The lean is applied through `athleticMotionEnvelope` across the
+ * movement's [startMs, endMs) so a runner ramps the lean in fast as
+ * they explode off the start, peaks it through the front third, then
+ * decays it to upright as they decelerate and plant into the
+ * endpoint. Outside of any active segment the lean is 0 (upright).
  *
  * Values are deliberately small (≤ ~7°) so the lean reads as
  * basketball body language rather than a ragdoll tilt — anything
  * beyond that starts to look like a player diving forward off-balance.
  *
  * Cuts / drives / jabs lean the most because they are the most
- * explosive moves in the founder-v0 pack. Closeouts and rotations
- * stay upright because the player's job there is to close space
- * with controlled balance, not commit forward weight. Lifts /
- * drifts (off-ball repositioning) are also upright. Passes apply to
- * the ball, not a player, so they are intentionally absent.
+ * explosive moves in the founder-v0 pack. Closeouts commit a smaller
+ * forward weight. Rotations carry a help-sprint lean that
+ * `MotionController.applyAthleticLean` scales by travel distance (via
+ * `rotationEffortScale`), so a long help sprint leans while a short
+ * defensive slide stays upright. Lifts / drifts (off-ball
+ * repositioning) are upright. Passes apply to the ball, not a
+ * player, so they are intentionally absent.
  */
 const ATHLETIC_LEAN_PEAK_RAD_BY_KIND: Record<string, number> = {
   // Premium review pass — bumped peaks toward 8-10° for explosive
@@ -1831,7 +1837,12 @@ const ATHLETIC_LEAN_PEAK_RAD_BY_KIND: Record<string, number> = {
   // "aggressive closeout" instead of "drift." Smaller than offensive
   // lean so it does not over-commit.
   closeout: 0.07,       // ~4.0°
-  rotation: 0,
+  // V6-final — help defenders sprinting a rotation lean forward like
+  // any runner. Scaled by travel distance at apply time, so a short
+  // controlled slide collapses this toward 0 and a full help sprint
+  // gets the peak. Below an offensive drive — defenders keep more
+  // balance even at a sprint.
+  rotation: 0.085,      // ~4.9° (sprint peak, distance-scaled)
   lift: 0,
   drift: 0,
   stop_ball: 0,
@@ -1861,7 +1872,9 @@ const ATHLETIC_BOB_PEAK_FT_BY_KIND: Record<string, number> = {
   baseline_sneak: 0.045,
   rip: 0.02,
   closeout: 0.03,
-  rotation: 0,
+  // V6-final — stride bob for a help-rotation sprint; distance-scaled
+  // at apply time so a short controlled slide does not bounce.
+  rotation: 0.04,
   lift: 0,
   drift: 0,
   stop_ball: 0,
@@ -1885,7 +1898,9 @@ const ATHLETIC_BANK_PEAK_RAD_BY_KIND: Record<string, number> = {
   baseline_sneak: 0.05,
   rip: 0.03,
   closeout: 0.04,
-  rotation: 0,
+  // V6-final — a help defender banks as they change direction on a
+  // rotation; distance-scaled at apply time.
+  rotation: 0.045,
   lift: 0,
   drift: 0,
   stop_ball: 0,
@@ -2287,18 +2302,22 @@ export class MotionController {
    * Lean (rotation.x):
    *   - cut, back_cut, drive, jab, baseline_sneak, rip: 5-10° forward
    *   - closeout: ~4° forward (committed defender)
-   *   - lift / rotation / pass / stop_ball: 0 (upright)
+   *   - rotation: up to ~5° forward, scaled by travel distance so a
+   *     help sprint leans and a short defensive slide stays upright
+   *   - lift / pass / stop_ball: 0 (upright)
    *
    * Bob (position.y):
    *   - explosive moves bob ≤ 0.06 ft with two stride peaks per
-   *     segment (u=0.25 and u=0.75), giving the figure a visible
-   *     foot-load / push-off cadence instead of gliding.
+   *     segment, giving the figure a visible foot-load / push-off
+   *     cadence instead of gliding.
    *
-   * The lean ramps in/out symmetrically over the segment so a runner
-   * loads the lean as they accelerate, holds it through the middle,
-   * and decays it as they brake into the destination — matching the
-   * `easeOutAthletic` velocity profile inside the timeline sampler.
-   * Outside any active segment, the lean and bob are both 0.
+   * Lean, bob, and bank are all modulated by `athleticMotionEnvelope`:
+   * a front-loaded 0 → 1 → 0 envelope that peaks in the front third of
+   * the segment and decays to upright by arrival. A runner loads the
+   * lean as they explode off the start and straightens up as they
+   * decelerate and plant — matching the front-loaded V2 motion curves
+   * the timeline sampler uses, instead of leaning hardest at the
+   * midpoint. Outside any active segment, the lean and bob are both 0.
    */
   private applyAthleticLean(t: number): void {
     for (const player of this.scene.players) {
@@ -2342,25 +2361,40 @@ export class MotionController {
       if (!this.baselineY.has(player.id)) {
         this.baselineY.set(player.id, g.position.y)
       }
-      // Triangular envelope over the segment, peaking at u=0.5. The
-      // segment durations are short (≤ 800 ms typically) so a
-      // symmetric ramp keeps the lean visible without clipping the
-      // start or end frames.
+      // Front-loaded body-language envelope: peaks in the front third
+      // of the segment (the explosive push) and decays to 0 by
+      // arrival, so the figure leans into the move and plants upright
+      // instead of leaning hardest at the midpoint. Shared by the
+      // lean, the stride bob, and the cornering bank below.
       const span = Math.max(1, active.endMs - active.startMs)
       const u = Math.max(0, Math.min(1, (t - active.startMs) / span))
-      g.rotation.x = leanPeak * (1 - Math.abs(u - 0.5) * 2)
+      const envelope = athleticMotionEnvelope(u)
+      // Segment direction + length — drives the cornering bank below
+      // and the help-rotation effort scale.
+      const dx = active.to.x - active.from.x
+      const dz = active.to.z - active.from.z
+      const segLen = Math.sqrt(dx * dx + dz * dz)
+      // V6-final — a `rotation` segment spans a short controlled slide
+      // through a full weak-side help sprint, so scale its body
+      // english by travel distance: a slide stays upright, a sprint
+      // leans and strides. Every other kind is an authored-intent move
+      // at full effort.
+      const effort =
+        active.kind === 'rotation' ? rotationEffortScale(segLen) : 1
+      g.rotation.x = leanPeak * envelope * effort
       // V4-B — per-player stride phase offset so several players
       // moving together do NOT bounce in lock-step. Hash from
       // playerId to a 0..1 phase offset; pure deterministic so
       // replay determinism is preserved (same scene → same offsets).
       const phaseOffset = playerIdToPhaseOffset(player.id)
       // Two stride peaks per segment via |sin(2π(u + offset))|. The
-      // amplitude is gated by the same triangular envelope so the
-      // figure does not bounce on the first or last frame.
-      const strideEnvelope = 1 - Math.abs(u - 0.5) * 2
+      // amplitude rides the same front-loaded envelope as the lean so
+      // the figure does not bounce on the first or last frame and the
+      // stride is biggest while the player is running hardest.
       const baseline = this.baselineY.get(player.id) ?? 0
       const stridePhase = (u + phaseOffset) * Math.PI * 2
-      const bob = bobPeak * Math.abs(Math.sin(stridePhase)) * strideEnvelope
+      const bob =
+        bobPeak * Math.abs(Math.sin(stridePhase)) * envelope * effort
       g.position.y = baseline + bob
       if (bobPeak > 0) {
         this.bobActiveFor.add(player.id)
@@ -2370,11 +2404,9 @@ export class MotionController {
       // INTO the corner (positive x → bank to the right → negative
       // rotation.z by Three convention for our yaw). Pure function
       // of (segment direction, kind), so determinism is preserved.
-      // The amount is small (≤ 4°) and gated by the same triangular
-      // envelope so the bank loads on entry and unloads on arrival.
-      const dx = active.to.x - active.from.x
-      const dz = active.to.z - active.from.z
-      const segLen = Math.sqrt(dx * dx + dz * dz)
+      // The amount is small (≤ 4°) and gated by the same front-loaded
+      // envelope (and the help-rotation effort scale) so the bank
+      // loads on entry and unloads on arrival.
       if (leanPeak > 0 && segLen > 0.01) {
         const lateralBias = dx / segLen // -1..+1
         const bankPeak = ATHLETIC_BANK_PEAK_RAD_BY_KIND[active.kind] ?? 0
@@ -2382,7 +2414,7 @@ export class MotionController {
         // Bank toward direction of travel: if traveling +x (right),
         // bank rotation.z negative so the right side dips. Multiply
         // by the same envelope so corner-banks blend with peak lean.
-        g.rotation.z = -bankPeak * lateralBias * strideEnvelope
+        g.rotation.z = -bankPeak * lateralBias * envelope * effort
       } else {
         g.rotation.z = 0
       }

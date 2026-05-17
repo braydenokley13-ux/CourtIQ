@@ -3,9 +3,12 @@
  * Visual / Motion Review — Athletic Forward-Lean.
  *
  * Locks the contract that explosive movement segments (cut, back_cut,
- * drive, jab, baseline_sneak) tilt the player forward through a
- * deterministic triangular envelope, while non-explosive segments
- * (rotation, lift, drift, closeout, pass) keep the figure upright.
+ * drive, jab, baseline_sneak, closeout) tilt the player forward
+ * through a deterministic front-loaded envelope that peaks during the
+ * explosive push and decays to upright on arrival. `rotation`
+ * segments carry a help-sprint lean scaled by travel distance — a
+ * sprint leans, a short slide stays upright. Pure repositioning
+ * segments (lift, drift, pass) keep the figure upright.
  *
  * Pure imperative-path coverage — replay determinism is preserved.
  */
@@ -65,46 +68,57 @@ function leanAt(scene: Scene3D, ms: number): number {
   return players.get('user')!.rotation.x
 }
 
-describe('Athletic lean — explosive segments lean forward through a triangular envelope', () => {
+describe('Athletic lean — explosive segments lean through a front-loaded envelope', () => {
   for (const kind of ['cut', 'back_cut', 'drive', 'jab', 'baseline_sneak', 'closeout'] as const) {
-    it(`'${kind}' segment peaks above 0 at u=0.5 (mid-segment)`, () => {
+    it(`'${kind}' segment leans the figure forward during the explosive push`, () => {
       const scene = buildSceneWithSingleMovement(kind)
-      // Sample at mid-segment (~400 ms into the 800 ms span).
-      const lean = leanAt(scene, 400)
-      // The triangular envelope hits exactly 1.0 at u=0.5, so the
-      // observed rotation.x equals the configured peak. Every
-      // segment tagged "explosive" has peak > 0.04 rad (~2.3°) —
-      // visible at broadcast distance but well below ragdoll
-      // territory. Closeout is included as the smallest "explosive
-      // commit" (≈ 4°) — defenders weight forward to challenge.
+      // Sample at u≈0.3 (~240 ms into the 800 ms span) — the front-
+      // loaded envelope peaks here, so the observed rotation.x is the
+      // configured peak. Every explosive kind clears 0.04 rad (~2.3°)
+      // — visible at broadcast distance. Closeout is the smallest
+      // "explosive commit" (≈ 4°) — defenders weight forward to
+      // challenge the shot.
+      const lean = leanAt(scene, 240)
       expect(lean).toBeGreaterThan(0.04)
       // Cap at ~12° (0.21 rad) so no kind tilts the figure into a
-      // dive — the upper bound is the basketball-body-language
-      // floor we want, not a hard physics limit.
+      // dive — the upper bound is the basketball-body-language floor
+      // we want, not a hard physics limit.
       expect(lean).toBeLessThan(0.21)
     })
 
-    it(`'${kind}' segment ramps in (lower lean at u=0.1 than u=0.5)`, () => {
+    it(`'${kind}' segment peaks in the front half, not the midpoint`, () => {
+      // The envelope is front-loaded: by u=0.5 the lean is already
+      // past its peak and decaying, so the early sample reads higher.
       const scene = buildSceneWithSingleMovement(kind)
-      const earlyLean = leanAt(scene, 80) // u ≈ 0.1
-      const midLean = leanAt(scene, 400) // u ≈ 0.5
-      expect(earlyLean).toBeLessThan(midLean)
+      const earlyLean = leanAt(scene, 240) // u ≈ 0.3 — peak region
+      const midLean = leanAt(scene, 400) // u ≈ 0.5 — already decaying
+      expect(earlyLean).toBeGreaterThan(midLean)
     })
 
-    it(`'${kind}' segment ramps out (lower lean at u=0.9 than u=0.5)`, () => {
+    it(`'${kind}' segment ramps in fast (lower lean at u=0.1 than at the peak)`, () => {
       const scene = buildSceneWithSingleMovement(kind)
-      const lateLean = leanAt(scene, 720) // u ≈ 0.9
-      const midLean = leanAt(scene, 400) // u ≈ 0.5
-      expect(lateLean).toBeLessThan(midLean)
+      const earlyLean = leanAt(scene, 80) // u ≈ 0.1
+      const peakLean = leanAt(scene, 240) // u ≈ 0.3
+      expect(earlyLean).toBeLessThan(peakLean)
+    })
+
+    it(`'${kind}' segment plants upright — u=0.25 lean exceeds u=0.75 lean`, () => {
+      // The figure carries far more lean exploding off the start than
+      // braking into the destination: it plants upright on arrival
+      // rather than tipping forward.
+      const scene = buildSceneWithSingleMovement(kind)
+      const pushLean = leanAt(scene, 200) // u ≈ 0.25
+      const brakeLean = leanAt(scene, 600) // u ≈ 0.75
+      expect(pushLean).toBeGreaterThan(brakeLean)
     })
   }
 })
 
-describe('Athletic lean — non-explosive segments keep the figure upright', () => {
-  // Closeout was promoted to "committed defender" lean in the premium
-  // pass — see ATHLETIC_LEAN_PEAK_RAD_BY_KIND. Repositioning /
-  // off-ball / pass segments still stay upright.
-  for (const kind of ['rotation', 'lift', 'drift', 'stop_ball'] as const) {
+describe('Athletic lean — repositioning segments keep the figure upright', () => {
+  // Closeout was promoted to "committed defender" lean and `rotation`
+  // to a distance-scaled help-sprint lean (both pinned separately
+  // below). Pure repositioning / pass segments still stay upright.
+  for (const kind of ['lift', 'drift', 'stop_ball'] as const) {
     it(`'${kind}' segment never leans the figure (rotation.x stays 0)`, () => {
       const scene = buildSceneWithSingleMovement(kind)
       // Sample across the segment: any sample must be 0.
@@ -186,11 +200,12 @@ describe('Athletic stride bob — explosive segments produce a foot-load cadence
   }
 })
 
-describe('Athletic stride bob — non-explosive segments keep the figure grounded', () => {
-  // Players in non-explosive movements never get tagged for bob, so
-  // position.y stays at the build-time baseline (0 in the test stub,
-  // PLAYER_LIFT in the real builder).
-  for (const kind of ['rotation', 'lift', 'drift'] as const) {
+describe('Athletic stride bob — repositioning segments keep the figure grounded', () => {
+  // Players in pure repositioning movements never get tagged for bob,
+  // so position.y stays at the build-time baseline (0 in the test
+  // stub, PLAYER_LIFT in the real builder). `rotation` is distance-
+  // scaled and pinned in its own block below.
+  for (const kind of ['lift', 'drift'] as const) {
     it(`'${kind}' segment keeps position.y at the build baseline across the segment`, () => {
       const scene = buildSceneWithSingleMovement(kind)
       for (const ms of [100, 400, 700]) {
@@ -198,6 +213,60 @@ describe('Athletic stride bob — non-explosive segments keep the figure grounde
       }
     })
   }
+})
+
+describe('V6-final — help-rotation body language scales with travel distance', () => {
+  // `buildSceneWithSingleMovement` travels {0,10} → {6,4} ≈ 8.5 ft,
+  // which `rotationEffortScale` treats as a full help sprint.
+  it('a sprint-distance rotation leans the figure forward', () => {
+    const scene = buildSceneWithSingleMovement('rotation')
+    const lean = leanAt(scene, 240) // u ≈ 0.3 — peak of the envelope
+    expect(lean).toBeGreaterThan(0.04)
+    expect(lean).toBeLessThan(0.21)
+  })
+
+  it('a sprint-distance rotation produces a stride bob', () => {
+    const scene = buildSceneWithSingleMovement('rotation')
+    const samples = [80, 160, 240, 320, 400, 480, 560, 640, 720].map((ms) =>
+      bobAt(scene, ms),
+    )
+    const peak = Math.max(...samples)
+    expect(peak).toBeGreaterThan(0)
+    expect(peak).toBeLessThan(0.07)
+  })
+
+  // A ~1.4 ft rotation is a controlled defensive adjustment, not a
+  // sprint — the effort scale collapses all of its body english to 0.
+  const slideScene: Scene3D = {
+    ...buildSceneWithSingleMovement('rotation'),
+    movements: [
+      {
+        id: 'slide',
+        playerId: 'user',
+        kind: 'rotation',
+        to: { x: 1.4, z: 10 },
+        durationMs: 800,
+      },
+    ],
+  }
+
+  it('a short-slide rotation keeps the figure upright', () => {
+    for (const ms of [80, 240, 400, 600]) {
+      expect(leanAt(slideScene, ms), `slide@${ms}ms`).toBeCloseTo(0, 6)
+    }
+  })
+
+  it('a short-slide rotation produces no bob', () => {
+    for (const ms of [100, 400, 700]) {
+      expect(bobAt(slideScene, ms), `slide@${ms}ms`).toBeCloseTo(0, 6)
+    }
+  })
+
+  it('rotation body language is deterministic across controllers', () => {
+    const a = leanAt(buildSceneWithSingleMovement('rotation'), 240)
+    const b = leanAt(buildSceneWithSingleMovement('rotation'), 240)
+    expect(a).toBeCloseTo(b, 12)
+  })
 })
 
 describe('V4-B — Lateral cornering bank during angle-cuts', () => {
@@ -224,7 +293,7 @@ describe('V4-B — Lateral cornering bank during angle-cuts', () => {
     const scene = buildLateralCutScene('right')
     const { motion, players } = makeMotion(scene)
     motion.tick(0)
-    motion.tick(0 + 250 + 400) // u ≈ 0.5 — peak envelope
+    motion.tick(0 + 250 + 240) // u ≈ 0.3 — peak of the front-loaded envelope
     expect(players.get('user')!.rotation.z).toBeLessThan(0)
   })
 
@@ -232,7 +301,7 @@ describe('V4-B — Lateral cornering bank during angle-cuts', () => {
     const scene = buildLateralCutScene('left')
     const { motion, players } = makeMotion(scene)
     motion.tick(0)
-    motion.tick(0 + 250 + 400)
+    motion.tick(0 + 250 + 240)
     expect(players.get('user')!.rotation.z).toBeGreaterThan(0)
   })
 
@@ -256,7 +325,8 @@ describe('V4-B — Lateral cornering bank during angle-cuts', () => {
     const scene = buildLateralCutScene('right')
     const { motion, players } = makeMotion(scene)
     motion.tick(0)
-    // Sample across segment; the deepest bank shows around mid-segment.
+    // Sample across the segment; the deepest bank shows in the front
+    // third where the front-loaded envelope peaks.
     let maxAbs = 0
     for (let ms = 80; ms <= 720; ms += 40) {
       motion.tick(0 + 250 + ms)
