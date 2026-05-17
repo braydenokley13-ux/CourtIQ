@@ -691,6 +691,7 @@ export const proseBankSchema = z
 
 export type ProseBankEntry = z.infer<typeof proseBankEntrySchema>
 export type ProseBank = z.infer<typeof proseBankSchema>
+export type ChoiceQuality = z.infer<typeof choiceQualitySchema>
 
 // -----------------------------------------------------------------------------
 // Inferred types
