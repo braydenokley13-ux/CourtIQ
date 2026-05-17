@@ -30,6 +30,11 @@
       "prerequisites": []
     },
     {
+      "id": "AOR-T1-06",
+      "file": "AOR-T1-06.json",
+      "prerequisites": []
+    },
+    {
       "id": "BDW-T1-01",
       "file": "BDW-T1-01.json",
       "prerequisites": []

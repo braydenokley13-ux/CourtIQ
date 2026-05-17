@@ -591,6 +591,10 @@ function lintCameraPreset(loaded: Loaded[]): Issue[] {
     const expected = DECODER_CAMERA_DEFAULTS[template.decoder_tag]
     if (!expected) continue
     if (template.scene.camera !== expected) {
+      // A `tactical.notes` entry that mentions the camera is the
+      // author's signed-off justification for the override — honor it
+      // and stay quiet, per the warning message's own instruction.
+      if (/camera/i.test(template.tactical.notes ?? '')) continue
       issues.push({
         severity: 'warn',
         message:

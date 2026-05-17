@@ -8,6 +8,11 @@ on:
 
 env:
   DATABASE_URL: "postgresql://postgres:password@localhost:5432/courtiq_ci"
+  # Prisma's schema declares `directUrl = env("DIRECT_URL")`; `prisma
+  # validate` resolves every referenced env var, so it must be present
+  # even though CI never opens a connection. Placeholder, same as
+  # DATABASE_URL.
+  DIRECT_URL: "postgresql://postgres:password@localhost:5432/courtiq_ci"
   NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
   NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-anon-key"
   NEXT_PUBLIC_POSTHOG_KEY: "phc_placeholder"
