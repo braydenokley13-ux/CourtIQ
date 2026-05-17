@@ -491,7 +491,14 @@ export const templateSchema = z.object({
 
 export const variantChoiceCopySchema = z.object({
   label: z.string().min(1).max(120),
-  feedback_text: z.string().min(1),
+  /**
+   * Player-facing feedback for this choice. Optional: when omitted, the
+   * materializer resolves it from the template's `prose-bank.json`
+   * (opt-in fallback — see scripts/materialize-templates.ts and
+   * `_proseBankResolve.ts`). Hand-authored prose always wins; the bank
+   * only fills choices the author left blank.
+   */
+  feedback_text: z.string().min(1).optional(),
   partial_feedback_text: z.string().min(1).optional(),
 })
 
@@ -637,13 +644,50 @@ export const proseBankEntrySchema = z
     }
   })
 
-export const proseBankSchema = z.object({
-  template: z
-    .string()
-    .regex(/^[A-Z]{3,4}\.[a-z][a-z0-9-]*$/, 'template id must be DEC.kebab'),
-  version: z.number().int().positive().default(1),
-  entries: z.array(proseBankEntrySchema).min(1).max(24),
-})
+export const proseBankSchema = z
+  .object({
+    template: z
+      .string()
+      .regex(/^[A-Z]{3,4}\.[a-z][a-z0-9-]*$/, 'template id must be DEC.kebab'),
+    version: z.number().int().positive().default(1),
+    entries: z.array(proseBankEntrySchema).min(1).max(24),
+    /**
+     * Concrete slot values, keyed by canonical slot identifier. When a
+     * variant omits a choice's `feedback_text`, the materializer fills
+     * a skeleton from `entries` with these values. Optional: a bank
+     * with no `slots` is data-only and cannot back a feedback fallback.
+     */
+    slots: z.record(z.string(), z.string().min(1)).optional(),
+  })
+  .superRefine((bank, ctx) => {
+    if (!bank.slots) return
+    // Slot keys must be canonical identifiers.
+    for (const key of Object.keys(bank.slots)) {
+      if (!PROSE_BANK_SLOT_ID_SET.has(key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['slots', key],
+          message: `Unknown prose-bank slot "${key}". See PROSE_BANK_SLOT_IDS in _proseBankSlots.ts.`,
+        })
+      }
+    }
+    // Every slot referenced by a skeleton must have a value, otherwise
+    // a feedback fallback would render an unresolved `{token}`.
+    for (let e = 0; e < bank.entries.length; e++) {
+      const entry = bank.entries[e] as ProseBankEntry
+      for (let s = 0; s < entry.skeletons.length; s++) {
+        for (const slot of findProseBankSlotsIn(entry.skeletons[s] as string)) {
+          if (PROSE_BANK_SLOT_ID_SET.has(slot) && !(slot in bank.slots)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['entries', e, 'skeletons', s],
+              message: `Skeleton references slot "{${slot}}" but bank.slots has no value for it.`,
+            })
+          }
+        }
+      }
+    }
+  })
 
 export type ProseBankEntry = z.infer<typeof proseBankEntrySchema>
 export type ProseBank = z.infer<typeof proseBankSchema>
