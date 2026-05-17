@@ -1,0 +1,61 @@
+{
+  "id": "ESC-T1-06",
+  "template": "ESC.weak-corner-drift",
+  "status": "LIVE",
+  "version": 1,
+
+  "copy": {
+    "title": "Drift Wider — Left Wing, No Hip Arrow",
+    "prompt": "Other side, no hip cue. Read the stunt and slide.",
+    "game_context": "4-on-4 half-court shell. PG threatens a middle drive from the right slot. You are the left wing — the weak side. Your defender stunts off you, and the on-screen hip arrow is gone.",
+    "possession_setup": "The ball is at the right slot. You are the left wing. Your defender (x3) is one pass away and leans toward the ball as the PG drives.",
+    "decision_moment": "x3 takes a hop at the ball. No hip arrow — read his chest and his head. The wider spot on the left-wing arc is open.",
+    "visible_cue": "x3's hands are at the ball and his head is on the drive. Your sideline gap is empty.",
+    "best_read": "Slide wider on the left-wing arc. The kickout arrives before he can stop watching the drive.",
+    "explanation_md": "**Same stunt, other side, fewer hints.** The hip arrow is gone — the cue is still the same. Look at his chest. If it's pointed at the ball instead of at you, he's helping. Slide wider the instant you see it. Real defenders don't paint arrows on themselves; you read the body.",
+
+    "feedback": {
+      "correct": "Good read. You picked it up from his chest, not from an arrow. The kickout was clean.",
+      "partial": "Fade kept spacing — the wider wing was still the cleaner catch.",
+      "wrong": "Look at his chest. If it's on the ball instead of on you, he's helping. Move wider."
+    },
+
+    "self_review_checklist": [
+      "Did I read his chest, not wait for the arrow?",
+      "Did I move the instant he leaned?",
+      "Did I drift along the arc, not into the paint?",
+      "Did I keep my feet ready for the catch?"
+    ],
+
+    "acceptable_reads": [
+      "Fade to the corner — keeps spacing but trades the clean wing shot for a contested corner three."
+    ],
+    "bad_reads": [
+      "Stand still — he recovers before the pass.",
+      "Cut into the paint — collides with the low man."
+    ],
+
+    "choices": {
+      "drift_wider_on_arc": {
+        "label": "Slide one step wider on the wing arc."
+      },
+      "fade_to_corner": {
+        "label": "Fade down to the corner."
+      },
+      "stand_in_wing": {
+        "label": "Hold the wing and call for the ball."
+      },
+      "cut_into_paint": {
+        "label": "Cut into the paint to fill the rim."
+      }
+    }
+  },
+
+  "variation": {
+    "user_slot": "drifter",
+    "mirror": true,
+    "disguise": "light",
+    "clock_pressure": "none",
+    "overrides": { "players": [], "movements": [] }
+  }
+}
