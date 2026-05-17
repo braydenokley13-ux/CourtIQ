@@ -1,20 +1,25 @@
 {
   "template": "BDW.denied-wing",
   "version": 1,
+  "slots": {
+    "cue_atom_short_desc": "puts his hand in the passing lane",
+    "action_short_desc": "back-cut behind him to the rim",
+    "decoder_micro_explainer": "He is guarding the pass, not the rim, so the space behind him is open."
+  },
   "entries": [
     {
       "quality": "best",
       "tone": "encouraging",
       "skeletons": [
-        "That's the read. He {cue_atom_short_desc}, so you {action_short_desc}.",
-        "You cut on the denial. {decoder_micro_explainer}"
+        "That's the read — he {cue_atom_short_desc}, so you {action_short_desc}.",
+        "You read it. {decoder_micro_explainer}"
       ]
     },
     {
       "quality": "best",
       "tone": "neutral",
       "skeletons": [
-        "He {cue_atom_short_desc}, so you {action_short_desc} to the rim.",
+        "He {cue_atom_short_desc}, so you {action_short_desc}.",
         "{decoder_micro_explainer}"
       ]
     },
@@ -22,21 +27,21 @@
       "quality": "best",
       "tone": "corrective",
       "skeletons": [
-        "Right read, a step slow. When he {cue_atom_short_desc}, {action_short_desc}."
+        "Right read, a step late. When he {cue_atom_short_desc}, {action_short_desc}."
       ]
     },
     {
       "quality": "acceptable",
       "tone": "encouraging",
       "skeletons": [
-        "The {partial_choice_short_desc} kept the play alive. The layup behind him was the better one."
+        "That keeps the play alive. The cleaner read was to {action_short_desc}."
       ]
     },
     {
       "quality": "acceptable",
       "tone": "neutral",
       "skeletons": [
-        "The {partial_choice_short_desc} keeps the possession. When you {action_short_desc}, the layup is there."
+        "That works, but it gives up the layup. He {cue_atom_short_desc} — {action_short_desc}."
       ]
     },
     {
@@ -50,15 +55,15 @@
       "quality": "wrong",
       "tone": "neutral",
       "skeletons": [
-        "The {wrong_choice_short_desc} walks into the defender. {decoder_micro_explainer}"
+        "That loses the possession. {decoder_micro_explainer}"
       ]
     },
     {
       "quality": "wrong",
       "tone": "corrective",
       "skeletons": [
-        "Watch his body. He {cue_atom_short_desc}; {action_short_desc}, not the {wrong_choice_short_desc}.",
-        "The {wrong_choice_short_desc} lets him stay attached. {action_short_desc} to get behind him."
+        "Wrong read. He {cue_atom_short_desc}, so {action_short_desc}.",
+        "Watch his body. He {cue_atom_short_desc} — {action_short_desc}."
       ]
     }
   ]

@@ -1,20 +1,25 @@
 {
   "template": "ESC.weak-corner-drift",
   "version": 1,
+  "slots": {
+    "cue_atom_short_desc": "stunts at the ball",
+    "action_short_desc": "drift wider on the arc",
+    "decoder_micro_explainer": "His stunt is short, so the wider catch opens before he can recover."
+  },
   "entries": [
     {
       "quality": "best",
       "tone": "encouraging",
       "skeletons": [
-        "That's the read. He {cue_atom_short_desc}, so you {action_short_desc}.",
-        "You moved on the stunt. {decoder_micro_explainer}"
+        "That's the read — he {cue_atom_short_desc}, so you {action_short_desc}.",
+        "You read it. {decoder_micro_explainer}"
       ]
     },
     {
       "quality": "best",
       "tone": "neutral",
       "skeletons": [
-        "He {cue_atom_short_desc}, so you {action_short_desc}. The pass beat his closeout.",
+        "He {cue_atom_short_desc}, so you {action_short_desc}.",
         "{decoder_micro_explainer}"
       ]
     },
@@ -22,43 +27,43 @@
       "quality": "best",
       "tone": "corrective",
       "skeletons": [
-        "Right read, a beat slow. The moment he {cue_atom_short_desc}, {action_short_desc}."
+        "Right read, a beat late. When he {cue_atom_short_desc}, {action_short_desc}."
       ]
     },
     {
       "quality": "acceptable",
       "tone": "encouraging",
       "skeletons": [
-        "The {partial_choice_short_desc} held the spacing. The wider catch was the cleaner look."
+        "That keeps the play alive. The cleaner read was to {action_short_desc}."
       ]
     },
     {
       "quality": "acceptable",
       "tone": "neutral",
       "skeletons": [
-        "The {partial_choice_short_desc} keeps the possession. When you {action_short_desc} instead, his closeout has further to travel."
+        "That works, but it gives up the better look. He {cue_atom_short_desc} — {action_short_desc}."
       ]
     },
     {
       "quality": "acceptable",
       "tone": "corrective",
       "skeletons": [
-        "You took the safe spot. He {cue_atom_short_desc} — {action_short_desc} and the better shot was there."
+        "You took the safe option. He {cue_atom_short_desc} — {action_short_desc}."
       ]
     },
     {
       "quality": "wrong",
       "tone": "neutral",
       "skeletons": [
-        "The {wrong_choice_short_desc} gave him time to recover. {decoder_micro_explainer}"
+        "That loses the advantage. {decoder_micro_explainer}"
       ]
     },
     {
       "quality": "wrong",
       "tone": "corrective",
       "skeletons": [
-        "Watch his body. He {cue_atom_short_desc}; {action_short_desc} instead of the {wrong_choice_short_desc}.",
-        "The {wrong_choice_short_desc} hands the half-second back. {action_short_desc} keeps it."
+        "Wrong read. He {cue_atom_short_desc}, so {action_short_desc}.",
+        "Watch his body. He {cue_atom_short_desc} — {action_short_desc}."
       ]
     }
   ]
