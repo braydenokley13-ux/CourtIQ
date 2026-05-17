@@ -425,6 +425,13 @@ export const templateSchema = z.object({
         'review-each-mirror',
       ])
       .default('symmetric'),
+    /**
+     * Free-text authoring notes. Optional. When the template overrides
+     * a decoder's canonical camera preset, a note mentioning "camera"
+     * here records the rationale and suppresses the camera-preset drift
+     * warning in lint-variants (see `lintCameraPreset`).
+     */
+    notes: z.string().min(1).max(500).optional(),
   }),
 
   scene: z.object({

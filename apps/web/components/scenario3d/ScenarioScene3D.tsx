@@ -395,9 +395,9 @@ function AuthoredOverlayBridge({
     // ctrlEpoch is intentionally in the dep list — it bumps when
     // the rebuild effect installs a new controller so we reapply
     // the current phase without waiting for `replayPhase` to change.
-    // consequenceOverlays is read for `hasConsequenceOverlays`; it is
-    // memoized off `scene.consequenceOverlays` so it only changes in
-    // lockstep with `scene`.
+    // `consequenceOverlays` is memoized off `scene.consequenceOverlays`,
+    // so it can only change when `scene` already changed — listing it
+    // satisfies exhaustive-deps without adding a new re-run trigger.
   }, [replayPhase, scene, ctrlEpoch, consequenceOverlays])
 
   useFrame((state) => {

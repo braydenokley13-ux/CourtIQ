@@ -53,5 +53,9 @@ coverage/
 # Playwright auth state (contains session cookies — never commit)
 .auth/
 
-# Claude Code agent worktrees (transient)
-.claude/
+# Claude Code: ignore transient agent state, but keep the committed
+# project config (SessionStart hook + settings) under version control.
+.claude/*
+!.claude/settings.json
+!.claude/hooks
+!.claude/hooks/**

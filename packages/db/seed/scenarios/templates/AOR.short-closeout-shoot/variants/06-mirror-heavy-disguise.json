@@ -1,0 +1,66 @@
+{
+  "id": "AOR-T1-06",
+  "template": "AOR.short-closeout-shoot",
+  "status": "LIVE",
+  "version": 1,
+
+  "copy": {
+    "title": "Catch-and-Shoot — Left Wing, Decide Fast",
+    "prompt": "Other side, no arrows, less time. Decide on the catch.",
+    "game_context": "4-on-4 half-court shell. Ball reverses from the slot to the left wing. Your defender was helping — no hip arrow, no foot arrow, and the read window is compressed. You have to decide the instant the ball touches your hands.",
+    "possession_setup": "You are the left wing. Your defender (x2) was helping one pass away in the paint. He closes out short, but the only cue left on screen is where his eyes are pointed.",
+    "decision_moment": "The ball arrives. x2 is short and decelerating, but you get a much smaller window to read it. Eyes on the ball, hands not up, cushion open.",
+    "visible_cue": "x2's eyes are still on the ball and his hands are at his hips. The cushion is open — but only for a beat.",
+    "best_read": "Catch in the pocket and release in rhythm. With no arrows and a short window, trust the cushion: short closeout means shoot, and shoot now.",
+    "explanation_md": "**Advantage or Reset — game speed, other side.** Left wing or right, this is the read with the training wheels off: no arrows, and the window is tight. You don't get time to think it through. Train the instinct — if the closeout is short and his hands aren't up, the ball goes up off the catch. Hesitate and the cushion is gone. **See short. Shoot. No extra dribble.**",
+
+    "feedback": {
+      "correct": "Great read at speed. Left wing, no arrows, tight window — you trusted the short closeout and shot it.",
+      "partial": "The drive scores sometimes, but at this speed the open shot is the play. Trust the cushion.",
+      "wrong": "Too slow. Short closeout means shoot — decide the instant the ball lands."
+    },
+
+    "self_review_checklist": [
+      "Did I decide the moment the ball touched my hands?",
+      "Did I trust the cushion without waiting for an arrow?",
+      "Did I catch in my shooting pocket?",
+      "Did I avoid the extra dribble?"
+    ],
+
+    "acceptable_reads": [
+      "Rip and drive baseline if the defender is flying past — still a good shot, but slower than the catch-and-shoot the closeout gave you."
+    ],
+    "bad_reads": [
+      "Pass back to the point — the window is gone before the ball gets there.",
+      "Hold and pump fake — the closeout catches up inside the compressed window."
+    ],
+
+    "choices": {
+      "shoot": {
+        "label": "Shoot it off the catch.",
+        "feedback_text": "Best read. Tight window, no arrows — you trusted the short closeout and released in rhythm."
+      },
+      "rip_and_drive": {
+        "label": "Rip and drive past him.",
+        "feedback_text": "Okay. The drive can score, but at game speed the open shot off the catch was the faster, cleaner play.",
+        "partial_feedback_text": "The drive works sometimes — but the shot was right there. Trust the cushion."
+      },
+      "pass_back": {
+        "label": "Pass it back to the point.",
+        "feedback_text": "Not yet. The window is too short to pass up. Shoot the open look."
+      },
+      "pump_fake_hold": {
+        "label": "Hold the ball and pump fake.",
+        "feedback_text": "Not yet. In a compressed window the pump fake just lets him recover. Shoot on the catch."
+      }
+    }
+  },
+
+  "variation": {
+    "user_slot": "shooter",
+    "mirror": true,
+    "disguise": "heavy",
+    "clock_pressure": "none",
+    "overrides": { "players": [], "movements": [] }
+  }
+}
