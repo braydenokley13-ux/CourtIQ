@@ -274,6 +274,9 @@ export class TeachingOverlayController {
     halo: THREE.Mesh
     haloMaterial: THREE.MeshBasicMaterial
     baseOpacity: number
+    /** The halo's fade-in entry, so the pulse loop can ramp the
+     *  pulse from 0 instead of popping to full on phase enter. */
+    fade: AnimatedFadeIn
   }> = []
   private scene: Scene3D
   private phase: OverlayPhase = 'hidden'
@@ -691,12 +694,15 @@ export class TeachingOverlayController {
         b.arrowhead.visible = false
       }
     }
-    // Help pulse (≈1 Hz). Driven independently of fade-ins so the
-    // halo continues to pulse after the fade-in finishes.
+    // Help pulse (≈1 Hz). The pulse overwrites the per-tick fade
+    // loop's write to the same material, so it has to apply the
+    // fade-in envelope itself — otherwise the halo pops straight to
+    // full pulse on phase enter instead of ramping up.
     if (this.animatedHelpPulses.length > 0) {
       const pulse = 0.55 + 0.45 * Math.sin(t * Math.PI * 2 * HELP_PULSE_HZ)
       for (const p of this.animatedHelpPulses) {
-        p.haloMaterial.opacity = p.baseOpacity * pulse
+        p.haloMaterial.opacity =
+          p.baseOpacity * pulse * fadeFactor(p.fade, this.phase, nowMs)
       }
     }
 
@@ -1545,17 +1551,19 @@ export class TeachingOverlayController {
     // shares the post visual treatment (full opacity + role label).
     const isPostLike = phase === 'post' || phase === 'consequence'
     const baseOpacity = isPostLike ? 0.7 : 0.4
-    this.animatedFades.push({
+    const haloFade: AnimatedFadeIn = {
       material: ringMat,
       targetOpacity: baseOpacity,
       durationMs: FADE_DEFENDER_BODY_MS,
       startMs: null,
       phase,
-    })
+    }
+    this.animatedFades.push(haloFade)
     this.animatedHelpPulses.push({
       halo: ring,
       haloMaterial: ringMat,
       baseOpacity,
+      fade: haloFade,
     })
 
     if (isPostLike) {
@@ -1984,6 +1992,25 @@ function easeOutCubic(u: number): number {
   if (u >= 1) return 1
   const inv = 1 - u
   return 1 - inv * inv * inv
+}
+
+/**
+ * Phase E — 0→1 fade-in progress for an AnimatedFadeIn entry. Returns
+ * 0 before the entry's phase is active or its stage-in delay elapses,
+ * 1 once the fade completes, and an eased ramp in between. Lets the
+ * help-pulse loop honour the same fade-in window the fade loop applies.
+ */
+function fadeFactor(
+  f: AnimatedFadeIn,
+  phase: OverlayPhase,
+  nowMs: number,
+): number {
+  if (f.phase !== phase) return 0
+  if (f.startMs === null) return 0
+  const elapsed = nowMs - f.startMs - (f.delayMs ?? 0)
+  if (elapsed < 0) return 0
+  if (elapsed >= f.durationMs) return 1
+  return easeOutCubic(clamp01(elapsed / Math.max(1, f.durationMs)))
 }
 
 function roundedRect(
