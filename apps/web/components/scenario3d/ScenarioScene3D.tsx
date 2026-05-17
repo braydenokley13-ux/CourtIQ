@@ -395,7 +395,10 @@ function AuthoredOverlayBridge({
     // ctrlEpoch is intentionally in the dep list — it bumps when
     // the rebuild effect installs a new controller so we reapply
     // the current phase without waiting for `replayPhase` to change.
-  }, [replayPhase, scene, ctrlEpoch])
+    // consequenceOverlays is read for `hasConsequenceOverlays`; it is
+    // memoized off `scene.consequenceOverlays` so it only changes in
+    // lockstep with `scene`.
+  }, [replayPhase, scene, ctrlEpoch, consequenceOverlays])
 
   useFrame((state) => {
     ctrlRef.current?.tick(state.clock.getElapsedTime() * 1000)
