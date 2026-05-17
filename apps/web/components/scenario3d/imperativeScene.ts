@@ -6097,9 +6097,12 @@ function buildAthleteFigure(
   neckMesh.position.y = ATH_NECK_LENGTH * 0.5
   neckHead.add(neckMesh)
   // Head — single sphere, slight squash for a stylized look. No
-  // facial detail per E4 §4. Tessellation tuned down for the budget.
+  // facial detail per E4 §4. Tessellated round (16 width segments) so
+  // the figure's focal point never reads as a faceted gem from the
+  // broadcast camera; the tris are funded by trimming the invisible
+  // cross-section of the thin uniform trim tori.
   const headMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(ATH_HEAD_R, 8, 6),
+    new THREE.SphereGeometry(ATH_HEAD_R, 16, 8),
     skinMat,
   )
   headMesh.position.y = ATH_NECK_LENGTH + ATH_HEAD_R
@@ -6118,7 +6121,7 @@ function buildAthleteFigure(
     metalness: 0,
   })
   const hairMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(ATH_HEAD_R * 1.04, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.68),
+    new THREE.SphereGeometry(ATH_HEAD_R * 1.04, 12, 6, 0, Math.PI * 2, 0, Math.PI * 0.68),
     hairMat,
   )
   hairMesh.position.y = ATH_NECK_LENGTH + ATH_HEAD_R - 0.04
@@ -6794,7 +6797,10 @@ function upgradePremiumUniform(figure: THREE.Object3D, trimColor: string): void 
     metalness: 0.12,
   })
   const piping = new THREE.Mesh(
-    new THREE.TorusGeometry(ATH_TORSO_TOP_W * 0.46, 0.045, 5, 14),
+    // Tube cross-section kept at 3 radial segments — the trim is 0.045 ft
+    // thick, so its cross-section never reads as faceted; the saved tris
+    // fund a rounder head.
+    new THREE.TorusGeometry(ATH_TORSO_TOP_W * 0.46, 0.045, 3, 14),
     pipingMat,
   )
   piping.rotation.x = Math.PI / 2
@@ -6804,7 +6810,9 @@ function upgradePremiumUniform(figure: THREE.Object3D, trimColor: string): void 
   // Shorts hem band — thin trim ring at the bottom of the shorts so
   // the leg-to-shorts transition reads cleanly.
   const hem = new THREE.Mesh(
-    new THREE.TorusGeometry(ATH_PELVIS_WIDTH * 0.50, 0.04, 5, 14),
+    // 3 radial segments — see the piping note above; a 0.04 ft tube has
+    // no visible cross-section facets at gameplay distance.
+    new THREE.TorusGeometry(ATH_PELVIS_WIDTH * 0.50, 0.04, 3, 14),
     pipingMat,
   )
   hem.rotation.x = Math.PI / 2
