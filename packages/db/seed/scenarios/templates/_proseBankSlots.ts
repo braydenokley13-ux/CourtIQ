@@ -19,11 +19,11 @@
  *      added, the model fills slot values, not free-form sentences,
  *      so generations stay on-voice.
  *
- * This module ships ONLY the vocabulary. The schema lands the bank
- * shape (`_schema.ts`); the scaffolder lands the per-template author
- * starter (`scripts/scaffold-prose-bank.ts`); runtime variant
- * consumption is intentionally deferred (Pack 2 §3.3 explicitly
- * scopes this out).
+ * This module ships the vocabulary. The schema lands the bank shape
+ * (`_schema.ts`); the scaffolder lands the per-template author starter
+ * (`scripts/scaffold-prose-bank.ts`); the resolver (`_proseBankResolve.ts`)
+ * fills skeletons at materialize time when a variant choice omits
+ * `feedback_text` (opt-in fallback).
  *
  * Adding a slot
  * -------------

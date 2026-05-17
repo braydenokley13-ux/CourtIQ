@@ -1,0 +1,66 @@
+{
+  "id": "BDW-T1-03",
+  "template": "BDW.denied-wing",
+  "status": "LIVE",
+  "version": 1,
+
+  "copy": {
+    "title": "Denied Wing Backdoor — No Hip Tell",
+    "prompt": "His hand is in your lane. Read it without the arrow.",
+    "game_context": "4-on-4 half-court shell. Ball reversal from the left slot, 14 on the shot clock. The hip arrow is gone — read his hand and his chest.",
+    "possession_setup": "The ball is at the left slot. You are the right wing. Your defender is denying the reversal — his hand is in the passing lane. No hip arrow this time.",
+    "decision_moment": "Your defender steps into the passing lane, hand extended, chest turning toward the ball. The space behind him is empty.",
+    "visible_cue": "x2's hand is in the lane and his chest is between you and the ball. The lane behind him is open.",
+    "best_read": "Plant the outside foot and back-cut behind x2 to the front of the rim. The passer leads you to the layup before x4 can rotate.",
+    "explanation_md": "**The Backdoor Window — fewer hints.** The hip arrow is gone, but the cue is the same. Look at his hand and his chest. If his hand is in the lane and his chest is turned to the ball, he is guarding the pass, not the basket — the space behind him is open. Take a hard step toward the ball, then cut behind him. Read his body, not your spot.",
+
+    "feedback": {
+      "correct": "Good read. No arrow — you saw his hand in the lane and cut behind him for the layup.",
+      "partial": "Stepping back kept the play alive — but the layup behind him was the read.",
+      "wrong": "Read his hand, not the arrow. Hand in the lane means cut behind him."
+    },
+
+    "self_review_checklist": [
+      "Did I read his hand instead of waiting for an arrow?",
+      "Did I cut behind him, not in front?",
+      "Did I cut hard, like I wanted the layup?",
+      "Did I show my hands at the rim?"
+    ],
+
+    "acceptable_reads": [
+      "V-cut out to a deeper catch point. Possession kept, but the layup window is missed."
+    ],
+    "bad_reads": [
+      "Stay on the wing and call for the ball — defender deflects the reversal.",
+      "Slow front cut — defender rides the route and the window closes."
+    ],
+
+    "choices": {
+      "back_cut_to_rim": {
+        "label": "Cut behind him to the basket.",
+        "feedback_text": "Best read. You read the hand in the lane — the basket was open behind him."
+      },
+      "v_cut_to_deeper_catch": {
+        "label": "Step back out and ask for the ball.",
+        "feedback_text": "Okay. You kept the play alive, but you missed the open layup behind your defender.",
+        "partial_feedback_text": "Stepping back keeps the play alive. The better read was to cut behind him."
+      },
+      "stand_still": {
+        "label": "Stay still and call for the ball.",
+        "feedback_text": "Not yet. His hand is in the way. If you stand still, he steals the pass."
+      },
+      "front_cut": {
+        "label": "Cut in front of the defender.",
+        "feedback_text": "Not yet. Cutting in front lets him follow you. Cut behind him instead."
+      }
+    }
+  },
+
+  "variation": {
+    "user_slot": "cutter",
+    "mirror": false,
+    "disguise": "light",
+    "clock_pressure": "none",
+    "overrides": { "players": [], "movements": [] }
+  }
+}

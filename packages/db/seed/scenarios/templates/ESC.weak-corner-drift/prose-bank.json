@@ -1,10 +1,10 @@
 {
-  "template": "BDW.late-clock-corner-deny",
+  "template": "ESC.weak-corner-drift",
   "version": 1,
   "slots": {
-    "cue_atom_short_desc": "puts his hand in the passing lane",
-    "action_short_desc": "back-cut baseline to the rim",
-    "decoder_micro_explainer": "He is guarding the swing, not the rim, and the clock is too low to wait."
+    "cue_atom_short_desc": "stunts at the ball",
+    "action_short_desc": "drift wider on the arc",
+    "decoder_micro_explainer": "His stunt is short, so the wider catch opens before he can recover."
   },
   "entries": [
     {
@@ -27,35 +27,35 @@
       "quality": "best",
       "tone": "corrective",
       "skeletons": [
-        "Right read, a step late. When he {cue_atom_short_desc}, {action_short_desc}."
+        "Right read, a beat late. When he {cue_atom_short_desc}, {action_short_desc}."
       ]
     },
     {
       "quality": "acceptable",
       "tone": "encouraging",
       "skeletons": [
-        "That keeps the possession. The cleaner read was to {action_short_desc}."
+        "That keeps the play alive. The cleaner read was to {action_short_desc}."
       ]
     },
     {
       "quality": "acceptable",
       "tone": "neutral",
       "skeletons": [
-        "That works, but it spends the clock. He {cue_atom_short_desc} — {action_short_desc}."
+        "That works, but it gives up the better look. He {cue_atom_short_desc} — {action_short_desc}."
       ]
     },
     {
       "quality": "acceptable",
       "tone": "corrective",
       "skeletons": [
-        "You traded the rim for one more bounce of clock. He {cue_atom_short_desc} — {action_short_desc}."
+        "You took the safe option. He {cue_atom_short_desc} — {action_short_desc}."
       ]
     },
     {
       "quality": "wrong",
       "tone": "neutral",
       "skeletons": [
-        "That loses the possession. {decoder_micro_explainer}"
+        "That loses the advantage. {decoder_micro_explainer}"
       ]
     },
     {
@@ -63,7 +63,7 @@
       "tone": "corrective",
       "skeletons": [
         "Wrong read. He {cue_atom_short_desc}, so {action_short_desc}.",
-        "Read his body, not your spot. He {cue_atom_short_desc} — {action_short_desc}."
+        "Watch his body. He {cue_atom_short_desc} — {action_short_desc}."
       ]
     }
   ]

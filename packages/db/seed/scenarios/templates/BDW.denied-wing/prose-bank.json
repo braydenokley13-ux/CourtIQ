@@ -1,10 +1,10 @@
 {
-  "template": "BDW.late-clock-corner-deny",
+  "template": "BDW.denied-wing",
   "version": 1,
   "slots": {
     "cue_atom_short_desc": "puts his hand in the passing lane",
-    "action_short_desc": "back-cut baseline to the rim",
-    "decoder_micro_explainer": "He is guarding the swing, not the rim, and the clock is too low to wait."
+    "action_short_desc": "back-cut behind him to the rim",
+    "decoder_micro_explainer": "He is guarding the pass, not the rim, so the space behind him is open."
   },
   "entries": [
     {
@@ -34,21 +34,21 @@
       "quality": "acceptable",
       "tone": "encouraging",
       "skeletons": [
-        "That keeps the possession. The cleaner read was to {action_short_desc}."
+        "That keeps the play alive. The cleaner read was to {action_short_desc}."
       ]
     },
     {
       "quality": "acceptable",
       "tone": "neutral",
       "skeletons": [
-        "That works, but it spends the clock. He {cue_atom_short_desc} — {action_short_desc}."
+        "That works, but it gives up the layup. He {cue_atom_short_desc} — {action_short_desc}."
       ]
     },
     {
       "quality": "acceptable",
       "tone": "corrective",
       "skeletons": [
-        "You traded the rim for one more bounce of clock. He {cue_atom_short_desc} — {action_short_desc}."
+        "You stepped away from an open rim. He {cue_atom_short_desc} — {action_short_desc}."
       ]
     },
     {
@@ -63,7 +63,7 @@
       "tone": "corrective",
       "skeletons": [
         "Wrong read. He {cue_atom_short_desc}, so {action_short_desc}.",
-        "Read his body, not your spot. He {cue_atom_short_desc} — {action_short_desc}."
+        "Watch his body. He {cue_atom_short_desc} — {action_short_desc}."
       ]
     }
   ]

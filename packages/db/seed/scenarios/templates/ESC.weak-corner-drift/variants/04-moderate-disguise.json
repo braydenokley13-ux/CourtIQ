@@ -1,0 +1,66 @@
+{
+  "id": "ESC-T1-04",
+  "template": "ESC.weak-corner-drift",
+  "status": "LIVE",
+  "version": 1,
+
+  "copy": {
+    "title": "Drift Wider — No Arrows At All",
+    "prompt": "He stunted. No hip arrow, no vision cone. Read the man.",
+    "game_context": "4-on-4 half-court shell. PG threatens a middle drive. You are the weak-side wing. Your defender stunts off you — but the hip arrow and the vision cone are both gone. The only hint left is the help pulse.",
+    "possession_setup": "The ball is at the right slot. You are the left wing. Your defender (x3) is one pass away and steps toward the ball as the PG drives.",
+    "decision_moment": "x3 hops at the ball. No arrow, no cone — just the help pulse and his body. The wider spot on the wing arc is open.",
+    "visible_cue": "x3's weight has shifted toward the ball and the help pulse flickers on him. Your sideline gap is empty.",
+    "best_read": "Slide wider on the wing arc. The kickout arrives before he can climb back out to you.",
+    "explanation_md": "**Same stunt, almost no hints.** The arrow and the cone are both off — all you have left is the help pulse and what his body tells you. Watch his feet and his weight. The instant they shift to the ball, he has committed, and you are open. Slide wider the moment you feel it. This is how the read looks in a real game: nobody marks the help for you, so you learn to feel it.",
+
+    "feedback": {
+      "correct": "Good read. No arrows, no cone — you felt the stunt and slid wider. Clean kickout.",
+      "partial": "Fade kept spacing — the wider wing was still the cleaner catch.",
+      "wrong": "Watch his weight. When it shifts to the ball, he is helping. Move wider the second it does."
+    },
+
+    "self_review_checklist": [
+      "Did I read his weight shift, not wait for a marker?",
+      "Did I move the instant he committed to the ball?",
+      "Did I drift along the arc, not into the paint?",
+      "Did I keep my feet ready for the catch?"
+    ],
+
+    "acceptable_reads": [
+      "Fade to the corner — keeps spacing but trades the clean wing shot for a contested corner three."
+    ],
+    "bad_reads": [
+      "Stand still — he recovers before the pass.",
+      "Cut into the paint — collides with the low man."
+    ],
+
+    "choices": {
+      "drift_wider_on_arc": {
+        "label": "Slide one step wider on the wing arc.",
+        "feedback_text": "Best read. You felt the stunt off his weight alone. The kickout was clean."
+      },
+      "fade_to_corner": {
+        "label": "Fade down to the corner.",
+        "feedback_text": "Okay. Corner relocation kept spacing, but the wider wing was the cleaner shot.",
+        "partial_feedback_text": "Fading kept spacing — the wider wing was the cleaner shot."
+      },
+      "stand_in_wing": {
+        "label": "Hold the wing and call for the ball.",
+        "feedback_text": "Not yet. The stunt window is short. Standing still lets him recover."
+      },
+      "cut_into_paint": {
+        "label": "Cut into the paint to fill the rim.",
+        "feedback_text": "Not yet. The low man is already in the lane. Widen the kickout instead."
+      }
+    }
+  },
+
+  "variation": {
+    "user_slot": "drifter",
+    "mirror": false,
+    "disguise": "moderate",
+    "clock_pressure": "none",
+    "overrides": { "players": [], "movements": [] }
+  }
+}

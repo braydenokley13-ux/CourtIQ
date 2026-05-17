@@ -141,7 +141,7 @@
         { "kind": "defender_hip_arrow", "onSlot": "stunt_def" },
         { "kind": "defender_vision_cone", "onSlot": "stunt_def" }
       ],
-      "difficultyBump": 1
+      "difficultyBump": 2
     }
   },
 

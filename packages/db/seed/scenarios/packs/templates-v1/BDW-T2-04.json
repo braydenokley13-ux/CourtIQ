@@ -1,0 +1,526 @@
+[
+  {
+    "id": "BDW-T2-04",
+    "version": 1,
+    "status": "LIVE",
+    "title": "Late-Clock Corner Backdoor — Left Side, No Hip Tell",
+    "category": "OFFENSE",
+    "decoder_tag": "BACKDOOR_WINDOW",
+    "concept_tags": [
+      "reading_denial",
+      "off_ball_movement",
+      "timing"
+    ],
+    "sub_concepts": [
+      "backdoor_cut",
+      "denial_read",
+      "shot_clock_pressure",
+      "baseline_back_cut",
+      "cue:hand_in_lane",
+      "tpl:BDW.late-clock-corner-deny",
+      "sig:mirror|slot:corner_shooter|d:4|disg:light|dh:r[defender_hip_arrow|deny_def]b1s0h0|clk:shot_clock"
+    ],
+    "difficulty": 4,
+    "user_role": "strong_corner_shooter",
+    "game_context": "4-on-4 half-court. Ball at the top of the key, 7 on the shot clock. Defense is denying the swing to the left corner — the hip arrow is gone, so the read sits on the hand alone.",
+    "possession_setup": "The ball is at the top of the key. You are in the left corner. x2 is denying the swing with his hand in the lane. No hip arrow this time. Low-man (x4) hovers at the nail.",
+    "decision_moment": "x2's hand is in your passing lane, but the hip arrow is hidden against his body — the cue is the hand alone. Clock at 7. The next read decides the possession.",
+    "visible_cue": "x2's hand is in your lane (no hip tell to back it up). x4 is a step off the nail; the rim corridor is open but will close.",
+    "court_state": {
+      "offense": [
+        {
+          "id": "passer",
+          "x": 340,
+          "y": 140,
+          "role": "ball_handler",
+          "hasBall": true
+        },
+        {
+          "id": "corner_shooter",
+          "x": 30,
+          "y": -20,
+          "role": "strong_corner_shooter",
+          "hasBall": false
+        },
+        {
+          "id": "weak_wing",
+          "x": 430,
+          "y": 90,
+          "role": "weak_wing",
+          "hasBall": false
+        },
+        {
+          "id": "top_slot",
+          "x": 250,
+          "y": 180,
+          "role": "top_slot_relief",
+          "hasBall": false
+        }
+      ],
+      "defense": [
+        {
+          "id": "on_ball_def",
+          "x": 340,
+          "y": 160,
+          "role": "on_ball",
+          "hasBall": false
+        },
+        {
+          "id": "deny_def",
+          "x": 60,
+          "y": 0,
+          "role": "denying_corner_defender",
+          "hasBall": false
+        },
+        {
+          "id": "weak_wing_def",
+          "x": 400,
+          "y": 100,
+          "role": "weak_wing_defender",
+          "hasBall": false
+        },
+        {
+          "id": "low_man",
+          "x": 190,
+          "y": 30,
+          "role": "low_man",
+          "hasBall": false
+        }
+      ],
+      "ball_location": {
+        "x": 340,
+        "y": 140
+      }
+    },
+    "prompt": "Left corner is denied. 7 on the clock. No hip arrow.",
+    "choices": [
+      {
+        "id": "c1",
+        "label": "Rip baseline and back-cut behind him to the rim.",
+        "quality": "best",
+        "feedback_text": "Best read at D4. You took the denial off the hand alone and beat x4 to the rim before the clock could decide.",
+        "order": 1
+      },
+      {
+        "id": "c2",
+        "label": "V-cut up to the wing for a relief catch.",
+        "quality": "acceptable",
+        "feedback_text": "Okay. The relief catch keeps the play alive, but the disguised denial was the layup window you just spent the clock on.",
+        "partial_feedback_text": "Relief keeps the possession — and trades the rim for the clock. Back-cut next time.",
+        "order": 2
+      },
+      {
+        "id": "c3",
+        "label": "Stand in the corner and call for it.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. His hand is already in the lane. Standing still hands him the deflection.",
+        "order": 3
+      },
+      {
+        "id": "c4",
+        "label": "Front-cut up into the paint.",
+        "quality": "wrong",
+        "feedback_text": "Not yet. Front cuts let him stay attached and x4 steps up — the cut dies before it reaches the rim.",
+        "order": 4
+      }
+    ],
+    "best_read": "Rip your outside foot baseline on the hand cue alone, plant, and back-cut hard behind x2 to the front of the rim before x4 rotates up. The lead pass meets you at the rim with the shot clock buying the window.",
+    "acceptable_reads": [
+      "V-cut up to the wing relief — keeps the play alive, but the clock decides on the next bounce."
+    ],
+    "bad_reads": [
+      "Stand in the corner and call for it — x2's hand deflects the entry.",
+      "Front-cut into the paint — x4 steps up and the cut dies at the rim."
+    ],
+    "common_miss_reason": "Players hold the corner spot waiting for the swing because the C&S is the natural finish on a swing-rotation. With the clock under 8, the defender knows the swing is coming and pre-commits to the lane. The cutter has to read that pre-commit and punish it before the clock decides for them.",
+    "why_best_read_works": "The denying defender's hand-in-lane stance is closed off to the rim. A baseline back-cut puts the cutter behind the help-side rotation before x4 can rotate up; the lead pass lands at the rim with the shot clock buying the window.",
+    "decoder_teaching_point": "Late clock + denial = baseline backdoor. The corner is the only catch the defense can't recover to.",
+    "lesson_connection": "backdoor-window",
+    "explanation_md": "**Late-Clock Backdoor — disguised, left side.** D4: the denial is read off the hand alone — the hip arrow is hidden. The cue you trusted at D3 is still there; you just get less of it. x2's hand in the lane means he's guarding the swing, not the rim, and the only catch the defense can't recover to is behind him. **Read the hand. Rip baseline. Cut hard before x4 finishes rotating.**",
+    "feedback": {
+      "correct": "Right read at D4. You took the denial off the hand alone, left side, and beat x4 to the rim.",
+      "partial": "V-cut keeps the play alive — but you spent the clock to do it. The disguised denial was the rim window.",
+      "wrong": "Read the hand, not the hip. The hip is hidden — the hand is the whole cue."
+    },
+    "self_review_checklist": [
+      "Did I read x2's hand alone (no hip arrow this time)?",
+      "Did I rip the outside foot baseline before I committed?",
+      "Did I cut hard enough to beat x4's rotation up from the nail?",
+      "Did I commit before the clock decided for me?"
+    ],
+    "coach_validation": {
+      "level": "low",
+      "status": "approved",
+      "notes": "Pack 2 founder extension of BDW.denied-wing into the strong corner at D3. Inherits the BDW lesson's SME approval; the only novel beat is the late-clock + baseline-back-cut combination, which is universally taught. Re-review at variant promotion to LIVE."
+    },
+    "progression_metadata": {
+      "unlocks": [],
+      "prerequisites": []
+    },
+    "xp_reward": 16,
+    "mastery_weight": 1.2,
+    "render_tier": 1,
+    "media_refs": [],
+    "scene": {
+      "type": "late_clock_corner_backdoor",
+      "court": "half",
+      "camera": "passer_side_three_quarter",
+      "players": [
+        {
+          "id": "passer",
+          "team": "offense",
+          "role": "ball_handler",
+          "label": "PG",
+          "start": {
+            "x": 9,
+            "z": 14
+          },
+          "hasBall": true
+        },
+        {
+          "id": "corner_shooter",
+          "team": "offense",
+          "role": "strong_corner_shooter",
+          "label": "You",
+          "start": {
+            "x": -22,
+            "z": -2
+          },
+          "isUser": true
+        },
+        {
+          "id": "weak_wing",
+          "team": "offense",
+          "role": "weak_wing",
+          "label": "3",
+          "start": {
+            "x": 18,
+            "z": 9
+          }
+        },
+        {
+          "id": "top_slot",
+          "team": "offense",
+          "role": "top_slot_relief",
+          "label": "4",
+          "start": {
+            "x": 0,
+            "z": 18
+          }
+        },
+        {
+          "id": "on_ball_def",
+          "team": "defense",
+          "role": "on_ball",
+          "label": "x1",
+          "start": {
+            "x": 9,
+            "z": 16
+          }
+        },
+        {
+          "id": "deny_def",
+          "team": "defense",
+          "role": "denying_corner_defender",
+          "label": "x2",
+          "start": {
+            "x": -19,
+            "z": 0
+          }
+        },
+        {
+          "id": "weak_wing_def",
+          "team": "defense",
+          "role": "weak_wing_defender",
+          "label": "x3",
+          "start": {
+            "x": 15,
+            "z": 10
+          }
+        },
+        {
+          "id": "low_man",
+          "team": "defense",
+          "role": "low_man",
+          "label": "x4",
+          "start": {
+            "x": -6,
+            "z": 3
+          }
+        }
+      ],
+      "ball": {
+        "start": {
+          "x": 9,
+          "z": 14
+        },
+        "holderId": "passer"
+      },
+      "movements": [
+        {
+          "id": "passer_jab_sweep",
+          "playerId": "passer",
+          "kind": "jab",
+          "to": {
+            "x": 7,
+            "z": 14
+          },
+          "delayMs": 0,
+          "durationMs": 400,
+          "caption": "PG jabs into a swing"
+        },
+        {
+          "id": "deny_settle_into_lane",
+          "playerId": "deny_def",
+          "kind": "rotation",
+          "to": {
+            "x": -18,
+            "z": 1
+          },
+          "delayMs": 500,
+          "durationMs": 700,
+          "caption": "x2 pre-commits to the lane"
+        },
+        {
+          "id": "user_show_baseline",
+          "playerId": "corner_shooter",
+          "kind": "lift",
+          "to": {
+            "x": -22,
+            "z": -1
+          },
+          "delayMs": 200,
+          "durationMs": 800
+        }
+      ],
+      "answerDemo": [
+        {
+          "id": "user_jab_show",
+          "playerId": "corner_shooter",
+          "kind": "jab",
+          "to": {
+            "x": -23,
+            "z": 0
+          },
+          "delayMs": 0,
+          "durationMs": 220
+        },
+        {
+          "id": "user_baseline_sneak",
+          "playerId": "corner_shooter",
+          "kind": "baseline_sneak",
+          "to": {
+            "x": -6,
+            "z": -1
+          },
+          "delayMs": 80,
+          "durationMs": 720
+        },
+        {
+          "id": "user_back_cut_finish",
+          "playerId": "corner_shooter",
+          "kind": "back_cut",
+          "to": {
+            "x": -1,
+            "z": 0.5
+          },
+          "delayMs": 0,
+          "durationMs": 360
+        },
+        {
+          "id": "passer_lead_baseline",
+          "playerId": "ball",
+          "kind": "pass",
+          "to": {
+            "x": -1,
+            "z": 0.5
+          },
+          "delayMs": 840,
+          "durationMs": 540
+        },
+        {
+          "id": "user_catch_at_rim",
+          "playerId": "corner_shooter",
+          "kind": "lift",
+          "to": {
+            "x": -1,
+            "z": 0.5
+          },
+          "delayMs": 0,
+          "durationMs": 100
+        }
+      ],
+      "freezeMarker": {
+        "kind": "atMs",
+        "atMs": 1500
+      },
+      "wrongDemos": [
+        {
+          "choiceId": "c2",
+          "caption": "You popped to the wing — clock expired, no shot.",
+          "movements": [
+            {
+              "id": "user_v_cut",
+              "playerId": "corner_shooter",
+              "kind": "cut",
+              "to": {
+                "x": -19,
+                "z": 6
+              },
+              "delayMs": 0,
+              "durationMs": 700
+            },
+            {
+              "id": "deny_ride_to_wing",
+              "playerId": "deny_def",
+              "kind": "rotation",
+              "to": {
+                "x": -18,
+                "z": 6
+              },
+              "delayMs": 100,
+              "durationMs": 700
+            },
+            {
+              "id": "passer_late_swing",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": {
+                "x": -19,
+                "z": 6
+              },
+              "delayMs": 700,
+              "durationMs": 600
+            }
+          ]
+        },
+        {
+          "choiceId": "c3",
+          "caption": "x2 deflected the corner pass.",
+          "movements": [
+            {
+              "id": "passer_force_corner",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": {
+                "x": -22,
+                "z": -2
+              },
+              "delayMs": 0,
+              "durationMs": 480
+            },
+            {
+              "id": "deny_deflect",
+              "playerId": "deny_def",
+              "kind": "rotation",
+              "to": {
+                "x": -20,
+                "z": -1
+              },
+              "delayMs": 80,
+              "durationMs": 300
+            },
+            {
+              "id": "ball_loose_baseline",
+              "playerId": "ball",
+              "kind": "pass",
+              "to": {
+                "x": -25,
+                "z": -3
+              },
+              "delayMs": 280,
+              "durationMs": 360
+            }
+          ]
+        },
+        {
+          "choiceId": "c4",
+          "caption": "x4 rotated up; the cut died in the lane.",
+          "movements": [
+            {
+              "id": "user_front_cut",
+              "playerId": "corner_shooter",
+              "kind": "cut",
+              "to": {
+                "x": -8,
+                "z": 5
+              },
+              "delayMs": 0,
+              "durationMs": 800
+            },
+            {
+              "id": "low_man_step_up",
+              "playerId": "low_man",
+              "kind": "rotation",
+              "to": {
+                "x": -7,
+                "z": 5
+              },
+              "delayMs": 200,
+              "durationMs": 700
+            }
+          ]
+        }
+      ],
+      "preAnswerOverlays": [
+        {
+          "kind": "defender_hand_in_lane",
+          "playerId": "deny_def"
+        }
+      ],
+      "postAnswerOverlays": [
+        {
+          "kind": "passing_lane_blocked",
+          "from": "passer",
+          "to": "corner_shooter"
+        },
+        {
+          "kind": "open_space_region",
+          "anchor": {
+            "x": -4,
+            "z": 0
+          },
+          "radiusFt": 4
+        },
+        {
+          "kind": "drive_cut_preview",
+          "playerId": "corner_shooter",
+          "path": [
+            {
+              "x": -22,
+              "z": -2
+            },
+            {
+              "x": -23,
+              "z": 0
+            },
+            {
+              "x": -6,
+              "z": -1
+            },
+            {
+              "x": -1,
+              "z": 0.5
+            }
+          ]
+        },
+        {
+          "kind": "timing_pulse",
+          "anchor": {
+            "x": -1,
+            "z": 0.5
+          },
+          "durationMs": 600
+        }
+      ],
+      "timingOverrides": {
+        "cognitionHoldMs": 1200,
+        "cueRepaintHoldWrongMs": 600
+      }
+    },
+    "_generated": {
+      "template": "BDW.late-clock-corner-deny",
+      "signature": "mirror|slot:corner_shooter|d:4|disg:light|dh:r[defender_hip_arrow|deny_def]b1s0h0|clk:shot_clock"
+    }
+  }
+]
