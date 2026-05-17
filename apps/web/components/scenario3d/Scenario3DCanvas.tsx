@@ -299,6 +299,11 @@ export function Scenario3DCanvas({
   // as the dust motes (build-once, animate via in-place mutation,
   // dispose on unmount). High-tier only.
   const floorSparklesRef = useRef<FloorSparkles | null>(null)
+  // Accessibility — mirror of the `prefers-reduced-motion` state into a
+  // ref so the parent rAF loop (whose effect does not depend on the
+  // reactive value) can consult the latest preference each frame without
+  // a stale closure. Kept in sync by the effect below.
+  const reducedMotionRef = useRef<boolean>(false)
   // Polish pass: tiny decaying camera shake triggered on pass-arrival
   // events. Applied to camera.position AFTER CameraController.tick so
   // it offsets the controller's resolved framing for a few frames and
@@ -481,6 +486,9 @@ export function Scenario3DCanvas({
   )
 
   const reducedMotion = useReducedMotion()
+  useEffect(() => {
+    reducedMotionRef.current = reducedMotion
+  }, [reducedMotion])
 
   // Resolved camera mode: prop wins over URL param wins over 'auto'.
   const activeCameraMode: CameraMode = cameraModeProp ?? cameraModeState
@@ -957,16 +965,23 @@ export function Scenario3DCanvas({
             }
           }
 
+          // Accessibility — when the viewer prefers reduced motion, the
+          // ambient effects (drifting dust, twinkling sparkles, and the
+          // rim/glass shimmer below) are frozen at their authored base
+          // values. The decorative geometry stays on screen; only the
+          // per-frame animation is suppressed.
+          const ambientMotion = !reducedMotionRef.current
+
           // Polish pass — drift the dust motes one step. Cheap O(N)
           // buffer mutation; only present on the high tier so
           // medium/low devices skip the cost entirely.
           const dust = dustMotesRef.current
-          if (dust) dust.tick(nowMs)
+          if (dust && ambientMotion) dust.tick(nowMs)
           // AAA polish — twinkle the polished-floor sparkles. Same
           // gating as dust (high tier only) and same shape (O(N) in-
           // place mutation).
           const sparkles = floorSparklesRef.current
-          if (sparkles) sparkles.tick(nowMs)
+          if (sparkles && ambientMotion) sparkles.tick(nowMs)
 
           // V2-A — rim halo ambient breath. One material lookup per
           // frame; the helper is a single sin() call. The base opacity
@@ -982,7 +997,8 @@ export function Scenario3DCanvas({
               | undefined
             if (rimGlow && typeof baseOpacity === 'number') {
               const mat = rimGlow.material as THREE.MeshBasicMaterial
-              mat.opacity = baseOpacity * getRimHaloPulseAlpha(nowMs)
+              mat.opacity =
+                baseOpacity * (ambientMotion ? getRimHaloPulseAlpha(nowMs) : 1)
             }
             // V4-D — key-defender heat-ring pulse. Same authored-opacity
             // / per-frame-multiplier shape as the rim halo. The figure
@@ -1001,7 +1017,8 @@ export function Scenario3DCanvas({
             const keyBase = keyRing?.userData.baseOpacity as number | undefined
             if (keyRing && typeof keyBase === 'number') {
               const mat = keyRing.material as THREE.MeshBasicMaterial
-              mat.opacity = keyBase * getKeyDefenderPulseAlpha(nowMs)
+              mat.opacity =
+                keyBase * (ambientMotion ? getKeyDefenderPulseAlpha(nowMs) : 1)
             }
             // AAA polish — rim metal micro-shimmer. Lifts the orange
             // torus's emissive intensity in a deterministic ±22%
@@ -1016,7 +1033,9 @@ export function Scenario3DCanvas({
               | undefined
             if (rimMesh && typeof rimBase === 'number') {
               const mat = rimMesh.material as THREE.MeshStandardMaterial
-              mat.emissiveIntensity = rimBase * getRimMetalShimmerIntensity(nowMs)
+              mat.emissiveIntensity =
+                rimBase *
+                (ambientMotion ? getRimMetalShimmerIntensity(nowMs) : 1)
             }
             // AAA polish — rim bloom halo subtle breath, locked to
             // the same shimmer phase so the halo "blooms with" the
@@ -1029,7 +1048,9 @@ export function Scenario3DCanvas({
               | undefined
             if (rimHaloMesh && typeof rimHaloBase === 'number') {
               const mat = rimHaloMesh.material as THREE.MeshBasicMaterial
-              mat.opacity = rimHaloBase * getRimMetalShimmerIntensity(nowMs)
+              mat.opacity =
+                rimHaloBase *
+                (ambientMotion ? getRimMetalShimmerIntensity(nowMs) : 1)
             }
             // AAA polish — slow swell on the warm court spot so the
             // painted key reads as a live broadcast venue rather
@@ -1041,7 +1062,8 @@ export function Scenario3DCanvas({
               | number
               | undefined
             if (courtSpot && typeof spotBase === 'number') {
-              courtSpot.intensity = spotBase * getCourtSpotPulseAlpha(nowMs)
+              courtSpot.intensity =
+                spotBase * (ambientMotion ? getCourtSpotPulseAlpha(nowMs) : 1)
             }
             // AAA polish — wandering glass highlight shimmer. The
             // backboard's bright sheen breathes off a two-frequency
@@ -1055,7 +1077,8 @@ export function Scenario3DCanvas({
               | undefined
             if (glassHL && typeof glassBase === 'number') {
               const mat = glassHL.material as THREE.MeshBasicMaterial
-              mat.opacity = glassBase * getGlassShimmerAlpha(nowMs)
+              mat.opacity =
+                glassBase * (ambientMotion ? getGlassShimmerAlpha(nowMs) : 1)
             }
           }
 
