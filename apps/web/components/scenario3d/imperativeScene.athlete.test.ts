@@ -212,16 +212,20 @@ describe('athlete builder disposal', () => {
       // tight — bumping the ceiling instead of clipping the shells is
       // the explicit decision for the V5 stylized identity packet,
       // since the geometry is per-figure but cheap to dispatch.
-      // Ceiling raised 3200 → 3600: `upgradePremiumLegsAndFeet` had a
-      // foot-lookup bug that silently skipped the thigh/calf lathe
-      // muscle profiles and the shoe toe-cap/heel domes for every
-      // figure. Restoring that intended upgrade adds ~400 tris to the
-      // heaviest figure (user + ball + closeout ≈ 3494). 3600 leaves a
-      // small headroom for further narrow polish; if a future packet
-      // pushes a figure past this ceiling, the tessellation knobs in
-      // `upgradePremiumStylizedRimLight` and `upgradePremiumKit` are
-      // the first thing to dial back.
-      expect(tris).toBeLessThanOrEqual(3600)
+      // Ceiling 3850 (was 3200). Two changes lifted it:
+      //   - `upgradePremiumLegsAndFeet` had a foot-lookup bug that
+      //     silently skipped the thigh/calf lathe muscle profiles and
+      //     the shoe toe-cap/heel domes; restoring that intended
+      //     upgrade added ~400 tris.
+      //   - the knee / elbow / fist joint spheres were smoothed from
+      //     6×4 to 8×6 so they no longer read as faceted gems at the
+      //     figure's extremities, adding ~260 tris.
+      // The heaviest figure (user + ball + closeout) lands ≈ 3758.
+      // 3850 leaves a small headroom for further narrow polish; if a
+      // future packet pushes past this ceiling, the tessellation knobs
+      // in `upgradePremiumStylizedRimLight` and `upgradePremiumKit`
+      // are the first thing to dial back.
+      expect(tris).toBeLessThanOrEqual(3850)
       disposeGroup(figure)
     }
   })

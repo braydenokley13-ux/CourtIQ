@@ -6178,7 +6178,7 @@ function buildAthleteFigure(
     // Knee dome — small skin-tone sphere at the joint so the leg
     // reads as two segments connected at a knee, not a single tube.
     const kneeDome = new THREE.Mesh(
-      new THREE.SphereGeometry(ATH_CALF_TOP_R * 1.05, 6, 4),
+      new THREE.SphereGeometry(ATH_CALF_TOP_R * 1.05, 8, 6),
       skinMat,
     )
     kneeDome.position.y = 0
@@ -6279,7 +6279,7 @@ function buildAthleteFigure(
     // Elbow dome — mirrors the knee. Sells the elbow break in
     // denial / defensive arm poses.
     const elbowDome = new THREE.Mesh(
-      new THREE.SphereGeometry(ATH_UPPER_ARM_R * 1.1, 6, 4),
+      new THREE.SphereGeometry(ATH_UPPER_ARM_R * 1.1, 8, 6),
       skinMat,
     )
     elbowDome.position.y = 0
@@ -6287,7 +6287,7 @@ function buildAthleteFigure(
     // Hand block — simple stylized fist at the end of the forearm.
     // No fingers per E4 §4. Sells "this is a hand" at broadcast.
     const hand = new THREE.Mesh(
-      new THREE.SphereGeometry(ATH_FORE_ARM_R * 1.45, 6, 4),
+      new THREE.SphereGeometry(ATH_FORE_ARM_R * 1.45, 8, 6),
       skinMat,
     )
     hand.position.y = -ATH_FORE_ARM_LENGTH - 0.02
