@@ -26,6 +26,7 @@ import {
   type ResolvedMovement,
   type Timeline,
 } from '@/lib/scenario3d/timeline'
+import { athleticMotionEnvelope } from '@/lib/scenario3d/movementCurvesV2'
 import { samplePassArc } from '@/lib/scenario3d/passArc'
 export {
   BALL_PEAK_MULT_PASS,
@@ -1798,11 +1799,11 @@ const YAW_TIME_CONSTANT_DEFENSE_S = 0.14
  * axis of the figure root) per movement kind. Pure data; consumed by
  * `MotionController.applyAthleticLean`.
  *
- * The lean is applied through a triangular envelope across the
- * movement's [startMs, endMs) so a runner ramps the lean in as they
- * accelerate, holds it through the middle of the segment, and decays
- * it as they brake into the endpoint. Outside of any active segment
- * the lean is 0 (upright).
+ * The lean is applied through `athleticMotionEnvelope` across the
+ * movement's [startMs, endMs) so a runner ramps the lean in fast as
+ * they explode off the start, peaks it through the front third, then
+ * decays it to upright as they decelerate and plant into the
+ * endpoint. Outside of any active segment the lean is 0 (upright).
  *
  * Values are deliberately small (≤ ~7°) so the lean reads as
  * basketball body language rather than a ragdoll tilt — anything
@@ -2291,14 +2292,16 @@ export class MotionController {
    *
    * Bob (position.y):
    *   - explosive moves bob ≤ 0.06 ft with two stride peaks per
-   *     segment (u=0.25 and u=0.75), giving the figure a visible
-   *     foot-load / push-off cadence instead of gliding.
+   *     segment, giving the figure a visible foot-load / push-off
+   *     cadence instead of gliding.
    *
-   * The lean ramps in/out symmetrically over the segment so a runner
-   * loads the lean as they accelerate, holds it through the middle,
-   * and decays it as they brake into the destination — matching the
-   * `easeOutAthletic` velocity profile inside the timeline sampler.
-   * Outside any active segment, the lean and bob are both 0.
+   * Lean, bob, and bank are all modulated by `athleticMotionEnvelope`:
+   * a front-loaded 0 → 1 → 0 envelope that peaks in the front third of
+   * the segment and decays to upright by arrival. A runner loads the
+   * lean as they explode off the start and straightens up as they
+   * decelerate and plant — matching the front-loaded V2 motion curves
+   * the timeline sampler uses, instead of leaning hardest at the
+   * midpoint. Outside any active segment, the lean and bob are both 0.
    */
   private applyAthleticLean(t: number): void {
     for (const player of this.scene.players) {
@@ -2342,25 +2345,27 @@ export class MotionController {
       if (!this.baselineY.has(player.id)) {
         this.baselineY.set(player.id, g.position.y)
       }
-      // Triangular envelope over the segment, peaking at u=0.5. The
-      // segment durations are short (≤ 800 ms typically) so a
-      // symmetric ramp keeps the lean visible without clipping the
-      // start or end frames.
+      // Front-loaded body-language envelope: peaks in the front third
+      // of the segment (the explosive push) and decays to 0 by
+      // arrival, so the figure leans into the move and plants upright
+      // instead of leaning hardest at the midpoint. Shared by the
+      // lean, the stride bob, and the cornering bank below.
       const span = Math.max(1, active.endMs - active.startMs)
       const u = Math.max(0, Math.min(1, (t - active.startMs) / span))
-      g.rotation.x = leanPeak * (1 - Math.abs(u - 0.5) * 2)
+      const envelope = athleticMotionEnvelope(u)
+      g.rotation.x = leanPeak * envelope
       // V4-B — per-player stride phase offset so several players
       // moving together do NOT bounce in lock-step. Hash from
       // playerId to a 0..1 phase offset; pure deterministic so
       // replay determinism is preserved (same scene → same offsets).
       const phaseOffset = playerIdToPhaseOffset(player.id)
       // Two stride peaks per segment via |sin(2π(u + offset))|. The
-      // amplitude is gated by the same triangular envelope so the
-      // figure does not bounce on the first or last frame.
-      const strideEnvelope = 1 - Math.abs(u - 0.5) * 2
+      // amplitude rides the same front-loaded envelope as the lean so
+      // the figure does not bounce on the first or last frame and the
+      // stride is biggest while the player is running hardest.
       const baseline = this.baselineY.get(player.id) ?? 0
       const stridePhase = (u + phaseOffset) * Math.PI * 2
-      const bob = bobPeak * Math.abs(Math.sin(stridePhase)) * strideEnvelope
+      const bob = bobPeak * Math.abs(Math.sin(stridePhase)) * envelope
       g.position.y = baseline + bob
       if (bobPeak > 0) {
         this.bobActiveFor.add(player.id)
@@ -2370,7 +2375,7 @@ export class MotionController {
       // INTO the corner (positive x → bank to the right → negative
       // rotation.z by Three convention for our yaw). Pure function
       // of (segment direction, kind), so determinism is preserved.
-      // The amount is small (≤ 4°) and gated by the same triangular
+      // The amount is small (≤ 4°) and gated by the same front-loaded
       // envelope so the bank loads on entry and unloads on arrival.
       const dx = active.to.x - active.from.x
       const dz = active.to.z - active.from.z
@@ -2382,7 +2387,7 @@ export class MotionController {
         // Bank toward direction of travel: if traveling +x (right),
         // bank rotation.z negative so the right side dips. Multiply
         // by the same envelope so corner-banks blend with peak lean.
-        g.rotation.z = -bankPeak * lateralBias * strideEnvelope
+        g.rotation.z = -bankPeak * lateralBias * envelope
       } else {
         g.rotation.z = 0
       }

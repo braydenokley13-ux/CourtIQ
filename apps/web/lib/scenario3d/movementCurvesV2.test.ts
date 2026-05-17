@@ -7,6 +7,7 @@
 
 import { describe, it, expect } from 'vitest'
 import {
+  athleticMotionEnvelope,
   easeAthleticCutV2,
   easeCloseoutV2,
   easeStopHardV2,
@@ -146,5 +147,72 @@ describe('getPremiumCurveForKind', () => {
 
   it('is pure: same kind always returns the same function reference', () => {
     expect(getPremiumCurveForKind('cut')).toBe(getPremiumCurveForKind('cut'))
+  })
+})
+
+describe('athleticMotionEnvelope', () => {
+  it('is upright (0) at both endpoints', () => {
+    expect(athleticMotionEnvelope(0)).toBe(0)
+    expect(athleticMotionEnvelope(1)).toBe(0)
+  })
+
+  it('peaks at 1 around u=0.3 — the explosive push', () => {
+    expect(athleticMotionEnvelope(0.3)).toBeCloseTo(1, 6)
+  })
+
+  it('peaks in the front third, not the midpoint', () => {
+    // The pre-final renderer modulated body language with a symmetric
+    // triangle peaking at u=0.5. The front-loaded envelope must read
+    // higher early and already be decaying by the midpoint.
+    expect(athleticMotionEnvelope(0.3)).toBeGreaterThan(
+      athleticMotionEnvelope(0.5),
+    )
+    expect(athleticMotionEnvelope(0.5)).toBeGreaterThan(
+      athleticMotionEnvelope(0.7),
+    )
+  })
+
+  it('rises monotonically up to the peak', () => {
+    let prev = athleticMotionEnvelope(0)
+    for (let u = 0; u <= 0.3; u += 0.02) {
+      const v = athleticMotionEnvelope(u)
+      expect(v).toBeGreaterThanOrEqual(prev - 1e-12)
+      prev = v
+    }
+  })
+
+  it('decays monotonically after the peak', () => {
+    let prev = athleticMotionEnvelope(0.3)
+    for (let u = 0.3; u <= 1; u += 0.02) {
+      const v = athleticMotionEnvelope(u)
+      expect(v).toBeLessThanOrEqual(prev + 1e-12)
+      prev = v
+    }
+  })
+
+  it('is front-loaded — equal distance past the peak reads higher than before it', () => {
+    // At the same distance d from the peak the rising side sits lower
+    // than the falling side: the body language ramps in fast and
+    // bleeds out slowly, so the figure plants instead of snapping.
+    const d = 0.15
+    expect(athleticMotionEnvelope(0.3 - d)).toBeLessThan(
+      athleticMotionEnvelope(0.3 + d),
+    )
+  })
+
+  it('produces finite values inside [0, 1] for every sample', () => {
+    for (const u of SAMPLE_US) {
+      const v = athleticMotionEnvelope(u)
+      expect(Number.isFinite(v)).toBe(true)
+      expect(v).toBeGreaterThanOrEqual(0)
+      expect(v).toBeLessThanOrEqual(1)
+    }
+  })
+
+  it('clamps out-of-range and non-finite input to 0', () => {
+    expect(athleticMotionEnvelope(-0.5)).toBe(0)
+    expect(athleticMotionEnvelope(1.5)).toBe(0)
+    expect(athleticMotionEnvelope(Number.NaN)).toBe(0)
+    expect(athleticMotionEnvelope(Number.POSITIVE_INFINITY)).toBe(0)
   })
 })
