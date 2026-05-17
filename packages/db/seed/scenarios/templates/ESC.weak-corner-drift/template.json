@@ -14,7 +14,8 @@
     "why_best_read_works": "The stunt commits the defender's hips and weight to the ball. A drift wider on the arc moves the catch point further from his recovery path — the pass arrives clean and the closeout is too long to contest the shot.",
     "lesson_connection": "empty-space-cut",
     "difficulty_default": 2,
-    "mirror_safety": "symmetric"
+    "mirror_safety": "symmetric",
+    "notes": "Camera override: uses passer_side_three_quarter rather than the EMPTY_SPACE_CUT default teaching_angle. The read lives in the gap between the drifter's catch point and the stunting defender's recovery path; the passer-side three-quarter angle keeps both the kickout lane and the closeout distance legible in one frame."
   },
 
   "scene": {

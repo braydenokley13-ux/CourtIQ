@@ -13,7 +13,8 @@
     "common_miss_reason": "Loyalty to the dribble. Wings catch and put the ball on the floor by reflex even when the defender's cushion already gives them the shot.",
     "why_best_read_works": "The defender was helping one pass away. Closing out from the help position cannot beat the ball — a catch in the shooting pocket forces the contest before his hands are up. The shot is open precisely because the defender bet on the help.",
     "lesson_connection": "advantage-or-reset",
-    "difficulty_default": 1
+    "difficulty_default": 1,
+    "notes": "Camera override: uses passer_side_three_quarter rather than the ADVANTAGE_OR_RESET default 'defense' angle. The read is the closeout defender's cushion and hands as the pass arrives; the passer-side three-quarter angle keeps the passer, the flight of the ball, and the closeout in one frame so the player reads the advantage as it forms."
   },
 
   "scene": {
