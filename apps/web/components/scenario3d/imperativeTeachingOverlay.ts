@@ -1705,10 +1705,12 @@ export class TeachingOverlayController {
   }
 
   private buildLabelSprite(text: string): THREE.Sprite {
+    const display = text.toUpperCase()
     const canvas = typeof document !== 'undefined'
       ? document.createElement('canvas')
       : null
-    if (!canvas) {
+    const ctx = canvas?.getContext('2d') ?? null
+    if (!canvas || !ctx) {
       // SSR/Test fallback: empty 1x1 texture so the sprite still
       // disposes cleanly. The renderer never reaches this branch in
       // production (canvas is created in a useEffect that only runs in
@@ -1718,23 +1720,42 @@ export class TeachingOverlayController {
       this.disposables.push(tex, mat)
       return new THREE.Sprite(mat)
     }
-    const W = 256
-    const H = 64
-    canvas.width = W
-    canvas.height = H
-    const ctx = canvas.getContext('2d')
-    if (ctx) {
-      ctx.fillStyle = ZONE_LABEL_SHADOW
-      roundedRect(ctx, 6, 6, W - 12, H - 12, 18)
-      ctx.fill()
-      ctx.font = 'bold 36px system-ui, sans-serif'
-      ctx.fillStyle = ZONE_LABEL_COLOR
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(text.toUpperCase(), W / 2, H / 2)
-    }
+    // Text-fit, supersampled label. Measuring the text first and
+    // sizing the pill to fit means long captions ("HUNT THE SECOND
+    // READ.") never clip the rounded background or the texture edge —
+    // the previous fixed 256px canvas truncated anything past ~11
+    // characters.
+    const FONT = 'bold 36px system-ui, sans-serif'
+    const SS = 2
+    const PAD_X = 30
+    const LABEL_H = 64
+    ctx.font = FONT
+    const textW = ctx.measureText(display).width
+    const labelW = Math.max(
+      Math.round(LABEL_H * 1.6),
+      Math.ceil(textW + PAD_X * 2),
+    )
+    // Assigning width/height resets the 2d context, so the transform
+    // and text state are (re-)applied after the resize.
+    canvas.width = labelW * SS
+    canvas.height = LABEL_H * SS
+    ctx.scale(SS, SS)
+    ctx.fillStyle = ZONE_LABEL_SHADOW
+    roundedRect(ctx, 4, 4, labelW - 8, LABEL_H - 8, 20)
+    ctx.fill()
+    ctx.font = FONT
+    ctx.fillStyle = ZONE_LABEL_COLOR
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(display, labelW / 2, LABEL_H / 2)
     const tex = new THREE.CanvasTexture(canvas)
     tex.colorSpace = THREE.SRGBColorSpace
+    // The text-fit canvas is non-power-of-two; skip mipmaps and keep
+    // linear filtering so the label stays crisp at any camera angle.
+    tex.minFilter = THREE.LinearFilter
+    tex.magFilter = THREE.LinearFilter
+    tex.generateMipmaps = false
+    tex.anisotropy = 4
     tex.needsUpdate = true
     const mat = new THREE.SpriteMaterial({
       map: tex,
@@ -1745,8 +1766,11 @@ export class TeachingOverlayController {
     })
     this.disposables.push(tex, mat)
     const sprite = new THREE.Sprite(mat)
-    // World-space pixel scale tuned so labels read but never dominate.
-    sprite.scale.set(4.2, 1.05, 1)
+    // World-space scale: height pinned so labels read but never
+    // dominate; width tracks the texture aspect so the pill stays
+    // proportional to its text.
+    const worldH = 1.05
+    sprite.scale.set(worldH * (labelW / LABEL_H), worldH, 1)
     return sprite
   }
 
