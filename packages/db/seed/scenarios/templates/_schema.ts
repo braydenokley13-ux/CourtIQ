@@ -588,9 +588,9 @@ export const variantSchema = z.object({
 // -----------------------------------------------------------------------------
 //
 // The prose-bank is a per-template library of slot-fillable feedback
-// skeletons. The bank is data-only at this milestone; runtime variant
-// consumption is deferred to a follow-up phase. The schema landing
-// here gives the scaffolder + future linters a stable parse target.
+// skeletons. When a variant choice omits `feedback_text`, the
+// materializer resolves it from this bank (see `_proseBankResolve.ts`)
+// — an opt-in fallback, so hand-authored prose always wins.
 //
 // Slot identifiers are validated against `PROSE_BANK_SLOT_IDS` from
 // `_proseBankSlots.ts`. The validation is performed by a superRefine

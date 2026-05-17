@@ -66,6 +66,19 @@ Variant ids are scenario ids materialized into the DB; use `<DEC>-T1-NN`
 - Per-slot `start` deltas (narrow positional tweaks only)
 - `xp_reward`, `mastery_weight`, `render_tier`, `status`
 
+## Prose-bank feedback fallback
+
+A variant choice may omit `feedback_text`. When it does, the materializer
+fills that choice's feedback from the template's `prose-bank.json` —
+picking a skeleton for the choice's quality and filling it with the
+bank's `slots` values. Hand-authored `feedback_text` always wins; the
+bank only fills choices left blank.
+
+To use the fallback: add a `slots` block to `prose-bank.json` (see any
+shipped bank) and drop `feedback_text` from the variant choice, keeping
+`label`. A variant that omits `feedback_text` with no bank/slots to fall
+back to fails materialization with a named error.
+
 ## What variants must NOT do
 
 - Change the correct answer
