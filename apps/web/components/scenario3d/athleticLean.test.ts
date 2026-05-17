@@ -5,8 +5,10 @@
  * Locks the contract that explosive movement segments (cut, back_cut,
  * drive, jab, baseline_sneak, closeout) tilt the player forward
  * through a deterministic front-loaded envelope that peaks during the
- * explosive push and decays to upright on arrival, while repositioning
- * segments (rotation, lift, drift, pass) keep the figure upright.
+ * explosive push and decays to upright on arrival. `rotation`
+ * segments carry a help-sprint lean scaled by travel distance — a
+ * sprint leans, a short slide stays upright. Pure repositioning
+ * segments (lift, drift, pass) keep the figure upright.
  *
  * Pure imperative-path coverage — replay determinism is preserved.
  */
@@ -112,11 +114,11 @@ describe('Athletic lean — explosive segments lean through a front-loaded envel
   }
 })
 
-describe('Athletic lean — non-explosive segments keep the figure upright', () => {
-  // Closeout was promoted to "committed defender" lean in the premium
-  // pass — see ATHLETIC_LEAN_PEAK_RAD_BY_KIND. Repositioning /
-  // off-ball / pass segments still stay upright.
-  for (const kind of ['rotation', 'lift', 'drift', 'stop_ball'] as const) {
+describe('Athletic lean — repositioning segments keep the figure upright', () => {
+  // Closeout was promoted to "committed defender" lean and `rotation`
+  // to a distance-scaled help-sprint lean (both pinned separately
+  // below). Pure repositioning / pass segments still stay upright.
+  for (const kind of ['lift', 'drift', 'stop_ball'] as const) {
     it(`'${kind}' segment never leans the figure (rotation.x stays 0)`, () => {
       const scene = buildSceneWithSingleMovement(kind)
       // Sample across the segment: any sample must be 0.
@@ -198,11 +200,12 @@ describe('Athletic stride bob — explosive segments produce a foot-load cadence
   }
 })
 
-describe('Athletic stride bob — non-explosive segments keep the figure grounded', () => {
-  // Players in non-explosive movements never get tagged for bob, so
-  // position.y stays at the build-time baseline (0 in the test stub,
-  // PLAYER_LIFT in the real builder).
-  for (const kind of ['rotation', 'lift', 'drift'] as const) {
+describe('Athletic stride bob — repositioning segments keep the figure grounded', () => {
+  // Players in pure repositioning movements never get tagged for bob,
+  // so position.y stays at the build-time baseline (0 in the test
+  // stub, PLAYER_LIFT in the real builder). `rotation` is distance-
+  // scaled and pinned in its own block below.
+  for (const kind of ['lift', 'drift'] as const) {
     it(`'${kind}' segment keeps position.y at the build baseline across the segment`, () => {
       const scene = buildSceneWithSingleMovement(kind)
       for (const ms of [100, 400, 700]) {
@@ -210,6 +213,60 @@ describe('Athletic stride bob — non-explosive segments keep the figure grounde
       }
     })
   }
+})
+
+describe('V6-final — help-rotation body language scales with travel distance', () => {
+  // `buildSceneWithSingleMovement` travels {0,10} → {6,4} ≈ 8.5 ft,
+  // which `rotationEffortScale` treats as a full help sprint.
+  it('a sprint-distance rotation leans the figure forward', () => {
+    const scene = buildSceneWithSingleMovement('rotation')
+    const lean = leanAt(scene, 240) // u ≈ 0.3 — peak of the envelope
+    expect(lean).toBeGreaterThan(0.04)
+    expect(lean).toBeLessThan(0.21)
+  })
+
+  it('a sprint-distance rotation produces a stride bob', () => {
+    const scene = buildSceneWithSingleMovement('rotation')
+    const samples = [80, 160, 240, 320, 400, 480, 560, 640, 720].map((ms) =>
+      bobAt(scene, ms),
+    )
+    const peak = Math.max(...samples)
+    expect(peak).toBeGreaterThan(0)
+    expect(peak).toBeLessThan(0.07)
+  })
+
+  // A ~1.4 ft rotation is a controlled defensive adjustment, not a
+  // sprint — the effort scale collapses all of its body english to 0.
+  const slideScene: Scene3D = {
+    ...buildSceneWithSingleMovement('rotation'),
+    movements: [
+      {
+        id: 'slide',
+        playerId: 'user',
+        kind: 'rotation',
+        to: { x: 1.4, z: 10 },
+        durationMs: 800,
+      },
+    ],
+  }
+
+  it('a short-slide rotation keeps the figure upright', () => {
+    for (const ms of [80, 240, 400, 600]) {
+      expect(leanAt(slideScene, ms), `slide@${ms}ms`).toBeCloseTo(0, 6)
+    }
+  })
+
+  it('a short-slide rotation produces no bob', () => {
+    for (const ms of [100, 400, 700]) {
+      expect(bobAt(slideScene, ms), `slide@${ms}ms`).toBeCloseTo(0, 6)
+    }
+  })
+
+  it('rotation body language is deterministic across controllers', () => {
+    const a = leanAt(buildSceneWithSingleMovement('rotation'), 240)
+    const b = leanAt(buildSceneWithSingleMovement('rotation'), 240)
+    expect(a).toBeCloseTo(b, 12)
+  })
 })
 
 describe('V4-B — Lateral cornering bank during angle-cuts', () => {

@@ -12,6 +12,7 @@ import {
   easeCloseoutV2,
   easeStopHardV2,
   getPremiumCurveForKind,
+  rotationEffortScale,
 } from './movementCurvesV2'
 
 const SAMPLE_US = [0, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0] as const
@@ -214,5 +215,40 @@ describe('athleticMotionEnvelope', () => {
     expect(athleticMotionEnvelope(1.5)).toBe(0)
     expect(athleticMotionEnvelope(Number.NaN)).toBe(0)
     expect(athleticMotionEnvelope(Number.POSITIVE_INFINITY)).toBe(0)
+  })
+})
+
+describe('rotationEffortScale', () => {
+  it('is 0 for a short controlled defensive slide', () => {
+    expect(rotationEffortScale(0)).toBe(0)
+    expect(rotationEffortScale(1.5)).toBe(0)
+    expect(rotationEffortScale(2.5)).toBe(0)
+  })
+
+  it('is 1 for a full help sprint', () => {
+    expect(rotationEffortScale(7.5)).toBe(1)
+    expect(rotationEffortScale(12)).toBe(1)
+    expect(rotationEffortScale(40)).toBe(1)
+  })
+
+  it('ramps between a slide and a sprint', () => {
+    const mid = rotationEffortScale(5)
+    expect(mid).toBeGreaterThan(0)
+    expect(mid).toBeLessThan(1)
+  })
+
+  it('is monotonically non-decreasing with distance', () => {
+    let prev = rotationEffortScale(0)
+    for (let ft = 0; ft <= 12; ft += 0.5) {
+      const v = rotationEffortScale(ft)
+      expect(v).toBeGreaterThanOrEqual(prev - 1e-12)
+      prev = v
+    }
+  })
+
+  it('clamps non-finite input to 0', () => {
+    expect(rotationEffortScale(Number.NaN)).toBe(0)
+    expect(rotationEffortScale(Number.POSITIVE_INFINITY)).toBe(0)
+    expect(rotationEffortScale(Number.NEGATIVE_INFINITY)).toBe(0)
   })
 })

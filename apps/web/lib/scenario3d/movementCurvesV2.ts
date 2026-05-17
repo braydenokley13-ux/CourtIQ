@@ -17,10 +17,18 @@
  *                                   so the player arrives sharply with
  *                                   weight forward.
  *
- * It also owns `athleticMotionEnvelope(u)` — the front-loaded
- * 0 → 1 → 0 modulation envelope the imperative renderer layers on top
- * of those curves to time secondary motion (forward lean, stride bob,
- * cornering bank) against the explosive push instead of the midpoint.
+ * It also owns the body-language helpers the imperative renderer
+ * layers on top of those curves:
+ *
+ *   - `athleticMotionEnvelope(u)` — front-loaded 0 → 1 → 0 envelope
+ *                                   that times secondary motion
+ *                                   (forward lean, stride bob,
+ *                                   cornering bank) against the
+ *                                   explosive push, not the midpoint.
+ *   - `rotationEffortScale(ft)`   — scales a help defender's rotation
+ *                                   body english by travel distance,
+ *                                   so a short slide stays controlled
+ *                                   and a full help sprint leans.
  *
  * These curves are wired into `easeForKind` by default. The main
  * replay-determinism tests now pin the V2 sampled positions, so replay
@@ -210,6 +218,36 @@ export function athleticMotionEnvelope(u: number): number {
   const r = (u - ENVELOPE_PEAK_U) / (1 - ENVELOPE_PEAK_U)
   const s = 1 - r
   return s * s * (3 - 2 * s)
+}
+
+/**
+ * Help-rotation effort scale.
+ *
+ * A `rotation` segment covers everything from a short controlled
+ * defensive slide to a full weak-side help sprint (low-man baseline
+ * recover, lane tag). A fixed body-language peak would over-lean a
+ * small slide or under-sell a sprint, so the renderer scales a
+ * rotation's lean / bob / bank by how far the segment travels.
+ *
+ * Returns 0 for a short slide (≤ `ROTATION_SLIDE_FT` — the defender
+ * stays upright and controlled) and ramps via smoothstep to 1 for a
+ * sprint (≥ `ROTATION_SPRINT_FT`). Travel distance is a clean proxy
+ * for effort here because authored rotation durations sit in a
+ * narrow band.
+ *
+ * Pure / deterministic — depends only on the authored geometry.
+ */
+const ROTATION_SLIDE_FT = 2.5
+const ROTATION_SPRINT_FT = 7.5
+
+export function rotationEffortScale(distanceFt: number): number {
+  if (!Number.isFinite(distanceFt) || distanceFt <= ROTATION_SLIDE_FT) {
+    return 0
+  }
+  if (distanceFt >= ROTATION_SPRINT_FT) return 1
+  const r =
+    (distanceFt - ROTATION_SLIDE_FT) / (ROTATION_SPRINT_FT - ROTATION_SLIDE_FT)
+  return r * r * (3 - 2 * r)
 }
 
 function clamp01(n: number): number {
