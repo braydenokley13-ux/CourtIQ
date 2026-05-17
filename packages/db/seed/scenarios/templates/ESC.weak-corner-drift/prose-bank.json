@@ -1,0 +1,65 @@
+{
+  "template": "ESC.weak-corner-drift",
+  "version": 1,
+  "entries": [
+    {
+      "quality": "best",
+      "tone": "encouraging",
+      "skeletons": [
+        "That's the read. He {cue_atom_short_desc}, so you {action_short_desc}.",
+        "You moved on the stunt. {decoder_micro_explainer}"
+      ]
+    },
+    {
+      "quality": "best",
+      "tone": "neutral",
+      "skeletons": [
+        "He {cue_atom_short_desc}, so you {action_short_desc}. The pass beat his closeout.",
+        "{decoder_micro_explainer}"
+      ]
+    },
+    {
+      "quality": "best",
+      "tone": "corrective",
+      "skeletons": [
+        "Right read, a beat slow. The moment he {cue_atom_short_desc}, {action_short_desc}."
+      ]
+    },
+    {
+      "quality": "acceptable",
+      "tone": "encouraging",
+      "skeletons": [
+        "The {partial_choice_short_desc} held the spacing. The wider catch was the cleaner look."
+      ]
+    },
+    {
+      "quality": "acceptable",
+      "tone": "neutral",
+      "skeletons": [
+        "The {partial_choice_short_desc} keeps the possession. When you {action_short_desc} instead, his closeout has further to travel."
+      ]
+    },
+    {
+      "quality": "acceptable",
+      "tone": "corrective",
+      "skeletons": [
+        "You took the safe spot. He {cue_atom_short_desc} — {action_short_desc} and the better shot was there."
+      ]
+    },
+    {
+      "quality": "wrong",
+      "tone": "neutral",
+      "skeletons": [
+        "The {wrong_choice_short_desc} gave him time to recover. {decoder_micro_explainer}"
+      ]
+    },
+    {
+      "quality": "wrong",
+      "tone": "corrective",
+      "skeletons": [
+        "Watch his body. He {cue_atom_short_desc}; {action_short_desc} instead of the {wrong_choice_short_desc}.",
+        "The {wrong_choice_short_desc} hands the half-second back. {action_short_desc} keeps it."
+      ]
+    }
+  ]
+}

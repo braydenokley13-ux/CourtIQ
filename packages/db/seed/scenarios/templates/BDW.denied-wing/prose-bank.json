@@ -1,5 +1,5 @@
 {
-  "template": "BDW.late-clock-corner-deny",
+  "template": "BDW.denied-wing",
   "version": 1,
   "entries": [
     {
@@ -7,7 +7,7 @@
       "tone": "encouraging",
       "skeletons": [
         "That's the read. He {cue_atom_short_desc}, so you {action_short_desc}.",
-        "You cut before the clock decided. {decoder_micro_explainer}"
+        "You cut on the denial. {decoder_micro_explainer}"
       ]
     },
     {
@@ -22,43 +22,43 @@
       "quality": "best",
       "tone": "corrective",
       "skeletons": [
-        "Right read, a step slow. With the clock low and the corner denied, {action_short_desc}."
+        "Right read, a step slow. When he {cue_atom_short_desc}, {action_short_desc}."
       ]
     },
     {
       "quality": "acceptable",
       "tone": "encouraging",
       "skeletons": [
-        "The {partial_choice_short_desc} kept the possession. The denial was the layup window."
+        "The {partial_choice_short_desc} kept the play alive. The layup behind him was the better one."
       ]
     },
     {
       "quality": "acceptable",
       "tone": "neutral",
       "skeletons": [
-        "The {partial_choice_short_desc} keeps the play alive but spends the clock. When you {action_short_desc}, the rim is there."
+        "The {partial_choice_short_desc} keeps the possession. When you {action_short_desc}, the layup is there."
       ]
     },
     {
       "quality": "acceptable",
       "tone": "corrective",
       "skeletons": [
-        "You traded the rim for one more bounce of clock. He {cue_atom_short_desc} — {action_short_desc}."
+        "You stepped away from an open rim. He {cue_atom_short_desc} — {action_short_desc}."
       ]
     },
     {
       "quality": "wrong",
       "tone": "neutral",
       "skeletons": [
-        "The {wrong_choice_short_desc} loses the possession. {decoder_micro_explainer}"
+        "The {wrong_choice_short_desc} walks into the defender. {decoder_micro_explainer}"
       ]
     },
     {
       "quality": "wrong",
       "tone": "corrective",
       "skeletons": [
-        "Read his body, not your spot. He {cue_atom_short_desc}; {action_short_desc}, not the {wrong_choice_short_desc}.",
-        "The {wrong_choice_short_desc} runs the clock out. {action_short_desc} while the window is open."
+        "Watch his body. He {cue_atom_short_desc}; {action_short_desc}, not the {wrong_choice_short_desc}.",
+        "The {wrong_choice_short_desc} lets him stay attached. {action_short_desc} to get behind him."
       ]
     }
   ]

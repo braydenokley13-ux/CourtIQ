@@ -1,0 +1,65 @@
+{
+  "template": "AOR.short-closeout-shoot",
+  "version": 1,
+  "entries": [
+    {
+      "quality": "best",
+      "tone": "encouraging",
+      "skeletons": [
+        "That's the read. He {cue_atom_short_desc}, so you {action_short_desc}.",
+        "You shot it off the catch. {decoder_micro_explainer}"
+      ]
+    },
+    {
+      "quality": "best",
+      "tone": "neutral",
+      "skeletons": [
+        "He {cue_atom_short_desc}, so you {action_short_desc} before his hands were up.",
+        "{decoder_micro_explainer}"
+      ]
+    },
+    {
+      "quality": "best",
+      "tone": "corrective",
+      "skeletons": [
+        "Right read, one dribble too many. He {cue_atom_short_desc} — {action_short_desc} off the catch."
+      ]
+    },
+    {
+      "quality": "acceptable",
+      "tone": "encouraging",
+      "skeletons": [
+        "The {partial_choice_short_desc} got you a shot. The catch-and-shoot was the cleaner one."
+      ]
+    },
+    {
+      "quality": "acceptable",
+      "tone": "neutral",
+      "skeletons": [
+        "The {partial_choice_short_desc} works against a flying closeout. This one was short — {action_short_desc} was open."
+      ]
+    },
+    {
+      "quality": "acceptable",
+      "tone": "corrective",
+      "skeletons": [
+        "You drove past an open shot. He {cue_atom_short_desc}; {action_short_desc}."
+      ]
+    },
+    {
+      "quality": "wrong",
+      "tone": "neutral",
+      "skeletons": [
+        "The {wrong_choice_short_desc} gave the cushion back. {decoder_micro_explainer}"
+      ]
+    },
+    {
+      "quality": "wrong",
+      "tone": "corrective",
+      "skeletons": [
+        "Read the closeout. He {cue_atom_short_desc} — {action_short_desc}, don't {wrong_choice_short_desc}.",
+        "The {wrong_choice_short_desc} lets him reset. {action_short_desc} while he is still short."
+      ]
+    }
+  ]
+}
