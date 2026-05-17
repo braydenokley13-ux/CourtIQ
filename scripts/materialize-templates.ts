@@ -16,9 +16,13 @@ import {
   templateSchema,
   variantSchema,
   variationSignature,
+  proseBankSchema,
   type Template,
   type Variant,
+  type ProseBank,
+  type ChoiceQuality,
 } from '../packages/db/seed/scenarios/templates/_schema'
+import { resolveChoiceFeedback } from '../packages/db/seed/scenarios/templates/_proseBankResolve'
 
 const TEMPLATES_DIR = path.join(process.cwd(), 'packages', 'db', 'seed', 'scenarios', 'templates')
 const OUTPUT_DIR = path.join(process.cwd(), 'packages', 'db', 'seed', 'scenarios', 'packs', 'templates-v1')
@@ -46,6 +50,7 @@ interface LoadedTemplate {
   template: Template
   variants: Variant[]
   templateDir: string
+  proseBank: ProseBank | null
 }
 
 async function loadAllTemplates(filter: string | null): Promise<LoadedTemplate[]> {
@@ -100,9 +105,68 @@ async function loadAllTemplates(filter: string | null): Promise<LoadedTemplate[]
     }
 
     enforceTemplateInvariants(template, variants)
-    loaded.push({ template, variants, templateDir })
+    const proseBank = await loadProseBank(templateDir)
+    loaded.push({ template, variants, templateDir, proseBank })
   }
   return loaded
+}
+
+/**
+ * Load the optional `<template-dir>/prose-bank.json`. Returns null when
+ * absent; throws on a present-but-invalid bank so a typo surfaces at
+ * materialize time rather than as a silent fallback miss.
+ */
+async function loadProseBank(templateDir: string): Promise<ProseBank | null> {
+  const bankPath = path.join(templateDir, 'prose-bank.json')
+  let raw: string
+  try {
+    raw = await fs.readFile(bankPath, 'utf8')
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null
+    throw err
+  }
+  const parsed = proseBankSchema.safeParse(JSON.parse(raw))
+  if (!parsed.success) {
+    throw new Error(
+      `Prose-bank ${path.basename(templateDir)}/prose-bank.json failed schema:\n${formatZodIssues(
+        parsed.error.issues,
+      )}`,
+    )
+  }
+  return parsed.data
+}
+
+/**
+ * Opt-in fallback: resolve a choice's feedback from the template's
+ * prose-bank when the variant left `feedback_text` blank.
+ */
+function resolveBankFeedback(
+  template: Template,
+  variant: Variant,
+  proseBank: ProseBank | null,
+  outcome: string,
+  quality: ChoiceQuality,
+): string {
+  if (!proseBank) {
+    throw new Error(
+      `Variant ${variant.id} omits feedback_text for choice "${outcome}" but template ` +
+        `${template.id} has no prose-bank.json to fall back to. Author the feedback ` +
+        `or add a prose-bank with a slots block.`,
+    )
+  }
+  try {
+    return resolveChoiceFeedback({
+      bank: proseBank,
+      quality,
+      seed: `${variant.id}:${outcome}`,
+    })
+  } catch (err) {
+    throw new Error(
+      `Variant ${variant.id}, choice "${outcome}": ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    )
+  }
 }
 
 function formatZodIssues(issues: { path: (string | number)[]; message: string }[]): string {
@@ -371,7 +435,11 @@ function authoringOverlayCap(
   return phase === 'pre' ? cell.pre : cell.post
 }
 
-function materialize(template: Template, variant: Variant): MaterializedScenario {
+function materialize(
+  template: Template,
+  variant: Variant,
+  proseBank: ProseBank | null,
+): MaterializedScenario {
   const mirror = variant.variation.mirror
   const players = applyPlayerOverrides(template, variant)
   const ballHolder = template.scene.ball.holderSlot
@@ -389,11 +457,14 @@ function materialize(template: Template, variant: Variant): MaterializedScenario
     const id = `c${c.order}`
     outcomeToChoiceId.set(c.outcome, id)
     const prose = variant.copy.choices[c.outcome]!
+    const feedbackText =
+      prose.feedback_text ??
+      resolveBankFeedback(template, variant, proseBank, c.outcome, c.quality)
     return {
       id,
       label: prose.label,
       quality: c.quality,
-      feedback_text: prose.feedback_text,
+      feedback_text: feedbackText,
       ...(prose.partial_feedback_text ? { partial_feedback_text: prose.partial_feedback_text } : {}),
       order: c.order,
     }
@@ -768,10 +839,10 @@ async function main(): Promise<void> {
   }
 
   const allMaterialized: MaterializedScenario[] = []
-  for (const { template, variants } of loaded) {
+  for (const { template, variants, proseBank } of loaded) {
     console.log(`\n  template: ${template.id} (${variants.length} variants)`)
     for (const variant of variants) {
-      const m = materialize(template, variant)
+      const m = materialize(template, variant, proseBank)
       allMaterialized.push(m)
       console.log(`    → ${m.id}  [${variationSignature(variant, template)}]`)
     }
