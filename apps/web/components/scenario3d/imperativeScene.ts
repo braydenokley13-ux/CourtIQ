@@ -6858,13 +6858,23 @@ function addJerseySleeves(
  * application is untouched.
  */
 function upgradePremiumLegsAndFeet(figure: THREE.Object3D): void {
-  for (const legName of ['leftLeg', 'rightLeg'] as const) {
+  // The feet are parented under a sibling `shoes` group, not inside
+  // each leg — `shoes.children` is `[leftFoot, rightFoot]` in build
+  // order. The previous `leg.getObjectByName('foot')` therefore always
+  // returned null, and the `if (!foot) continue` guard silently
+  // skipped the ENTIRE leg + shoe upgrade: thighs/calves never got
+  // their lathe muscle profiles and shoes never got their toe-cap
+  // domes. Resolve the foot through the `shoes` group by index so the
+  // upgrade actually runs.
+  const shoes = figure.getObjectByName('shoes') as THREE.Group | null
+  const legNames = ['leftLeg', 'rightLeg'] as const
+  legNames.forEach((legName, index) => {
     const leg = figure.getObjectByName(legName) as THREE.Group | null
-    if (!leg) continue
+    if (!leg) return
     const thigh = leg.getObjectByName('thigh') as THREE.Group | null
     const calf = leg.getObjectByName('calf') as THREE.Group | null
-    const foot = leg.getObjectByName('foot') as THREE.Group | null
-    if (!thigh || !calf || !foot) continue
+    const foot = shoes?.children[index] as THREE.Group | undefined
+    if (!thigh || !calf) return
     // Phase L7 — quad/calf mass. Phase J3D peaked the thigh at 1.10x
     // (≈ 0.33) and the calf at 1.20x (≈ 0.264). L7 lifts the thigh peak
     // to 1.30x (≈ 0.39) so the upper-leg silhouette carries quad mass
@@ -6885,8 +6895,8 @@ function upgradePremiumLegsAndFeet(figure: THREE.Object3D): void {
       new THREE.Vector2(ATH_CALF_BOT_R * 1.18, -ATH_CALF_LENGTH * 0.20),
       new THREE.Vector2(ATH_CALF_BOT_R * 1.00, -ATH_CALF_LENGTH * 0.5),
     ])
-    upgradePremiumShoe(foot)
-  }
+    if (foot) upgradePremiumShoe(foot)
+  })
 }
 
 function upgradeLegSegment(
