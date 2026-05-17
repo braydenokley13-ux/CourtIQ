@@ -4188,9 +4188,10 @@ function makeVerticalDarkenTexture(): THREE.CanvasTexture | null {
   const ctx = canvas.getContext('2d')
   if (!ctx) return null
   const gradient = ctx.createLinearGradient(0, 0, 0, 64)
-  // Top of the texture is the bottom of the wall (origin of the
-  // PlaneGeometry's UV is bottom-left). We want the DARK end at the
-  // TOP of the wall, so dark is at v=1 → gradient stop 1.
+  // The texture is sampled with flipY = false (pinned below), so canvas
+  // y maps straight to UV v: canvas-top (y=0) → v=0 → bottom of the
+  // wall, canvas-bottom (y=64) → v=1 → top of the wall. We want the
+  // DARK end at the TOP of the wall, so the dark stop is at offset 1.
   gradient.addColorStop(0, 'rgba(10, 14, 22, 0)')
   gradient.addColorStop(0.55, 'rgba(10, 14, 22, 0.18)')
   gradient.addColorStop(1, 'rgba(10, 14, 22, 0.78)')
@@ -4198,6 +4199,10 @@ function makeVerticalDarkenTexture(): THREE.CanvasTexture | null {
   ctx.fillRect(0, 0, 1, 64)
   const tex = new THREE.CanvasTexture(canvas)
   tex.colorSpace = THREE.SRGBColorSpace
+  // CanvasTexture defaults flipY = true, which would invert the
+  // gradient and darken the floor/wall seam instead of the ceiling
+  // seam. Pin it false so canvas y maps directly to UV v.
+  tex.flipY = false
   tex.wrapS = THREE.ClampToEdgeWrapping
   tex.wrapT = THREE.ClampToEdgeWrapping
   tex.minFilter = THREE.LinearFilter
