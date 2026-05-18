@@ -4188,9 +4188,10 @@ function makeVerticalDarkenTexture(): THREE.CanvasTexture | null {
   const ctx = canvas.getContext('2d')
   if (!ctx) return null
   const gradient = ctx.createLinearGradient(0, 0, 0, 64)
-  // Top of the texture is the bottom of the wall (origin of the
-  // PlaneGeometry's UV is bottom-left). We want the DARK end at the
-  // TOP of the wall, so dark is at v=1 → gradient stop 1.
+  // The texture is sampled with flipY = false (pinned below), so canvas
+  // y maps straight to UV v: canvas-top (y=0) → v=0 → bottom of the
+  // wall, canvas-bottom (y=64) → v=1 → top of the wall. We want the
+  // DARK end at the TOP of the wall, so the dark stop is at offset 1.
   gradient.addColorStop(0, 'rgba(10, 14, 22, 0)')
   gradient.addColorStop(0.55, 'rgba(10, 14, 22, 0.18)')
   gradient.addColorStop(1, 'rgba(10, 14, 22, 0.78)')
@@ -4198,6 +4199,10 @@ function makeVerticalDarkenTexture(): THREE.CanvasTexture | null {
   ctx.fillRect(0, 0, 1, 64)
   const tex = new THREE.CanvasTexture(canvas)
   tex.colorSpace = THREE.SRGBColorSpace
+  // CanvasTexture defaults flipY = true, which would invert the
+  // gradient and darken the floor/wall seam instead of the ceiling
+  // seam. Pin it false so canvas y maps directly to UV v.
+  tex.flipY = false
   tex.wrapS = THREE.ClampToEdgeWrapping
   tex.wrapT = THREE.ClampToEdgeWrapping
   tex.minFilter = THREE.LinearFilter
@@ -6092,9 +6097,12 @@ function buildAthleteFigure(
   neckMesh.position.y = ATH_NECK_LENGTH * 0.5
   neckHead.add(neckMesh)
   // Head — single sphere, slight squash for a stylized look. No
-  // facial detail per E4 §4. Tessellation tuned down for the budget.
+  // facial detail per E4 §4. Tessellated round (16 width segments) so
+  // the figure's focal point never reads as a faceted gem from the
+  // broadcast camera; the tris are funded by trimming the invisible
+  // cross-section of the thin uniform trim tori.
   const headMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(ATH_HEAD_R, 8, 6),
+    new THREE.SphereGeometry(ATH_HEAD_R, 16, 8),
     skinMat,
   )
   headMesh.position.y = ATH_NECK_LENGTH + ATH_HEAD_R
@@ -6113,7 +6121,7 @@ function buildAthleteFigure(
     metalness: 0,
   })
   const hairMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(ATH_HEAD_R * 1.04, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.68),
+    new THREE.SphereGeometry(ATH_HEAD_R * 1.04, 12, 6, 0, Math.PI * 2, 0, Math.PI * 0.68),
     hairMat,
   )
   hairMesh.position.y = ATH_NECK_LENGTH + ATH_HEAD_R - 0.04
@@ -6170,7 +6178,7 @@ function buildAthleteFigure(
     // Knee dome — small skin-tone sphere at the joint so the leg
     // reads as two segments connected at a knee, not a single tube.
     const kneeDome = new THREE.Mesh(
-      new THREE.SphereGeometry(ATH_CALF_TOP_R * 1.05, 6, 4),
+      new THREE.SphereGeometry(ATH_CALF_TOP_R * 1.05, 8, 6),
       skinMat,
     )
     kneeDome.position.y = 0
@@ -6271,7 +6279,7 @@ function buildAthleteFigure(
     // Elbow dome — mirrors the knee. Sells the elbow break in
     // denial / defensive arm poses.
     const elbowDome = new THREE.Mesh(
-      new THREE.SphereGeometry(ATH_UPPER_ARM_R * 1.1, 6, 4),
+      new THREE.SphereGeometry(ATH_UPPER_ARM_R * 1.1, 8, 6),
       skinMat,
     )
     elbowDome.position.y = 0
@@ -6279,7 +6287,7 @@ function buildAthleteFigure(
     // Hand block — simple stylized fist at the end of the forearm.
     // No fingers per E4 §4. Sells "this is a hand" at broadcast.
     const hand = new THREE.Mesh(
-      new THREE.SphereGeometry(ATH_FORE_ARM_R * 1.45, 6, 4),
+      new THREE.SphereGeometry(ATH_FORE_ARM_R * 1.45, 8, 6),
       skinMat,
     )
     hand.position.y = -ATH_FORE_ARM_LENGTH - 0.02
@@ -6789,7 +6797,10 @@ function upgradePremiumUniform(figure: THREE.Object3D, trimColor: string): void 
     metalness: 0.12,
   })
   const piping = new THREE.Mesh(
-    new THREE.TorusGeometry(ATH_TORSO_TOP_W * 0.46, 0.045, 5, 14),
+    // Tube cross-section kept at 3 radial segments — the trim is 0.045 ft
+    // thick, so its cross-section never reads as faceted; the saved tris
+    // fund a rounder head.
+    new THREE.TorusGeometry(ATH_TORSO_TOP_W * 0.46, 0.045, 3, 14),
     pipingMat,
   )
   piping.rotation.x = Math.PI / 2
@@ -6799,7 +6810,9 @@ function upgradePremiumUniform(figure: THREE.Object3D, trimColor: string): void 
   // Shorts hem band — thin trim ring at the bottom of the shorts so
   // the leg-to-shorts transition reads cleanly.
   const hem = new THREE.Mesh(
-    new THREE.TorusGeometry(ATH_PELVIS_WIDTH * 0.50, 0.04, 5, 14),
+    // 3 radial segments — see the piping note above; a 0.04 ft tube has
+    // no visible cross-section facets at gameplay distance.
+    new THREE.TorusGeometry(ATH_PELVIS_WIDTH * 0.50, 0.04, 3, 14),
     pipingMat,
   )
   hem.rotation.x = Math.PI / 2
@@ -6845,13 +6858,23 @@ function addJerseySleeves(
  * application is untouched.
  */
 function upgradePremiumLegsAndFeet(figure: THREE.Object3D): void {
-  for (const legName of ['leftLeg', 'rightLeg'] as const) {
+  // The feet are parented under a sibling `shoes` group, not inside
+  // each leg — `shoes.children` is `[leftFoot, rightFoot]` in build
+  // order. The previous `leg.getObjectByName('foot')` therefore always
+  // returned null, and the `if (!foot) continue` guard silently
+  // skipped the ENTIRE leg + shoe upgrade: thighs/calves never got
+  // their lathe muscle profiles and shoes never got their toe-cap
+  // domes. Resolve the foot through the `shoes` group by index so the
+  // upgrade actually runs.
+  const shoes = figure.getObjectByName('shoes') as THREE.Group | null
+  const legNames = ['leftLeg', 'rightLeg'] as const
+  legNames.forEach((legName, index) => {
     const leg = figure.getObjectByName(legName) as THREE.Group | null
-    if (!leg) continue
+    if (!leg) return
     const thigh = leg.getObjectByName('thigh') as THREE.Group | null
     const calf = leg.getObjectByName('calf') as THREE.Group | null
-    const foot = leg.getObjectByName('foot') as THREE.Group | null
-    if (!thigh || !calf || !foot) continue
+    const foot = shoes?.children[index] as THREE.Group | undefined
+    if (!thigh || !calf) return
     // Phase L7 — quad/calf mass. Phase J3D peaked the thigh at 1.10x
     // (≈ 0.33) and the calf at 1.20x (≈ 0.264). L7 lifts the thigh peak
     // to 1.30x (≈ 0.39) so the upper-leg silhouette carries quad mass
@@ -6872,8 +6895,8 @@ function upgradePremiumLegsAndFeet(figure: THREE.Object3D): void {
       new THREE.Vector2(ATH_CALF_BOT_R * 1.18, -ATH_CALF_LENGTH * 0.20),
       new THREE.Vector2(ATH_CALF_BOT_R * 1.00, -ATH_CALF_LENGTH * 0.5),
     ])
-    upgradePremiumShoe(foot)
-  }
+    if (foot) upgradePremiumShoe(foot)
+  })
 }
 
 function upgradeLegSegment(
