@@ -3788,11 +3788,19 @@ function buildGymShell(): THREE.Group {
   // them up alongside the walls and ceiling.
   addGymBackdrop(gym, gymWidth, gymDepth, centerZ)
 
-  // V4-F — hanging pendant lighting fixtures. Visual-only (emissive,
-  // no extra Three.js Light objects) so the existing key/fill/rim/
-  // spot rig keeps owning actual scene lighting. The fixtures sit
-  // below the rafter grid with thin cables going up to the ceiling.
-  addCeilingPendants(gym, gymWidth, gymDepth)
+  // V4-F — hanging pendant lighting fixtures were removed after testers
+  // reported the emissive lens + additive-blended volumetric light
+  // cones reading as the loudest source of perceived shake / flicker
+  // in the gym shell. The cones use additive blending with depthWrite
+  // off, so each tiny camera-ease step re-sorts the volume against the
+  // bleachers / rafters and the overlap shifts every frame — even
+  // though the geometry itself is static. The existing AmbientLight /
+  // HemisphereLight / Directional rig keeps owning illumination; the
+  // gym now reads as a clean broadcast venue without the pendant
+  // halos competing with the action. The builder stays exported in
+  // case a future packet wants to re-introduce them with a different
+  // blend mode.
+  void addCeilingPendants
 
   return gym
 }
