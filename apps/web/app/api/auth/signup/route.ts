@@ -56,8 +56,25 @@ export async function POST(request: NextRequest) {
   })
 
   if (error) {
-    const status = /already|registered|exists/i.test(error.message) ? 409 : 400
-    return NextResponse.json({ error: error.message }, { status })
+    // Supabase's admin.createUser wraps the real postgres error
+    // behind a generic "Database error creating new user" string
+    // (status 500, code "unexpected_failure"). Log the full payload
+    // so Vercel runtime logs surface the real trigger / FK / NOT NULL
+    // failure for debugging.
+    console.error('[auth/signup] admin.createUser failed', {
+      message: error.message,
+      status: error.status,
+      code: (error as { code?: string }).code ?? null,
+      name: error.name,
+    })
+    const lower = error.message.toLowerCase()
+    const isConflict = /already|registered|exists/.test(lower)
+    const isDbError = /database error/.test(lower)
+    const status = isConflict ? 409 : isDbError ? 500 : 400
+    const clientMessage = isDbError
+      ? 'Signup is temporarily unavailable. Please try again shortly.'
+      : error.message
+    return NextResponse.json({ error: clientMessage }, { status })
   }
 
   return gate.decorate(NextResponse.json({ ok: true, userId: data.user?.id }))
