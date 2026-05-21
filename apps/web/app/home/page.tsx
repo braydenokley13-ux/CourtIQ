@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { resetIdentity } from '@/lib/analytics/events'
 import { XPBar } from '@/components/ui/XPBar'
 import {
   IntroCardsModal,
@@ -303,16 +305,28 @@ function StatusStrip({
 }
 
 export default function HomePage() {
+  const router = useRouter()
   const [userName, setUserName] = useState<string | null>(null)
   const [data, setData] = useState<ProfileData | null>(null)
   const [pathway, setPathway] = useState<PathwayProgressLite | null>(null)
   const [spine, setSpine] = useState<HomeSpine | null>(null)
   const [loading, setLoading] = useState(true)
+  const [signingOut, setSigningOut] = useState(false)
   // V3 P2 — first-time intro modal. Auto-opens for cold-start players;
   // subsequent loads reopen only when the player explicitly taps the
   // "Show me" banner (or the "How CourtIQ works" link in the footer).
   const [introOpen, setIntroOpen] = useState(false)
   const [introDismissed, setIntroDismissed] = useState(true)
+
+  async function handleSignOut() {
+    if (signingOut) return
+    setSigningOut(true)
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    resetIdentity()
+    router.push('/login')
+    router.refresh()
+  }
 
   useEffect(() => {
     async function load() {
@@ -557,6 +571,16 @@ export default function HomePage() {
             <Link href="/settings" className="transition-colors hover:text-[#F9FAFB]">
               Settings
             </Link>
+            <span aria-hidden className="text-[#374151]">·</span>
+            <button
+              type="button"
+              onClick={handleSignOut}
+              disabled={signingOut}
+              data-testid="home-signout"
+              className="font-semibold uppercase tracking-[1.5px] text-[#6B7280] transition-colors hover:text-[#F9FAFB] disabled:opacity-50"
+            >
+              {signingOut ? 'Signing out…' : 'Sign out'}
+            </button>
           </div>
         </motion.div>
       </div>
