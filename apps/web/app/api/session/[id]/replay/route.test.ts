@@ -15,6 +15,7 @@ vi.mock('@/lib/db/prisma', () => ({
   },
 }))
 
+import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/db/prisma'
 import { POST } from './route'
@@ -35,7 +36,7 @@ function unauthedSupabase() {
 }
 
 function reqWith(body: Record<string, unknown>) {
-  return new Request('http://x/api/session/sess/replay', {
+  return new NextRequest('http://x/api/session/sess/replay', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),

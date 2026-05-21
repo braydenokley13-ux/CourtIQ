@@ -1,7 +1,15 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { enforceRateLimit } from '@/lib/rateLimit/middleware'
 
 export const runtime = 'nodejs'
+
+// Signup is a public, unauthenticated write that admin-creates a
+// Supabase user. Strict IP cap so a single source can't fan out
+// accounts (and indirectly send the welcome email) faster than a
+// human could plausibly intend. 5 / 15min is well above the "I
+// mistyped my password twice" case and far below scripted abuse.
+const SIGNUP_LIMIT = { windowMs: 15 * 60_000, max: 5 }
 
 interface SignupBody {
   name?: string
@@ -9,7 +17,13 @@ interface SignupBody {
   password?: string
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const gate = enforceRateLimit(request, {
+    bucket: 'auth_signup',
+    limit: SIGNUP_LIMIT,
+  })
+  if (!gate.ok) return gate.response
+
   const body = (await request.json().catch(() => ({}))) as SignupBody
   const name = body.name?.trim() ?? ''
   const email = body.email?.trim().toLowerCase() ?? ''
@@ -46,5 +60,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status })
   }
 
-  return NextResponse.json({ ok: true, userId: data.user?.id })
+  return gate.decorate(NextResponse.json({ ok: true, userId: data.user?.id }))
 }

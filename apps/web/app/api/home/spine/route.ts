@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { SessionMode } from '@prisma/client'
 import { prisma } from '@/lib/db/prisma'
 import { createClient } from '@/lib/supabase/server'
@@ -12,6 +12,12 @@ import { strongestDecoder } from '@/lib/returnLoop'
 import { buildDecoderConfidences } from '@/lib/spine/glue'
 import { parseScenarioVariantTags } from '@/lib/firstSession'
 import type { AdaptiveAttempt } from '@/lib/adaptive'
+import { enforceRateLimit } from '@/lib/rateLimit/middleware'
+
+// /home calls this on every visit; the route fans out to 4 prisma
+// queries and runs the spine glue. 60/min/user is ~1/sec which is
+// well above natural client polling.
+const HOME_SPINE_LIMIT = { windowMs: 60_000, max: 60 }
 
 const MIN_LIVE_FOR_DAILY = 20
 
@@ -29,12 +35,19 @@ const FASTER_PRIOR_DAYS = 14
  * daily-challenge status. Read-only — never mutates state, so /home
  * can call it on every visit without side effects.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const gate = enforceRateLimit(request, {
+    bucket: 'home_spine',
+    limit: HOME_SPINE_LIMIT,
+    userId: user.id,
+  })
+  if (!gate.ok) return gate.response
 
   const now = new Date()
   const todayKey = utcDateKey(now)

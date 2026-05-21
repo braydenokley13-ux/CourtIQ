@@ -19,11 +19,14 @@
  * through to plain weighted training.
  */
 
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { resolvePathwayTrainingContextWithProgress } from '@/lib/pathways/trainingContext'
+import { enforceRateLimit } from '@/lib/rateLimit/middleware'
 
-export async function GET(request: Request) {
+const PATHWAY_CONTEXT_LIMIT = { windowMs: 60_000, max: 60 }
+
+export async function GET(request: NextRequest) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -31,6 +34,13 @@ export async function GET(request: Request) {
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const gate = enforceRateLimit(request, {
+    bucket: 'pathway_training_context',
+    limit: PATHWAY_CONTEXT_LIMIT,
+    userId: user.id,
+  })
+  if (!gate.ok) return gate.response
 
   const url = new URL(request.url)
   const pathwaySlug = url.searchParams.get('pathway')
@@ -43,7 +53,7 @@ export async function GET(request: Request) {
   // `context: null` lets the client cleanly fall back to weighted
   // training without special-casing 404s.
   if (!pathwaySlug) {
-    return NextResponse.json({ context: null })
+    return gate.decorate(NextResponse.json({ context: null }))
   }
 
   const context = await resolvePathwayTrainingContextWithProgress(user.id, {
@@ -54,5 +64,5 @@ export async function GET(request: Request) {
     mode,
   })
 
-  return NextResponse.json({ context })
+  return gate.decorate(NextResponse.json({ context }))
 }

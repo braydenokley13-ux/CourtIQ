@@ -18,6 +18,7 @@ vi.mock('@/lib/analytics/serverEvents', () => ({
   captureServerEvent: vi.fn(),
 }))
 
+import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/db/prisma'
 import { GET } from './route'
@@ -61,14 +62,14 @@ describe('GET /api/daily/[id]/result', () => {
 
   it('returns 401 when unauthenticated', async () => {
     ;(createClient as MockedFn).mockResolvedValue(unauthedSupabase())
-    const res = await GET(new Request('http://x/api/daily/abc/result'), params('abc'))
+    const res = await GET(new NextRequest('http://x/api/daily/abc/result'), params('abc'))
     expect(res.status).toBe(401)
   })
 
   it('returns 404 when the session does not exist', async () => {
     ;(createClient as MockedFn).mockResolvedValue(authedSupabase())
     ;(prisma.sessionRun.findUnique as MockedFn).mockResolvedValue(null)
-    const res = await GET(new Request('http://x/api/daily/none/result'), params('none'))
+    const res = await GET(new NextRequest('http://x/api/daily/none/result'), params('none'))
     expect(res.status).toBe(404)
   })
 
@@ -82,7 +83,7 @@ describe('GET /api/daily/[id]/result', () => {
       started_at: new Date('2026-05-07T00:00:00Z'),
       ended_at: null,
     })
-    const res = await GET(new Request('http://x/api/daily/sess/result'), params('sess'))
+    const res = await GET(new NextRequest('http://x/api/daily/sess/result'), params('sess'))
     expect(res.status).toBe(404)
   })
 
@@ -96,7 +97,7 @@ describe('GET /api/daily/[id]/result', () => {
       started_at: new Date('2026-05-07T00:00:00Z'),
       ended_at: null,
     })
-    const res = await GET(new Request('http://x/api/daily/sess/result'), params('sess'))
+    const res = await GET(new NextRequest('http://x/api/daily/sess/result'), params('sess'))
     expect(res.status).toBe(400)
   })
 
@@ -120,7 +121,7 @@ describe('GET /api/daily/[id]/result', () => {
     ;(prisma.sessionRun.findMany as MockedFn).mockResolvedValue([])
     ;(prisma.sessionRun.update as MockedFn).mockResolvedValue({})
 
-    const res = await GET(new Request('http://x/api/daily/sess/result'), params('sess'))
+    const res = await GET(new NextRequest('http://x/api/daily/sess/result'), params('sess'))
     const body = await res.json()
     expect(res.status).toBe(200)
     expect(body.share_string).toContain('CourtIQ Daily')
@@ -172,7 +173,7 @@ describe('GET /api/daily/[id]/result', () => {
     ;(prisma.sessionRun.findMany as MockedFn).mockResolvedValue(priorDays)
     ;(prisma.sessionRun.update as MockedFn).mockResolvedValue({})
 
-    const res = await GET(new Request('http://x/api/daily/sess/result'), params('sess'))
+    const res = await GET(new NextRequest('http://x/api/daily/sess/result'), params('sess'))
     const body = await res.json()
     expect(res.status).toBe(200)
     // 90 prior consecutive days + today's tick = 91.
@@ -205,7 +206,7 @@ describe('GET /api/daily/[id]/result', () => {
     ;(prisma.sessionRun.findFirst as MockedFn).mockResolvedValue(null)
     ;(prisma.sessionRun.findMany as MockedFn).mockResolvedValue([])
 
-    const res = await GET(new Request('http://x/api/daily/sess/result'), params('sess'))
+    const res = await GET(new NextRequest('http://x/api/daily/sess/result'), params('sess'))
     expect(res.status).toBe(200)
     // ended_at was already non-null → update is skipped.
     expect(prisma.sessionRun.update).not.toHaveBeenCalled()

@@ -14,13 +14,16 @@
  * promote it from localStorage to account-level state.
  */
 
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import {
   recordServerChallengeAttempt,
   type RecordChallengeAttemptInput,
   type ServerChallengeMode,
 } from '@/lib/pathways/challengeAttemptService'
+import { enforceRateLimit } from '@/lib/rateLimit/middleware'
+
+const CHALLENGE_ATTEMPT_LIMIT = { windowMs: 60_000, max: 30 }
 
 interface RequestBody {
   pathwaySlug?: unknown
@@ -51,7 +54,7 @@ function asPositiveInt(v: unknown): number | null {
   return Math.floor(v)
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -59,6 +62,13 @@ export async function POST(request: Request) {
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const gate = enforceRateLimit(request, {
+    bucket: 'pathway_challenge_attempt',
+    limit: CHALLENGE_ATTEMPT_LIMIT,
+    userId: user.id,
+  })
+  if (!gate.ok) return gate.response
 
   let body: RequestBody
   try {
@@ -101,5 +111,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: result.reason }, { status })
   }
 
-  return NextResponse.json({ attempt: result.attempt })
+  return gate.decorate(NextResponse.json({ attempt: result.attempt }))
 }

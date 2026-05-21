@@ -6,12 +6,15 @@
  * recommended-next CTA without doing the derivation client-side.
  */
 
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getPathwayProgress } from '@/lib/pathways/progressService'
+import { enforceRateLimit } from '@/lib/rateLimit/middleware'
+
+const PATHWAY_PROGRESS_LIMIT = { windowMs: 60_000, max: 60 }
 
 export async function GET(
-  _request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ pathwaySlug: string }> },
 ) {
   const { pathwaySlug } = await params
@@ -23,10 +26,17 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const gate = enforceRateLimit(request, {
+    bucket: 'pathway_progress',
+    limit: PATHWAY_PROGRESS_LIMIT,
+    userId: user.id,
+  })
+  if (!gate.ok) return gate.response
+
   const summary = await getPathwayProgress(user.id, pathwaySlug)
   if (!summary) {
     return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
   }
 
-  return NextResponse.json(summary)
+  return gate.decorate(NextResponse.json(summary))
 }

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { SessionMode } from '@prisma/client'
 import { prisma } from '@/lib/db/prisma'
 import { createClient } from '@/lib/supabase/server'
@@ -9,6 +9,12 @@ import {
 } from '@/lib/dailyChallenge'
 import { parseScenarioVariantTags } from '@/lib/firstSession'
 import { buildDecoderConfidences } from '@/lib/spine/glue'
+import { enforceRateLimit } from '@/lib/rateLimit/middleware'
+
+// Daily start is idempotent per UTC day but the composer still
+// fans out to a wide scenario scan + decoder rebuild. 30/min is
+// far above any natural pace (the daily is opened ~once per day).
+const DAILY_TODAY_LIMIT = { windowMs: 60_000, max: 30 }
 
 /** UTC midnight today — used both for the daily seed and to scope
  *  "did the player already start today's daily?" lookups. */
@@ -25,12 +31,19 @@ function utcMidnight(d: Date): Date {
  * the composer allows. Idempotent: a second call on the same UTC
  * day reuses the existing SessionRun.
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const gate = enforceRateLimit(request, {
+    bucket: 'daily_today',
+    limit: DAILY_TODAY_LIMIT,
+    userId: user.id,
+  })
+  if (!gate.ok) return gate.response
 
   const now = new Date()
   const todayUtc = utcMidnight(now)
@@ -50,13 +63,13 @@ export async function POST() {
 
   if (existing) {
     const scenarios = await loadOrderedScenarios(existing.scenario_ids)
-    return NextResponse.json({
+    return gate.decorate(NextResponse.json({
       session_run_id: existing.id,
       date: todayUtc.toISOString().slice(0, 10),
       scenarios,
       already_completed: existing.ended_at !== null,
       mystery_mode: true,
-    })
+    }))
   }
 
   // Compose today's daily.
@@ -151,13 +164,13 @@ export async function POST() {
 
   const scenarios = await loadOrderedScenarios(bundle.scenarioIds)
 
-  return NextResponse.json({
+  return gate.decorate(NextResponse.json({
     session_run_id: session.id,
     date: bundle.date,
     scenarios,
     already_completed: false,
     mystery_mode: true,
-  })
+  }))
 }
 
 async function loadOrderedScenarios(scenarioIds: string[]) {
