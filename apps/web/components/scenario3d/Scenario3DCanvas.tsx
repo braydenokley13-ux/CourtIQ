@@ -965,12 +965,21 @@ export function Scenario3DCanvas({
             }
           }
 
-          // Accessibility — when the viewer prefers reduced motion, the
-          // ambient effects (drifting dust, twinkling sparkles, and the
-          // rim/glass shimmer below) are frozen at their authored base
-          // values. The decorative geometry stays on screen; only the
-          // per-frame animation is suppressed.
-          const ambientMotion = !reducedMotionRef.current
+          // Final-polish pass — the ambient effects (drifting dust,
+          // twinkling sparkles, rim/glass shimmer, court spot breath,
+          // heat-ring pulse) were reported as in-gym flicker by
+          // testers. The pulses themselves are bounded sin() multipliers
+          // — none of them are random — but on tuned screens the
+          // ±10-25% opacity / intensity swings on the rim, glass,
+          // court-spot, and key-defender ring read as the lights
+          // breathing on and off. Pinning `ambientMotion` to false
+          // freezes every pulse multiplier at 1.0 (the authored base
+          // value) so the geometry stays exactly as the builder
+          // placed it. Reduced-motion users land at the same place
+          // they already did. The pulse helpers stay imported so the
+          // unit tests keep covering the math; only this consumer
+          // stops calling them.
+          const ambientMotion = false
 
           // Polish pass — drift the dust motes one step. Cheap O(N)
           // buffer mutation; only present on the high tier so
