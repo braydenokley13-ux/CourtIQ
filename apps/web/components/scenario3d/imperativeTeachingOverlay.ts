@@ -1952,7 +1952,18 @@ function disposeMarkHandle(
 
 function resolveMovements(scene: Scene3D, mode: MotionMode): SceneMovement[] {
   if (mode === 'answer') return scene.answerDemo ?? []
-  if (mode === 'intro') return scene.movements ?? []
+  // The "Paths" toggle is meant to surface the *teaching* paths — the
+  // read the scenario is trying to teach. For decoder scenarios
+  // replayMode stays on 'intro' for the whole rep, so reading from
+  // `scene.movements` left the toggle silently revealing only the
+  // pre-decision setup moves (often empty / trivial), which read as
+  // "the button does nothing". Prefer the answer-demo paths when the
+  // scene authors them and fall back to the intro movements otherwise.
+  if (mode === 'intro') {
+    const answer = scene.answerDemo ?? []
+    if (answer.length > 0) return answer
+    return scene.movements ?? []
+  }
   return []
 }
 
