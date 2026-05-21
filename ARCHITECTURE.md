@@ -421,7 +421,9 @@ enum BadgeFamily { CONCEPT MILESTONE ACCURACY }
 ## 7. Auth Flow
 
 1. User hits `/signup`
-2. Supabase client creates user; email confirmation or Google OAuth
+2. Supabase client creates user (email + password); the client immediately
+   signs them in so no email-confirmation wall blocks the pilot/testing
+   phase. Google OAuth is currently disabled.
 3. Server creates `Profile` row on first sign-in via a trigger or edge function
 4. JWT cookie set; middleware reads it on every `(app)/*` request
 5. Logout clears cookie; redirects to `/`
