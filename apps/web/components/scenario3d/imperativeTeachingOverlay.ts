@@ -636,22 +636,35 @@ export class TeachingOverlayController {
   /** Animates dash offsets, pulse rings, and pressure halos. Safe to
    *  call every frame; no allocation beyond `Math` ops. Skipped when the
    *  group is hidden so toggling Paths off also stops animation work.
-   */
+   *
+   *  Visual/Motion review — testers reported the teaching overlay's
+   *  ring scale-pulses (±18-22% on destination + pressure halos),
+   *  vertical-beam opacity sweeps (±40%), tube opacity sweeps (±22%),
+   *  and the help / focus / feedback opacity pulses all reading as
+   *  "the overlay is shaking" on top of the already-eased camera
+   *  lerp. Same call as the gym ambient pulses (rim halo / heat ring
+   *  / glass / court-spot) that were frozen earlier — bounded sin()
+   *  multipliers are deterministic, but the cumulative breath of all
+   *  five layers reads as constant low-frequency wobble.
+   *
+   *  `overlayMotion` is pinned to false so every persistent oscillation
+   *  collapses to its authored base value. The one-shot fade-ins, the
+   *  authored build-outs, and the teaching-label ramp below are
+   *  preserved so primitives still appear / disappear on phase
+   *  transitions. The pulse helpers stay in the call-site so a future
+   *  re-enable is one-line. */
   tick(nowMs: number): void {
     if (!this.group.visible) return
     if (this.reduced) return
-    const t = nowMs * 0.001
+    const overlayMotion = false
     for (const a of this.animatedTubes) {
-      a.material.opacity =
-        a.baseOpacity * (0.78 + 0.22 * Math.sin(t * a.speed))
+      a.material.opacity = a.baseOpacity
     }
     for (const r of this.animatedRings) {
-      const s = r.baseScale + r.amplitude * (0.5 + 0.5 * Math.sin(t * r.speed))
-      r.mesh.scale.set(s, s, 1)
+      r.mesh.scale.set(r.baseScale, r.baseScale, 1)
     }
     for (const h of this.animatedHalos) {
-      h.material.opacity =
-        h.baseOpacity * (0.6 + 0.4 * Math.sin(t * h.speed))
+      h.material.opacity = h.baseOpacity
     }
 
     // Phase E — authored-overlay animations only run for the active
@@ -698,8 +711,15 @@ export class TeachingOverlayController {
     // loop's write to the same material, so it has to apply the
     // fade-in envelope itself — otherwise the halo pops straight to
     // full pulse on phase enter instead of ramping up.
+    //
+    // Visual/Motion review — `overlayMotion` freezes the help / focus /
+    // feedback pulses too so the halos hold a steady authored opacity.
+    // The fadeFactor on the help pulse is preserved so a phase-enter
+    // still ramps in instead of popping.
     if (this.animatedHelpPulses.length > 0) {
-      const pulse = 0.55 + 0.45 * Math.sin(t * Math.PI * 2 * HELP_PULSE_HZ)
+      const pulse = overlayMotion
+        ? 0.55 + 0.45 * Math.sin(nowMs * 0.001 * Math.PI * 2 * HELP_PULSE_HZ)
+        : 1
       for (const p of this.animatedHelpPulses) {
         p.haloMaterial.opacity =
           p.baseOpacity * pulse * fadeFactor(p.fade, this.phase, nowMs)
@@ -710,13 +730,17 @@ export class TeachingOverlayController {
     // marks allowed to pulse (Section 7). Distinct rates keep the
     // two from blurring into a single rhythm when both are visible.
     if (this.focusMarks.size > 0) {
-      const pulse = 0.55 + 0.45 * Math.sin(t * Math.PI * 2 * FOCUS_MARK_PULSE_HZ)
+      const pulse = overlayMotion
+        ? 0.55 + 0.45 * Math.sin(nowMs * 0.001 * Math.PI * 2 * FOCUS_MARK_PULSE_HZ)
+        : 1
       for (const m of this.focusMarks.values()) {
         m.material.opacity = m.baseOpacity * pulse
       }
     }
     if (this.feedbackMarks.size > 0) {
-      const pulse = 0.6 + 0.4 * Math.sin(t * Math.PI * 2 * FEEDBACK_PULSE_HZ)
+      const pulse = overlayMotion
+        ? 0.6 + 0.4 * Math.sin(nowMs * 0.001 * Math.PI * 2 * FEEDBACK_PULSE_HZ)
+        : 1
       for (const m of this.feedbackMarks.values()) {
         m.material.opacity = m.baseOpacity * pulse
       }
