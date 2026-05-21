@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { SessionMode } from '@prisma/client'
 import { prisma } from '@/lib/db/prisma'
 import { createClient } from '@/lib/supabase/server'
@@ -10,6 +10,12 @@ import {
 } from '@/lib/dailyChallenge'
 import { parseScenarioVariantTags } from '@/lib/firstSession'
 import type { AdaptiveAttempt } from '@/lib/adaptive'
+import { enforceRateLimit } from '@/lib/rateLimit/middleware'
+
+// Result endpoint marks the session ended (idempotent), ticks the
+// streak, and computes the share string. 30/min is well above any
+// natural use (the player hits it once at the end of a daily).
+const DAILY_RESULT_LIMIT = { windowMs: 60_000, max: 30 }
 
 /**
  * GET /api/daily/[id]/result
@@ -21,7 +27,7 @@ import type { AdaptiveAttempt } from '@/lib/adaptive'
  * which now reads SessionRun.mode and skips them for daily sessions.
  */
 export async function GET(
-  _request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: sessionId } = await params
@@ -31,6 +37,13 @@ export async function GET(
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const gate = enforceRateLimit(request, {
+    bucket: 'daily_result',
+    limit: DAILY_RESULT_LIMIT,
+    userId: user.id,
+  })
+  if (!gate.ok) return gate.response
 
   const session = await prisma.sessionRun.findUnique({
     where: { id: sessionId },
@@ -125,7 +138,7 @@ export async function GET(
     )
   }
 
-  return NextResponse.json({
+  return gate.decorate(NextResponse.json({
     session_run_id: sessionId,
     date: dateKey,
     headline: inApp.headline,
@@ -141,7 +154,7 @@ export async function GET(
       reset: streak.reset,
       idempotent: streak.idempotent,
     },
-  })
+  }))
 }
 
 /**

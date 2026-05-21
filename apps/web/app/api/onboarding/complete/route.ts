@@ -1,17 +1,29 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { prisma } from '@/lib/db/prisma'
 import { createClient } from '@/lib/supabase/server'
 import type { Position, SkillLevel } from '@prisma/client'
+import { enforceRateLimit } from '@/lib/rateLimit/middleware'
 
 const VALID_POSITIONS: Position[] = ['PG', 'SG', 'SF', 'PF', 'C', 'ALL']
 const VALID_SKILL_LEVELS: SkillLevel[] = ['ROOKIE', 'VARSITY', 'ELITE']
 
-export async function POST(request: Request) {
+// Onboarding completion is a one-time-ish write per user. Allow a
+// little headroom for retries / wizard restarts but stop a hammer.
+const ONBOARDING_COMPLETE_LIMIT = { windowMs: 60_000, max: 10 }
+
+export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const gate = enforceRateLimit(request, {
+    bucket: 'onboarding_complete',
+    limit: ONBOARDING_COMPLETE_LIMIT,
+    userId: user.id,
+  })
+  if (!gate.ok) return gate.response
 
   const body = await request.json().catch(() => ({})) as {
     birthdate?: string | null
@@ -68,5 +80,5 @@ export async function POST(request: Request) {
     update: { calibrated_at: calibratedAt },
   })
 
-  return NextResponse.json({ ok: true })
+  return gate.decorate(NextResponse.json({ ok: true }))
 }

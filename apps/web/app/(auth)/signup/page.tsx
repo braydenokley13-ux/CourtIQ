@@ -132,17 +132,29 @@ function SignupContent() {
     setLoading(true)
     setError(null)
 
+    // Email signups are disabled at the Supabase project level, so
+    // we create the user server-side via the service-role admin
+    // client, then sign in from the browser to establish a session.
+    const signupRes = await fetch('/api/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim(), email, password }),
+    })
+    const signupJson = (await signupRes.json().catch(() => ({}))) as { error?: string }
+
+    if (!signupRes.ok) {
+      setError(signupJson.error ?? 'Could not create account. Please try again.')
+      setLoading(false)
+      return
+    }
+
     const supabase = createClient()
-    const { data, error: authError } = await supabase.auth.signUp({
+    const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
-      options: {
-        data: { full_name: name.trim(), onboarded: false },
-      },
     })
-
-    if (authError) {
-      setError(authError.message)
+    if (signInError) {
+      setError(signInError.message)
       setLoading(false)
       return
     }
@@ -155,23 +167,6 @@ function SignupContent() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: name.trim(), email }),
     }).catch(() => {})
-
-    // No email verification gate. If signUp returned a session, use it.
-    // Otherwise immediately sign in with the same credentials so the
-    // user lands in /onboarding without hitting a "check your email"
-    // wall. Supabase still creates the account; we just skip the
-    // confirmation step for the pilot/testing phase.
-    if (!data.session) {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-      if (signInError) {
-        setError(signInError.message)
-        setLoading(false)
-        return
-      }
-    }
 
     router.push('/onboarding')
     router.refresh()

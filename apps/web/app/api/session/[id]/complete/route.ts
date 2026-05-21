@@ -1,11 +1,16 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { prisma } from '@/lib/db/prisma'
 import { captureServerEvent } from '@/lib/analytics/serverEvents'
 import { sendEmail } from '@/lib/email/sender'
 import { sessionCompleteEmail } from '@/lib/email/templates/session-complete'
+import { enforceRateLimit } from '@/lib/rateLimit/middleware'
+
+// Session complete fires the summary email side-effect. Cap per
+// user so a stuck client can't fan out duplicate emails.
+const SESSION_COMPLETE_LIMIT = { windowMs: 60_000, max: 30 }
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: sessionId } = await params
@@ -14,6 +19,13 @@ export async function POST(
   if (!body.userId) {
     return NextResponse.json({ error: 'userId is required' }, { status: 400 })
   }
+
+  const gate = enforceRateLimit(request, {
+    bucket: 'session_complete',
+    limit: SESSION_COMPLETE_LIMIT,
+    userId: body.userId,
+  })
+  if (!gate.ok) return gate.response
 
   const session = await prisma.sessionRun.findUnique({ where: { id: sessionId } })
   if (!session || session.user_id !== body.userId) {
@@ -63,12 +75,12 @@ export async function POST(
     }
   })()
 
-  return NextResponse.json({
+  return gate.decorate(NextResponse.json({
     session_run_id: sessionId,
     correct_count: ended.correct_count,
     total: ended.scenario_ids.length,
     xp_earned: ended.xp_earned,
     iq_delta: ended.iq_delta,
     duration_ms: durationMs,
-  })
+  }))
 }

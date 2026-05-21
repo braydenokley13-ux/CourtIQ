@@ -23,9 +23,14 @@ vi.mock('@/lib/analytics/serverEvents', () => ({
   captureServerEvent: vi.fn(),
 }))
 
+import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/db/prisma'
 import { POST } from './route'
+
+function buildReq(): NextRequest {
+  return new NextRequest('http://x/api/daily/today', { method: 'POST' })
+}
 
 type MockedFn = ReturnType<typeof vi.fn>
 
@@ -106,7 +111,7 @@ describe('POST /api/daily/today', () => {
 
   it('returns 401 when the request is unauthenticated', async () => {
     ;(createClient as MockedFn).mockResolvedValue(unauthedSupabase())
-    const res = await POST()
+    const res = await POST(buildReq())
     expect(res.status).toBe(401)
   })
 
@@ -122,7 +127,7 @@ describe('POST /api/daily/today', () => {
       makeLiveScenario({ id: 'sc-2' }),
     ])
 
-    const res = await POST()
+    const res = await POST(buildReq())
     const body = await res.json()
     expect(res.status).toBe(200)
     expect(body.session_run_id).toBe('sess-existing')
@@ -149,7 +154,7 @@ describe('POST /api/daily/today', () => {
     ])
     ;(prisma.attempt.findMany as MockedFn).mockResolvedValue([])
 
-    const res = await POST()
+    const res = await POST(buildReq())
     const body = await res.json()
     expect(res.status).toBe(503)
     expect(body.error).toBe('DAILY_UNAVAILABLE')
@@ -168,7 +173,7 @@ describe('POST /api/daily/today', () => {
       scenario_ids: catalog.slice(0, 5).map((s) => s.id),
     })
 
-    const res = await POST()
+    const res = await POST(buildReq())
     const body = await res.json()
     expect(res.status).toBe(200)
     expect(body.session_run_id).toBe('sess-new')

@@ -1,6 +1,12 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { prisma } from '@/lib/db/prisma'
 import { createClient } from '@/lib/supabase/server'
+import { enforceRateLimit } from '@/lib/rateLimit/middleware'
+
+// Replay is a UI nicety the user can trigger by clicking the demo
+// scrub button. Allow a generous per-user budget since a single
+// scenario can legitimately be rewatched several times in a row.
+const REPLAY_LIMIT = { windowMs: 60_000, max: 120 }
 
 /**
  * POST /api/session/[id]/replay
@@ -17,7 +23,7 @@ import { createClient } from '@/lib/supabase/server'
  * client never sees a failure on a UI nicety.
  */
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: sessionId } = await params
@@ -26,6 +32,13 @@ export async function POST(
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const gate = enforceRateLimit(request, {
+    bucket: 'session_replay',
+    limit: REPLAY_LIMIT,
+    userId: user.id,
+  })
+  if (!gate.ok) return gate.response
 
   const body = (await request.json().catch(() => ({}))) as {
     scenarioId?: string
@@ -67,5 +80,5 @@ export async function POST(
     select: { replay_count: true },
   })
 
-  return NextResponse.json({ replay_count: updated.replay_count })
+  return gate.decorate(NextResponse.json({ replay_count: updated.replay_count }))
 }
