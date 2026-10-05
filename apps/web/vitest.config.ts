@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config'
 import path from 'node:path'
 
 export default defineConfig({
+  esbuild: { jsx: 'automatic' },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),
@@ -10,7 +11,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: [
-      'lib/**/*.test.ts',
+      'lib/**/*.test.{ts,tsx}',
       'components/**/*.test.{ts,tsx}',
       // Phase 9 — opt API route handlers in to the test runner so
       // their thin glue (auth → spine composer → DB write) can be

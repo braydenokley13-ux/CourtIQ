@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "generator": "Blender 4.3.2",
+  "license": "CC0-1.0",
+  "provenance": "Original CourtIQ authored geometry; no external assets or textures",
+  "units": "metres",
+  "upAxis": "Y",
+  "runtimeDirectory": "/environment/",
+  "assets": {
+    "courtiq-hoop.glb": {
+      "bytes": 279620,
+      "triangles": 7396,
+      "vertices": 9572,
+      "drawCalls": 5,
+      "materials": 5,
+      "bounds": {
+        "min": [
+          -0.9735000133514404,
+          0.010000020265579224,
+          -1.7899999618530273
+        ],
+        "max": [
+          0.9735000133514404,
+          3.996500015258789,
+          1.8274000883102417
+        ]
+      },
+      "textures": 0
+    },
+    "courtiq-bench.glb": {
+      "bytes": 193896,
+      "triangles": 3516,
+      "vertices": 7056,
+      "drawCalls": 3,
+      "materials": 3,
+      "bounds": {
+        "min": [
+          -1.621500015258789,
+          0.0020000003278255463,
+          -0.36250001192092896
+        ],
+        "max": [
+          1.6215001344680786,
+          1.0416359901428223,
+          0.26999998092651367
+        ]
+      },
+      "textures": 0
+    },
+    "courtiq-wall-pad.glb": {
+      "bytes": 19244,
+      "triangles": 376,
+      "vertices": 648,
+      "drawCalls": 1,
+      "materials": 1,
+      "bounds": {
+        "min": [
+          -0.44999998807907104,
+          0,
+          -0.020999999716877937
+        ],
+        "max": [
+          0.44999998807907104,
+          1.399999976158142,
+          0.1151999980211258
+        ]
+      },
+      "textures": 0
+    }
+  },
+  "placement": {
+    "hoop": {
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotationY": 0,
+      "rimCenter": [
+        0,
+        3.048,
+        1.575
+      ],
+      "boardPlaneZ": 1.18,
+      "rimInnerDiameter": 0.4572,
+      "boardBottomHeight": 2.8956,
+      "baselineZ": 0,
+      "authoredInWorldSpace": true
+    },
+    "bench": {
+      "localOrigin": [
+        0,
+        0,
+        0
+      ],
+      "forwardAxis": "+Z",
+      "seatHeight": 0.5,
+      "recommendedInstances": [
+        {
+          "position": [
+            -9.25,
+            0,
+            5.6
+          ],
+          "rotationY": 1.5707963267948966
+        },
+        {
+          "position": [
+            9.25,
+            0,
+            5.6
+          ],
+          "rotationY": -1.5707963267948966
+        }
+      ]
+    },
+    "wallPad": {
+      "localOrigin": [
+        0,
+        0,
+        0
+      ],
+      "width": 0.9,
+      "height": 1.4,
+      "forwardAxis": "+Z",
+      "rearWallCenterZ": -3.94,
+      "rearWallRotationY": 0
+    }
+  },
+  "optimization": {
+    "mergedByMaterial": true,
+    "appliedBevels": true,
+    "normalMaps": false,
+    "textures": 0,
+    "alphaBlendMaterials": 1,
+    "compressionDecoderRequired": false,
+    "perAssetTriangleLimit": 20000,
+    "perAssetByteLimit": 500000,
+    "maxDrawCallsPerAsset": 5
+  }
+}

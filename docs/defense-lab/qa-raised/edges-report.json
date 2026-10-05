@@ -1,0 +1,39 @@
+{
+  "generatedAt": "2026-10-05T22:31:04.138Z",
+  "passed": true,
+  "steps": [
+    {
+      "name": "valid exported collection imports through UI",
+      "passed": true,
+      "evidence": {
+        "count": 5
+      }
+    },
+    {
+      "name": "court pointer drag creates floor target and preserves causal prefix",
+      "passed": true,
+      "evidence": {
+        "foot": {
+          "x": 700,
+          "y": 480.70001220703125
+        },
+        "targetBefore": {
+          "x": -3.5662581500017714,
+          "z": 1.7725003282430425
+        },
+        "targetAfter": {
+          "x": -3.2293261741607946,
+          "z": 3.6742698088569004
+        },
+        "instantDisplacement": 0
+      }
+    },
+    {
+      "name": "WebGL unavailable still gives usable court and replay",
+      "passed": true,
+      "evidence": {
+        "clock": "0.75s"
+      }
+    }
+  ]
+}

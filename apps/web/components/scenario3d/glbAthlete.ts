@@ -1285,6 +1285,8 @@ export function _setGlbAthleteCacheForTest(
  * onto the same figure root via `userData.glbAthlete`.
  */
 export interface BuildGlbAthletePreviewOptions {
+  /** Optional license-audited presentation replacement on the identical bone rig. */
+  sourceScene?: THREE.Object3D
   /**
    * Phase P (P1.0) — when true, attach the imported closeout clip
    * action to this figure's mixer. Caller is expected to gate this
@@ -1373,7 +1375,7 @@ export function buildGlbAthletePreview(
     figure.name = 'glb-player-figure'
     figure.scale.setScalar(GLB_M_TO_FT_SCALE)
 
-    const cloned = cloneSkinned(cache.gltf.scene)
+    const cloned = cloneSkinned(options?.sourceScene ?? cache.gltf.scene)
     cloned.name = 'glb-mannequin-clone'
     figure.add(cloned)
 

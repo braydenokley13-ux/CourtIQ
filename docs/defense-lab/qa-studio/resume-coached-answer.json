@@ -1,0 +1,85 @@
+{
+  "format": "courtiq-defense-lab-answers",
+  "schemaVersion": 1,
+  "answers": [
+    {
+      "schemaVersion": 1,
+      "id": "9b683af6-e0ef-4843-98e4-371650179704",
+      "name": "QA studio resume coached answer",
+      "createdAt": "2026-10-05T23:19:18.470Z",
+      "updatedAt": "2026-10-05T23:19:18.470Z",
+      "problemVersion": "1.0.0",
+      "engineVersion": "defense-lab-1.0.0",
+      "config": {
+        "problemId": "high-pnr-weakside-lift",
+        "seed": 2026,
+        "counter": "lift",
+        "answer": {
+          "coverage": "drop",
+          "poa": "over",
+          "bigDepth": 3.2,
+          "tag": true,
+          "tagDepth": 0.95,
+          "backside": "x-out",
+          "rotationTiming": "on-pass",
+          "recovery": "on-pass"
+        },
+        "assumptions": {
+          "dt": 0.025,
+          "duration": 5.8,
+          "maxSpeed": 4.7,
+          "acceleration": 6.2,
+          "reactionDelay": 0.2,
+          "passSpeed": 11.5,
+          "ballRadius": 0.12,
+          "bodyRadius": 0.28,
+          "contestRadius": 1.25,
+          "turnRate": 5,
+          "gatherTime": 0.26,
+          "readInterval": 0.15,
+          "gravity": 9.81,
+          "releaseHeight": 1.85
+        },
+        "interventions": [
+          {
+            "id": "bf2a5af0-f7bf-459c-8fbc-94ed76ab9f41",
+            "at": 0.75,
+            "kind": "answer",
+            "patch": {
+              "tagDepth": 0.9982340069152202,
+              "coachRules": [
+                {
+                  "kind": "roller-depth",
+                  "depth": 4.8,
+                  "response": "big-recovers"
+                },
+                {
+                  "kind": "lift-rise",
+                  "rise": 1.4,
+                  "response": "stay-with-lift"
+                }
+              ]
+            }
+          }
+        ],
+        "opponent": {
+          "screenAngle": 0,
+          "liftDelay": 0,
+          "liftWidth": 0,
+          "reject": true,
+          "rescreen": false,
+          "shortRoll": true
+        }
+      },
+      "terminology": {},
+      "teaching": {
+        "role": "low-man",
+        "checkpointTimes": [
+          0.75
+        ],
+        "cue": ""
+      },
+      "notes": ""
+    }
+  ]
+}

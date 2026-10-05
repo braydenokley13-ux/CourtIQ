@@ -1,0 +1,270 @@
+{
+  "generatedAt": "2026-10-05T23:38:10.128Z",
+  "baseUrl": "http://localhost:3000",
+  "production": true,
+  "buildId": "ZC6NyjSd070vkkzrAerE8",
+  "scope": "UI-only insight-card placement + consequential default deep-to-shallow tag tradeoff; full12+3 previous production results retained separately.",
+  "environment": "Anonymous Chromium SwiftShader,1280x800/390x844,DPR.75; no physical-hardware claim.",
+  "passed": true,
+  "steps": [
+    {
+      "name": "final production normal initial and exact tag checkpoint",
+      "passed": true,
+      "evidence": {
+        "initial": "/workspace/CourtIQ/docs/defense-lab/qa-studio/final-spatial/01-normal-initial.png",
+        "tag": "/workspace/CourtIQ/docs/defense-lab/qa-studio/final-spatial/02-normal-075.png",
+        "insight": {
+          "x": 495,
+          "y": 407.25,
+          "width": 290,
+          "height": 227.75
+        }
+      }
+    },
+    {
+      "name": "normal and default porcelain at active clocks retain readable controls",
+      "passed": true,
+      "evidence": {
+        "normal": "/workspace/CourtIQ/docs/defense-lab/qa-studio/final-spatial/03-normal-205.png",
+        "normalBounds": {
+          "x": 495,
+          "y": 407.25,
+          "width": 290,
+          "height": 227.75
+        },
+        "windows": "/workspace/CourtIQ/docs/defense-lab/qa-studio/final-spatial/04-porcelain-205.png",
+        "tag": "/workspace/CourtIQ/docs/defense-lab/qa-studio/final-spatial/05-porcelain-075.png",
+        "selected": "/workspace/CourtIQ/docs/defense-lab/qa-studio/final-spatial/06-selected-D3.png",
+        "qualification": "Body/right-corner overlap is reviewed from screenshots; UI geometry and actual clicks are recorded, not fabricated pixel assertions."
+      }
+    },
+    {
+      "name": "default deep-to-shallow tag creates a measured basketball tradeoff",
+      "passed": true,
+      "evidence": {
+        "revised": {
+          "problemId": "high-pnr-weakside-lift",
+          "seed": 2026,
+          "counter": "lift",
+          "answer": {
+            "coverage": "drop",
+            "poa": "over",
+            "bigDepth": 3.2,
+            "tag": true,
+            "tagDepth": 0.95,
+            "backside": "x-out",
+            "rotationTiming": "on-pass",
+            "recovery": "on-pass"
+          },
+          "assumptions": {
+            "dt": 0.025,
+            "duration": 5.8,
+            "maxSpeed": 4.7,
+            "acceleration": 6.2,
+            "reactionDelay": 0.2,
+            "passSpeed": 11.5,
+            "ballRadius": 0.12,
+            "bodyRadius": 0.28,
+            "contestRadius": 1.25,
+            "turnRate": 5,
+            "gatherTime": 0.26,
+            "readInterval": 0.15,
+            "gravity": 9.81,
+            "releaseHeight": 1.85
+          },
+          "interventions": [
+            {
+              "id": "fac793bd-6869-4b19-9ee0-b5475a3b21da",
+              "at": 0.75,
+              "kind": "answer",
+              "patch": {
+                "tag": true,
+                "tagDepth": 0.25
+              }
+            }
+          ],
+          "opponent": {
+            "screenAngle": 0,
+            "liftDelay": 0,
+            "liftWidth": 0,
+            "reject": true,
+            "rescreen": false,
+            "shortRoll": true
+          }
+        },
+        "comparison": [
+          {
+            "id": "drive",
+            "label": "Ball / drive",
+            "before": 1,
+            "after": 0.3,
+            "delta": -0.7,
+            "direction": "closes"
+          },
+          {
+            "id": "corner",
+            "label": "Weak corner",
+            "before": 0.3,
+            "after": 0,
+            "delta": -0.3,
+            "direction": "closes"
+          },
+          {
+            "id": "lift",
+            "label": "Weakside lift",
+            "before": 0.1,
+            "after": 0,
+            "delta": -0.1,
+            "direction": "closes"
+          },
+          {
+            "id": "roll",
+            "label": "Roller",
+            "before": 0,
+            "after": 0.15,
+            "delta": 0.15,
+            "direction": "opens"
+          },
+          {
+            "id": "pop",
+            "label": "Pop",
+            "before": 0,
+            "after": 0,
+            "delta": 0,
+            "direction": "similar"
+          },
+          {
+            "id": "strong",
+            "label": "Strong corner",
+            "before": 0,
+            "after": 0,
+            "delta": 0,
+            "direction": "similar"
+          }
+        ],
+        "beforeRead": {
+          "t": 2.1,
+          "nodeId": "handler-read",
+          "actorId": "O1",
+          "selected": "lift",
+          "reason": "The lift offers the larger modeled catch-and-read opportunity than corner. The read uses current defenders and offensive intent.",
+          "candidates": [
+            {
+              "threatId": "roll",
+              "playerId": "O5",
+              "available": true,
+              "clearance": 0.13286675355534128,
+              "arrivalGap": -0.674758289955168,
+              "value": -0.37489826388856556
+            },
+            {
+              "threatId": "lift",
+              "playerId": "O4",
+              "available": true,
+              "clearance": 1.03333333369299,
+              "arrivalGap": 0.12285339977206666,
+              "value": 0.40285339977206663
+            },
+            {
+              "threatId": "corner",
+              "playerId": "O3",
+              "available": true,
+              "clearance": 0.052745008971529395,
+              "arrivalGap": -0.23479761634079077,
+              "value": 0.028367084197501002
+            },
+            {
+              "threatId": "drive",
+              "playerId": "O1",
+              "available": true,
+              "clearance": 1,
+              "arrivalGap": -0.2814080592389546,
+              "value": -0.18140805923895462
+            },
+            {
+              "threatId": "pop",
+              "playerId": "O5",
+              "available": false,
+              "clearance": 0.13286675355534128,
+              "arrivalGap": -0.674758289955168,
+              "value": -0.40678628474184747
+            }
+          ]
+        },
+        "afterRead": {
+          "t": 2.1,
+          "nodeId": "handler-read",
+          "actorId": "O1",
+          "selected": "roll",
+          "reason": "The roller offers the larger modeled catch-and-read opportunity than corner. The read uses current defenders and offensive intent.",
+          "candidates": [
+            {
+              "threatId": "roll",
+              "playerId": "O5",
+              "available": true,
+              "clearance": 0.13286675355534128,
+              "arrivalGap": 0.14081664100768176,
+              "value": 0.44067666707428416
+            },
+            {
+              "threatId": "lift",
+              "playerId": "O4",
+              "available": true,
+              "clearance": 0.9096915958029096,
+              "arrivalGap": -0.5674230749428106,
+              "value": -0.2928415791946361
+            },
+            {
+              "threatId": "corner",
+              "playerId": "O3",
+              "available": true,
+              "clearance": 0.8075293031665934,
+              "arrivalGap": -0.35988720588262424,
+              "value": -0.05143544769262862
+            },
+            {
+              "threatId": "drive",
+              "playerId": "O1",
+              "available": true,
+              "clearance": 1,
+              "arrivalGap": -0.2814080592389546,
+              "value": -0.18140805923895462
+            },
+            {
+              "threatId": "pop",
+              "playerId": "O5",
+              "available": false,
+              "clearance": 0.13286675355534128,
+              "arrivalGap": 0.14081664100768176,
+              "value": 0.40878864622100225
+            }
+          ]
+        },
+        "explanation": "Ball / drive closes by 0.7 s; roller opens by 0.1 s.",
+        "frame205": "/workspace/CourtIQ/docs/defense-lab/qa-studio/final-spatial/07-consequential-compare-205.png",
+        "frame210": "/workspace/CourtIQ/docs/defense-lab/qa-studio/final-spatial/08-consequential-compare-210.png"
+      }
+    },
+    {
+      "name": "390 mobile floor fits and dialog keyboard remains usable",
+      "passed": true,
+      "evidence": {
+        "width": 390,
+        "screenshot": "/workspace/CourtIQ/docs/defense-lab/qa-studio/final-spatial/09-mobile-075.png"
+      }
+    },
+    {
+      "name": "focused final runtime has no errors or failed requests",
+      "passed": true,
+      "evidence": {
+        "errors": [],
+        "failures": []
+      }
+    }
+  ],
+  "errors": [],
+  "failures": [],
+  "assetManifest": "production-build.json",
+  "fullSuiteReport": "../report-production-full.json",
+  "fullSuiteBuildId": "-xGaPr9s3hpyJmulbsjrf"
+}

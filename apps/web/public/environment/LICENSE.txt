@@ -1,0 +1,5 @@
+CourtIQ original gym equipment meshes and materials — CC0 1.0 Universal.
+All geometry is original CourtIQ DCC authoring; no external assets or textures.
+Editable source and build/export tools: scripts/environment/ in the CourtIQ repository.
+License: https://creativecommons.org/publicdomain/zero/1.0/legalcode
+This dedication applies only to these equipment assets, not the application.

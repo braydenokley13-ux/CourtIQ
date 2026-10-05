@@ -1,160 +1,86 @@
- CourtIQ
+# CourtIQ Strategy Lab
 
-> **Train your brain like you train your game.**
-CourtIQ is the operating system for basketball decision-making. We train the part of the game that film rooms, drills, and private trainers rarely do: **basketball IQ** — off-ball movement, spacing, cuts, help defense, rotations, closeouts, pick-and-roll reads, transition decisions, and recognition speed.
+A defense-first basketball strategy laboratory for high-school programs. The gym is the workspace: build an answer, run it against an opponent that reads the defense, inspect the tradeoff, coach a defender, attack again, save and teach.
 
-Think **Duolingo + Basketball IQ Academy + Interactive Film Room + Gamified Progression**, built for the phone-native generation.
+The first problem is **High P&R → low-man tag → weakside lift / skip**. The public root and /lab work without film, tracking hardware, analyst, account, database connection or AI service.
 
----
+## Run
 
-## Who It's For
+Use Node 22 and pnpm 9:
 
-**Primary:** Youth basketball players (ages 11–15) who love the game, watch the NBA, and have upside — but get lost in games and need to learn *where to move and what to do*.
+~~~bash
+pnpm install
+pnpm --filter @courtiq/web dev
+~~~
 
-**Secondary (post-MVP):** Parents, trainers, coaches, and AAU programs who want to track and develop their players' IQ.
+Open http://localhost:3000/lab. The Lab needs no service credentials. Earlier authenticated training routes retain their separate Supabase/database requirements.
 
----
+## Try the loop
 
-## The Five Product Pillars
+1. Run the default Drop / Over / Deep tag / X-out answer. It freezes at the tag, allowing a causal edit.
+2. Choose **See the opponent’s read** to continue; scrub later catches and skips.
+3. **Build our answer**, choose D3, and apply **Shallower tag** from the tag moment. Run again.
+4. **Compare**. Same-opponent ghosts and changed windows/reads show the tradeoff. Inspect around 2.05 seconds, then the actual read at 2.10.
+5. Enter **Break my defense**. Completed tests appear as faint routes; a selected route gains emphasis, then its actual possession plays and freezes at the first executable vulnerability. **Fix it** attaches coaching to the responsible defender.
+6. Change his answer, then **Break it again**. The previous attack is retested before bounded alternatives are searched.
+7. **Save / teach**, name the answer, and enter **Teach**. Each role uses that exact saved configuration.
 
-1. **IQ Academy** — Structured, short-form modules that teach real basketball concepts.
-2. **Scenario Engine** — The core moat. An interactive decision simulator that puts players in realistic situations and trains pattern recognition and reaction speed.
-3. **Film Room** — Visual, coach-style breakdowns of right vs. wrong decisions.
-4. **IQ Score** — A single, trackable number that reflects a player's basketball intelligence and its growth over time.
-5. **Motivation Layer** — XP, streaks, ranks, badges, daily goals, leaderboards.
+Select D3 and drag the tag rail to change his executable commitment, or use the tag label’s left/right keys. Select D5 for Drop / Show / Switch / Blitz at the screen. Roller-depth and lift-rise sentences add two bounded, coach-owned conditional reads; they resume the base answer on release. Frozen defenders can also be dragged to a persistent movement target. A release cue ends demonstrated movement when the ball leaves or the big secures the roller. Supported statements preview explicit rule changes; incompatible coverage or arbitrary free text does not silently create rules.
 
----
+Answers live in this browser profile. Export JSON to transfer or back them up. Storage failure retains an exportable in-memory answer and reports the limitation.
 
-## Current Status
+## Computation and authorship
 
-**Pre-MVP. Planning phase.** This repo currently contains the full strategy, architecture, and build plan. No code yet — that begins with Sprint 0 of the [MVP roadmap](./MVP_ROADMAP.md).
+The runtime computes deterministic movement, delayed observations, condition-triggered policy transitions, connected reads and fixed-endpoint ball flights. Shared analytical geometry computes option windows, straight-line arrival estimates, body clearance and same-input comparisons. A worker performs finite strategy search and paired retests.
 
----
+The corpus, triggers, targets, read preferences and physical assumptions are authored. They have not been calibrated to a program's athletes. The model predicts no shooting percentage, score, possession success or wins. A defensive-body intersection stops the launched flight and possession at the actual witness. Catch support uses authored size, facing, hands and jump geometry. The engine does not infer a deflection, turnover or foul. Unsupported legacy continuations remain conditional. A finite search cannot certify a defense against unsearched basketball.
 
-## Documentation Map
+Initial opponent permissions include reactive lift, reject and short-roll responses. Re-screen is initially off and can be enabled by authoring or attack search. This makes the first help/rotation problem readable while retaining connected escalation.
 
-| Doc | What's In It |
+## Implementation
+
+| Boundary | Location under apps/web/lib/defense-lab |
 | --- | --- |
-| [PRODUCT_SPEC.md](./PRODUCT_SPEC.md) | The single source of truth for what CourtIQ *is* — vision, pillars, UX principles, Scenario Engine deep design, IQ Score, gamification |
-| [MVP_ROADMAP.md](./MVP_ROADMAP.md) | Feature prioritization across MVP / v1 / v2 / v3 with sprint-by-sprint breakdown |
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | Tech stack, frontend/backend architecture, full data model, infra, CI |
-| [CONTENT_SYSTEM.md](./CONTENT_SYSTEM.md) | Curriculum taxonomy, scenario authoring pipeline, content ops |
-| [BUILD_PLAN.md](./BUILD_PLAN.md) | Multi-agent workstreams, analytics plan, go-to-market, risks, coverage matrix |
+| Situations, roles, action/read/counter graphs | types.ts, scenario.ts |
+| Observed offense and defensive obligations | offensivePolicy.ts, defensivePolicy.ts |
+| Physical world, ball and causal interventions | simulation.ts, physicalExecution.ts |
+| Policy-derived authoring and conditional sentences | tagGuide.ts, coachRules.ts |
+| Bounded immutable UI history | replayCache.ts |
+| Shared spatial/timing evidence | analytics.ts, analyticalGeometry.ts |
+| Bounded attack search, worker and retest | attackCore.ts, attack.ts, attack.worker.ts |
+| Coaching templates and saved systems | coaching.ts, answers.ts |
 
-Start with `PRODUCT_SPEC.md` for the *what*, then `ARCHITECTURE.md` for the *how*, then `BUILD_PLAN.md` for the *when and who*.
+The court, camera and contextual controls are in apps/web/components/defense-lab. The renderer samples engine frames and emits coaching intent. Normal athletes dissolve into a separate three-draw analytical representation of the same body snapshots. X-ray reveals actual flight segments, future reach samples, responsibilities and conflicts. Synchronized comparison renders prior defensive trajectories and spatial divergence in one court. It cannot choose basketball actions. Analytical bodies are independent of presentation athletes. Teaching regenerates the same engine from saved inputs.
 
-## Design Reference
+## Verify
 
-The `courtiq/` folder is a **design handoff bundle** from Claude Design — HTML/CSS/JS prototypes of three screens (Home Dashboard, Academy, Scenario Engine) with a full design system. Treat it as **visual source of truth** to match pixel-for-pixel during implementation. Tokens, typography, and UX conventions extracted from it are documented in `ARCHITECTURE.md` §4.2 and `PRODUCT_SPEC.md` §10. The React/Next.js implementation should **match the visual output, not copy the prototype structure**.
+~~~bash
+pnpm --filter @courtiq/web test
+pnpm --filter @courtiq/core test
+pnpm --filter @courtiq/web lint
+pnpm --filter @courtiq/web typecheck
+pnpm build --env-mode=loose
+# Against an already running server, with Chromium installed:
+BASE_URL=http://localhost:3000 pnpm exec tsx scripts/verify-defense-lab-studio.ts
+BASE_URL=http://localhost:3000 pnpm exec tsx scripts/verify-defense-lab-studio-edges.ts
+~~~
 
-Key files:
-- `courtiq/project/CourtIQ MVP.html` — entry point, loads all three screens
-- `courtiq/project/design-system.jsx` — tokens, primitives (`CIQ`, `Chip`, `Icon`, `PrimaryButton`, `Progress`, `Card`)
-- `courtiq/project/home.jsx`, `academy.jsx`, `scenario.jsx` — screen mocks
-- `courtiq/project/court.jsx` — half-court SVG renderer
-- `courtiq/chats/chat1.md` — design intent & rationale
+The independent browser runners exercise real UI controls and observe worker results, then recompute evidence from saved inputs. Use `PRODUCTION=1` when the running server is `next start`. The unified studio production run passed twelve checks and three supplemental trust checks; exact build revisions, later focused verification and screenshots/results are in [studio QA](docs/defense-lab/qa-studio/QA.md). qa-raised records the preceding remodel. SwiftShader checks functionality, not physical-device performance.
 
----
+[Decisions](docs/defense-lab/DECISIONS.md), [opposing systems](docs/defense-lab/opposing-systems-handoff.md), [attack search](docs/defense-lab/attack-search.md), and [spatial design](docs/defense-lab/world-first-design.md) document the implementation and limits. Sibling research distinguishes verified sources from product hypotheses.
 
-## Repo Conventions
+The [studio checkpoint](docs/defense-lab/STUDIO-CHECKPOINT.md) gives the material changes, computed tradeoff, executed verification and remaining acceptance gates.
 
-- **Default branch:** `main` (code ships here after review)
-- **Feature branches:** `feature/<short-name>` or `claude/<task>-<id>`
-- **Commits:** Conventional-ish — `docs:`, `feat:`, `fix:`, `chore:`, `refactor:`
-- **No direct pushes to `main`.** PR + review required once we're out of planning phase.
+The founder's request governs this build. Earlier top-level product/roadmap files describe the previous player IQ training product and remain historical context.
 
----
+## Studio pipeline and runtime
 
-## Visual QA: Scenario Screenshots
+Athletes and equipment are authored offline in Blender, exported to optimized GLBs, then sampled in the browser. Editable Blender sources, reproducible builders, saved-source exporters, lossless channel pruning, asset budgets and native Three.js validation are included. The thirteen-action athlete library covers stance, slide, cut, stop, screen, pivot, catch, pass, dribble, closeout and shooting, with high/tactical geometry LODs on one shared skeleton per athlete. Runtime pose corrections are presentation, not measured biomechanics.
 
-A minimal Playwright script captures screenshots of the 3D scenario view so the
-court, players, ball, and overlays can be inspected without running the app
-locally.
+The authored hoop, benches and instanced wall padding total about 481 KiB without textures or decoders. Sources/provenance are in scripts/athlete and scripts/environment; athlete rights are documented in [LAB-HUMAN.md](apps/web/public/athlete/LAB-HUMAN.md). The assets are licensed separately from the application, whose repository has no declared open-source license.
 
-```bash
-# 1. Start the dev server in another terminal
-pnpm dev
+The 40 Hz motion simulation runs independently of display. Attack search uses a worker; the UI caches at most three immutable replays and 800 frames. Rendering is on demand when frozen, caps live draws near 30 Hz, instances analytical bodies and padding, and adapts resolution/athlete LOD using sustained costs. Optional ?debugLab=1 exposes actual render cadence and quality telemetry for physical-device verification.
 
-# 2. Take screenshots of BDW-01
-pnpm screenshot:bdw
+Cloud CPU measurements improved the default replay from 72.3 ms to 18.6 ms median; a loaded repeat measured 33.0 ms. A 28-replay search measured 0.73–1.44 s median across those runs. These measurements are not coach-laptop guarantees. See [performance evidence](docs/defense-lab/runtime-performance.md) and the [hardware protocol](docs/defense-lab/runtime-performance-protocol.md).
 
-# Or pick another scenario
-SCENARIO=PNR-02 pnpm qa:screenshot
-```
-
-Output is written to `docs/screenshots/<SCENARIO>/`:
-- `debug.png` — captured once the canvas renders
-- `debug-after-play.png` — captured ~3s later (after replay starts)
-
-Browser console errors, page errors, and failed network requests are streamed
-to the terminal during the run. Override the target with `BASE_URL=...`.
-
-The first run on a new machine needs `pnpm exec playwright install chromium`.
-
-### Visual regression: preview baselines (no auth required)
-
-Replay-1 makes the basketball pebble texture deterministic per scenario, so
-hash-stable screenshot baselines now actually match across runs. The
-`/dev/scenario-preview` route renders any seed JSON without Supabase auth, so
-baselines can be captured locally without `pnpm qa:auth`.
-
-```bash
-# 1. Start the dev server (no auth env vars needed for /dev routes).
-pnpm dev
-
-# 2. Capture the FIRST baseline for a scenario (writes to
-#    docs/screenshots/<id>/baseline/).
-pnpm qa:preview:baseline --id BDW-T2-01
-
-# 3. Re-run later to compare against the stored manifest. Hard-fails on
-#    any phase-hash mismatch.
-pnpm qa:preview:diff --id BDW-T2-01
-
-# 4. Soft variant for early CI / pre-baseline scenarios — missing
-#    baselines are reported but do NOT fail the run. Real mismatches
-#    still fail loud.
-pnpm qa:preview:diff:soft --id BDW-T2-01
-```
-
-A whole pack can be captured at once with `--pack <slug>` instead of `--id`.
-The script is intentionally **not** wired into the main CI workflow yet because
-no preview baselines exist — once a pack has been baselined, add a CI step
-that runs `pnpm qa:preview:diff` (strict) for that pack.
-
----
-
-## Production Hardening
-
-The web app ships with the following production safeguards:
-
-### Health checks
-
-- `GET /api/health` — shallow liveness probe. Returns `{ ok, uptime_s, commit, db: null }` with no I/O. Cheap enough for 1Hz uptime monitors.
-- `GET /api/health?deep=1` — readiness probe. Pings the database via `SELECT 1`. Returns 503 on failure so a misconfigured `DATABASE_URL` surfaces on the first request after deploy, not the first user action.
-
-Point Vercel's health check and external uptime monitors (Better Uptime, Checkly, etc.) at `/api/health?deep=1` with a 5–10s interval.
-
-### Rate limiting
-
-In-memory sliding-window limiter at `apps/web/lib/rateLimit/`. Currently applied to:
-
-| Endpoint | Cap | Key |
-| --- | --- | --- |
-| `POST /api/session/start` | 30 / 60s | Supabase user id |
-| `POST /api/session/[id]/attempt` | 120 / 60s | request body `userId` |
-
-Limits are conservative — a real player runs ~1.7 attempts/min during a session, so the caps leave ~70× headroom while still cutting off scripted abuse. Responses include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`; 429s include `Retry-After` per RFC 6585.
-
-Memory-only storage is fine for single-instance Vercel functions; the `RateLimitStore` interface is the swap point for an Upstash Redis backend when traffic justifies it.
-
-### Security headers
-
-`apps/web/lib/securityHeaders.ts` ships HSTS (2y, preload-eligible), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, a locked-down `Permissions-Policy` (camera/mic/geo/usb/payment/motion off), and `X-DNS-Prefetch-Control: on`.
-
-CSP is intentionally not enforced yet — it requires an allowlist pass for Sentry, PostHog, Supabase, Vercel monitoring, the GLB CDN, and three.js workers. Plan: ship `Content-Security-Policy-Report-Only` first, observe in Sentry, then enforce.
-
----
-
-## License
-
-TBD — will be set before first external contributor or public launch. Default to "All rights reserved" until then.
+The remaining acceptance gates are a real coach’s game-plan decision and physical laptop performance. Free-form arbitrary systems, legal contact outcomes and measured athlete calibration remain outside this vertical slice.

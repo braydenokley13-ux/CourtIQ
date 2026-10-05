@@ -23,10 +23,10 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: 'CourtIQ — Train Your Basketball IQ',
+    default: 'CourtIQ — Basketball Strategy Lab',
     template: '%s | CourtIQ',
   },
-  description: 'The basketball IQ training app. Read the game faster, make smarter decisions.',
+  description: 'The basketball strategy lab. Test your answer, see the tradeoffs, and teach the result.',
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'),
   manifest: '/manifest.json',
   applicationName: 'CourtIQ',
@@ -46,11 +46,9 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#0A0B0E',
+  themeColor: '#f5f4ef',
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: 'cover',
 }
 
