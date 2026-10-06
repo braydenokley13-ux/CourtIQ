@@ -12,7 +12,7 @@ import type { LabConfig, PlayerId, SimulationResult, ThreatId } from '@/lib/defe
 import CourtWorld from './world/CourtWorld'
 import type { CameraMode, Lens, Mark, WorldScene } from './world/types'
 import type { WorldRuntime } from './world/WorldRuntime'
-import { LENSES, divergenceMarks, lensMarks, momentMarks, whyMarks } from './lenses'
+import { LENSES, divergenceLabels, divergenceMarks, lensMarks, momentMarks, whyMarks } from './lenses'
 import { useLab } from './useLab'
 import Entry, { type EntryChoice } from './Entry'
 import { BreakBar, BreakHeldPanel, BreakMomentPanel, ComparePanel, FixPanel, HoldsPanel, MomentPanel } from './Panels'
@@ -128,7 +128,7 @@ export default function CourtIQApp() {
     }
     if (ambient) return []
     const out: Mark[] = []
-    if (lens !== 'normal') out.push(...lensMarks(lens, frame, lab.config.assumptions, selected))
+    if (lens !== 'normal') out.push(...lensMarks(lens, frame, lab.config.assumptions, selected, lens === 'ownership' ? frameAt(lab.result, Math.max(0, frame.t - 0.5)) : null))
     if (whyView) out.push(...whyView.marks)
     else if (lab.phase === 'moment' && lab.moment && lens === 'normal') out.push(...momentMarks(lab.moment, frame))
     if (hoverFix) out.push(...divergenceMarks(lab.result, hoverFix.result, lab.time))
@@ -141,15 +141,18 @@ export default function CourtIQApp() {
       }
     }
     if (inBreak) {
+      // The defense is attacked: each counter runs as a comet; contained ones grey out,
+      // dangerous ones persist, and the winner lands with a flare at the vulnerability.
       for (const a of lab.attempts) {
         if (a.points.length < 2) continue
         const broke = a.verdict !== 'held'
-        if (lab.phase !== 'break-search' && !a.selected && !broke) continue
-        out.push({ kind: 'path', id: `atk-${a.id}`, points: a.points, tone: broke ? 'attack' : 'neutral', width: a.selected ? 0.14 : 0.07, opacity: broke ? (a.selected ? 0.95 : 0.6) : 0.22, arrow: broke, grow: 900 })
+        out.push({ kind: 'comet', id: `atk-${a.id}`, points: a.points, outcome: broke ? 'exposed' : 'held', selected: a.selected, run: a.selected ? 820 : 620 })
       }
       const w = lab.attack?.selected.witness
       if (w && (lab.phase === 'break-moment')) {
+        out.push({ kind: 'flare', id: 'atk-flare', at: w.playerId, tone: 'attack', radius: 1.5, duration: 1100 })
         out.push({ kind: 'ring', id: 'atk-open', at: w.playerId, tone: 'attack', radius: 0.7, pulse: true })
+        out.push({ kind: 'tether', id: 'atk-snap', from: w.limitingDefenderId, to: w.playerId, tone: 'threat', y: 1.15, sag: 0.25, width: 0.06, fray: true, opacity: 0.9 })
         out.push({ kind: 'path', id: 'atk-late', points: [w.defenderPosition, w.target], tone: 'warn', width: 0.09, arrow: true, dashed: true })
       }
     }
@@ -159,7 +162,8 @@ export default function CourtIQApp() {
   const focus: PlayerId[] = useMemo(() => {
     if (tab === 'teach' && teach?.player) { const j = primaryJob(frame, teach.player); return [teach.player, ...(j ? [j.offensivePlayerId] : []), 'O1', 'O5'] }
     if (lab.phase === 'moment' && lab.moment) return lab.moment.involved
-    if (lab.phase === 'break-moment' && lab.attack?.selected.witness) { const w = lab.attack.selected.witness; return [w.playerId, w.limitingDefenderId, 'O1'] }
+    if (lab.phase === 'break-moment' && lab.attack?.selected.witness) { const w = lab.attack.selected.witness; return [...new Set([w.playerId, w.limitingDefenderId, lab.frame.ball.owner ?? 'O1'])] }
+    if (lab.phase === 'break-search') return lab.frame.players.map(p => p.id)
     return []
   }, [tab, teach, frame, lab.phase, lab.moment, lab.attack])
 
@@ -169,8 +173,10 @@ export default function CourtIQApp() {
     pov: tab === 'teach' ? teach?.player : selected, selectedId: selected, hoverId: hover,
     highlight: tab === 'teach' && teach?.player ? [teach.player, ...(primaryJob(frame, teach.player) ? [primaryJob(frame, teach.player)!.offensivePlayerId] : []), frame.ball.owner ?? 'O1'] : null,
     playing: tab === 'teach' ? teachPlaying : ambient || lab.playing, editable: tab === 'lab' && entered && !inBreak, tagGuide,
+    rig: lab.phase === 'break-search' ? { azimuth: Math.PI + 0.28, elevation: 0.3, fov: 34, minDistance: 8 } : null,
+    impact: lab.phase === 'break-moment' ? lab.attack?.selected.witness?.at ?? 1 : undefined,
     inset: ambient ? { left: Math.min(640, viewport.w * 0.45), top: 60 } : tab === 'lab' && entered && viewport.w > 820 ? { right: panelOpen ? 430 : 0, left: selected && !lab.playing && !inBreak ? 350 : 0, top: 150, bottom: 80 } : { top: 120, bottom: 150 },
-  }), [viewport, panelOpen, frame, ghost, marks, lens, focus, tab, teach, camera, selected, hover, teachPlaying, ambient, lab.playing, entered, inBreak, tagGuide])
+  }), [viewport, panelOpen, frame, ghost, marks, lens, focus, tab, teach, camera, selected, hover, teachPlaying, ambient, lab.playing, entered, inBreak, tagGuide, lab.phase, lab.attack])
 
   // ------------------------------------------------ actions
   const ruleFired = useMemo(() => {
@@ -248,10 +254,12 @@ export default function CourtIQApp() {
         out.push({ anchor: `pt:${w.location.x},${w.location.z}`, text: `${threatShort(w.threatId, voice)} ${after > before ? 'opened' : 'closed'} ${before.toFixed(1)}→${after.toFixed(1)} s`, tone: after > before ? s.tagThreat : s.tagGood, lift: 1.9 })
       }
     }
+    if (hoverFix) for (const l of divergenceLabels(lab.result, hoverFix.result, lab.time)) out.push({ ...l, tone: s.tagDef })
+    else if (lab.phase === 'compare' && lab.previous) for (const l of divergenceLabels(lab.previous.result, lab.result, lab.time)) out.push({ ...l, tone: s.tagDef })
     if (selected && !out.some(l => l.anchor === selected)) out.push({ anchor: selected, text: who(selected, voice), tone: s.tagDef })
     if (hover && hover !== selected && !out.some(l => l.anchor === hover)) out.push({ anchor: hover, text: who(hover, voice), tone: '' })
     return out
-  }, [tab, teach, voice, ambient, lab.phase, lab.moment, lens, lab.attack, compareDivergence, selected, hover, whyView])
+  }, [tab, teach, voice, ambient, lab.phase, lab.moment, lens, lab.attack, compareDivergence, selected, hover, whyView, hoverFix, lab.previous, lab.result, lab.time])
 
   // ------------------------------------------------ render
   const vignette = ambient ? s.vignetteEntry : inBreak ? s.vignetteAttack : tab === 'teach' ? s.vignetteTeach : ''
