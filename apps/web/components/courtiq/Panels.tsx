@@ -52,8 +52,8 @@ function Effects({ fix, voice }: { fix: FixOption; voice: Voice }) {
   if (!fix.improves.length && !fix.opens.length) return <div className={s.effects}><span className={`${s.effect} ${s.effectNone}`}>{fix.id === 'keep' ? 'Accept this tradeoff' : 'No real change'}</span></div>
   return (
     <div className={s.effects}>
-      {fix.improves.map(c => <span key={`i${c.threatId}`} className={`${s.effect} ${s.effectGood}`}>{threatShort(c.threatId, voice)} −{(c.before - c.after).toFixed(2)} s</span>)}
-      {fix.opens.map(c => <span key={`o${c.threatId}`} className={`${s.effect} ${s.effectBad}`}>{threatShort(c.threatId, voice)} +{(c.after - c.before).toFixed(2)} s</span>)}
+      {fix.improves.map(c => <span key={`i${c.threatId}`} className={`${s.effect} ${s.effectGood}`}>{threatShort(c.threatId, voice)} −{(c.before - c.after).toFixed(1)} s</span>)}
+      {fix.opens.map(c => <span key={`o${c.threatId}`} className={`${s.effect} ${s.effectBad}`}>{threatShort(c.threatId, voice)} +{(c.after - c.before).toFixed(1)} s</span>)}
     </div>
   )
 }
@@ -131,7 +131,7 @@ export function ComparePanel({ comparison, voice, label, onAgain, onBreak, onSav
               <div className={s.barBefore} style={{ width: `${r.before / max * 100}%` }} />
               <div className={s.barAfter} style={{ width: `${r.after / max * 100}%`, background: r.direction === 'opens' ? 'var(--threat)' : r.direction === 'closes' ? 'var(--good)' : 'var(--ink-2)' }} />
             </div>
-            <span className={s.barVal}>{r.before.toFixed(2)}→{r.after.toFixed(2)}</span>
+            <span className={s.barVal}>{r.before.toFixed(1)}→{r.after.toFixed(1)} s</span>
           </div>
         )) : <p>No pass or drive opened in either version.</p>}
       </div>

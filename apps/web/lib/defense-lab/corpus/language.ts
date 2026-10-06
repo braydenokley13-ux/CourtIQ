@@ -61,7 +61,7 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 /** Compound-adjective form: "low man" becomes "low-man" unless the team supplied its own word. */
 const adj = (id: string, voice: Voice) => (voice.terms?.[id] ? term(id, voice) : term(id, voice).replace(/ /g, '-'))
 
-export function formatSeconds(s: number): string { return `${s >= 1 ? s.toFixed(1) : s.toFixed(2)} s` }
+export function formatSeconds(s: number): string { return `${(Math.round(s * 10) / 10).toFixed(1)} s` }
 
 const THREAT_CONCEPT: Record<ThreatId, string> = { drive: 'drive', roll: 'roller', pop: 'pop', corner: 'weak-corner', lift: 'lift', strong: 'strong-corner' }
 /** Noun for a threat: "the screener diving to the basket", "the lift". */

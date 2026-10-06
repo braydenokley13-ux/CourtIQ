@@ -123,6 +123,16 @@ export function versionDiff(prev: SystemVersion | undefined, next: SystemVersion
     if (JSON.stringify(a[key]) !== JSON.stringify(b[key])) out.push(`${key}: ${fmt(a[key])} → ${fmt(b[key])}`)
   }
   if (JSON.stringify(a.coachRules ?? []) !== JSON.stringify(b.coachRules ?? [])) out.push('coach rules changed')
-  return out.length ? out : ['Same rules (re-saved)']
+  const pc = prev.config, nc = next.config
+  if (pc.counter !== nc.counter) out.push(`offense intent: ${pc.counter} → ${nc.counter}`)
+  for (const key of Object.keys(nc.opponent ?? {}) as (keyof NonNullable<LabConfig['opponent']>)[]) {
+    if (JSON.stringify(pc.opponent?.[key]) !== JSON.stringify(nc.opponent?.[key])) out.push(`offense ${key}: ${fmt(pc.opponent?.[key])} → ${fmt(nc.opponent?.[key])}`)
+  }
+  for (const key of Object.keys(nc.assumptions) as (keyof LabConfig['assumptions'])[]) {
+    if (pc.assumptions[key] !== nc.assumptions[key]) out.push(`assumption ${key}: ${fmt(pc.assumptions[key])} → ${fmt(nc.assumptions[key])}`)
+  }
+  if (JSON.stringify(pc.interventions) !== JSON.stringify(nc.interventions)) out.push(`timed cues: ${pc.interventions.length} → ${nc.interventions.length}`)
+  if (JSON.stringify(pc.startingPositions ?? {}) !== JSON.stringify(nc.startingPositions ?? {})) out.push('starting positions changed')
+  return out.length ? out : ['Same basketball (re-saved)']
 }
 const fmt = (v: unknown) => typeof v === 'number' ? (Math.round(v * 100) / 100).toString() : String(v)

@@ -173,6 +173,14 @@ export default function CourtIQApp() {
   }), [viewport, panelOpen, frame, ghost, marks, lens, focus, tab, teach, camera, selected, hover, teachPlaying, ambient, lab.playing, entered, inBreak, tagGuide])
 
   // ------------------------------------------------ actions
+  const ruleFired = useMemo(() => {
+    const out: Partial<Record<'roller-depth' | 'lift-rise', number | null>> = {}
+    for (const rule of lab.config.answer.coachRules ?? []) {
+      const id = `coach-${rule.kind}`
+      out[rule.kind] = lab.result.frames.find(f => f.responsibilities.some(r => r.sourceRuleId === id))?.t ?? null
+    }
+    return out
+  }, [lab.config.answer.coachRules, lab.result])
   const [editFrom, setEditFrom] = useState<'start' | 'now'>('start')
   const change = useCallback((patch: Parameters<typeof lab.change>[0], label: string) => {
     lab.change(patch, label, { autoRun: false, from: editFrom === 'now' ? lab.time : 0 })
@@ -237,7 +245,7 @@ export default function CourtIQApp() {
       for (const w of compareDivergence.windows) {
         const before = w.before ? w.before.end - w.before.start : 0, after = w.after ? w.after.end - w.after.start : 0
         if (Math.abs(after - before) < 0.1) continue
-        out.push({ anchor: `pt:${w.location.x},${w.location.z}`, text: `${threatShort(w.threatId, voice)} ${after > before ? 'opened' : 'closed'} ${before.toFixed(2)}→${after.toFixed(2)} s`, tone: after > before ? s.tagThreat : s.tagGood, lift: 1.9 })
+        out.push({ anchor: `pt:${w.location.x},${w.location.z}`, text: `${threatShort(w.threatId, voice)} ${after > before ? 'opened' : 'closed'} ${before.toFixed(1)}→${after.toFixed(1)} s`, tone: after > before ? s.tagThreat : s.tagGood, lift: 1.9 })
       }
     }
     if (selected && !out.some(l => l.anchor === selected)) out.push({ anchor: selected, text: who(selected, voice), tone: s.tagDef })
@@ -321,7 +329,7 @@ export default function CourtIQApp() {
         </div>
 
         {selected && !lab.playing && !inBreak && (
-          <CoachCard id={selected} frame={lab.frame} config={lab.config} voice={voice} onClose={() => setSelected(null)} editFrom={editFrom} onEditFrom={setEditFrom} time={lab.time}
+          <CoachCard id={selected} frame={lab.frame} config={lab.config} voice={voice} onClose={() => setSelected(null)} editFrom={editFrom} onEditFrom={setEditFrom} time={lab.time} ruleFired={ruleFired}
             onChange={change}
             onOpponent={patch => { lab.setPrevious({ config: lab.config, result: lab.result, moment: lab.moment, label: 'Their change' }); lab.setConfig(c => ({ ...c, opponent: { ...(c.opponent ?? createDefaultConfig().opponent!), ...patch } })) }}
             onAssumption={patch => lab.setConfig(c => ({ ...c, assumptions: { ...c.assumptions, ...patch } }))}

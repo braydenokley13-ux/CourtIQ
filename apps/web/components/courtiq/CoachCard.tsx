@@ -17,8 +17,8 @@ function Seg<T extends string>({ value, options, onChange }: { value: T; options
 
 /** Controls attach to the basketball role that was clicked: you coach a player,
  * not a settings page. "Full control" opens everything for power users. */
-export default function CoachCard({ id, frame, config, voice, onChange, onClose, onOpponent, onAssumption, onCounter, editFrom, onEditFrom, time }: {
-  editFrom: 'start' | 'now'; onEditFrom(v: 'start' | 'now'): void; time: number
+export default function CoachCard({ id, frame, config, voice, onChange, onClose, onOpponent, onAssumption, onCounter, editFrom, onEditFrom, time, ruleFired }: {
+  editFrom: 'start' | 'now'; onEditFrom(v: 'start' | 'now'): void; time: number; ruleFired: Partial<Record<CoachRule['kind'], number | null>>
   id: PlayerId; frame: WorldFrame; config: LabConfig; voice: Voice; onChange: Change; onClose(): void
   onOpponent(patch: Partial<NonNullable<LabConfig['opponent']>>): void; onAssumption(patch: Partial<LabConfig['assumptions']>): void; onCounter(c: CounterId): void
 }) {
@@ -76,7 +76,7 @@ export default function CoachCard({ id, frame, config, voice, onChange, onClose,
         {editFrom === 'now' && <div className={s.hint}>Everything before {time.toFixed(1)} s stays exactly the same; your change plays out from here.</div>}
       </>}
       <button className={s.ghostLink} onClick={() => setFull(f => !f)}>{full ? 'Hide full control' : 'Full control →'}</button>
-      {full && <FullControl config={config} voice={voice} onChange={onChange} onOpponent={onOpponent} onAssumption={onAssumption} onCounter={onCounter} />}
+      {full && <FullControl config={config} voice={voice} ruleFired={ruleFired} onChange={onChange} onOpponent={onOpponent} onAssumption={onAssumption} onCounter={onCounter} />}
     </div>
   )
 }
@@ -88,7 +88,7 @@ function Num({ label, value, min, max, step, onChange, unit = '' }: { label: str
   </>
 }
 
-function FullControl({ config, onChange, onOpponent, onAssumption, onCounter }: { config: LabConfig; voice: Voice; onChange: Change; onOpponent(p: Partial<NonNullable<LabConfig['opponent']>>): void; onAssumption(p: Partial<LabConfig['assumptions']>): void; onCounter(c: CounterId): void }) {
+function FullControl({ config, onChange, onOpponent, onAssumption, onCounter, ruleFired }: { ruleFired: Partial<Record<CoachRule['kind'], number | null>>; config: LabConfig; voice: Voice; onChange: Change; onOpponent(p: Partial<NonNullable<LabConfig['opponent']>>): void; onAssumption(p: Partial<LabConfig['assumptions']>): void; onCounter(c: CounterId): void }) {
   const a = config.answer, o = config.opponent, m = config.assumptions
   const rules = a.coachRules ?? []
   const setRule = (kind: CoachRule['kind'], rule: CoachRule | null) => onChange({ coachRules: [...rules.filter(r => r.kind !== kind), ...(rule ? [rule] : [])] }, 'Coach rule')
@@ -101,13 +101,13 @@ function FullControl({ config, onChange, onOpponent, onAssumption, onCounter }: 
       {depthRule && <>
         <Num label="…past this depth (m from baseline)" value={depthRule.depth} min={COACH_RULE_BOUNDS.depth[0]} max={COACH_RULE_BOUNDS.depth[1]} step={0.1} onChange={v => setRule('roller-depth', { ...depthRule, depth: v })} />
         <Seg value={depthRule.response} options={[{ id: 'low-man-tags', label: 'Low man tags' }, { id: 'big-recovers', label: 'Big recovers' }]} onChange={v => setRule('roller-depth', { ...depthRule, response: v })} />
-        <div className={s.hint}>{coachRuleSentence(depthRule)}</div>
+        <div className={s.hint}>{coachRuleSentence(depthRule)} <Fired at={ruleFired['roller-depth']} /></div>
       </>}
       <label className={s.ctrlLabel}><span><input type="checkbox" checked={!!riseRule} onChange={e => setRule('lift-rise', e.target.checked ? { kind: 'lift-rise', rise: 1.5, response: 'stay-with-lift' } : null)} /> If the weak-side shooter lifts…</span></label>
       {riseRule && <>
         <Num label="…this far (m)" value={riseRule.rise} min={COACH_RULE_BOUNDS.rise[0]} max={COACH_RULE_BOUNDS.rise[1]} step={0.1} onChange={v => setRule('lift-rise', { ...riseRule, rise: v })} />
         <Seg value={riseRule.response} options={[{ id: 'stay-with-lift', label: 'Stay with him' }, { id: 'x-out', label: 'X-out' }]} onChange={v => setRule('lift-rise', { ...riseRule, response: v })} />
-        <div className={s.hint}>{coachRuleSentence(riseRule)}</div>
+        <div className={s.hint}>{coachRuleSentence(riseRule)} <Fired at={ruleFired['lift-rise']} /></div>
       </>}
 
       <div className={s.sectionLabel}>Their offense</div>
@@ -127,4 +127,11 @@ function FullControl({ config, onChange, onOpponent, onAssumption, onCounter }: 
       <div className={s.hint}>These numbers drive every window CourtIQ shows. Set them to your players.</div>
     </div>
   )
+}
+
+function Fired({ at }: { at: number | null | undefined }) {
+  if (at === undefined) return null
+  return at === null
+    ? <b style={{ color: 'var(--warn)' }}>Never fired in this run — try a different trigger.</b>
+    : <b style={{ color: 'var(--good)' }}>Fired at {at.toFixed(1)} s.</b>
 }
