@@ -113,6 +113,10 @@ export interface LabConfig {
   screenAngle?: number
   /** Absent in legacy configurations; present activates observed opponent policies. */
   opponent?: OpponentStrategy
+  /** Coach-supplied athletes. `speed` multiplies the height-derived top speed, `lateral` is the absolute share of
+   * forward speed available sideways/backward (0.4 to 1), `height` (m) replaces the roster height and with it
+   * reach and contest radius. Bounds: speed 0.6 to 1.25, lateral 0.4 to 1, height 1.6 to 2.3. */
+  personnel?: Partial<Record<PlayerId, { speed?: number; lateral?: number; height?: number }>>
 }
 export type SimulationConfig = LabConfig
 

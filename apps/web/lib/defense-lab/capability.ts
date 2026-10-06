@@ -21,7 +21,7 @@ export function resolveCapability(p: CapabilityInput): Capability {
   const tall = clamp((p.height - 1.86) / 0.17, 0, 1)
   return {
     speed: p.speed ?? 1 - 0.1 * tall,
-    acceleration: p.acceleration ?? 1 - 0.12 * tall,
+    acceleration: p.acceleration ?? 1 - 0.03 * tall,
     lateral: p.lateral ?? 0.84 - 0.16 * tall,
     contest: p.reach ?? 0.97 + 0.2 * tall,
   }

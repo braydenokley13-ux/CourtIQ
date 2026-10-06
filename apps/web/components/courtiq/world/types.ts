@@ -40,6 +40,9 @@ export interface WorldScene {
   /** When present, all other athletes recede (teaching, a single role). */
   highlight?: PlayerId[] | null
   playing: boolean
+  /** Per-frame clock. While `playing`, the runtime calls these every animation frame instead of using `frame`/`ghost`,
+   * so React need not re-render at display rate. `frame`/`ghost` stay the exact fallback whenever not playing. */
+  live?: { frame(): WorldFrame; ghost?(): WorldFrame | null } | null
   editable: boolean
   tagGuide?: TagGuide | null
   /** Director composition overrides (Break staging, etc.). */

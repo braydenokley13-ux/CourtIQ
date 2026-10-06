@@ -38,6 +38,38 @@ def optimize(path,meta=None):
  raw=Path(path).read_bytes();jl=struct.unpack_from('<I',raw,12)[0];doc=json.loads(raw[20:20+jl]);bl=struct.unpack_from('<I',raw,20+jl)[0];binary=raw[28+jl:28+jl+bl]
  def values(index):
   a=doc['accessors'][index];v=doc['bufferViews'][a['bufferView']];fmt=FMT[a['componentType']];n=a['count']*WIDTH[a['type']];return struct.unpack_from('<'+str(n)+fmt,binary,v.get('byteOffset',0)+a.get('byteOffset',0))
+ # Vertex quantisation (core glTF, normalised integer attributes): COLOR_0 -> u8x4,
+ # WEIGHTS_0 -> u16x4, TEXCOORD_0 -> u16x2. ~30% smaller meshes, no extension needed.
+ def quantise():
+  nonlocal binary
+  done={}
+  for mesh in doc.get('meshes',[]):
+   for prim in mesh['primitives']:
+    for key,(ctype,ncomp,kind) in {'COLOR_0':(5121,4,'VEC4'),'WEIGHTS_0':(5123,4,'VEC4'),'TEXCOORD_0':(5123,2,'VEC2')}.items():
+     if key not in prim['attributes']:continue
+     index=prim['attributes'][key]
+     if index in done:prim['attributes'][key]=done[index];continue
+     a=doc['accessors'][index]
+     if a['componentType']!=5126:continue
+     data=values(index);w=WIDTH[a['type']];n=a['count'];top=255 if ctype==5121 else 65535
+     out=[]
+     for i in range(n):
+      row=list(data[i*w:(i+1)*w])
+      if key=='COLOR_0' and w==3:row.append(1.0)
+      if key=='WEIGHTS_0':
+       t=sum(row) or 1.0;row=[x/t for x in row]
+      out.extend(max(0,min(top,round(x*top))) for x in row)
+     if key=='WEIGHTS_0':
+      # make each u16 quad sum to exactly 65535 so skinning stays normalised
+      for i in range(n):
+       q=out[i*4:(i+1)*4];d=65535-sum(q);j=max(range(4),key=lambda k:q[k]);q[j]+=d;out[i*4:(i+1)*4]=q
+     while len(binary)%4:binary+=b'\0'
+     off=len(binary);binary+=struct.pack('<'+str(len(out))+('B' if ctype==5121 else 'H'),*out)
+     while len(binary)%4:binary+=b'\0'
+     doc['bufferViews'].append({'buffer':0,'byteOffset':off,'byteLength':len(out)*(1 if ctype==5121 else 2)})
+     doc['accessors'].append({'bufferView':len(doc['bufferViews'])-1,'componentType':ctype,'normalized':True,'count':n,'type':kind})
+     done[index]=len(doc['accessors'])-1;prim['attributes'][key]=done[index]
+ quantise()
  extra=bytearray()
  def add_accessor(data,kind):
   nonlocal binary

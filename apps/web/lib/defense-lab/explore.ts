@@ -174,6 +174,7 @@ function buildMoment(result: SimulationResult, windows: PlayerWindow[], frame: W
   const owner = frame.ball.owner ?? frame.ball.receiver ?? roles.ballhandler
   const onBall = frame.responsibilities.filter(r => (r.kind === 'contain' || r.kind === 'chase') && r.offensivePlayerId === roles.ballhandler)
   const switchTasks = frame.responsibilities.filter(r => r.kind === 'switch')
+  const hasScreen = problem.actions.some(a => a.kind === 'screen')
   const big = at(roles.big), roller = at(roles.screener), handler = at(roles.ballhandler)
   let cause: TeachingCause = 'unknown', pulledDefenderId: PlayerId | undefined, mechanism: TeachingMoment['mechanism']
   const bestId = best?.id
@@ -189,14 +190,14 @@ function buildMoment(result: SimulationResult, windows: PlayerWindow[], frame: W
   } else if (tag && option.playerId !== tag.offensivePlayerId && (threatId === 'lift' || threatId === 'corner' || threatId === 'strong')) {
     const tagger = at(tag.defenderId), toRoller = dist(tagger, at(tag.offensivePlayerId)), toReceiver = dist(tagger, receiver)
     pulledDefenderId = tag.defenderId
-    if (toRoller < toReceiver && toReceiver > a.contestRadius) {
+    if (hasScreen && toRoller < toReceiver && toReceiver > a.contestRadius) {
       cause = 'deep-tag'
       evidence.push(`${tagger.id} is tagging ${tag.offensivePlayerId}: ${toRoller.toFixed(1)} m from the roller, ${toReceiver.toFixed(1)} m from ${receiver.id}.`)
     } else {
       cause = 'late-rotation'
       evidence.push(`${tagger.id} is on the tag but ${toReceiver.toFixed(1)} m from ${receiver.id}; the recovery is late.`)
     }
-  } else if (threatId === 'roll' && tag && at(tag.defenderId) && dist(at(tag.defenderId), roller) > a.contestRadius && dist(at(tag.defenderId), roller) > Math.min(dist(at(tag.defenderId), at(roles.weakCorner)), dist(at(tag.defenderId), at(roles.weakLift)))) {
+  } else if (hasScreen && threatId === 'roll' && tag && at(tag.defenderId) && dist(at(tag.defenderId), roller) > a.contestRadius && dist(at(tag.defenderId), roller) > Math.min(dist(at(tag.defenderId), at(roles.weakCorner)), dist(at(tag.defenderId), at(roles.weakLift)))) {
     cause = 'late-rotation'; mechanism = 'shallow-tag'; pulledDefenderId = tag.defenderId
     evidence.push(`${tag.defenderId} is on the tag but stays ${dist(at(tag.defenderId), roller).toFixed(1)} m from the roller, closer to his own weakside man; ${roller.id} catches with only ${big.id} behind him.`)
   } else if (threatId === 'roll' && responsibleDefenderId && (responsibleDefenderId === roles.big || bestId === roles.big) && big.z - roller.z > 1.0) {

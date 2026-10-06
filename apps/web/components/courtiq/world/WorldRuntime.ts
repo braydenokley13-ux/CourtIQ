@@ -69,6 +69,8 @@ export class WorldRuntime {
   private viewW = 1
   private viewH = 1
   private tierAdjusted = false
+  private view: WorldScene | null = null
+  private tierShadows = true
   private contactTex: THREE.CanvasTexture | null = null
   private labelObserver: MutationObserver | null = null
   private lastChange: { at: number; why: string } | null = null
@@ -143,6 +145,7 @@ export class WorldRuntime {
   setScene(next: WorldScene) {
     const prev = this.state
     this.state = next
+    this.view = next.live ? Object.assign(Object.create(next) as WorldScene, { frame: next.frame, ghost: next.ghost }) : null
     if (!prev || prev.frame.players.length !== next.frame.players.length) this.rebuildAthletes()
     if (!prev || prev.frame !== next.frame) this.renderer.shadowMap.needsUpdate = true
     this.xrayTarget = next.lens === 'normal' ? 0 : 1
@@ -222,7 +225,7 @@ export class WorldRuntime {
     if (!key) return
     const size = this.software ? Math.min(st.shadows.mapSize, 1024) : st.shadows.mapSize
     if (key.shadow.mapSize.x !== size) { key.shadow.mapSize.set(size, size); key.shadow.map?.dispose(); key.shadow.map = null }
-    key.castShadow = st.shadows.enabled
+    key.castShadow = st.shadows.enabled; this.tierShadows = st.shadows.enabled
     this.renderer.shadowMap.needsUpdate = true; this.dirty = true
   }
 
@@ -378,8 +381,15 @@ export class WorldRuntime {
     if (this.disposed) return
     this.raf = requestAnimationFrame(this.tick)
     const began = performance.now()
-    const s = this.state
-    if (!s) return
+    const s0 = this.state
+    if (!s0) return
+    // Playback clock lives outside React: read the exact frame for this animation frame.
+    let s: WorldScene = s0
+    if (this.view && s0.playing && s0.live) {
+      this.view.frame = s0.live.frame(); if (s0.live.ghost) this.view.ghost = s0.live.ghost()
+      if (this.tierShadows) this.renderer.shadowMap.needsUpdate = true
+      s = this.view
+    }
     const dt = this.lastTick ? Math.min(0.1, (now - this.lastTick) / 1000) : 1 / 60
     this.lastTick = now
     let animating = false

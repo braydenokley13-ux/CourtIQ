@@ -35,6 +35,11 @@ def lerp(a, b, t):
     return a + (b - a) * t
 
 
+def plant_weight(foot):
+    """0..1 'foot is on the court' marker baked into the GLB; the runtime foot-lock IK uses it."""
+    return float(foot.get('plant', 1.0))
+
+
 # ---------------------------------------------------------------------------
 # Rig solver
 # ---------------------------------------------------------------------------
@@ -243,7 +248,8 @@ def gait_pose(spec, p):
         x = bx + d[0] * along
         y = by + d[1] * along + cdy
         z = FOOT_Z + lift + cdz
-        feet.append({'target': (x, y, z), 'pitch': theta, 'yaw': spec['foot_yaw'](sign)})
+        pl = 0.0 if q >= spec['s'] else smooth((spec['s'] - q) / (.12 * spec['s']))
+        feet.append({'target': (x, y, z), 'pitch': theta, 'yaw': spec['foot_yaw'](sign), 'plant': pl})
     # Pelvis: bob (up at mid-stance for walking, up in flight for running), lateral
     # weight transfer over the stance foot, forward travel of the hips.
     mid = s / 2

@@ -25,6 +25,9 @@ export type Phase =
 
 export interface Snapshot { config: LabConfig; result: SimulationResult; moment: TeachingMoment | null; label: string }
 
+/** React-visible playback clock cadence (ms). The world itself reads the clock every frame. */
+export const UI_CLOCK_MS = 80
+
 const copy = <T,>(x: T): T => JSON.parse(JSON.stringify(x)) as T
 
 /** The Lab's executable state: config → deterministic replay → moment → fixes.
@@ -73,10 +76,12 @@ export function useLab() {
     return () => { clearTimeout(id); ctrl.abort() }
   }, [config, active])
 
-  // Playback clock.
+  // Playback clock. The world reads `timeRef` directly every animation frame (see WorldScene.live);
+  // React state is only refreshed ~12 Hz for the dock/scrubber/marks, so a 60 fps clock no longer
+  // re-renders the whole shell 60 times a second. Stops and seeks still set the exact time at once.
   useEffect(() => {
     if (!playing) return
-    let raf = 0, last = 0
+    let raf = 0, last = 0, uiAt = 0
     const tick = (now: number) => {
       const dt = last ? Math.min(0.1, (now - last) / 1000) : 0
       last = now
@@ -90,7 +95,8 @@ export function useLab() {
         if (loop) next = 0
         else { setTime(duration); setPlaying(false); const cb = onStop.current; onStop.current = null; cb?.(); return }
       }
-      setTime(next)
+      timeRef.current = next
+      if (now - uiAt >= UI_CLOCK_MS) { uiAt = now; setTimeState(next) }
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
@@ -102,7 +108,7 @@ export function useLab() {
     stopAt.current = until; onStop.current = then ?? null
     setPlaying(true)
   }, [setTime])
-  const pause = useCallback(() => { setPlaying(false); stopAt.current = null; onStop.current = null }, [])
+  const pause = useCallback(() => { setPlaying(false); stopAt.current = null; onStop.current = null; setTimeState(timeRef.current) }, [])
   const seek = useCallback((t: number) => { pause(); setTime(Math.max(0, Math.min(duration, t))) }, [pause, setTime, duration])
 
   /** Run the possession; freeze where the basketball is worth talking about. */
@@ -193,7 +199,7 @@ export function useLab() {
 
   return {
     config, setConfig: setConfigRaw, replaceConfig, phase, setPhase, time, setTime, playing, speed, setSpeed, setLoop, loop,
-    result, display, analysis, moment, frame, comparison, previous, setPrevious, duration,
+    timeRef, result, display, analysis, moment, frame, comparison, previous, setPrevious, duration,
     explore, exploreBusy, hoverFix, setHoverFix, lastFix, applyFix, change, moveDefender,
     play, pause, seek, run, runRef,
     attack, attackPrevious, attempts, attackProgress, breakDefense, fixBreak, cancelBreak, override,

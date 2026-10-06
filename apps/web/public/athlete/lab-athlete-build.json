@@ -3,13 +3,47 @@
   "fps": 24,
   "heightMeters": 1.808,
   "sourceBlend": "scripts/athlete/source/lab-athlete-studio.blend",
+  "meshes": {
+    "LOD0_athlete": {
+      "vertices": 8617,
+      "triangles": 16464
+    },
+    "LOD1_athlete": {
+      "vertices": 3056,
+      "triangles": 5597
+    },
+    "LOD2_athlete": {
+      "vertices": 1176,
+      "triangles": 1975
+    },
+    "HAIR_crop": {
+      "vertices": 684,
+      "triangles": 1364
+    },
+    "HAIR_buzz": {
+      "vertices": 684,
+      "triangles": 1364
+    },
+    "HAIR_hightop": {
+      "vertices": 526,
+      "triangles": 1048
+    },
+    "HAIR_afro": {
+      "vertices": 976,
+      "triangles": 1948
+    }
+  },
   "lod0": {
-    "vertices": 7282,
-    "triangles": 13868
+    "vertices": 8617,
+    "triangles": 16464
   },
   "lod1": {
-    "vertices": 2574,
-    "triangles": 4575
+    "vertices": 3056,
+    "triangles": 5597
+  },
+  "lod2": {
+    "vertices": 1176,
+    "triangles": 1975
   },
   "clips": [
     {
@@ -242,7 +276,7 @@
     }
   ],
   "bytes": {
-    "lab-athlete.glb": 935528,
-    "lab-athlete-tactical.glb": 432900
+    "lab-athlete.glb": 1187516,
+    "lab-athlete-tactical.glb": 492344
   }
 }

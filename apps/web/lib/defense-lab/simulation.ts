@@ -11,7 +11,11 @@ export { createDefaultConfig } from './scenario'
 
 const rim = { x: 0, y: 3.05, z: 1.575 }
 /** Metres a ball carrier attacks past his current spot: the space a drive must win. */
+/** Options a counter insists on at the first read of the possession ('auto' and 'lift' read freely). */
+const FIRST_READ: Partial<Record<LabConfig['counter'], ThreatId[]>> = { roll: ['roll'], 'short-roll': ['roll'], slip: ['roll'], skip: ['lift', 'corner'], extra: ['lift', 'corner'], pop: ['pop'], reject: ['drive'] }
 const DRIVE_STEP = 1.6
+/** Further than this from his spot, a defender turns his back to the ball and sprints. */
+const SPRINT_BEYOND = 2.2
 /** Seconds of lead an open pass must have over the nearest closeout before a patient reader takes it. */
 const PASS_LEAD = 0.1
 /** A drive is taken early only when the carrier clearly beats the nearest defender. */
@@ -60,6 +64,11 @@ function validate(config: LabConfig, problem: ProblemDefinition) {
       if (!Number.isFinite(value) || value < bounds[0] || value > bounds[1]) throw new Error(`Invalid opponent parameter: ${key}`)
     }
     for (const key of ['reject', 'rescreen', 'shortRoll'] as const) if (typeof strategy[key] !== 'boolean') throw new Error(`Invalid opponent permission: ${key}`)
+  }
+  for (const [id, person] of Object.entries(config.personnel ?? {})) {
+    if (!problem.players.some(p => p.id === id)) throw new Error(`Personnel names an unknown player: ${id}`)
+    const limits: Record<'speed' | 'lateral' | 'height', [number, number]> = { speed: [0.6, 1.25], lateral: [0.4, 1], height: [1.6, 2.3] }
+    for (const [key, [low, high]] of Object.entries(limits)) { const value = person?.[key as keyof typeof limits]; if (value !== undefined && (!Number.isFinite(value) || value < low || value > high)) throw new Error(`Invalid personnel ${key} for ${id}.`) }
   }
   if (config.interventions.length > 64) throw new Error('Too many interventions.')
   for (const cue of config.interventions) {
@@ -280,9 +289,11 @@ export function simulateProblem(problem: ProblemDefinition, input: LabConfig): S
   const capabilities = new Map<PlayerId, number>(), profiles = new Map<PlayerId, Capability>()
   let players: PlayerState[] = problem.players.map(p => {
     capabilities.set(p.id, 0.96 + rand() * 0.04)
-    const profile = resolveCapability(p)
+    const person = config.personnel?.[p.id]
+    const base = resolveCapability({ ...p, height: person?.height ?? p.height })
+    const profile: Capability = { ...base, speed: base.speed * (person?.speed ?? 1), lateral: person?.lateral ?? base.lateral }
     profiles.set(p.id, profile)
-    return { id: p.id, team: p.team, role: p.role, number: p.number, height: p.height, speed: profile.speed, acceleration: profile.acceleration, lateral: profile.lateral, contest: profile.contest, ...(config.startingPositions?.[p.id] ?? p.start), vx: 0, vz: 0, yaw: p.team === 'offense' ? Math.PI : 0, pose: { stance: p.team === 'offense' ? 'ready' : 'defend', hands: p.team === 'offense' ? 0.2 : 0.6, phase: rand() * Math.PI * 2, jump: 0 } }
+    return { id: p.id, team: p.team, role: p.role, number: p.number, height: person?.height ?? p.height, speed: profile.speed, acceleration: profile.acceleration, lateral: profile.lateral, contest: profile.contest, ...(config.startingPositions?.[p.id] ?? p.start), vx: 0, vz: 0, yaw: p.team === 'offense' ? Math.PI : 0, pose: { stance: p.team === 'offense' ? 'ready' : 'defend', hands: p.team === 'offense' ? 0.2 : 0.6, phase: rand() * Math.PI * 2, jump: 0 } }
   })
   const firstNode = problem.reads.find(n => n.trigger !== 'catch') ?? problem.reads[0]
   const runtime: Runtime = { owner: firstNode?.actorId ?? problem.roles.ballhandler, flight: null, phase: 'handle', nodeId: firstNode?.id ?? null, caughtAt: 0, lastReadAt: -10, passCount: 0, driveAt: null, shotAt: null, continuation: null, endedAt: null, policy: { activations: [] }, observed: null }
@@ -369,6 +380,10 @@ export function simulateProblem(problem: ProblemDefinition, input: LabConfig): S
       let ranked = candidates.filter(c => c.available).sort((a, b) => b.value - a.value)
       // An adaptive offense reads continuously and takes the first opening that is
       // clearly there; `decisionAt` is only the latest it waits ("the action runs out").
+      // The chosen counter is a real first-read constraint whenever one of its options exists:
+      // the offense runs that action first, and whether it works is then the defense's doing.
+      const forced = runtime.passCount === 0 ? FIRST_READ[config.counter] : undefined
+      if (forced && ranked.some(c => forced.includes(c.threatId))) ranked = ranked.filter(c => forced.includes(c.threatId))
       const patient = !!strategy && node.trigger !== 'catch' && node.decisionAt !== undefined && t < node.decisionAt - 1e-9
       if (patient) ranked = ranked.filter(c => c.arrivalGap >= (c.threatId === 'drive' ? DRIVE_LEAD : PASS_LEAD))
       const choice = ranked[0]
@@ -431,7 +446,9 @@ export function simulateProblem(problem: ProblemDefinition, input: LabConfig): S
       const primary = responsibilities.filter(r => r.defenderId === p.id).sort((a, b) => b.priority - a.priority)[0]
       const goal = cue?.kind === 'move' ? cue.target : p.team === 'offense' ? goals.get(p.id)?.target ?? p : primary?.target ?? p
       const speed = p.team === 'offense' ? goals.get(p.id)?.speed ?? 3.4 : config.assumptions.maxSpeed
-      const facing = p.team === 'defense' ? ball : ball.phase === 'pass' && ball.receiver === p.id ? ball : undefined
+      // Defenders face the ball, but a defender with far to go (a trailing or recovering man) turns and runs.
+      const faceBall = p.team === 'defense' && distance(p, goal) <= SPRINT_BEYOND
+      const facing = faceBall ? ball : p.team === 'offense' && ball.phase === 'pass' && ball.receiver === p.id ? ball : undefined
       const next = advance(p, goal, speed, players, config, capabilities.get(p.id)!, motionScratch, facing, profiles.get(p.id))
       if (next.contact) diagnostics.contactCount++
       diagnostics.boundaryBreach ||= next.breach

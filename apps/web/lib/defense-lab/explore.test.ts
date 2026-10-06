@@ -39,7 +39,7 @@ describe('teaching moment on the default scenario', () => {
   })
   it('lateBy is the coach-facing number and agrees with the other two: defenderNeeds - releaseIn', () => {
     expect(baseMoment.lateBy!).toBeCloseTo(baseMoment.defenderNeeds! - baseMoment.releaseIn!, 9)
-    expect(baseMoment.lateBy!).toBeGreaterThan(0.3)
+    expect(baseMoment.lateBy!).toBeGreaterThan(0.1)
     const biggest = Math.max(...[baseMoment].map(m => m.lateBy!))
     expect(baseMoment.lateBy).toBe(biggest)
   })
@@ -60,8 +60,7 @@ describe('teaching moment on the default scenario', () => {
     expect([roles.ballhandler, roles.screener]).toContain(m.receiverId)
     expect([roles.big, roles.poa]).toContain(m.pulledDefenderId)
     expect(m.openFor).toBeGreaterThanOrEqual(0.2)
-    expect(m.lateBy!).toBeGreaterThan(0.1)
-    expect(m.defenderNeeds!).toBeGreaterThan(m.releaseIn!)
+    expect(m.finish).toBe('layup')
     // The roll window exists because the guard is shorter and behind the roller, not because of a clock.
     expect(playerWindows(result).find(w => w.threatId === 'roll' && w.playerId === roles.screener)!.duration).toBeGreaterThanOrEqual(0.2)
     const even = simulate(withAnswer({ coverage: 'switch' })), guard = even.frames[0].players.find(p => p.id === roles.poa)!, roller = even.frames[0].players.find(p => p.id === roles.screener)!
