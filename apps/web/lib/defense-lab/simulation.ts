@@ -325,7 +325,7 @@ export function simulateProblem(problem: ProblemDefinition, input: LabConfig): S
     if (!screenAnnounced && defenseState.screenAt !== null) { screenAnnounced = true; event({ t, type: 'screen', label: config.counter === 'slip' ? 'Early screen encounter → slip' : 'Handler enters the screen encounter', playerId: problem.roles.screener, details: `Observed body encounter at ${defenseState.screenAt.toFixed(2)} s; this is not a certified contact or legality call.` }) }
     const strategy = opponentAt(config, t)
     if (observed === currentObserved && defenseState.screenAt !== null) observed.screenEngagedAt = defenseState.screenAt
-    const responsibilities = defenseResponsibilities(observed, answer, problem, config, t, strategy ? defenseState : undefined)
+    const responsibilities = defenseResponsibilities(observed, answer, problem, config, t, strategy ? defenseState : undefined, defenseState.passed === true)
     if (observed === currentObserved) observed.responsibilities = responsibilities
     runtime.observed = observed
     if (strategy && runtime.phase !== 'dead' && runtime.shotAt === null) {
@@ -380,7 +380,7 @@ export function simulateProblem(problem: ProblemDefinition, input: LabConfig): S
           const passer = player(players, runtime.owner), receiver = player(players, choice.playerId), goals = offenseGoals(players, problem, config, t, runtime), goal = goals.get(receiver.id)!
           let flightDuration = clamp(distance(passer, receiver) / config.assumptions.passSpeed + 0.12, 0.25, 1.3), endpoint: Point2 = receiver
           for (let j = 0; j < 3; j++) { endpoint = predictReceiver(receiver, goal.target, flightDuration, goal.speed, config, motionScratch); flightDuration = clamp(distance(passer, endpoint) / config.assumptions.passSpeed + 0.12, 0.25, 1.3) }
-          runtime.flight = { from: passer.id, to: receiver.id, start: t, end: t + flightDuration, a: { x: passer.x, y: choice.threatId === 'roll' ? 1.25 : config.assumptions.releaseHeight, z: passer.z }, b: { ...endpoint, y: 1.55 }, kind: choice.threatId === 'roll' ? 'pocket' : distance(passer, endpoint) > 6 ? 'skip' : 'chest' }
+          runtime.flight = { from: passer.id, to: receiver.id, start: t, end: t + flightDuration, a: { x: passer.x, y: choice.threatId === 'roll' ? 1.25 : config.assumptions.releaseHeight, z: passer.z }, b: { ...endpoint, y: 1.55 }, kind: choice.threatId === 'roll' ? 'pocket' : passer.x * endpoint.x < 0 && Math.abs(passer.x - endpoint.x) > 4 ? 'skip' : 'chest' }
           if (choice.threatId === 'roll' && previewClearance(runtime.flight, players, config) < 0.08) {
             const lobDuration = Math.min(1.1, flightDuration + 0.2)
             const lobEndpoint = predictReceiver(receiver, goal.target, lobDuration, goal.speed, config, motionScratch)

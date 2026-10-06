@@ -18,16 +18,19 @@ export const dropLine = (bigDepth: number) => bigDepth + DROP_LINE_OFFSET
 
 /** Role-based ball-screen coverage policy. Coaching rules choose obligations;
  * the independent world integrator determines physical arrival. */
-export interface DefensePolicyState { screenAt: number | null; showReleased: boolean }
+export interface DefensePolicyState { screenAt: number | null; showReleased: boolean
+  /** Latched once a pass has been observed this possession. The ball phase alone returns to 'handle' when a catcher keeps it, which must not release a closeout. */
+  passed?: boolean }
 /** A screen encounter requires a declared screen action and observed bodies in
  * its encounter area. A baseline drive cannot turn into a timed switch. */
 export function observeScreen(observed: WorldFrame, problem: ProblemDefinition, state: DefensePolicyState): void {
+  if (observed.ball.phase === 'pass' || observed.ball.phase === 'gather' || observed.ball.phase === 'shot') state.passed = true
   const screen = problem.actions.find(a => a.kind === 'screen' && a.from <= observed.t)
   if (!screen || state.screenAt !== null) return
   const handler = player(observed.players, problem.roles.ballhandler), screener = player(observed.players, problem.roles.screener)
   if (distance(handler, screener) < 1.9 && Math.hypot(handler.vx, handler.vz) > 0.2) state.screenAt = observed.t
 }
-export function defenseResponsibilities(observed: WorldFrame, answer: TeamAnswer, problem: ProblemDefinition, config: LabConfig, t: number, state?: DefensePolicyState): Responsibility[] {
+export function defenseResponsibilities(observed: WorldFrame, answer: TeamAnswer, problem: ProblemDefinition, config: LabConfig, t: number, state?: DefensePolicyState, passed?: boolean): Responsibility[] {
   const r = problem.roles, ps = observed.players, ball = observed.ball, owner = ball.phase === 'pass' ? ball.receiver : ball.owner
   const handler = player(ps, r.ballhandler), roller = player(ps, r.screener), corner = player(ps, r.weakCorner), lift = player(ps, r.weakLift), strong = player(ps, r.strongCorner)
   const responsibilities: Responsibility[] = []
@@ -58,7 +61,7 @@ export function defenseResponsibilities(observed: WorldFrame, answer: TeamAnswer
   }
   add(r.strongSide, 'strong', r.strongCorner, 'guard', towardRim(strong, 0.9), 'Protect strong-side spacing')
   const rollerThreat = roller.vz < -0.2 || roller.z < 5.5
-  const passSeen = ball.phase === 'pass' || ball.phase === 'gather' || ball.phase === 'shot'
+  const passSeen = passed ?? (ball.phase === 'pass' || ball.phase === 'gather' || ball.phase === 'shot')
   const rollerSecured = distance(bigPlayer, roller) <= config.assumptions.contestRadius && !ballAtHandler
   const tagActive = hasScreen && answer.tag && !switched && rollerThreat && (answer.recovery === 'roller-secured' ? !rollerSecured : !passSeen)
   const tagPlanned = hasScreen && answer.tag && answer.coverage !== 'switch' && ballAtHandler && roller.vz <= 0.2
