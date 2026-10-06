@@ -24,6 +24,12 @@ Build: `python3 scripts/athlete/build_studio_athlete.py` (about 70 s; `GEOMETRY_
 - **Poses**: lower, more forward defensive stance (hip hinge 0.25 rad, chest 0.30), wider base, bent-elbow active hands, forward-lean slides / chops / backpedal, closeout high hand beside the head, passes and shots own the legs at low speed so the lead foot steps into the pass.
 - Fixes: ball hands bracket the ball (the original left hand crossed the chest), shorts crotch side no longer a flat see-through sheet.
 
+### Pass 4 (art direction)
+- Jersey hangs straight (half-width capped per height slice: hem 0.172 m tapering to the chest), hem at the shorts waist; shorts are tapered, solid (Solidify with a trim rim hem, double-sided material), side stripe subtle, leg weights follow the thigh so skin does not poke through.
+- Stance: hip drop 0.31 m, chest hinge about 0.36 rad plus hip hinge 0.32, heels up (foot pitch 0.20), slides/chop/backpedal lowered with the bob removed.
+- Hair shells are thinner and taper into the hairline; faces are a soft eye-socket shadow, small dark almond eye, thin brow, nose shadow and a mouth line (no large whites); skin specular 0.28 with warm sheen; jersey has a mesh weave plus speckle on the atlas; AO is softer.
+- LOD1/LOD2 are built from thin single-surface jersey/shorts with region-boundary and open-edge vertices pinned, so decimation no longer tears cloth. Triangles: LOD0 16.2k, LOD1 5.4k, LOD2 2.8k; lab-athlete.glb 1.25 MB.
+
 Validators: `node scripts/athlete/validate_studio_athlete.mjs`, `tsx scripts/athlete/validate_studio_runtime.ts` (determinism after scrubbing 2.6e-16, one visible skinned mesh per athlete) and `validate_foot_planting.ts`.
 
 Remaining: no cloth simulation; skin shading is a single material (no real SSS); hem fringe artifacts on some shorts at close range and a faint back-numeral ghost at the jersey side seam; faces have no expression; screens/fights are only as good as the single `screen_fight` loop; LOD2 loses the face.
