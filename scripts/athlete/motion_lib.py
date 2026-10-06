@@ -350,17 +350,17 @@ def make_specs():
     # covers slow/medium speeds and a hop-slide (brief flight) covers fast ones.
     for suffix, dirx in (('left', 1), ('right', -1)):
         yaw = (lambda dx: (lambda sg: dx * .10 + sg * .08))(dirx)
-        S['defense_slide_' + suffix] = dict(dir=(dirx, 0), L=.90, s=.40, toe=.30, hs=0., lift=.035, drop=.25, bounce=.012, sway=.026,
-                                          lean=.42, twist=.05, base=base_c(.30), foot_yaw=yaw, arms=arms_defensive_moving(),
+        S['defense_slide_' + suffix] = dict(dir=(dirx, 0), L=.90, s=.40, toe=.30, hs=0., lift=.035, drop=.31, bounce=.003, sway=.026,
+                                          lean=.50, twist=.05, base=base_c(.30), foot_yaw=yaw, arms=arms_defensive_moving(),
                                           heel_off=.7, knee_out=.20, ease=.1, roll=.03 * dirx)
-        S['defense_slide_fast_' + suffix] = dict(dir=(dirx, 0), L=1.50, s=.25, toe=.35, hs=0., lift=.09, drop=.23, bounce=-.022, sway=.02,
-                                               lean=.44, twist=.06, base=base_c(.33), foot_yaw=yaw, arms=arms_defensive_moving(.0, .07),
+        S['defense_slide_fast_' + suffix] = dict(dir=(dirx, 0), L=1.50, s=.25, toe=.35, hs=0., lift=.09, drop=.30, bounce=-.006, sway=.02,
+                                               lean=.50, twist=.06, base=base_c(.33), foot_yaw=yaw, arms=arms_defensive_moving(.0, .07),
                                                heel_off=.6, knee_out=.16, ease=.3, roll=.035 * dirx)
-    S['backpedal'] = dict(dir=(0, 1), L=1.75, s=.50, toe=.30, hs=-.12, lift=.085, drop=.22, bounce=.012, sway=.022,
+    S['backpedal'] = dict(dir=(0, 1), L=1.75, s=.50, toe=.30, hs=-.12, lift=.085, drop=.28, bounce=.004, sway=.022,
                           lean=.30, twist=.10, base=base_c(.20), foot_yaw=lambda sg: sg * .08, arms=arms_backpedal,
                           heel_off=.7, knee_out=.14)
-    S['chop'] = dict(dir=(0, -1), L=1.05, s=.56, toe=.25, hs=0., lift=.06, drop=.25, bounce=-.012, sway=.03,
-                     lean=.42, twist=.05, base=base_c(.20), foot_yaw=lambda sg: sg * .12, arms=arms_chop,
+    S['chop'] = dict(dir=(0, -1), L=1.05, s=.56, toe=.25, hs=0., lift=.06, drop=.29, bounce=-.012, sway=.03,
+                     lean=.48, twist=.05, base=base_c(.20), foot_yaw=lambda sg: sg * .12, arms=arms_chop,
                      heel_off=.7, knee_out=.16, ease=.1)
     return S
 
@@ -397,15 +397,15 @@ def pose_offense_ready(t, dur):
 def pose_defense_ready(t, dur):
     cyc = TAU * t / dur
     shift = math.sin(cyc)
-    feet = stand(.35, (-.12, .06), toe_out=.16, pitch_foot=.11)
+    feet = stand(.33, (-.12, .06), toe_out=.16, pitch_foot=.20)
     # Active hands: a high "mirror" hand in the passing lane and a low wide hand that
     # trade places slowly; quiet fingers wiggle is carried by the small wave terms.
     a = .5 + .5 * math.sin(cyc)
     hands = []
     hands.append(hand(.32, -.27 - .03 * a, 1.56 + .06 * a, (.52, .04, 1.20), roll=-1.1))
     hands.append(hand(-.48, -.17 - .03 * (1 - a), 1.06 - .07 * a + .05 * (1 - a), (-.52, .10, .95), roll=.5))
-    return {'pelvis': (.014 * shift, -.03, -.235 + .007 * math.sin(cyc * 2)), 'pelvis_rot': (.25, -.015 * shift, -.06 * shift),
-            'spine': (.30, .02 * shift, .05 * shift), 'head': (-.30, 0, .06 * math.sin(cyc * .5 + .6)),
+    return {'pelvis': (.014 * shift, -.05, -.31 + .006 * math.sin(cyc * 2)), 'pelvis_rot': (.32, -.015 * shift, -.06 * shift),
+            'spine': (.36, .02 * shift, .05 * shift), 'head': (-.36, 0, .06 * math.sin(cyc * .5 + .6)),
             'feet': feet, 'hands': hands, 'knee_out': .24}
 
 
@@ -460,8 +460,8 @@ def pose_closeout(t, dur):
                      'pitch': .08 + .1 * up, 'yaw': sign * .10, 'plant': 1 - smooth(up / .25)})
     hands = [hand(.34, -.30, 1.90 + .02 * math.sin(cyc * 2), (.60, -.04, 1.50), roll=-1.3),
              hand(-.46, -.22, 1.20 + .03 * math.sin(cyc * 2 + 1), (-.50, .06, 1.04), roll=.5)]
-    return {'pelvis': (.012 * math.sin(cyc * 2), -.04, -.25 + .012 * math.cos(cyc * 4)), 'pelvis_rot': (.26, 0, 0),
-            'spine': (.34, 0, .05), 'head': (-.34, 0, 0), 'feet': feet, 'hands': hands, 'knee_out': .18}
+    return {'pelvis': (.012 * math.sin(cyc * 2), -.05, -.30 + .010 * math.cos(cyc * 4)), 'pelvis_rot': (.30, 0, 0),
+            'spine': (.38, 0, .05), 'head': (-.38, 0, 0), 'feet': feet, 'hands': hands, 'knee_out': .18}
 
 
 def pose_pivot(t, dur):

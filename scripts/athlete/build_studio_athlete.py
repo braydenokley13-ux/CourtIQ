@@ -38,14 +38,14 @@ for name, color, rough in [
         ('athlete_skin', (.43, .235, .135), .7), ('athlete_hair', (.018, .021, .018), .94),
         ('athlete_jersey', (.018, .13, .135), .84), ('athlete_trim', (.80, .82, .70), .76),
         ('athlete_kit', (.018, .13, .135), .84), ('athlete_shoe', (.055, .075, .068), .57),
-        ('athlete_sole', (.70, .73, .67), .80), ('athlete_eye_white', (.9, .9, .88), .4),
+        ('athlete_sole', (.70, .73, .67), .80), ('athlete_eye_white', (.9, .9, .88), .4), ('athlete_skin_shadow', (.35, .18, .1), .7),
         ('athlete_feature', (.03, .02, .02), .6), ('athlete_lips', (.35, .16, .12), .6),
         ('athlete_sock', (.85, .86, .82), .8), ('athlete_lace', (.9, .9, .88), .7)]:
     MATS[name[8:]] = G.material(name, color, rough)
 MATS['jersey'].name = 'athlete_jersey'
 SWATCH_OF = {'athlete_skin': 'skin', 'athlete_hair': 'hair', 'athlete_trim': 'trim', 'athlete_kit': 'shorts', 'athlete_shoe': 'shoe',
              'athlete_sole': 'sole', 'athlete_eye_white': 'eye_white', 'athlete_feature': 'feature', 'athlete_lips': 'lips',
-             'athlete_sock': 'sock', 'athlete_lace': 'lace'}
+             'athlete_sock': 'sock', 'athlete_lace': 'lace', 'athlete_skin_shadow': 'skin_shadow'}
 
 # ---- 1. shape the base body, derive garments / hair / face from it
 G.shape_body(body)
@@ -54,11 +54,11 @@ for p in body.data.polygons:
     p.use_smooth = True
 jersey = G.build_jersey(body, MATS)
 HAIR_STYLES = {
-    'crop': dict(t_base=.0045, t_top=.013, shell=.008),
-    'buzz': dict(t_base=.0025, t_top=.005, shell=.004),
-    'hightop': dict(t_base=.008, t_top=.052, shell=.012, top_from=1.715, top_to=1.78, flat=1.855,
+    'crop': dict(t_base=.003, t_top=.0085, shell=.006),
+    'buzz': dict(t_base=.0018, t_top=.0035, shell=.0035),
+    'hightop': dict(t_base=.004, t_top=.030, shell=.008, top_from=1.72, top_to=1.78, flat=1.84,
                     hairline=lambda c: G.default_hairline((c[0], c[1], c[2] - (.012 if c[1] < -.02 else 0)))),
-    'afro': dict(t_base=.030, t_top=.058, shell=.020, radial=True, top_from=1.68, top_to=1.78,
+    'afro': dict(t_base=.016, t_top=.034, shell=.012, radial=True, top_from=1.68, top_to=1.78,
                  hairline=lambda c: c[2] > (1.700 - .035 * G.smooth(abs(c[0]), .05, .09) + (.012 if c[1] < -.05 else 0))
                  if c[1] < .035 else c[2] > 1.655),
 }

@@ -206,6 +206,7 @@ def clean_mesh(ob, merge=.0004):
 # ---------------------------------------------------------------------------
 # Jersey: the athlete's own torso surface, cut to a tank-top, offset and thickened
 # ---------------------------------------------------------------------------
+JERSEY_HEM_HALF = .172
 JERSEY_NECK = dict(center=(0, -.07, 1.535), radii=(.098, .155, .098))
 JERSEY_ARM = dict(cz=1.36, cy=-.012, rz=.122, ry=.066)
 
@@ -257,14 +258,29 @@ def build_jersey(body, mats):
     bm.normal_update()
     for v in bm.verts:
         z = v.co.z
-        gap = .0045 + .022 * (1 - smooth(z, JERSEY_Z0, 1.32)) + .004 * bell((z - 1.40) / .09)
+        gap = .005 + .010 * (1 - smooth(z, JERSEY_Z0, 1.32)) + .004 * bell((z - 1.40) / .09)
         n = v.normal.copy()
         if z < JERSEY_Z0 + .03:
             n.z *= max(0., (z - JERSEY_Z0) / .03)     # keep the hem edge level
             n.normalize()
         v.co += n * gap
-        # slightly flared hem
-        v.co.x *= 1 + .02 * (1 - smooth(z, JERSEY_Z0, 1.15))
+    # Hang straight: the pelvis flares, the jersey must not. Cap the half-width per height slice
+    # (hem .176 m -> chest .196 m) so the cut is a slightly tapered tube, no peplum.
+    bins = {}
+    for v in bm.verts:
+        k = int(v.co.z * 100)
+        bins[k] = max(bins.get(k, 0.), abs(v.co.x))
+    for v in bm.verts:
+        z = v.co.z
+        if z > 1.34:
+            continue
+        k = int(z * 100)
+        m = max(bins.get(k + d, 0.) for d in (-2, -1, 0, 1, 2))
+        target = JERSEY_HEM_HALF + .022 * smooth(z, 1.0, 1.3)
+        f = min(1., target / max(m, 1e-4))
+        f = 1 - (1 - f) * (1 - smooth(z, 1.2, 1.34))
+        v.co.x *= f
+        v.co.y = (v.co.y - .012) * max(f, .9) + .012
     bm.to_mesh(j.data)
     bm.free()
     # Reduce the open shell while pinning every cut edge (neck / armholes / hem) so the bound
@@ -347,6 +363,7 @@ def ring_xy(a, cx, rx, ry, sign, r=1.0):
 
 
 def build_shorts(body_skinned_source, mats):
+    """Solid tapered shorts: open tubes thickened with Solidify (closed, rim = trim hem)."""
     verts = []
     faces = []
     mi = []
@@ -355,48 +372,44 @@ def build_shorts(body_skinned_source, mats):
     for sign in (-1, 1):
         start = len(verts)
         side = 'l' if sign > 0 else 'r'
-        levels = [(.600, .122, .146, sign * .110),
-                  (.640, .122, .146, sign * .110),
-                  (.760, .130, .150, sign * .106),
-                  (.880, .129, .145, sign * .097),
-                  (.960, .121, .134, sign * .085),
-                  (1.000, .113, .128, sign * .076)]
+        levels = [(.585, .108, .132, sign * .108),
+                  (.640, .113, .136, sign * .108),
+                  (.760, .122, .144, sign * .104),
+                  (.880, .122, .140, sign * .092),
+                  (.960, .110, .126, sign * .070),
+                  (1.000, .104, .120, sign * .064)]
         for k, (z, rx, ry, cx) in enumerate(levels):
             for i in range(n):
                 a = TAU * i / n
                 x, y = ring_xy(a, cx, rx, ry, sign)
-                verts.append((x, y + .0015 * math.sin(a * 6 + k), z))
+                verts.append((x, y, z))
                 pelvis = max(0., min(1., (z - .72) / .25))
                 weights.append([('pelvis', pelvis), ('thigh_' + side, 1 - pelvis)])
         for k in range(len(levels) - 1):
             for i in range(n):
                 faces.append((start + k * n + i, start + k * n + (i + 1) % n, start + (k + 1) * n + (i + 1) % n, start + (k + 1) * n + i))
                 a = TAU * (i + .5) / n
-                mi.append(1 if (abs(math.cos(a)) > .965 and sign * math.cos(a) > 0 and 1 <= k <= 3) else 0)
-        z0, rx0, ry0, cx0 = levels[0][0], levels[0][1], levels[0][2], levels[0][3]
-        lip = len(verts)
-        for i in range(n):
-            x, y = ring_xy(TAU * i / n, cx0, rx0, ry0, sign, .985)
-            verts.append((x, y, z0 - .012))
-            weights.append([('thigh_' + side, 1.)])
-        inner = len(verts)
-        for i in range(n):
-            x, y = ring_xy(TAU * i / n, cx0, rx0, ry0, sign, .94)
-            verts.append((x, y, z0 + .022))
-            weights.append([('thigh_' + side, 1.)])
-        for i in range(n):
-            faces.append((start + i, start + (i + 1) % n, lip + (i + 1) % n, lip + i)); mi.append(1)
-            faces.append((lip + i, lip + (i + 1) % n, inner + (i + 1) % n, inner + i)); mi.append(0)
+                mi.append(1 if (abs(math.cos(a)) > .975 and sign * math.cos(a) > 0 and 1 <= k <= 3) else 0)
     me = bpy.data.meshes.new('shorts')
     me.from_pydata(verts, [], faces)
     me.update()
     ob = new_object('LOD0_shorts', me)
-    for m in (mats['kit'], mats['trim']):
+    for m in (mats['kit'], mats['trim'], mats['trim']):
         me.materials.append(m)
     for p in me.polygons:
         p.use_smooth = True
         p.material_index = mi[p.index]
     assign_weights(ob, weights)
+    select_only(ob)
+    sd = ob.modifiers.new('thick', 'SOLIDIFY')
+    sd.thickness = .007
+    sd.offset = -1
+    sd.use_rim = True
+    sd.material_offset_rim = 1
+    sd.use_even_offset = False
+    apply_modifier(ob, sd)
+    for p in ob.data.polygons:
+        p.use_smooth = True
     return ob
 
 
@@ -571,7 +584,7 @@ def build_hair(body, name, style, mats):
             v.co = c
     ring = {v: 0 for v in boundary}
     frontier = list(boundary)
-    for r in range(1, 4):
+    for r in range(1, 6):
         nxt = []
         for v in frontier:
             for e in v.link_edges:
@@ -584,7 +597,7 @@ def build_hair(body, name, style, mats):
     for v in bm.verts:
         top = smooth(v.co.z, style.get('top_from', 1.72), style.get('top_to', 1.80))
         t = style['t_base'] + (style['t_top'] - style['t_base']) * top
-        t *= min(1., .25 + .35 * ring.get(v, 3))
+        t *= min(1., .18 + .24 * ring.get(v, 5))
         dirv = v.normal.copy()
         if style.get('radial'):
             radial = (v.co - Vector((0, -.055, cz))).normalized()
@@ -630,7 +643,7 @@ def build_face(body, mats, tone='default'):
     faces = []
     mi = []
     weights = []
-    names = ['eye_white', 'feature', 'lips']
+    names = ['eye_white', 'feature', 'lips', 'skin_shadow']
 
     def strip(points_xz, width, offset, material):
         # polyline of (x,z) points with constant thickness in z; conformed by ray casting
@@ -659,17 +672,20 @@ def build_face(body, mats, tone='default'):
             faces.append((start + i, start + (i + 1) % seg, c))
             mi.append(material)
 
+    names_idx = {'eye_white': 0, 'feature': 1, 'lips': 2, 'skin_shadow': 3}
     for sgn in (-1, 1):
         ex = sgn * .0345
-        # eye: sclera ellipse + dark iris
-        disc(ex, 1.676, .0128, .0068, .0012, 0)
-        disc(ex + sgn * .0006, 1.676, .0062, .0062, .0019, 1)
-        # brow: arched strip, thicker toward the nose
-        pts = [(sgn * (.014 + .046 * u), 1.7035 + .0095 * math.sin(math.pi * (0.15 + 0.7 * u)) - .004 * u) for u in [i / 6 for i in range(7)]]
-        strip(pts, .0085, .0012, 1)
+        # soft eye-socket shadow, then a small dark almond (no big whites)
+        disc(ex, 1.6775, .0185, .0105, .0007, 3, 16)
+        disc(ex, 1.676, .0105, .0058, .0012, 1, 14)
+        # soft brow: thin, low arch
+        pts = [(sgn * (.016 + .042 * u), 1.7025 + .007 * math.sin(math.pi * (0.1 + 0.8 * u)) - .003 * u) for u in [i / 6 for i in range(7)]]
+        strip(pts, .0055, .0011, 1)
+    # nose: soft shadow under the tip and along the wings
+    disc(0, 1.6425, .0165, .0058, .0009, 3, 14)
     # mouth: soft line
-    mouth = [(-.024 + .048 * u, 1.6275 - .002 * math.sin(math.pi * u)) for u in [i / 8 for i in range(9)]]
-    strip(mouth, .0042, .0010, 2)
+    mouth = [(-.022 + .044 * u, 1.6275 - .0015 * math.sin(math.pi * u)) for u in [i / 8 for i in range(9)]]
+    strip(mouth, .0035, .0009, 2)
     bm0.free()
     me = bpy.data.meshes.new('face')
     me.from_pydata(verts, [], faces)
