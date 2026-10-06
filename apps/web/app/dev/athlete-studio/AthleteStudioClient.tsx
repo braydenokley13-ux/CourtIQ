@@ -100,7 +100,7 @@ export function AthleteStudioClient() {
     const cam = q.get('cam') ?? (scenario === 'track' ? 'side' : 'broadcast')
     const focus = Number(q.get('focus') ?? 2)
     const turntable = q.get('turntable') === '1'
-    const quality = (q.get('quality') ?? 'high') as 'high' | 'low'
+    const quality = (q.get('quality') ?? 'high') as 'high' | 'balanced' | 'low'
     const w = Number(q.get('w') ?? 1280), h = Number(q.get('h') ?? 720)
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })

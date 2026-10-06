@@ -3,23 +3,24 @@
 import { describeTradeoff, explainMoment, formatSeconds, type Voice } from '@/lib/defense-lab/corpus'
 import { attackIntentLabel, type AttackPreview, type AttackReport } from '@/lib/defense-lab/attack'
 import type { ComparisonResult } from '@/lib/defense-lab/analytics'
-import type { FixOption, TeachingMoment } from '@/lib/defense-lab/explore'
+import type { FixOption, Robustness, TeachingMoment } from '@/lib/defense-lab/explore'
 import type { ThreatId } from '@/lib/defense-lab/types'
 import { ROLE_OF, threatShort } from './basketball'
 import s from './courtiq.module.css'
 
 export function momentCopy(m: TeachingMoment, voice: Voice) {
-  return explainMoment({ threatId: m.threatId, openFor: m.openFor, defenderNeeds: m.defenderNeeds ?? undefined, responsibleRole: m.bestDefenderId ? ROLE_OF[m.bestDefenderId] : undefined, pulledRole: m.pulledDefenderId ? ROLE_OF[m.pulledDefenderId] : undefined, cause: m.cause, receiverRole: ROLE_OF[m.receiverId], releaseIn: m.releaseIn ?? undefined }, voice)
+  return explainMoment({ threatId: m.threatId, openFor: m.openFor, defenderNeeds: m.defenderNeeds ?? undefined, responsibleRole: m.bestDefenderId ? ROLE_OF[m.bestDefenderId] : undefined, pulledRole: m.pulledDefenderId ? ROLE_OF[m.pulledDefenderId] : undefined, cause: m.cause, receiverRole: ROLE_OF[m.receiverId], releaseIn: m.releaseIn ?? undefined, finish: m.finish }, voice)
 }
 
-export function MomentPanel({ moment, voice, onWhy, onFix, onBreak, onSave, whyOn, fixesReady }: { moment: TeachingMoment; voice: Voice; onWhy(): void; onFix(): void; onBreak(): void; onSave(): void; whyOn: boolean; fixesReady: boolean }) {
+export function MomentPanel({ moment, voice, onWhy, onFix, onBreak, onSave, whyOn, fixesReady, robust }: { robust: Robustness | null; moment: TeachingMoment; voice: Voice; onWhy(): void; onFix(): void; onBreak(): void; onSave(): void; whyOn: boolean; fixesReady: boolean }) {
   const copy = momentCopy(moment, voice)
   return (
     <div className={s.panel} role="dialog" aria-label="The problem">
       <div className={s.panelKicker}><span className={s.pulseDot} />Here’s the problem</div>
       <h2>{copy.headline}</h2>
       <p>{copy.body}</p>
-      <MomentNumbers openFor={moment.openFor} ready={moment.releaseIn} needs={moment.defenderNeeds} threatId={moment.threatId} voice={voice} />
+      <MomentNumbers openFor={moment.openFor} ready={moment.releaseIn} needs={moment.defenderNeeds} threatId={moment.threatId} voice={voice} finish={moment.finish} />
+      <div className={s.robust}>{robust ? <><b>{robust.opened} of {robust.samples}</b> {voice.register === 'plain' ? 'slightly different runs (a step slower, a step out of place) end the same way.' : 'jittered runs (seed, ±0.05 s reaction, ±4% speed, ±0.25 m spots) reproduce it.'} {robust.opened >= Math.ceil(robust.samples * 0.75) ? (voice.register === 'plain' ? 'This is a real problem.' : 'Robust.') : robust.opened <= robust.samples / 4 ? (voice.register === 'plain' ? 'It depends on small details — worth a look, not a panic.' : 'Fragile — detail-dependent.') : (voice.register === 'plain' ? 'It happens often enough to plan for.' : 'Likely.')}</> : (voice.register === 'plain' ? 'Checking how often this happens…' : 'Testing robustness…')}</div>
       <div className={s.row}>
         <button className={`${s.btn} ${s.btnPrimary}`} onClick={onFix} disabled={!fixesReady}>{fixesReady ? 'How do I fix it?' : 'Testing fixes…'}</button>
         <button className={s.btn} onClick={onWhy} aria-pressed={whyOn}>{whyOn ? 'Back to game view' : 'Show me why'}</button>
@@ -86,10 +87,11 @@ export function FixPanel({ fixes, voice, busy, onHover, onPick, onClose, onKeep 
   )
 }
 
-export function MomentNumbers({ openFor, ready, needs, threatId, voice }: { openFor: number; ready: number | null | undefined; needs: number | null | undefined; threatId: ThreatId; voice: Voice }) {
+export function MomentNumbers({ openFor, ready, needs, threatId, voice, finish }: { openFor: number; ready: number | null | undefined; needs: number | null | undefined; threatId: ThreatId; voice: Voice; finish?: TeachingMoment['finish'] }) {
   const p = voice.register === 'plain'
   const late = ready != null && needs != null ? needs - ready : null
-  const action = threatId === 'drive' || threatId === 'roll' ? (p ? 'Layup ready in' : 'Finish ready') : (p ? 'Shot ready in' : 'Release ready')
+  const layup = finish ? finish === 'layup' : threatId === 'drive' || threatId === 'roll'
+  const action = layup ? (p ? 'Layup ready in' : 'Finish ready') : (p ? 'Shot ready in' : 'Release ready')
   return (
     <div className={s.numbers} style={{ gridTemplateColumns: late != null ? '1fr 1fr 1fr' : '1fr 1fr' }}>
       {ready != null && <div className={s.number}><b>{formatSeconds(ready)}</b><span>{action}</span></div>}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ANSWERS, COLLISIONS, GOALS, SITUATIONS, answerById, applyAnswers, goalById, type Voice } from '@/lib/defense-lab/corpus'
+import { ANSWERS, COLLISIONS, GOALS, MODELED_COVERAGES, SITUATIONS, answerById, applyAnswers, goalById, isOfferable, type Voice } from '@/lib/defense-lab/corpus'
 import { findTeachingMoment } from '@/lib/defense-lab/explore'
 import { simulateCached } from '@/lib/defense-lab/replayCache'
 import { createDefaultConfig } from '@/lib/defense-lab/scenario'
@@ -12,7 +12,7 @@ import s from './courtiq.module.css'
 export type EntryStep = 'situation' | 'goal' | 'answers' | 'name'
 export interface EntryChoice { presetIds: string[]; config: LabConfig; term: string | null; goalId: string | null }
 
-const COVERAGE_IDS = ['drop', 'switch', 'blitz', 'hedge', 'ice']
+const COVERAGE_IDS: string[] = [...MODELED_COVERAGES]
 
 export default function Entry({ voice, onPreview, onDone, onExplore }: { voice: Voice; onPreview(result: SimulationResult | null): void; onDone(choice: EntryChoice): void; onExplore(): void }) {
   const [step, setStep] = useState<EntryStep>('situation')
@@ -23,7 +23,7 @@ export default function Entry({ voice, onPreview, onDone, onExplore }: { voice: 
 
   const options = useMemo(() => {
     const goal = goalId ? goalById(goalId) : null
-    const ids = goal && goal.mode !== 'custom' && goal.answers.length ? goal.answers.map(a => a.answerId) : COVERAGE_IDS
+    const ids = (goal && goal.mode !== 'custom' && goal.answers.length ? goal.answers.map(a => a.answerId) : COVERAGE_IDS).filter(isOfferable)
     return ids.slice(0, goal?.mode === 'custom' || !goal ? 5 : 4).map(id => {
       const preset = answerById(id)!
       const base = createDefaultConfig()

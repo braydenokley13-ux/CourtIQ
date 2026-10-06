@@ -10,10 +10,12 @@ import { simulateCached } from '@/lib/defense-lab/replayCache'
 import { loadSystem, persistSystem, programVoice, saveToSystem, type ProgramSystem, type SystemEntry } from '@/lib/defense-lab/system'
 import type { LabConfig, PlayerId, SimulationResult, ThreatId } from '@/lib/defense-lab/types'
 import CourtWorld from './world/CourtWorld'
-import type { CameraMode, Lens, Mark, WorldScene } from './world/types'
+import type { CameraMode, Lens, Mark, WorldScene, WorldStats } from './world/types'
+import PerfHud from './PerfHud'
+import { BenchOverlay, useBench } from './bench'
 import type { WorldRuntime } from './world/WorldRuntime'
 import { LENSES, divergenceLabels, divergenceMarks, lensMarks, momentMarks, whyMarks } from './lenses'
-import { useLab } from './useLab'
+import { UI_CLOCK_MS, useLab } from './useLab'
 import Entry, { type EntryChoice } from './Entry'
 import { BreakBar, BreakHeldPanel, BreakMomentPanel, ComparePanel, FixPanel, HoldsPanel, MomentPanel } from './Panels'
 import CoachCard from './CoachCard'
@@ -41,11 +43,13 @@ export default function CourtIQApp() {
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [presetIds, setPresetIds] = useState<string[]>(['drop', 'deep-tag'])
-  const [stats, setStats] = useState<string>('')
+  const [stats, setStats] = useState<WorldStats | null>(null)
   const [teach, setTeach] = useState<TeachState | null>(null)
   const runtime = useRef<WorldRuntime | null>(null)
   const [debug, setDebug] = useState(false)
-  useEffect(() => { const q = new URLSearchParams(window.location.search); setDebug(q.has('debug')); const sel = q.get('select'); if (sel && /^[OD][1-5]$/.test(sel)) setSelected(sel as PlayerId) }, [])
+  const debugRef = useRef(false); debugRef.current = debug
+  const [benchOn, setBenchOn] = useState(false)
+  useEffect(() => { const q = new URLSearchParams(window.location.search); setDebug(q.has('debug')); setBenchOn(q.has('bench')); const sel = q.get('select'); if (sel && /^[OD][1-5]$/.test(sel)) setSelected(sel as PlayerId) }, [])
 
   useEffect(() => { setSystemState(loadSystem()) }, [])
   const setSystem = useCallback((next: ProgramSystem) => { setSystemState(next); persistSystem(next) }, [])
@@ -55,15 +59,16 @@ export default function CourtIQApp() {
   // ------------------------------------------------ ambient world behind entry
   const ambient = !entered && tab === 'lab'
   const ambientResult = preview ?? lab.result
-  const [ambientT, setAmbientT] = useState(0)
+  // The ambient clock is a ref read by the world every frame (WorldScene.live): no React render per frame.
+  const ambientT = useRef(0)
   useEffect(() => {
     if (!ambient) return
     let raf = 0, last = 0
-    const loop = (now: number) => { const dt = last ? (now - last) / 1000 : 0; last = now; setAmbientT(t => (t + dt * 0.8) % (lab.duration + 0.6)); raf = requestAnimationFrame(loop) }
+    const loop = (now: number) => { const dt = last ? (now - last) / 1000 : 0; last = now; ambientT.current = (ambientT.current + dt * 0.8) % (lab.duration + 0.6); raf = requestAnimationFrame(loop) }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
   }, [ambient, lab.duration])
-  useEffect(() => { setAmbientT(0) }, [preview])
+  useEffect(() => { ambientT.current = 0 }, [preview])
 
   const enterLab = useCallback((choice: EntryChoice | null) => {
     setEntered(true); setPreview(null)
@@ -80,28 +85,30 @@ export default function CourtIQApp() {
   // ------------------------------------------------ teach
   const teachResult = useMemo(() => teach ? simulateCached(teach.config) : null, [teach])
   const teachCheckpoints = useMemo(() => teach && teachResult && teach.player ? checkpointsFor(teachResult.frames, teach.player) : [], [teach, teachResult])
-  const [teachT, setTeachT] = useState(0)
+  // Teach clock: ref for the world (every frame), React state at UI_CLOCK_MS cadence + exact at stops.
+  const teachTRef = useRef(0)
+  const [teachT, setTeachTState] = useState(0)
+  const setTeachT = useCallback((t: number) => { teachTRef.current = t; setTeachTState(t) }, [])
   const [teachPlaying, setTeachPlaying] = useState(false)
   useEffect(() => {
     if (!teachPlaying || !teach || !teachResult) return
-    let raf = 0, last = 0
+    let raf = 0, last = 0, uiAt = 0
     const stopAt = teachCheckpoints[teach.step]?.t ?? lab.duration
     const loop = (now: number) => {
       const dt = last ? (now - last) / 1000 : 0; last = now
-      setTeachT(t => {
-        const next = t + dt * 0.6
-        if (next >= stopAt) { setTeachPlaying(false); return stopAt }
-        return next
-      })
+      const next = teachTRef.current + dt * 0.6
+      if (next >= stopAt) { setTeachPlaying(false); setTeachT(stopAt); return }
+      teachTRef.current = next
+      if (now - uiAt >= UI_CLOCK_MS) { uiAt = now; setTeachTState(next) }
       raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(raf)
-  }, [teachPlaying, teach, teachResult, teachCheckpoints, lab.duration])
+    return () => { cancelAnimationFrame(raf); setTeachTState(teachTRef.current) }
+  }, [teachPlaying, teach, teachResult, teachCheckpoints, lab.duration, setTeachT])
   const startTeach = useCallback((entry: SystemEntry | null) => {
     const config = entry ? entry.versions.at(-1)!.config : lab.config
     setTeach({ entry, config, player: null, view: 'team', step: 0 }); setTeachT(0); setTeachPlaying(false); setTab('teach'); setLens('normal'); setSelected(null)
-  }, [lab.config])
+  }, [lab.config, setTeachT])
 
   // ------------------------------------------------ world scene
   const [viewport, setViewport] = useState({ w: 1440, h: 900 })
@@ -110,13 +117,23 @@ export default function CourtIQApp() {
   const inBreak = lab.phase.startsWith('break')
   const whyOn = why && lab.phase === 'moment' && !!lab.moment
   const whyView = useMemo(() => whyOn && lab.moment ? whyMarks(lab.moment, lab.result, lab.time, lab.config.assumptions) : null, [whyOn, lab.moment, lab.result, lab.time, lab.config.assumptions])
-  const frame = tab === 'teach' && teachResult ? frameAt(teachResult, teachT) : ambient ? frameAt(ambientResult, Math.min(ambientT, lab.duration)) : lab.frame
+  const frame = tab === 'teach' && teachResult ? frameAt(teachResult, teachT) : ambient ? frameAt(ambientResult, Math.min(ambientT.current, lab.duration)) : lab.frame
   const tagGuide = useMemo(() => tab === 'lab' && entered && !lab.playing && selected === HIGH_PNR_PROBLEM.roles.lowMan ? getTagGuide(lab.frame, lab.config.answer, HIGH_PNR_PROBLEM, lab.config) : null, [tab, entered, lab.playing, selected, lab.frame, lab.config])
 
   const hoverFix = lab.phase === 'fix' ? lab.hoverFix : null
   const compareDivergence = useMemo(() => lab.previous ? divergence(lab.previous.result, lab.result) : null, [lab.previous, lab.result])
   const ghostResult = hoverFix ? hoverFix.result : (lab.phase === 'compare' || (lab.previous && lab.phase === 'playing')) ? lab.previous?.result ?? null : null
   const ghost = ghostResult && tab === 'lab' ? frameAt(ghostResult, lab.time) : null
+
+  // Per-frame world clock (see WorldScene.live): the runtime samples this each animation frame while playing.
+  const liveSrc = useRef<{ result: SimulationResult; t: () => number; ghost: SimulationResult | null }>({ result: lab.display, t: () => 0, ghost: null })
+  liveSrc.current = tab === 'teach' && teachResult ? { result: teachResult, t: () => teachTRef.current, ghost: null }
+    : ambient ? { result: ambientResult, t: () => Math.min(ambientT.current, lab.duration), ghost: null }
+    : { result: lab.display, t: () => lab.timeRef.current, ghost: tab === 'lab' ? ghostResult : null }
+  const live = useMemo(() => ({
+    frame: () => frameAt(liveSrc.current.result, liveSrc.current.t()),
+    ghost: () => liveSrc.current.ghost ? frameAt(liveSrc.current.ghost, liveSrc.current.t()) : null,
+  }), [])
 
   const marks: Mark[] = useMemo(() => {
     if (tab === 'teach') {
@@ -172,11 +189,11 @@ export default function CourtIQApp() {
     camera: tab === 'teach' ? (teach?.view === 'player' && teach.player ? 'player' : teach?.view === 'overhead' ? 'overhead' : 'director') : camera,
     pov: tab === 'teach' ? teach?.player : selected, selectedId: selected, hoverId: hover,
     highlight: tab === 'teach' && teach?.player ? [teach.player, ...(primaryJob(frame, teach.player) ? [primaryJob(frame, teach.player)!.offensivePlayerId] : []), frame.ball.owner ?? 'O1'] : null,
-    playing: tab === 'teach' ? teachPlaying : ambient || lab.playing, editable: tab === 'lab' && entered && !inBreak, tagGuide,
+    playing: tab === 'teach' ? teachPlaying : ambient || lab.playing, live, editable: tab === 'lab' && entered && !inBreak, tagGuide,
     rig: lab.phase === 'break-search' ? { azimuth: Math.PI + 0.28, elevation: 0.3, fov: 34, minDistance: 8 } : null,
     impact: lab.phase === 'break-moment' ? lab.attack?.selected.witness?.at ?? 1 : undefined,
     inset: ambient ? { left: Math.min(640, viewport.w * 0.45), top: 60 } : tab === 'lab' && entered && viewport.w > 820 ? { right: panelOpen ? 430 : 0, left: selected && !lab.playing && !inBreak ? 350 : 0, top: 150, bottom: 80 } : { top: 120, bottom: 150 },
-  }), [viewport, panelOpen, frame, ghost, marks, lens, focus, tab, teach, camera, selected, hover, teachPlaying, ambient, lab.playing, entered, inBreak, tagGuide, lab.phase, lab.attack])
+  }), [viewport, panelOpen, frame, ghost, marks, lens, focus, tab, teach, camera, selected, hover, teachPlaying, ambient, lab.playing, entered, inBreak, tagGuide, lab.phase, lab.attack, live])
 
   // ------------------------------------------------ actions
   const ruleFired = useMemo(() => {
@@ -261,6 +278,9 @@ export default function CourtIQApp() {
     return out
   }, [tab, teach, voice, ambient, lab.phase, lab.moment, lens, lab.attack, compareDivergence, selected, hover, whyView, hoverFix, lab.previous, lab.result, lab.time])
 
+  // ------------------------------------------------ ?bench (scripts/perf/bench.mjs and on-device checks)
+  const bench = useBench(benchOn, { lab, runtime, enter: () => enterLab(null), setLens })
+
   // ------------------------------------------------ render
   const vignette = ambient ? s.vignetteEntry : inBreak ? s.vignetteAttack : tab === 'teach' ? s.vignetteTeach : ''
   const moment = lab.moment
@@ -279,7 +299,7 @@ export default function CourtIQApp() {
           onMove: (id, target) => { lab.moveDefender(id, target); notify(`${who(id, voice)} moves there from ${lab.time.toFixed(1)} s — watch what changes.`) },
           onTagDepth: (depth, final) => { if (final) change({ tagDepth: Math.round(depth * 100) / 100 }, 'Help depth') },
           onCameraMode: m => setCamera(m),
-          onStats: st => setStats(`${st.fps} fps · cpu ${st.cpu} ms · ${st.calls} calls · ${(st.triangles / 1000).toFixed(0)}k tris · ×${st.scale.toFixed(2)}`),
+          onStats: st => { if (debugRef.current) setStats(st) },
         }}>
           {labels.map((l, i) => (
             <div key={`${i}-${l.anchor}-${l.text}`} className={s.tag} data-anchor={l.anchor} data-lift={l.lift ?? 0}>
@@ -345,7 +365,7 @@ export default function CourtIQApp() {
             onCounter={counter => lab.setConfig(c => ({ ...c, counter }))} onConfig={f => lab.setConfig(f)} />
         )}
 
-        {lab.phase === 'moment' && moment && <MomentPanel moment={moment} voice={voice} whyOn={whyOn} fixesReady={!!lab.explore?.fixes.length}
+        {lab.phase === 'moment' && moment && <MomentPanel moment={moment} voice={voice} robust={lab.robust} whyOn={whyOn} fixesReady={!!lab.explore?.fixes.length}
           onWhy={() => { setLens('normal'); setWhy(w => !w) }}
           onFix={() => { setWhy(false); setLens('normal'); lab.setPhase('fix') }} onBreak={lab.breakDefense} onSave={() => setSaving(true)} />}
         {lab.phase === 'holds' && <HoldsPanel voice={voice} onBreak={lab.breakDefense} onSave={() => setSaving(true)} onAgain={() => lab.run()} />}
@@ -391,7 +411,8 @@ export default function CourtIQApp() {
         existingVersions={(name, scope) => system.entries.find(e => e.scope === scope && e.name.toLowerCase() === name.trim().toLowerCase())?.versions.at(-1)?.v ?? 0}
         onSave={save} onClose={() => setSaving(false)} />}
       {toast && <div className={s.toast} role="status">{toast}</div>}
-      {debug && <div className={s.stats}>{stats}</div>}
+      {debug && <PerfHud stats={stats} runtime={runtime.current} />}
+      {benchOn && <BenchOverlay status={bench.status} result={bench.result} />}
     </div>
   )
 }

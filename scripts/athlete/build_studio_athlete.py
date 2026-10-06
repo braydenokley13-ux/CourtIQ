@@ -97,7 +97,6 @@ jm.ratio = .62
 bpy.ops.object.modifier_apply(modifier=jm.name)
 pieces = [jersey, face]
 pieces.append(G.build_shorts(body, MATS))
-pieces.append(G.build_waistband(MATS))
 for side in 'lr':
     pieces.extend(G.build_shoe(side, MATS))
 

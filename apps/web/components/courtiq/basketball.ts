@@ -10,7 +10,7 @@ export const who = (id: PlayerId, voice: Voice) => cap(roleName(ROLE_OF[id], voi
 export const whoThe = (id: PlayerId, voice: Voice) => roleName(ROLE_OF[id], voice)
 
 const COVERAGE_PLAIN: Record<string, string> = { drop: 'Big stays back near the basket', switch: 'Swap who guards who', blitz: 'Two defenders trap the ball', hedge: 'Big jumps out, then goes back', ice: 'Push the ball away from the screen', custom: 'Custom' }
-const COVERAGE_COACH: Record<string, string> = { drop: 'Drop', switch: 'Switch', blitz: 'Blitz / trap', hedge: 'Hedge & recover', ice: 'Ice', custom: 'Custom' }
+const COVERAGE_COACH: Record<string, string> = { drop: 'Drop', switch: 'Switch', blitz: 'Blitz / trap', hedge: 'Hedge & recover', ice: 'Ice (force away)', custom: 'Custom' }
 
 export function coverageName(answer: TeamAnswer, voice: Voice): string {
   const team = voice.terms?.[answer.coverage]

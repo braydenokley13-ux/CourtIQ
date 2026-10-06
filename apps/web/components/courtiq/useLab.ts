@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { analyze, compare, type ComparisonResult } from '@/lib/defense-lab/analytics'
 import { attackAsync, type AttackPreview, type AttackReport } from '@/lib/defense-lab/attack'
-import { exploreAsync, type ExploreReport, type FixOption, type TeachingMoment } from '@/lib/defense-lab/exploreClient'
+import { exploreAsync, robustnessAsync, type ExploreReport, type FixOption, type TeachingMoment } from '@/lib/defense-lab/exploreClient'
+import type { Robustness } from '@/lib/defense-lab/explore'
 import { findTeachingMoment } from '@/lib/defense-lab/explore'
 import { simulateCached } from '@/lib/defense-lab/replayCache'
 import { createDefaultConfig } from '@/lib/defense-lab/scenario'
@@ -75,6 +76,16 @@ export function useLab() {
     }, 120)
     return () => { clearTimeout(id); ctrl.abort() }
   }, [config, active])
+
+  // How much to trust the moment: rerun with small, deterministic variations.
+  const [robust, setRobust] = useState<Robustness | null>(null)
+  useEffect(() => {
+    if (!active) return
+    setRobust(null)
+    const ctrl = new AbortController()
+    const id = setTimeout(() => { robustnessAsync(config, { signal: ctrl.signal, samples: 8, moment }).then(r => { if (!ctrl.signal.aborted) setRobust(r) }).catch(() => {}) }, 400)
+    return () => { clearTimeout(id); ctrl.abort() }
+  }, [config, moment, active])
 
   // Playback clock. The world reads `timeRef` directly every animation frame (see WorldScene.live);
   // React state is only refreshed ~12 Hz for the dock/scrubber/marks, so a 60 fps clock no longer
@@ -200,7 +211,7 @@ export function useLab() {
   return {
     config, setConfig: setConfigRaw, replaceConfig, phase, setPhase, time, setTime, playing, speed, setSpeed, setLoop, loop,
     timeRef, result, display, analysis, moment, frame, comparison, previous, setPrevious, duration,
-    explore, exploreBusy, hoverFix, setHoverFix, lastFix, applyFix, change, moveDefender,
+    explore, exploreBusy, robust, hoverFix, setHoverFix, lastFix, applyFix, change, moveDefender,
     play, pause, seek, run, runRef,
     attack, attackPrevious, attempts, attackProgress, breakDefense, fixBreak, cancelBreak, override,
   }

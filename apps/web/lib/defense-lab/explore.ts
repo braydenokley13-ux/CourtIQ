@@ -297,21 +297,22 @@ const CATALOG: Record<string, Candidate> = {
   'switch': { id: 'switch', plain: 'Switch the screen', detail: 'Screen defenders exchange; nobody has to tag.', patch: a => a.coverage !== 'switch' ? { coverage: 'switch' } : null },
   'blitz': { id: 'blitz', plain: 'Trap the ball', detail: 'Two defenders commit to the ball; the weakside handles the release.', patch: a => a.coverage !== 'blitz' ? { coverage: 'blitz' } : null },
   'hedge': { id: 'hedge', plain: 'Show and recover', detail: 'Big shows at the screen, then recovers to the roller.', patch: a => a.coverage !== 'hedge' ? { coverage: 'hedge' } : null },
+  'ice': { id: 'ice', plain: 'Push it away from the screen', detail: 'Ball defender takes the screen side away; big drops to where the ball is forced.', patch: a => a.coverage !== 'ice' ? { coverage: 'ice', tag: true } : null },
   'drop': { id: 'drop', plain: 'Go back to drop', detail: 'Big contains below the screen; no switch or trap.', patch: a => a.coverage !== 'drop' ? { coverage: 'drop' } : null },
   'big-owns-roller': { id: 'big-owns-roller', plain: 'No tag: big owns the roller', detail: 'Low man stays on the corner; the big has to recover.', patch: a => a.tag ? { tag: false } : null },
   'secure-roller': { id: 'secure-roller', plain: 'Help until the roller is secured', detail: 'Low man stays in help until the big has the roller.', patch: a => a.recovery !== 'roller-secured' ? { recovery: 'roller-secured' } : null },
 }
 const ORDER: Record<TeachingCause | 'none', string[]> = {
-  'deep-tag': ['help-less', 'stay-home', 'rotate-early', 'switch', 'blitz', 'big-owns-roller', 'hedge', 'big-higher'],
+  'deep-tag': ['help-less', 'stay-home', 'rotate-early', 'switch', 'blitz', 'big-owns-roller', 'ice', 'big-higher'],
   'late-rotation': ['rotate-early', 'help-more', 'stay-home', 'help-less', 'secure-roller', 'blitz', 'switch', 'big-higher'],
-  'switch-mismatch': ['drop', 'hedge', 'blitz', 'help-more', 'stay-home', 'rotate-early', 'big-higher'],
-  'two-on-ball': ['drop', 'rotate-early', 'help-more', 'stay-home', 'hedge', 'secure-roller', 'big-higher'],
-  'big-too-deep': ['big-higher', 'hedge', 'blitz', 'help-less', 'stay-home', 'rotate-early', 'switch'],
-  'big-too-high': ['big-lower', 'help-more', 'secure-roller', 'hedge', 'switch', 'rotate-early', 'stay-home'],
-  unknown: ['help-less', 'help-more', 'rotate-early', 'stay-home', 'big-higher', 'big-lower', 'switch', 'blitz', 'hedge'],
-  none: ['help-less', 'help-more', 'rotate-early', 'stay-home', 'big-higher', 'big-lower', 'switch', 'blitz', 'hedge'],
+  'switch-mismatch': ['drop', 'ice', 'blitz', 'help-more', 'stay-home', 'rotate-early', 'big-higher'],
+  'two-on-ball': ['drop', 'rotate-early', 'help-more', 'stay-home', 'ice', 'secure-roller', 'big-higher'],
+  'big-too-deep': ['big-higher', 'ice', 'blitz', 'help-less', 'stay-home', 'rotate-early', 'switch'],
+  'big-too-high': ['big-lower', 'help-more', 'secure-roller', 'ice', 'switch', 'rotate-early', 'stay-home'],
+  unknown: ['help-less', 'help-more', 'rotate-early', 'stay-home', 'big-higher', 'big-lower', 'switch', 'blitz', 'ice'],
+  none: ['help-less', 'help-more', 'rotate-early', 'stay-home', 'big-higher', 'big-lower', 'switch', 'blitz', 'ice'],
 }
-const GENERIC = ['help-less', 'help-more', 'rotate-early', 'stay-home', 'x-out', 'big-higher', 'big-lower', 'switch', 'blitz', 'hedge', 'drop', 'big-owns-roller', 'secure-roller']
+const GENERIC = ['help-less', 'help-more', 'rotate-early', 'stay-home', 'x-out', 'big-higher', 'big-lower', 'switch', 'blitz', 'ice', 'drop', 'big-owns-roller', 'secure-roller']
 
 function sameMotion(a: SimulationResult, b: SimulationResult) {
   if (a.frames.length !== b.frames.length) return false

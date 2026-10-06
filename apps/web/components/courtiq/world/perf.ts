@@ -164,3 +164,28 @@ export class PerfRecorder {
 }
 
 export const round = (v: number, d = 1) => { const k = 10 ** d; return Math.round(v * k) / k }
+
+/** Event-loop responsiveness probe: how late a 10 ms timer fires. Shows whether workers (or anything else)
+ * block the main thread while a search runs. */
+export class LagProbe {
+  private samples: number[] = []
+  private timer = 0
+  private expected = 0
+  constructor(private periodMs = 10) {}
+  start() {
+    this.samples = []
+    this.expected = performance.now() + this.periodMs
+    const step = () => {
+      const now = performance.now()
+      this.samples.push(Math.max(0, now - this.expected))
+      this.expected = now + this.periodMs
+      this.timer = window.setTimeout(step, this.periodMs)
+    }
+    this.timer = window.setTimeout(step, this.periodMs)
+  }
+  stop(): { samples: number; p50: number; p95: number; max: number; over50ms: number } {
+    window.clearTimeout(this.timer)
+    const s = this.samples
+    return { samples: s.length, p50: round(percentile(s, 0.5), 1), p95: round(percentile(s, 0.95), 1), max: round(Math.max(0, ...s), 1), over50ms: s.filter(v => v > 50).length }
+  }
+}

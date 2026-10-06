@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ANSWERS, COLLISIONS, CONCEPTS, SITUATIONS, applyAnswers, type AnswerPreset, type Voice } from '@/lib/defense-lab/corpus'
+import { ANSWERS, COLLISIONS, CONCEPTS, SITUATIONS, applyAnswers, isOfferable, type AnswerPreset, type Voice } from '@/lib/defense-lab/corpus'
 import { simulateCached } from '@/lib/defense-lab/replayCache'
 import { createDefaultConfig } from '@/lib/defense-lab/scenario'
 import { findTeachingMoment } from '@/lib/defense-lab/explore'
@@ -25,7 +25,7 @@ export default function Library({ voice, onTry }: { voice: Voice; onTry(preset: 
             {(['answers', 'problems', 'words'] as const).map(t => <button key={t} className={`${s.segBtn} ${tab === t ? s.segOn : ''}`} onClick={() => setTab(t)}>{t === 'answers' ? 'Answers' : t === 'problems' ? 'Problems' : 'Words'}</button>)}
           </div>
         </div>
-        {tab === 'answers' && <div className={s.cardGrid}>{ANSWERS.map(a => <AnswerCard key={a.id} preset={a} voice={voice} onTry={onTry} />)}</div>}
+        {tab === 'answers' && <div className={s.cardGrid}>{ANSWERS.filter(a => isOfferable(a.id)).map(a => <AnswerCard key={a.id} preset={a} voice={voice} onTry={onTry} />)}</div>}
         {tab === 'problems' && <div>{SITUATIONS.map(sit => (
           <div key={sit.id} className={s.situRow}>
             <div><h4>{p ? sit.plainTitle : sit.coachTitle}</h4><small>{sit.plainDescription}</small></div>

@@ -73,7 +73,7 @@ export const ANSWERS: readonly AnswerPreset[] = [
     takes: { plain: 'The screener can get a step on the defender who is running back.', coach: 'Roller can slip behind the big; hedge-and-recover is tiring and timing-dependent.' },
     patch: { coverage: 'hedge', poa: 'over', recovery: 'on-pass' },
     fidelity: { level: 'executed', note: 'Show and recover are modelled as one pattern; flat show versus hard hedge is not split.' } },
-  { id: 'ice', kind: 'coverage', plainName: 'Push it sideways', coachName: 'Ice',
+  { id: 'ice', kind: 'coverage', plainName: 'Push it away from the screen', coachName: 'Ice (force away)',
     aliases: [{ word: 'Ice' }, { word: 'Push' }, { word: 'Down', note: 'Also Drop on many teams' }, { word: 'Blue', note: 'Also Drop on many teams' }, { word: 'Black', note: 'Program-specific' }],
     plainDescription: 'Your ball defender blocks the middle so the ball handler is pushed sideways, away from the screen.',
     coachDescription: 'POA denies the screen and forces the handler toward the sideline; big sits below the screen.',
@@ -170,4 +170,14 @@ export function answerById(id: string): AnswerPreset | undefined { return ANSWER
 /** Merge presets onto a base answer; later ids win. Unknown ids are ignored. */
 export function applyAnswers(base: TeamAnswer, ids: readonly string[]): TeamAnswer {
   return ids.reduce<TeamAnswer>((acc, id) => ({ ...acc, ...(answerById(id)?.patch ?? {}) }), { ...base })
+}
+
+/** Coverages whose engine behavior is distinct and verified by the coverage
+ * gate (lib/defense-lab/coverageGate.test.ts). Anything else stays hidden in
+ * the product until it is honestly modeled. Hedge currently reads like ICE. */
+export const MODELED_COVERAGES = ['drop', 'switch', 'blitz', 'ice'] as const
+export function isOfferable(answerId: string): boolean {
+  const a = ANSWERS.find(x => x.id === answerId)
+  if (!a) return false
+  return a.kind !== 'coverage' || (MODELED_COVERAGES as readonly string[]).includes(a.patch.coverage ?? '')
 }

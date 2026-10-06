@@ -106,7 +106,7 @@ function EntryDetail({ entry, voice, onOpen, onTeach }: { entry: SystemEntry; vo
 }
 
 function Terms({ system, voice, onTerms }: { system: ProgramSystem; voice: Voice; onTerms(t: Record<string, string>): void }) {
-  const ids = ['drop', 'switch', 'blitz', 'hedge', 'ice', 'low-man', 'tag', 'lift', 'x-out', 'roller', 'skip-pass', 'closeout', 'help']
+  const ids = ['drop', 'switch', 'blitz', 'ice', 'low-man', 'tag', 'lift', 'x-out', 'roller', 'skip-pass', 'closeout', 'help']
   return (
     <div className={s.card}>
       <h3 style={{ margin: '0 0 6px', font: '600 22px var(--display)' }}>Our words</h3>

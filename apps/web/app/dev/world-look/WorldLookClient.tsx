@@ -85,10 +85,10 @@ export default function WorldLookClient() {
     const loop = () => {
       raf = requestAnimationFrame(loop)
       setLabEnvironmentAnalytical(env, analytical, style); updateEnvironmentForCamera(env, camera)
-      if (!dirty && frames > 3) return
+      if (!dirty && frames > 4 && measured) return
       dirty = false; frames++
       renderer.render(scene, camera)
-      if (frames === 8 && !measured && hud) {
+      if (frames >= 4 && athletes.length === 10 && !measured && hud) {
         measured = true
         const gl = renderer.getContext()
         const info = renderer.info

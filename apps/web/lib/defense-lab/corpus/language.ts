@@ -97,6 +97,8 @@ export interface MomentInput {
   receiverRole?: RoleId
   /** Seconds until the shot/finish is ready; "late" compares against this. */
   releaseIn?: number
+  /** What the open player actually did with it. */
+  finish?: 'layup' | 'pull-up' | 'catch-and-shoot' | 'pass' | null
 }
 export interface Moment { headline: string; body: string; numbers: string[] }
 
@@ -114,7 +116,10 @@ export function explainMoment(input: MomentInput, voice: Voice): Moment {
 
   let headline: string
   const driver = threatId === 'drive' && input.receiverRole && input.receiverRole !== 'ballhandler' ? roleName(input.receiverRole, voice) : null
-  if (driver) headline = plain ? `${cap(driver)} drives past his man to the basket.` : `${cap(driver)} attacks the closeout to the rim.`
+  if (driver && input.finish === 'pull-up') headline = plain ? `${cap(driver)} gets an open pull-up jumper.` : `${cap(driver)} attacks the closeout into a pull-up.`
+  else if (driver && input.finish === 'catch-and-shoot') headline = plain ? `${cap(driver)} gets an open shot.` : `${cap(driver)} is open on the catch.`
+  else if (driver) headline = plain ? `${cap(driver)} drives past his man to the basket.` : `${cap(driver)} attacks the closeout to the rim.`
+  else if (threatId === 'drive' && input.finish === 'pull-up') headline = plain ? 'The ball handler gets an open pull-up jumper.' : 'The handler gets a clean pull-up.'
   else if (plain) headline = threatId === 'drive' ? 'The ball handler gets to the basket.' : threatId === 'roll' ? 'Their screener is open near the basket.' : 'Their shooter is open.'
   else if (cause === 'deep-tag' && spotShooter) headline = `Deep ${adj('low-man', voice)} ${term('tag', voice)} exposes ${threatNoun(threatId, voice)} before the ${xout} arrives.`
   else headline = describeThreat(threatId, voice)

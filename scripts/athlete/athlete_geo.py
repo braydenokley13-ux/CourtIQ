@@ -268,7 +268,7 @@ def build_jersey(body, mats):
         j.data.materials.append(m)
     select_only(j)
     s = j.modifiers.new('thick', 'SOLIDIFY')
-    s.thickness = .011
+    s.thickness = .0075
     s.offset = -1                      # grow inward; the outer surface stays the garment surface
     s.use_rim = True
     s.use_rim_only = False
@@ -328,7 +328,7 @@ def build_shorts(body_skinned_source, mats):
         for i in range(n):
             a = TAU * i / n
             cx, rx, ry = levels[0][3], levels[0][1], levels[0][2]
-            r = 1.012
+            r = .985
             x = cx + rx * r * math.cos(a)
             y = .014 + ry * r * math.sin(a)
             if sign * x < .014:
@@ -521,9 +521,32 @@ def build_hair(body, name, style, mats):
     bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
     bm.normal_update()
     cz = style.get('center_z', 1.70)
+    # smooth the hairline loop and taper the shell toward it so no stair-steps show
+    boundary = [v for v in bm.verts if any(len(e.link_faces) == 1 for e in v.link_edges)]
+    for _ in range(3):
+        moves = {}
+        for v in boundary:
+            nb = [e.other_vert(v) for e in v.link_edges if len(e.link_faces) == 1]
+            if len(nb) == 2:
+                moves[v] = (nb[0].co + nb[1].co + v.co * 2) / 4
+        for v, c in moves.items():
+            v.co = c
+    ring = {v: 0 for v in boundary}
+    frontier = list(boundary)
+    for r in range(1, 4):
+        nxt = []
+        for v in frontier:
+            for e in v.link_edges:
+                w = e.other_vert(v)
+                if w not in ring:
+                    ring[w] = r
+                    nxt.append(w)
+        frontier = nxt
+    bm.normal_update()
     for v in bm.verts:
         top = smooth(v.co.z, style.get('top_from', 1.72), style.get('top_to', 1.80))
         t = style['t_base'] + (style['t_top'] - style['t_base']) * top
+        t *= min(1., .25 + .35 * ring.get(v, 3))
         dirv = v.normal.copy()
         if style.get('radial'):
             radial = (v.co - Vector((0, -.055, cz))).normalized()
