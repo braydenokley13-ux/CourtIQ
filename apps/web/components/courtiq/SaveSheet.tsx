@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { formatSeconds, type Voice } from '@/lib/defense-lab/corpus'
 import { SCOPES, type Scope, type Tradeoff } from '@/lib/defense-lab/system'
 import type { LabConfig } from '@/lib/defense-lab/types'
-import { rulesTable, threatShort } from './basketball'
+import { rulesTable } from './basketball'
+import { opening } from './speech'
 import s from './courtiq.module.css'
 
 export interface SaveInput { name: string; scope: Scope; when: string; note: string }
@@ -55,10 +56,10 @@ export default function SaveSheet({ config, voice, defaultName, accepts, knownBr
           <div className={s.sectionLabel} style={{ marginTop: 0 }}>What CourtIQ will remember</div>
           <table className={s.rules}><tbody>{rulesTable(config.answer, voice).map(([k, v]) => <tr key={k}><td>{k}</td><td>{v}</td></tr>)}</tbody></table>
           <div className={s.sectionLabel}>The tradeoff you’re accepting</div>
-          {accepts.length ? accepts.map(a => <div key={a.threatId} className={s.hint} style={{ marginTop: 4, color: '#ffb3a3' }}>{threatShort(a.threatId, voice)} can be open {formatSeconds(a.seconds)}</div>) : <div className={s.hint} style={{ marginTop: 0 }}>Nothing opened in the last run.</div>}
+          {accepts.length ? accepts.map(a => <div key={a.threatId} className={s.hint} style={{ marginTop: 4, color: '#ffb3a3' }}>{opening(a.threatId, undefined, voice)} can be open {formatSeconds(a.seconds)}</div>) : <div className={s.hint} style={{ marginTop: 0 }}>Nothing opened in the last run.</div>}
           {knownBreaks.length > 0 && <>
             <div className={s.sectionLabel}>Known ways to beat it</div>
-            {knownBreaks.map(b => <div key={b.label} className={s.hint} style={{ marginTop: 4 }}>{b.label} → {threatShort(b.threatId, voice)} {formatSeconds(b.seconds)}</div>)}
+            {knownBreaks.map(b => <div key={b.label} className={s.hint} style={{ marginTop: 4 }}>{b.label} → {opening(b.threatId, undefined, voice)} {formatSeconds(b.seconds)}</div>)}
           </>}
           <div className={s.hint}>Saved with the exact run, so teaching and future tests use the same basketball. Versions are kept.</div>
         </div>

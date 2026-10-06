@@ -77,7 +77,7 @@ function EntryDetail({ entry, voice, onOpen, onTeach }: { entry: SystemEntry; vo
   return (
     <div className={s.card} style={{ marginTop: 14 }}>
       <div className={s.pageHead} style={{ marginBottom: 14 }}>
-        <div><div className={s.kicker}><i />High P&R</div><h1 style={{ fontSize: 32 }}>{entry.name} <span className={s.badge}>v{latest.v}</span></h1></div>
+        <div><div className={s.kicker}><i />{voice.register === 'plain' ? 'Ball screen, top of the key' : 'High P&R'}</div><h1 style={{ fontSize: 32 }}>{entry.name} <span className={s.badge}>v{latest.v}</span></h1></div>
         <div className={s.row}>
           <button className={`${s.btn} ${s.btnGood}`} onClick={() => onTeach(entry)}>Teach this</button>
           <button className={s.btn} onClick={() => onOpen(entry)}>Open in Lab</button>

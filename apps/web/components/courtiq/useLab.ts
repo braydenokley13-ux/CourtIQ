@@ -160,9 +160,9 @@ export function useLab() {
     play(0, freeze, () => setPhase(p => p === 'playing' ? 'compare' : p))
   }, [pendingRun, moment, previous, play])
 
-  const applyFix = useCallback((fix: FixOption) => {
+  const applyFix = useCallback((fix: FixOption, label?: string) => {
     setHoverFix(null); setLastFix(fix)
-    change(fix.patch, fix.plain, { autoRun: true })
+    change(fix.patch, label ?? fix.plain, { autoRun: true })
   }, [change])
 
   const moveDefender = useCallback((id: PlayerId, target: Point2) => {

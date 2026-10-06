@@ -121,7 +121,7 @@ export default function Entry({ voice, onPreview, onDone, onExplore }: { voice: 
               <span className={s.gives}>+ {plain ? o.preset.gives.plain : o.preset.gives.coach}</span>
               <span className={s.takes}>− {plain ? o.preset.takes.plain : o.preset.takes.coach}</span>
             </div>
-            <div className={s.aka}>Often called <b>{o.preset.aliases.slice(0, 2).map(a => a.word).join(' / ') || o.preset.coachName}</b></div>
+            {!plain && <div className={s.aka}>Often called <b>{o.preset.aliases.slice(0, 2).map(a => a.word).join(' / ') || o.preset.coachName}</b></div>}
           </button>
         ))}
       </div>

@@ -17,7 +17,7 @@ import type { WorldRuntime } from './world/WorldRuntime'
 import { LENSES, divergenceLabels, divergenceMarks, lensLabels, lensMarks, momentMarks, whyMarks } from './lenses'
 import { UI_CLOCK_MS, useLab } from './useLab'
 import Entry, { type EntryChoice } from './Entry'
-import { BreakBar, BreakHeldPanel, BreakMomentPanel, ComparePanel, FixPanel, HoldsPanel, MomentPanel } from './Panels'
+import { BreakBar, BreakHeldPanel, BreakMomentPanel, ComparePanel, FixPanel, HoldsPanel, MomentPanel, fixLabel } from './Panels'
 import { opening, spoken } from './speech'
 import { coverageSignature } from './signatures'
 import CoachCard from './CoachCard'
@@ -278,14 +278,14 @@ export default function CourtIQApp() {
     if (whyView) for (const l of whyView.labels) out.push({ anchor: l.anchor, text: l.text, tone: l.kind === 'reach' ? s.tagDef : l.kind === 'help' ? s.tagWarn : '', lift: l.kind === 'pass' ? 0.4 : 0.1 })
     if (lab.phase === 'moment' && lab.moment && lens === 'normal') {
       const m = lab.moment
-      out.push({ anchor: m.receiverId, text: `#${m.receiverId.slice(1)} · open`, tone: s.tagThreat })
-      if (m.bestDefenderId) out.push({ anchor: m.bestDefenderId, text: `#${m.bestDefenderId.slice(1)} · ${m.defenderNeeds != null && m.releaseIn != null && m.defenderNeeds > m.releaseIn ? `late ${spoken(m.defenderNeeds - m.releaseIn, voice)}` : 'just in time'}`, tone: s.tagWarn })
-      if (m.pulledDefenderId && m.pulledDefenderId !== m.bestDefenderId) out.push({ anchor: m.pulledDefenderId, text: `#${m.pulledDefenderId.slice(1)} · ${voice.register === 'plain' ? 'helping here' : 'tagging'}`, tone: s.tagDef })
+      out.push({ anchor: m.receiverId, text: `their #${m.receiverId.slice(1)} · open`, tone: s.tagThreat })
+      if (m.bestDefenderId) out.push({ anchor: m.bestDefenderId, text: `your #${m.bestDefenderId.slice(1)} · ${m.defenderNeeds != null && m.releaseIn != null && m.defenderNeeds > m.releaseIn ? `late ${spoken(m.defenderNeeds - m.releaseIn, voice)}` : 'just in time'}`, tone: s.tagWarn })
+      if (m.pulledDefenderId && m.pulledDefenderId !== m.bestDefenderId) out.push({ anchor: m.pulledDefenderId, text: `your #${m.pulledDefenderId.slice(1)} · ${voice.register === 'plain' ? 'helping here' : 'tagging'}`, tone: s.tagDef })
     }
     if (lab.phase === 'break-moment' && lab.attack?.selected.witness) {
       const w = lab.attack.selected.witness
-      out.push({ anchor: w.playerId, text: `#${w.playerId.slice(1)} · open`, tone: s.tagThreat })
-      out.push({ anchor: w.limitingDefenderId, text: `#${w.limitingDefenderId.slice(1)} · late ${spoken(Math.max(0, w.arrivalSeconds - w.releaseSeconds), voice)}`, tone: s.tagWarn })
+      out.push({ anchor: w.playerId, text: `their #${w.playerId.slice(1)} · open`, tone: s.tagThreat })
+      out.push({ anchor: w.limitingDefenderId, text: `your #${w.limitingDefenderId.slice(1)} · late ${spoken(Math.max(0, w.arrivalSeconds - w.releaseSeconds), voice)}`, tone: s.tagWarn })
     }
     if (lab.phase === 'compare' && compareDivergence) {
       // Only the three biggest changes, named by who, pinned at the player.
@@ -295,8 +295,8 @@ export default function CourtIQApp() {
         out.push({ anchor: w.playerId, text: `${opening(w.threatId, w.playerId, voice)} ${after > before ? (voice.register === 'plain' ? 'now open' : `+${(after - before).toFixed(1)} s`) : (voice.register === 'plain' ? 'fixed' : `−${(before - after).toFixed(1)} s`)}`, tone: after > before ? s.tagThreat : s.tagGood, lift: 0.25 })
       }
     }
-    if (hoverFix) for (const l of divergenceLabels(lab.result, hoverFix.result, lab.time)) out.push({ ...l, tone: s.tagDef })
-    else if (lab.phase === 'compare' && lab.previous) for (const l of divergenceLabels(lab.previous.result, lab.result, lab.time)) out.push({ ...l, tone: s.tagDef })
+    if (hoverFix) for (const l of divergenceLabels(lab.result, hoverFix.result, lab.time, voice.register === 'plain')) out.push({ ...l, tone: s.tagDef })
+    else if (lab.phase === 'compare' && lab.previous) for (const l of divergenceLabels(lab.previous.result, lab.result, lab.time, voice.register === 'plain')) out.push({ ...l, tone: s.tagDef })
     if (selected && !out.some(l => l.anchor === selected)) out.push({ anchor: selected, text: who(selected, voice), tone: s.tagDef })
     if (hover && hover !== selected && !out.some(l => l.anchor === hover)) out.push({ anchor: hover, text: who(hover, voice), tone: '' })
     return out
@@ -395,7 +395,7 @@ export default function CourtIQApp() {
           onWhy={() => { setLens('normal'); setWhy(w => !w) }}
           onFix={() => { setWhy(false); setLens('normal'); lab.setPhase('fix') }} onBreak={lab.breakDefense} onSave={() => setSaving(true)} />}
         {lab.phase === 'holds' && !selected && <HoldsPanel voice={voice} onBreak={lab.breakDefense} onSave={() => setSaving(true)} onAgain={() => lab.run()} />}
-        {lab.phase === 'fix' && !selected && <FixPanel fixes={lab.explore?.fixes ?? []} busy={lab.exploreBusy} voice={voice} onHover={lab.setHoverFix} onPick={lab.applyFix} onClose={() => lab.setPhase(moment ? 'moment' : 'ready')} onKeep={() => setSaving(true)} />}
+        {lab.phase === 'fix' && !selected && <FixPanel moment={moment} fixes={lab.explore?.fixes ?? []} busy={lab.exploreBusy} voice={voice} onHover={lab.setHoverFix} onPick={f => lab.applyFix(f, fixLabel(f, voice).title)} onClose={() => lab.setPhase(moment ? 'moment' : 'ready')} onKeep={() => setSaving(true)} />}
         {lab.phase === 'compare' && compareDivergence && !lab.playing && !selected && <ComparePanel divergence={compareDivergence} voice={voice} label={lab.previous?.label ? `After: ${lab.previous.label}` : 'What changed'}
           onAgain={() => lab.run({ compareTo: lab.previous })} onBreak={lab.breakDefense} onSave={() => setSaving(true)} onMore={() => lab.setPhase('fix')} onClose={() => lab.setPhase(moment ? 'moment' : 'holds')} />}
         {selected && !lab.playing && !inBreak && ['moment', 'holds', 'fix', 'compare'].includes(lab.phase) && (

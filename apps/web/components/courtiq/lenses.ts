@@ -226,7 +226,7 @@ export function divergenceMarks(before: SimulationResult, after: SimulationResul
 }
 
 /** Distance labels for the divergent defenders only ("1.4 m shallower"). */
-export function divergenceLabels(before: SimulationResult, after: SimulationResult, t: number): { anchor: string; text: string }[] {
+export function divergenceLabels(before: SimulationResult, after: SimulationResult, t: number, feet = false): { anchor: string; text: string }[] {
   const out: { anchor: string; text: string }[] = []
   const fa = frameAt(after, t), fb = frameAt(before, t)
   for (const p of fa.players) {
@@ -238,7 +238,7 @@ export function divergenceLabels(before: SimulationResult, after: SimulationResu
     // Where the other world's defender stands relative to where he stands now.
     const dz = q.z - p.z, dx = q.x - p.x
     const word = Math.abs(dz) > Math.abs(dx) * 0.6 ? (dz < 0 ? 'deeper' : 'higher') : dx > 0 ? 'to the right' : 'to the left'
-    out.push({ anchor: `pt:${((p.x + q.x) / 2).toFixed(2)},${((p.z + q.z) / 2).toFixed(2)}`, text: `${sep.toFixed(1)} m ${word}` })
+    out.push({ anchor: `pt:${((p.x + q.x) / 2).toFixed(2)},${((p.z + q.z) / 2).toFixed(2)}`, text: `#${p.id.slice(1)} ${feet ? `${Math.round(sep * 3.281)} ft` : `${sep.toFixed(1)} m`} ${word}` })
   }
   return out
 }

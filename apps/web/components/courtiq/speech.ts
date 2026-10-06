@@ -8,6 +8,7 @@ export function spoken(seconds: number, voice: Voice): string {
   const s = Math.abs(seconds)
   if (s < 0.15) return 'a split second'
   if (s < 0.35) return 'about a quarter second'
+  if (s < 0.45) return 'less than half a second'
   if (s < 0.65) return 'about half a second'
   if (s < 0.9) return 'almost a second'
   if (s < 1.2) return 'about a second'

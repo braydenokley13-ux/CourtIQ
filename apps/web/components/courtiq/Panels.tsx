@@ -60,7 +60,10 @@ export function MomentPanel({ moment, voice, onWhy, onFix, onBreak, onSave, whyO
       {time && <p>{time}</p>}
       {!cause && !time && <p>{copy.body}</p>}
       {details && <MomentNumbers openFor={moment.openFor} ready={moment.releaseIn} needs={moment.defenderNeeds} threatId={moment.threatId} voice={voice} finish={moment.finish} realized={moment.realizedArrival} />}
-      <div className={s.robust}>{robust ? <><b>{robust.opened} of {robust.samples}</b> {p ? 'slightly different tries (a step slower, a step out of place) end the same way.' : 'small variations (reaction, speed, spacing) reproduce it.'} {robust.opened >= Math.ceil(robust.samples * 0.75) ? (p ? 'This is a real problem.' : 'Robust.') : robust.opened <= robust.samples / 4 ? (p ? 'It depends on small details — worth a look, not a panic.' : 'Fragile — detail-dependent.') : (p ? 'It happens often enough to plan for.' : 'Likely.')}</> : (p ? 'Checking how often this happens…' : 'Testing robustness…')}</div>
+      <div className={s.robust}>{robust ? (p
+        ? <>Happens in <b>{robust.opened} of {robust.samples}</b> slightly different tries — {robust.opened >= Math.ceil(robust.samples * 0.75) ? 'a real problem.' : robust.opened <= robust.samples / 4 ? 'depends on small details.' : 'worth planning for.'}</>
+        : <><b>{robust.opened}/{robust.samples}</b> under small variations (reaction, speed, spacing) — {robust.opened >= Math.ceil(robust.samples * 0.75) ? 'robust.' : robust.opened <= robust.samples / 4 ? 'fragile.' : 'likely.'}</>)
+        : (p ? 'Checking how often this happens…' : 'Testing robustness…')}</div>
       <div className={s.row}>
         <button className={`${s.btn} ${s.btnPrimary}`} onClick={onFix} disabled={!fixesReady}>{fixesReady ? 'How do I fix it?' : 'Trying fixes…'}</button>
         <button className={s.btn} onClick={onWhy} aria-pressed={whyOn}>{whyOn ? 'Back to the game view' : 'Show me why'}</button>
@@ -70,7 +73,7 @@ export function MomentPanel({ moment, voice, onWhy, onFix, onBreak, onSave, whyO
         <button className={s.btn} style={{ color: '#ff9db6' }} onClick={onBreak}>Break my defense</button>
       </div>
       <button className={s.linkBtn} onClick={() => setDetails(d => !d)} aria-expanded={details}>{details ? 'Hide the numbers' : 'Show the numbers'}</button>
-      <div className={s.honesty}>{p ? 'From this run, with high-school speeds and reaction times. It doesn’t predict makes or misses.' : 'Best-case straight-line arrival vs. catch-and-release horizon; modeled HS assumptions. No make/miss prediction.'}</div>
+      {details && <div className={s.honesty}>{p ? 'From this run, with high-school speeds and reaction times. It doesn’t predict makes or misses.' : 'Best-case straight-line arrival vs. catch-and-release horizon; modeled HS assumptions. No make/miss prediction.'}</div>}
     </div>
   )
 }
@@ -116,7 +119,7 @@ function Effects({ fix, voice }: { fix: FixOption; voice: Voice }) {
   const p = voice.register === 'plain'
   return (
     <div className={s.effects}>
-      {gains[0] && <span className={`${s.effect} ${s.effectGood}`}>{p ? 'Stops' : 'Closes'}: {opening(gains[0].threatId, gains[0].playerId, voice).toLowerCase()}{gains.length > 1 ? ` +${gains.length - 1}` : ''}</span>}
+      {gains[0] && <span className={`${s.effect} ${s.effectGood}`}>{p ? 'Stops' : 'Closes'}: {opening(gains[0].threatId, gains[0].playerId, voice).toLowerCase()}{gains.length > 1 ? (p ? ` and ${gains.length - 1} more` : ` +${gains.length - 1}`) : ''}</span>}
       {costs[0] && <span className={`${s.effect} ${s.effectBad}`}>{p ? 'Gives up' : 'Opens'}: {opening(costs[0].threatId, costs[0].playerId, voice).toLowerCase()}</span>}
     </div>
   )
@@ -127,7 +130,7 @@ export function fixLabel(f: FixOption, voice: Voice) {
   return { title: plain?.plain ?? f.plain, detail: plain?.detail ?? f.detail }
 }
 
-export function FixPanel({ fixes, voice, busy, onHover, onPick, onClose, onKeep }: { fixes: FixOption[]; voice: Voice; busy: boolean; onHover(f: FixOption | null): void; onPick(f: FixOption): void; onClose(): void; onKeep(): void }) {
+export function FixPanel({ moment, fixes, voice, busy, onHover, onPick, onClose, onKeep }: { moment: TeachingMoment | null; fixes: FixOption[]; voice: Voice; busy: boolean; onHover(f: FixOption | null): void; onPick(f: FixOption): void; onClose(): void; onKeep(): void }) {
   return (
     <div className={s.panel} onMouseLeave={() => onHover(null)} role="dialog" aria-label="Fixes">
       <button className={s.closeX} onClick={onClose} aria-label="Close">×</button>
@@ -136,13 +139,14 @@ export function FixPanel({ fixes, voice, busy, onHover, onPick, onClose, onKeep 
       <p>CourtIQ already ran each one. Point at an option to see where your defenders would go — pick one to watch it.</p>
       {busy && !fixes.length && <p>Trying options…</p>}
       <div className={s.fixes}>
-        {fixes.filter(f => f.id !== 'keep').map(f => {
+        {rankFixes(fixes.filter(f => f.id !== 'keep'), moment).map(({ fix: f, verdict }) => {
           const l = fixLabel(f, voice)
           return (
             <button key={f.id} className={s.fix} onMouseEnter={() => onHover(f)} onFocus={() => onHover(f)} onClick={() => onPick(f)}>
               <strong>{l.title}</strong>
               <span>{l.detail}</span>
               <Effects fix={f} voice={voice} />
+              {verdict === 'worse' && <span className={`${s.effect} ${s.effectBad}`} style={{ gridColumn: 1, justifySelf: 'start' }}>{voice.register === 'plain' ? 'Makes your problem worse' : 'Worsens the original window'}</span>}
               <em>→</em>
             </button>
           )
@@ -279,4 +283,17 @@ export function BreakHeldPanel({ report, onExit, onSave }: { report: AttackRepor
       <div className={s.honesty}>A search isn’t a guarantee. It doesn’t include every offense or your actual players.</div>
     </div>
   )
+}
+
+/** Fixes that help the problem the coach is looking at come first; ones that
+ * make it worse are flagged rather than hidden (it is still his call). */
+function rankFixes(fixes: FixOption[], moment: TeachingMoment | null): { fix: FixOption; verdict: 'helps' | 'neutral' | 'worse' }[] {
+  const score = (f: FixOption) => {
+    if (!moment) return 0
+    const same = (c: { threatId: ThreatId; playerId: PlayerId }) => c.threatId === moment.threatId && c.playerId === moment.receiverId
+    const g = f.improves.find(same), o = f.opens.find(same)
+    return g ? g.before - g.after : o ? -(o.after - o.before) : 0
+  }
+  return fixes.map(fix => { const sc = score(fix); return { fix, sc, verdict: (sc > 0.05 ? 'helps' : sc < -0.05 ? 'worse' : 'neutral') as 'helps' | 'neutral' | 'worse' } })
+    .sort((a, b) => b.sc - a.sc).map(({ fix, verdict }) => ({ fix, verdict }))
 }
