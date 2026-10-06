@@ -646,6 +646,9 @@ export class WorldRuntime {
       }
       if (!pt) { if (L.last !== 'hidden') { node.style.opacity = '0'; L.last = 'hidden' } continue }
       const pr = this.project(pt.x, y, pt.z)
+      // Labels never draw over the UI: outside the safe area they hide.
+      const inset = s.inset ?? {}
+      if (pr.visible && (pr.y < (inset.top ?? 0) - 20 || pr.x > this.viewW - (inset.right ?? 0) + 10 || pr.x < (inset.left ?? 0) - 10 || pr.y > this.viewH - (inset.bottom ?? 0) + 20)) pr.visible = false
       const t = 'translate3d(' + pr.x.toFixed(1) + 'px, ' + pr.y.toFixed(1) + 'px, 0)' + (pr.visible ? '' : '|0')
       if (t !== L.last) { // skip identical writes: no style invalidation for a still label
         L.last = t

@@ -148,7 +148,9 @@ export function useLab() {
       // From this moment forward: earlier frames are preserved exactly.
       setConfigRaw(c => ({ ...c, interventions: [...c.interventions.filter(i => !(i.kind === 'answer' && Math.abs(i.at - at) < 1e-6 && Object.keys(i.patch).join() === Object.keys(patch).join())), { id: `ans-${Date.now()}`, at, kind: 'answer', patch }] }))
     } else setConfigRaw(c => ({ ...c, answer: { ...c.answer, ...patch }, interventions: c.interventions.filter(i => i.kind !== 'answer') }))
-    setPrevious(prev => prev && opts.autoRun === false ? prev : snap)
+    // Dragging one control keeps comparing against where that drag began; a new
+    // kind of change compares against the version just before it.
+    setPrevious(prev => prev && opts.autoRun === false && prev.label === label ? prev : snap)
     if (opts.autoRun) setPendingRun(true)
   }, [config, result, moment])
   const [pendingRun, setPendingRun] = useState(false)
