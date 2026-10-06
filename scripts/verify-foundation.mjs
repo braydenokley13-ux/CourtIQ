@@ -300,6 +300,10 @@ async function main() {
         .getByRole('heading', { name: /What are you working on\?/i })
         .waitFor({ state: 'visible', timeout: TIMEOUT })
       assert((await page.getByText(/CourtIQ/i).count()) > 0, 'The root route did not render the CourtIQ app')
+      // Let the root's client world initialize and its resource loads settle
+      // before navigating away. A visible SSR heading alone is insufficient.
+      await page.locator('canvas[aria-label^="Basketball court."]').waitFor({ state: 'visible', timeout: TIMEOUT })
+      await page.waitForLoadState('networkidle', { timeout: TIMEOUT })
       const labUrl = new URL('/lab', BASE_URL)
       if (QA_QUALITY) labUrl.searchParams.set('quality', QA_QUALITY)
       const response = await navigate(labUrl.toString())
@@ -307,6 +311,7 @@ async function main() {
       await page
         .getByRole('heading', { name: /What are you working on\?/i })
         .waitFor({ state: 'visible', timeout: TIMEOUT })
+      await page.locator('canvas[aria-label^="Basketball court."]').waitFor({ state: 'visible', timeout: TIMEOUT })
     })
 
     if (!['skip', 'production', 'development'].includes(QA_ROUTE_MODE))
@@ -597,6 +602,12 @@ async function main() {
 
     await step('Reload and verify local persistence', async () => {
       await page.reload({ waitUntil: 'domcontentloaded' })
+      // This chip is rendered from the repository's loaded state after client
+      // hydration. Server-rendered navigation can be visible before its click
+      // handlers are ready, so observe durable program recovery first.
+      await page
+        .getByRole('button', { name: /^QA Wildcats · 1 saved$/i })
+        .waitFor({ state: 'visible', timeout: TIMEOUT })
       await page
         .getByRole('button', { name: /Our System/i })
         .first()
