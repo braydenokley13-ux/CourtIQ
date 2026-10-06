@@ -169,7 +169,7 @@ export default function CourtIQApp() {
     pov: tab === 'teach' ? teach?.player : selected, selectedId: selected, hoverId: hover,
     highlight: tab === 'teach' && teach?.player ? [teach.player, ...(primaryJob(frame, teach.player) ? [primaryJob(frame, teach.player)!.offensivePlayerId] : []), frame.ball.owner ?? 'O1'] : null,
     playing: tab === 'teach' ? teachPlaying : ambient || lab.playing, editable: tab === 'lab' && entered && !inBreak, tagGuide,
-    inset: ambient ? { left: Math.min(640, viewport.w * 0.45), top: 60 } : tab === 'lab' && entered && viewport.w > 820 ? { right: panelOpen || (selected && !lab.playing) ? 430 : 190, left: selected && !lab.playing && !inBreak ? 350 : 0, top: 150, bottom: 80 } : { top: 120, bottom: 150 },
+    inset: ambient ? { left: Math.min(640, viewport.w * 0.45), top: 60 } : tab === 'lab' && entered && viewport.w > 820 ? { right: panelOpen ? 430 : 0, left: selected && !lab.playing && !inBreak ? 350 : 0, top: 150, bottom: 80 } : { top: 120, bottom: 150 },
   }), [viewport, panelOpen, frame, ghost, marks, lens, focus, tab, teach, camera, selected, hover, teachPlaying, ambient, lab.playing, entered, inBreak, tagGuide])
 
   // ------------------------------------------------ actions
@@ -315,19 +315,19 @@ export default function CourtIQApp() {
           </div>
         </div>
 
-        <div className={s.rail}>
-          <div className={s.railGroup}>
-            <div className={s.railLabel}>X-Ray</div>
-            {LENSES.map(l => <button key={l.id} className={`${s.railBtn} ${lens === l.id ? s.railOn : ''}`} onClick={() => setLens(l.id)}>{voice.register === 'plain' ? l.plain : l.coach}</button>)}
+        <div className={s.toolbar} role="toolbar" aria-label="How to look at the play">
+          <div className={s.toolGroup}>
+            <span className={s.toolLabel}>X-Ray</span>
+            {LENSES.map(l => <button key={l.id} className={`${s.toolBtn} ${lens === l.id ? s.toolOn : ''}`} aria-pressed={lens === l.id} title={l.idea} onClick={() => { setWhy(false); setLens(l.id) }}>{voice.register === 'plain' ? l.plain : l.coach}</button>)}
           </div>
-          {lens !== 'normal' && !panelOpen && <div className={s.lensIdea}>{LENSES.find(l => l.id === lens)!.idea}</div>}
-          <div className={s.railGroup}>
-            <div className={s.railLabel}>Camera</div>
-            {([['director', 'Follow the play'], ['overhead', 'Overhead'], ['baseline', 'Baseline'], ['player', 'Defender’s eyes'], ['free', 'Free look']] as [CameraMode, string][]).map(([id, label]) => (
-              <button key={id} className={`${s.railBtn} ${camera === id ? s.railOn : ''}`} onClick={() => { if (id === 'player' && !selected) setSelected('D3'); setCamera(id) }}>{label}</button>
+          <div className={s.toolGroup}>
+            <span className={s.toolLabel}>View</span>
+            {([['director', 'Follow'], ['overhead', 'Overhead'], ['baseline', 'Baseline'], ['player', 'His eyes'], ['free', 'Free']] as [CameraMode, string][]).map(([id, label]) => (
+              <button key={id} className={`${s.toolBtn} ${camera === id ? s.toolOn : ''}`} aria-pressed={camera === id} onClick={() => { if (id === 'player' && !selected) setSelected('D3'); setCamera(id) }}>{label}</button>
             ))}
           </div>
         </div>
+        {lens !== 'normal' && <div className={s.lensIdea}>{LENSES.find(l => l.id === lens)!.idea}</div>}
 
         {selected && !lab.playing && !inBreak && (
           <CoachCard id={selected} frame={lab.frame} config={lab.config} voice={voice} onClose={() => setSelected(null)} editFrom={editFrom} onEditFrom={setEditFrom} time={lab.time} ruleFired={ruleFired}
