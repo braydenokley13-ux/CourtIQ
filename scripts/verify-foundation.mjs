@@ -20,6 +20,7 @@ const QA_SKIP_IMPORTED_TEACH = process.env.QA_SKIP_IMPORTED_TEACH === '1'
 const ARTIFACT_DIR = path.resolve(process.env.QA_ARTIFACT_DIR ?? '/tmp/courtiq-qa')
 const QA_ROUTE_MODE = process.env.QA_ROUTE_MODE ?? 'skip'
 const QA_ALLOW_DEV_RETIRED_ROUTES = process.env.QA_ALLOW_DEV_RETIRED_ROUTES === '1'
+const QA_IGNORE_HTTPS_ERRORS = process.env.QA_IGNORE_HTTPS_ERRORS === '1'
 const QA_QUALITY = process.env.QA_QUALITY
 const VIEWPORT = {
   width: Number(process.env.QA_VIEWPORT_WIDTH ?? 1440),
@@ -60,6 +61,9 @@ function sanitizeText(value) {
   if (QA_ACCESS_URL) text = text.replaceAll(QA_ACCESS_URL, '[protected access URL]')
   return text
     .replace(/https?:\/\/[^\s)'"<>]+/g, (match) => safeUrl(match))
+    .replace(/^\s*cookie:\s*.*$/gim, 'cookie: [redacted]')
+    .replace(/((_vercel_jwt|_vercel_share|access_token|id_token|refresh_token)=)[^&\s]+/gi, '$1[redacted]')
+    .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '[redacted-token]')
     .replace(/((?:token|secret|password|authorization|api[_-]?key)=)[^&\s]+/gi, '$1[redacted]')
 }
 function sanitizedDiagnostics() {
@@ -77,6 +81,7 @@ async function runtimeInfo(page) {
   return {
     viewport: VIEWPORT,
     requestedQuality: QA_QUALITY ?? 'device default',
+    ignoreHttpsErrors: QA_IGNORE_HTTPS_ERRORS,
     actualQuality: await page
       .locator('[data-quality]')
       .getAttribute('data-quality')
@@ -151,7 +156,11 @@ async function main() {
     headless: true,
     args: ['--no-sandbox', '--disable-dev-shm-usage', '--use-gl=angle', '--use-angle=swiftshader', '--enable-webgl'],
   })
-  const context = await browser.newContext({ viewport: VIEWPORT, acceptDownloads: true })
+  const context = await browser.newContext({
+    viewport: VIEWPORT,
+    acceptDownloads: true,
+    ignoreHTTPSErrors: QA_IGNORE_HTTPS_ERRORS,
+  })
   if (QA_ACCESS_URL) {
     const bootstrap = await context.newPage()
     bootstrap.setDefaultTimeout(TIMEOUT)
@@ -253,12 +262,15 @@ async function main() {
           '/design-system',
         ]
         for (const route of retiredRoutes) {
-          // Probe retired endpoints without navigating the GPU-backed Lab page
-          // away and back for each route. Browser-context requests share cookies.
-          const response = await context.request.get(new URL(route, BASE_URL).toString(), { maxRedirects: 0 })
+          // Probe through Chromium so protected-preview cookies and its network
+          // configuration apply, without navigating the GPU-backed Lab page.
+          const status = await page.evaluate(async (path) => {
+            const response = await fetch(path, { credentials: 'include', redirect: 'manual' })
+            return response.status
+          }, route)
           assert(
-            response?.status() === 404,
-            `Retired route ${route} returned ${response?.status() ?? 'no response'}, expected 404`,
+            status === 404,
+            `Retired route ${route} returned ${status}, expected 404`,
           )
         }
       })
