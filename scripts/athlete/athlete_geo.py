@@ -279,6 +279,21 @@ def build_jersey(body, mats):
     for p in j.data.polygons:
         p.use_smooth = True
     transfer_weights(j, body)
+    # The hem must move with the hips exactly like the shorts waist (no pinching V in a crouch).
+    pelvis_group = j.vertex_groups['pelvis']
+    names = {g.index: g.name for g in j.vertex_groups}
+    for v in j.data.vertices:
+        t = 1 - smooth(v.co.z, JERSEY_Z0 - .01, 1.13)
+        if t <= 0:
+            continue
+        infl = {names[g.group]: g.weight for g in v.groups}
+        out = {n: w * (1 - t) for n, w in infl.items()}
+        out['pelvis'] = out.get('pelvis', 0) + t
+        for g in list(v.groups):
+            j.vertex_groups[g.group].remove([v.index])
+        for n, w in out.items():
+            if w > 1e-4:
+                j.vertex_groups[n].add([v.index], w, 'REPLACE')
     return j
 
 
