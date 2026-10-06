@@ -41,7 +41,10 @@ function timeSentence(m: TeachingMoment, voice: Voice): string | null {
   const who = m.bestDefenderId ? person(m.bestDefenderId, voice) : 'your closest defender'
   if (voice.register !== 'plain') return `Release ready ${spoken(m.releaseIn, voice)}; ${who} needs ${spoken(m.defenderNeeds, voice)}${late > 0 ? ` — late ${spoken(late, voice)}` : ''}.`
   if (late <= 0) return `${cap(who)} gets there just in time — but only just.`
-  return `He’s ready to ${shot === 'layup' ? 'finish' : 'shoot'} in ${spoken(m.releaseIn, voice)}. ${cap(who)} needs ${spoken(m.defenderNeeds, voice)} to get there — ${late < 0.15 ? 'a hair late' : `late by ${spoken(late, voice)}`}. That’s an open ${shot}.`
+  // Never say the same spoken time for both and then call him late.
+  const ready = spoken(m.releaseIn, voice), needs = spoken(m.defenderNeeds, voice)
+  const needsText = needs === ready ? 'a little longer than that' : needs
+  return `He’s ready to ${shot === 'layup' ? 'finish' : 'shoot'} in ${ready}. ${cap(who)} needs ${needsText} to get there — ${late < 0.15 ? 'a hair late' : `late by ${spoken(late, voice)}`}. That’s an open ${shot}.`
 }
 
 export function MomentPanel({ moment, voice, onWhy, onFix, onBreak, onSave, whyOn, fixesReady, robust }: { robust: Robustness | null; moment: TeachingMoment; voice: Voice; onWhy(): void; onFix(): void; onBreak(): void; onSave(): void; whyOn: boolean; fixesReady: boolean }) {
@@ -57,7 +60,7 @@ export function MomentPanel({ moment, voice, onWhy, onFix, onBreak, onSave, whyO
       {time && <p>{time}</p>}
       {!cause && !time && <p>{copy.body}</p>}
       {details && <MomentNumbers openFor={moment.openFor} ready={moment.releaseIn} needs={moment.defenderNeeds} threatId={moment.threatId} voice={voice} finish={moment.finish} realized={moment.realizedArrival} />}
-      <div className={s.robust}>{robust ? <><b>{robust.opened} of {robust.samples}</b> {p ? 'slightly different tries (a step slower, a step out of place) end the same way.' : 'jittered runs (seed, ±0.05 s reaction, ±4% speed, ±0.25 m spots) reproduce it.'} {robust.opened >= Math.ceil(robust.samples * 0.75) ? (p ? 'This is a real problem.' : 'Robust.') : robust.opened <= robust.samples / 4 ? (p ? 'It depends on small details — worth a look, not a panic.' : 'Fragile — detail-dependent.') : (p ? 'It happens often enough to plan for.' : 'Likely.')}</> : (p ? 'Checking how often this happens…' : 'Testing robustness…')}</div>
+      <div className={s.robust}>{robust ? <><b>{robust.opened} of {robust.samples}</b> {p ? 'slightly different tries (a step slower, a step out of place) end the same way.' : 'small variations (reaction, speed, spacing) reproduce it.'} {robust.opened >= Math.ceil(robust.samples * 0.75) ? (p ? 'This is a real problem.' : 'Robust.') : robust.opened <= robust.samples / 4 ? (p ? 'It depends on small details — worth a look, not a panic.' : 'Fragile — detail-dependent.') : (p ? 'It happens often enough to plan for.' : 'Likely.')}</> : (p ? 'Checking how often this happens…' : 'Testing robustness…')}</div>
       <div className={s.row}>
         <button className={`${s.btn} ${s.btnPrimary}`} onClick={onFix} disabled={!fixesReady}>{fixesReady ? 'How do I fix it?' : 'Trying fixes…'}</button>
         <button className={s.btn} onClick={onWhy} aria-pressed={whyOn}>{whyOn ? 'Back to the game view' : 'Show me why'}</button>

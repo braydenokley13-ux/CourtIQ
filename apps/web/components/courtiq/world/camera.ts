@@ -58,8 +58,9 @@ export class DirectorCamera {
       // From beside the stanchion, looking out past the post at the play.
       const c = this.centroid(frame, focus)
       this.goalFov = FOV.baseline
-      this.goalEye.set(4.4, 2.5, -2.2)
-      this.goalTarget.set(THREE.MathUtils.clamp(c.x * 0.5 - 0.4, -2.5, 2.5), 1.1, THREE.MathUtils.clamp(c.z, 4.5, 9))
+      // Low, behind the baseline, the way a coach films from the end line.
+      this.goalEye.set(THREE.MathUtils.clamp(c.x * 0.35, -2, 2) >= 0 ? 1.9 : -1.9, 2.3, -3.4)
+      this.goalTarget.set(THREE.MathUtils.clamp(c.x * 0.6, -3, 3), 1.15, THREE.MathUtils.clamp(c.z + 0.5, 5, 9))
       return
     }
     if (mode === 'player') {

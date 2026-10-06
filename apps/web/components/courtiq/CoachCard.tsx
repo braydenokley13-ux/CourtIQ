@@ -36,9 +36,9 @@ export default function CoachCard({ id, frame, config, voice, onChange, onClose,
       {id === 'D5' && <>
         <div className={s.ctrlLabel}>{p ? 'How we guard the screen' : 'Coverage'}</div>
         <Seg value={a.coverage} options={(['drop', 'blitz', 'switch', 'ice'] as const).map(c => ({ id: c, label: coverageName({ ...a, coverage: c }, voice) }))} onChange={v => onChange({ coverage: v, ...(v === 'switch' ? { tag: false } : { tag: true }) }, coverageName({ ...a, coverage: v }, voice))} />
-        <div className={s.ctrlLabel}><span>{p ? 'How far back he waits' : 'Drop depth'}</span><span>{p ? `${Math.round(a.bigDepth * 3.281)} ft from the baseline` : `${a.bigDepth.toFixed(1)} m`}</span></div>
+        {(a.coverage === 'drop' || a.coverage === 'ice') && <><div className={s.ctrlLabel}><span>{p ? 'How far back he waits' : 'Drop depth'}</span><span>{p ? `${Math.round(a.bigDepth * 3.281)} ft from the baseline` : `${a.bigDepth.toFixed(1)} m`}</span></div>
         <input className={s.range} type="range" min={1.6} max={6} step={0.1} value={a.bigDepth} onChange={e => onChange({ bigDepth: Number(e.target.value) }, 'Big depth')} />
-        <div className={s.rangeEnds}><span>{p ? 'At the rim' : 'Deep'}</span><span>{p ? 'Up at the screen' : 'At the level'}</span></div>
+        <div className={s.rangeEnds}><span>{p ? 'At the rim' : 'Deep'}</span><span>{p ? 'Up at the screen' : 'At the level'}</span></div></>}
       </>}
 
       {id === 'D3' && <>

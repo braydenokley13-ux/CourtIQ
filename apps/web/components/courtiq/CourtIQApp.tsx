@@ -19,6 +19,7 @@ import { UI_CLOCK_MS, useLab } from './useLab'
 import Entry, { type EntryChoice } from './Entry'
 import { BreakBar, BreakHeldPanel, BreakMomentPanel, ComparePanel, FixPanel, HoldsPanel, MomentPanel } from './Panels'
 import { opening, spoken } from './speech'
+import { coverageSignature } from './signatures'
 import CoachCard from './CoachCard'
 import SaveSheet, { type SaveInput } from './SaveSheet'
 import OurSystem from './OurSystem'
@@ -119,6 +120,8 @@ export default function CourtIQApp() {
   const panelOpen = ['moment', 'holds', 'fix', 'compare', 'break-moment', 'break-held'].includes(lab.phase) && !lab.playing && !(selected && !inBreakPhase(lab.phase))
   const inBreak = lab.phase.startsWith('break')
   const whyOn = why && lab.phase === 'moment' && !!lab.moment
+  // The coverage, made visible around the screen while the play runs.
+  const signature = useMemo(() => tab === 'lab' && entered && lens === 'normal' && !whyOn && !lab.phase.startsWith('break') ? coverageSignature(lab.frame, lab.frame.answer, voice) : null, [tab, entered, lens, whyOn, lab.phase, lab.frame, voice])
   const whyView = useMemo(() => whyOn && lab.moment ? whyMarks(lab.moment, lab.result, lab.time, lab.config.assumptions) : null, [whyOn, lab.moment, lab.result, lab.time, lab.config.assumptions])
   const frame = tab === 'teach' && teachResult ? frameAt(teachResult, teachT) : ambient ? frameAt(ambientResult, Math.min(ambientT.current, lab.duration)) : lab.frame
   const tagGuide = useMemo(() => tab === 'lab' && entered && !lab.playing && selected === HIGH_PNR_PROBLEM.roles.lowMan ? getTagGuide(lab.frame, lab.config.answer, HIGH_PNR_PROBLEM, lab.config) : null, [tab, entered, lab.playing, selected, lab.frame, lab.config])
@@ -149,6 +152,7 @@ export default function CourtIQApp() {
     if (ambient) return []
     const out: Mark[] = []
     if (lens !== 'normal') out.push(...lensMarks(lens, frame, lab.config.assumptions, selected, lens === 'ownership' ? frameAt(lab.result, Math.max(0, frame.t - 0.5)) : null))
+    if (signature) out.push(...signature.marks)
     if (whyView) out.push(...whyView.marks)
     else if (lab.phase === 'moment' && lab.moment && lens === 'normal') out.push(...momentMarks(lab.moment, frame))
     if (hoverFix) out.push(...divergenceMarks(lab.result, hoverFix.result, lab.time))
@@ -177,7 +181,7 @@ export default function CourtIQApp() {
       }
     }
     return out
-  }, [tab, teach, frame, teachPlaying, ambient, lens, lab.phase, lab.moment, lab.config.assumptions, selected, hoverFix, lab.result, lab.time, lab.previous, inBreak, lab.attempts, lab.attack, compareDivergence, whyView])
+  }, [tab, teach, frame, teachPlaying, ambient, lens, lab.phase, lab.moment, lab.config.assumptions, selected, hoverFix, lab.result, lab.time, lab.previous, inBreak, lab.attempts, lab.attack, compareDivergence, whyView, signature])
 
   const focus: PlayerId[] = useMemo(() => {
     if (tab === 'teach' && teach?.player) { const j = primaryJob(frame, teach.player); return [teach.player, ...(j ? [j.offensivePlayerId] : []), 'O1', 'O5'] }
@@ -198,7 +202,7 @@ export default function CourtIQApp() {
     playing: tab === 'teach' ? teachPlaying : ambient || lab.playing, live, editable: tab === 'lab' && entered && !inBreak, tagGuide,
     rig: lab.phase === 'break-search' ? { azimuth: Math.PI + 0.6, elevation: 0.3, fov: 38, minDistance: 7 } : null,
     impact: lab.phase === 'break-moment' ? lab.attack?.selected.witness?.at ?? 1 : undefined,
-    inset: ambient ? { left: Math.min(640, viewport.w * 0.45), top: 60 } : tab === 'lab' && entered && viewport.w > 820 ? { right: panelOpen ? 430 : 0, left: selected && !lab.playing && !inBreak ? 350 : 0, top: 215, bottom: 80 } : { top: 120, bottom: 150 },
+    inset: ambient ? { left: Math.min(640, viewport.w * 0.45), top: 60 } : tab === 'lab' && entered && viewport.w <= 600 ? { top: 150, bottom: panelOpen ? Math.round(viewport.h * 0.44) + 70 : 70 } : tab === 'lab' && entered && viewport.w > 820 ? { right: panelOpen ? 430 : 0, left: selected && !lab.playing && !inBreak ? 350 : 0, top: 215, bottom: 80 } : { top: 120, bottom: 150 },
   }), [viewport, panelOpen, frame, ghost, marks, lens, whyOn, focus, tab, teach, camera, selected, hover, teachPlaying, ambient, lab.playing, entered, inBreak, tagGuide, lab.phase, lab.attack, live])
 
   // ------------------------------------------------ actions
@@ -270,6 +274,7 @@ export default function CourtIQApp() {
     }
     if (ambient) return out
     if (lens !== 'normal' && !whyView) for (const l of lensLabels(lens, frame, lab.config.assumptions)) out.push({ anchor: l.anchor, text: l.text, tone: l.tone === 'threat' ? s.tagThreat : l.tone === 'warn' ? s.tagWarn : l.tone === 'good' ? s.tagGood : s.tagDef })
+    if (signature) for (const l of signature.labels) out.push({ anchor: l.anchor, text: l.text, tone: s.tagDef, lift: 0.15 })
     if (whyView) for (const l of whyView.labels) out.push({ anchor: l.anchor, text: l.text, tone: l.kind === 'reach' ? s.tagDef : l.kind === 'help' ? s.tagWarn : '', lift: l.kind === 'pass' ? 0.4 : 0.1 })
     if (lab.phase === 'moment' && lab.moment && lens === 'normal') {
       const m = lab.moment
@@ -295,7 +300,7 @@ export default function CourtIQApp() {
     if (selected && !out.some(l => l.anchor === selected)) out.push({ anchor: selected, text: who(selected, voice), tone: s.tagDef })
     if (hover && hover !== selected && !out.some(l => l.anchor === hover)) out.push({ anchor: hover, text: who(hover, voice), tone: '' })
     return out
-  }, [tab, teach, voice, ambient, frame, lab.config.assumptions, lab.phase, lab.moment, lens, lab.attack, compareDivergence, selected, hover, whyView, hoverFix, lab.previous, lab.result, lab.time])
+  }, [tab, teach, voice, ambient, frame, lab.config.assumptions, lab.phase, lab.moment, lens, lab.attack, compareDivergence, selected, hover, whyView, hoverFix, lab.previous, lab.result, lab.time, signature])
 
   // ------------------------------------------------ ?bench (scripts/perf/bench.mjs and on-device checks)
   const bench = useBench(benchOn, { lab, runtime, enter: () => enterLab(null), setLens })
@@ -341,6 +346,7 @@ export default function CourtIQApp() {
         </nav>
         <div className={s.topRight}>
           {system.entries.length > 0 && <button className={s.chip} onClick={() => setTab('system')} title="Open Our System">{system.program} · {system.entries.length} saved</button>}
+          <button className={s.voiceCycle} aria-label="Change wording" onClick={() => setSystem({ ...system, register: system.register === 'plain' ? 'coach' : system.register === 'coach' ? 'program' : 'plain' })}>{system.register === 'plain' ? 'Simple' : system.register === 'coach' ? 'Coach' : 'Ours'}</button>
           <div className={s.voice} role="group" aria-label="Language">
             <button className={system.register === 'plain' ? s.voiceOn : ''} onClick={() => setSystem({ ...system, register: 'plain' })}>Simple words</button>
             <button className={system.register === 'coach' ? s.voiceOn : ''} onClick={() => setSystem({ ...system, register: 'coach' })}>Coaching terms</button>
@@ -357,7 +363,7 @@ export default function CourtIQApp() {
           <div className={s.sitTitle}>{voice.terms?.[lab.config.answer.coverage] ? `${voice.terms[lab.config.answer.coverage]} ` : ''}{voice.register === 'plain' ? 'vs. a ball screen with a shooter lifting' : 'vs. high P&R → weakside lift'}</div>
           <div className={s.sitMeta}>
             <button className={s.pill} onClick={() => setSelected('D5')}><span className={s.pillDot} />{answerSummary} ✎</button>
-            <button className={s.pill} onClick={() => setSelected('D3')}>{voice.register === 'plain' ? `Helper: ${!lab.config.answer.tag ? 'stays home' : lab.config.answer.tagDepth > 0.75 ? 'goes all the way' : lab.config.answer.tagDepth > 0.4 ? 'goes halfway' : 'steps in a little'}` : `${term('low-man', voice)}: ${lab.config.answer.tag ? `${Math.round(lab.config.answer.tagDepth * 100)}% tag` : 'no tag'}`} ✎</button>
+            <button className={s.pill} onClick={() => setSelected('D3')}>{voice.register === 'plain' ? `Helper: ${!lab.config.answer.tag ? 'stays home' : lab.config.answer.tagDepth > 0.75 ? 'goes all the way' : lab.config.answer.tagDepth > 0.4 ? 'goes halfway' : 'steps in a little'}` : `${term('low-man', voice)}: ${!lab.config.answer.tag ? 'no tag' : lab.config.answer.tagDepth > 0.75 ? 'deep tag' : lab.config.answer.tagDepth > 0.4 ? 'mid tag' : 'shallow tag'}`} ✎</button>
             <button className={s.pill} onClick={() => setSelected('D4')}>{lab.config.answer.backside === 'x-out' ? (voice.register === 'plain' ? 'Far-side defender covers for the helper' : term('x-out', voice)) : (voice.register === 'plain' ? 'Far-side defender stays home' : 'Backside stays')} ✎</button>
             <button className={s.pill} onClick={() => { setEntered(false); lab.setPhase('ambient'); lab.pause() }}>New problem</button>
           </div>
@@ -418,9 +424,9 @@ export default function CourtIQApp() {
           </div>
           <span className={s.clock}>{lab.time.toFixed(1)} s</span>
           <button className={s.speed} onClick={() => lab.setSpeed(lab.speed === 1 ? 0.5 : lab.speed === 0.5 ? 0.25 : 1)}>{lab.speed}×</button>
-          <button className={`${s.dockBtn} ${s.dockPrimary}`} onClick={() => lab.run(lab.previous ? { compareTo: lab.previous } : undefined)}>↻ <span className={s.dockLabel}>Run it</span></button>
-          <button className={`${s.dockBtn} ${s.dockAttack}`} onClick={lab.breakDefense} disabled={lab.phase === 'break-search'}>⚡ <span className={s.dockLabel}>Break my defense</span></button>
-          <button className={s.dockBtn} onClick={() => setSaving(true)}>＋ <span className={s.dockLabel}>Save</span></button>
+          <button className={`${s.dockBtn} ${s.dockPrimary}`} aria-label="Run it" onClick={() => lab.run(lab.previous ? { compareTo: lab.previous } : undefined)}>↻ <span className={s.dockLabel}>Run it</span></button>
+          <button className={`${s.dockBtn} ${s.dockAttack}`} aria-label="Break my defense" onClick={lab.breakDefense} disabled={lab.phase === 'break-search'}>⚡ <span className={s.dockLabel}>Break my defense</span></button>
+          <button className={s.dockBtn} aria-label="Save" onClick={() => setSaving(true)}>＋ <span className={s.dockLabel}>Save</span></button>
         </div>
       </>}
 

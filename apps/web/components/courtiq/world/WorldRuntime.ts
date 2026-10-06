@@ -512,7 +512,8 @@ export class WorldRuntime {
     }
 
     // Safe area: shift the principal point so the play composes beside UI panels.
-    const inset = s.inset ?? {}
+    // Composed views avoid the UI; eye-level and baseline views stay centred like a real camera.
+    const inset = s.camera === 'director' || s.camera === 'overhead' ? s.inset ?? {} : {}
     const W = this.viewW, H = this.viewH // cached from resize(): no layout read per frame
     const l = inset.left ?? 0, r = inset.right ?? 0, tp = inset.top ?? 0, b = inset.bottom ?? 0
     const ox = (r - l) / 2, oy = (b - tp) / 2
