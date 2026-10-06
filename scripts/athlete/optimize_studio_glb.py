@@ -1,14 +1,52 @@
-"""Lossless glTF animation/buffer pruning; no runtime decoder required.
-Prune sampled tracks identical to the bind/local default, then compact accessors.
+"""glTF animation/buffer optimizer; no runtime decoder required.
+1. Prune sampled tracks identical to the bind/local default (lossless).
+2. Key-reduce the remaining baked 24 fps tracks: a key is dropped only if linear
+   (quaternion: normalized-lerp) interpolation of its neighbours reproduces it within
+   0.02 deg / 0.2 mm, so loop closure and foot contacts are preserved.
+3. Compact accessors/buffers and attach the motion table (stride lengths, clip modes).
 """
-import json,struct,os
+import json,struct,os,math
 from pathlib import Path
 WIDTH={'SCALAR':1,'VEC2':2,'VEC3':3,'VEC4':4,'MAT4':16}
 FMT={5126:'f',5125:'I',5123:'H',5121:'B'}
-def optimize(path):
+def reduce_track(times,vals,width,rotation,tol):
+ n=len(times);keep={0,n-1}
+ def sample(i,j,k):
+  u=(times[k]-times[i])/(times[j]-times[i]) if times[j]!=times[i] else 0
+  a=vals[i*width:(i+1)*width];b=vals[j*width:(j+1)*width]
+  if rotation:
+   if sum(x*y for x,y in zip(a,b))<0:b=[-x for x in b]
+   r=[x+(y-x)*u for x,y in zip(a,b)];m=sum(x*x for x in r)**.5 or 1;return [x/m for x in r]
+  return [x+(y-x)*u for x,y in zip(a,b)]
+ def err(k,r):
+  actual=vals[k*width:(k+1)*width]
+  if rotation:
+   d=abs(sum(x*y for x,y in zip(actual,r)));return 2*math.acos(min(1,d))
+  return max(abs(x-y) for x,y in zip(actual,r))
+ stack=[(0,n-1)]
+ while stack:
+  i,j=stack.pop()
+  if j-i<2:continue
+  worst=0;at=-1
+  for k in range(i+1,j):
+   e=err(k,sample(i,j,k))
+   if e>worst:worst=e;at=k
+  if worst>tol:keep.add(at);stack.append((i,at));stack.append((at,j))
+ idx=sorted(keep);return idx
+
+def optimize(path,meta=None):
  raw=Path(path).read_bytes();jl=struct.unpack_from('<I',raw,12)[0];doc=json.loads(raw[20:20+jl]);bl=struct.unpack_from('<I',raw,20+jl)[0];binary=raw[28+jl:28+jl+bl]
  def values(index):
   a=doc['accessors'][index];v=doc['bufferViews'][a['bufferView']];fmt=FMT[a['componentType']];n=a['count']*WIDTH[a['type']];return struct.unpack_from('<'+str(n)+fmt,binary,v.get('byteOffset',0)+a.get('byteOffset',0))
+ extra=bytearray()
+ def add_accessor(data,kind):
+  nonlocal binary
+  while len(binary)%4:binary+=b'\0'
+  offset=len(binary);binary+=struct.pack('<'+str(len(data))+'f',*data)
+  doc['bufferViews'].append({'buffer':0,'byteOffset':offset,'byteLength':len(data)*4})
+  acc={'bufferView':len(doc['bufferViews'])-1,'componentType':5126,'count':len(data)//WIDTH[kind],'type':kind}
+  if kind=='SCALAR':acc['min']=[min(data)];acc['max']=[max(data)]
+  doc['accessors'].append(acc);return len(doc['accessors'])-1
  original=sum(len(a['channels']) for a in doc.get('animations',[]))
  for anim in doc.get('animations',[]):
   channels=[];samplers=[]
@@ -23,8 +61,35 @@ def optimize(path):
     if prop=='rotation':err=min(err,max(abs(x+y) for x,y in zip(sample,default)))
     if err>0.00002:same=False;break
    if same:continue
+   times=values(sampler['input']);idx=reduce_track(times,val,width,prop=='rotation',.00035 if prop=='rotation' else .0002)
+   if len(idx)<len(times):
+    nt=[times[i] for i in idx];nv=[x for i in idx for x in val[i*width:(i+1)*width]]
+    sampler=dict(sampler);sampler['input']=add_accessor(nt,'SCALAR');sampler['output']=add_accessor(nv,{3:'VEC3',4:'VEC4'}[width])
    channel['sampler']=len(samplers);samplers.append(sampler);channels.append(channel)
   anim['channels']=channels;anim['samplers']=samplers
+ # Pack every animation accessor into ONE buffer view and de-duplicate identical
+ # data (all tracks of a clip share their time axis); this removes hundreds of
+ # accessor/view JSON records.
+ table={};blob=bytearray();packed=[]
+ while len(binary)%4:binary+=b'\0'
+ base=len(binary)
+ for anim in doc.get('animations',[]):
+  for sm in anim['samplers']:
+   for key in ('input','output'):
+    a=doc['accessors'][sm[key]];v=doc['bufferViews'][a['bufferView']];n=a['count']*WIDTH[a['type']]*4
+    off=v.get('byteOffset',0)+a.get('byteOffset',0);data=bytes(binary[off:off+n]);ident=(a['type'],a['count'],data)
+    if ident not in table:
+     rec={'componentType':5126,'count':a['count'],'type':a['type'],'byteOffset':len(blob)}
+     if a['type']=='SCALAR':fl=struct.unpack('<'+str(a['count'])+'f',data);rec['min']=[min(fl)];rec['max']=[max(fl)]
+     blob+=data;packed.append(rec);table[ident]=len(packed)-1
+    sm[key]=('NEW',table[ident])
+ if packed:
+  doc['bufferViews'].append({'buffer':0,'byteOffset':base,'byteLength':len(blob)});view=len(doc['bufferViews'])-1;binary+=bytes(blob)
+  first=len(doc['accessors'])
+  for rec in packed:rec['bufferView']=view;doc['accessors'].append(rec)
+  for anim in doc.get('animations',[]):
+   for sm in anim['samplers']:
+    for key in ('input','output'):sm[key]=first+sm[key][1]
  used=set()
  for skin in doc.get('skins',[]):used.add(skin['inverseBindMatrices'])
  for mesh in doc.get('meshes',[]):
@@ -49,7 +114,9 @@ def optimize(path):
  for a in doc.get('animations',[]):
   for s in a['samplers']:s['input']=remap[s['input']];s['output']=remap[s['output']]
  doc['accessors']=accessors;doc['bufferViews']=views;doc['buffers'][0]['byteLength']=len(newbinary)
- doc.setdefault('asset',{}).setdefault('extras',{})['CourtIQ']='Locally authored basketball DCC actions; shared rig LOD; lossless track pruning.'
+ ex=doc.setdefault('asset',{}).setdefault('extras',{})
+ ex['CourtIQ']='Locally authored procedural basketball actions; shared rig LOD; track pruning + key reduction.'
+ if meta:ex['CourtIQMotion']=meta
  encoded=json.dumps(doc,separators=(',',':')).encode();encoded+=b' '*((-len(encoded))%4);newbinary.extend(b'\0'*((-len(newbinary))%4))
  output=struct.pack('<III',0x46546c67,2,28+len(encoded)+len(newbinary))+struct.pack('<II',len(encoded),0x4e4f534a)+encoded+struct.pack('<II',len(newbinary),0x004e4942)+newbinary
  Path(path).write_bytes(output)

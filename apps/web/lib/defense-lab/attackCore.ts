@@ -1,4 +1,4 @@
-import { analyze, estimateArrival, isThreatOpen } from './analytics'
+import { analyze, defenderArrival, isThreatOpen } from './analytics'
 import type { AnalysisResult } from './analytics'
 import { simulate } from './simulation'
 import type { LabConfig, OpponentStrategy, PlayerId, Point2, ReadDecision, RoleId, SimulationResult, ThreatId, WorldEvent } from './types'
@@ -75,7 +75,7 @@ export function findAttackWitness(result: SimulationResult, analysis = analyze(r
     const arrival = frame.players.filter(player => player.team === 'defense').map(player => {
       const task = frame.responsibilities.find(task => task.defenderId === player.id && task.threatId === option.id)
       const reaction = task ? Math.max(0, assumptions.reactionDelay - (frame.t - task.startedAt)) : assumptions.reactionDelay
-      return { player, seconds: estimateArrival(player, option.target, assumptions, assumptions.contestRadius, reaction) }
+      return { player, seconds: defenderArrival(player, option.target, assumptions, reaction, frame.players.find(p => p.id === option.playerId)?.height) }
     }).sort((a, b) => a.seconds - b.seconds || a.player.id.localeCompare(b.player.id))[0]
     if (!arrival) continue
     const release = option.timeToRelease ?? assumptions.gatherTime + assumptions.readInterval

@@ -5,7 +5,7 @@ Consumes the CC0 anatomical bind mesh built by build_lab_human.py. Authors unifo
 footwear, materials, deterministic in-place basketball action library and mesh LODs.
 Everything in this file is locally authored, not downloaded motion capture.
 """
-import bpy, math, os, json
+import bpy, math, os, json, sys
 from mathutils import Vector, Matrix, Quaternion
 ROOT=os.path.abspath(os.path.join(os.path.dirname(__file__),'../..'))
 OUT=ROOT+'/apps/web/public/athlete'
@@ -222,113 +222,48 @@ lod.hide_render=True
 
 # DCC animation stage. Controls are solved in armature space, baked to local TRS,
 # then exported as ordinary reusable glTF actions. The court owns all root motion.
-rig.data.pose_position='POSE';bones=rig.pose.bones
-REST={b.name:b.matrix.copy() for b in bones}
-REST_FOOT={s:REST['foot_'+s].to_quaternion() for s in ['l','r']}
-REST_PELVIS=REST['pelvis'].translation.copy()
-KEY_BONES=['pelvis','spine_01','spine_02','spine_03','neck_01','Head','clavicle_l','clavicle_r','upperarm_l','upperarm_r','lowerarm_l','lowerarm_r','hand_l','hand_r','thigh_l','thigh_r','calf_l','calf_r','foot_l','foot_r','ball_l','ball_r']
-for b in bones:b.rotation_mode='QUATERNION'
-
-def update():bpy.context.view_layer.update()
-def reset():
- for b in bones:b.matrix_basis=Matrix.Identity(4)
- update()
-def aim(name,child,target):
- b=bones[name];origin=b.matrix.translation.copy();current=bones[child].matrix.translation-origin;desired=Vector(target)-origin
- if current.length<1e-6 or desired.length<1e-6:return
- delta=current.rotation_difference(desired)
- loc,rot,scale=b.matrix.decompose();b.matrix=Matrix.LocRotScale(loc,delta@rot,scale);update()
-def two_bone(a,b,c,target,pole):
- origin=bones[a].matrix.translation.copy();middle=bones[b].matrix.translation.copy();end=bones[c].matrix.translation.copy()
- l1=(middle-origin).length;l2=(end-middle).length;axis=Vector(target)-origin;distance=max(.025,min(axis.length,l1+l2-.006));axis.normalize()
- along=(l1*l1-l2*l2+distance*distance)/(2*distance)
- bend=Vector(pole)-origin;perp=bend-axis*bend.dot(axis)
- if perp.length<.0001:perp=Vector((0,-1,0))
- perp.normalize();knee=origin+axis*along+perp*math.sqrt(max(.0001,l1*l1-along*along))
- aim(a,b,knee);aim(b,c,origin+axis*distance)
-def orient(name,quat):
- b=bones[name];loc,rot,scale=b.matrix.decompose();b.matrix=Matrix.LocRotScale(loc,quat,scale);update()
-def rot_world(name,axis,angle):
- b=bones[name];loc,rot,scale=b.matrix.decompose();b.matrix=Matrix.LocRotScale(loc,Quaternion(axis,angle)@rot,scale);update()
-
-def pose(kind,t,duration):
- reset();phase=t/duration;cycle=TAU*phase;defensive=kind in ['defense_ready','defense_slide_left','defense_slide_right','closeout']
- moving=kind in ['cut_run','defense_slide_left','defense_slide_right','start_stop']
- pelvis_drop=.145 if defensive else .065
- spread=.245 if defensive else .15
- if kind=='screen_plant':pelvis_drop=.105;spread=.215
- if kind=='pivot':pelvis_drop=.10;spread=.18
- if kind=='start_stop':pelvis_drop=.065+.045*(.5-.5*math.cos(cycle))
- breathe=.005*math.sin(cycle)
- pelvis=bones['pelvis'];pelvis.matrix.translation=REST_PELVIS+Vector((.008*math.sin(cycle) if not moving else 0,.012,pelvis_drop*-1+breathe));update()
- lean=.13 if kind=='cut_run' else .08 if defensive else .035
- rot_world('spine_01',(1,0,0),lean)
- rot_world('spine_03',(0,0,1),.06*math.sin(cycle) if kind=='cut_run' else .015*math.sin(cycle))
- if kind=='pivot':rot_world('pelvis',(0,0,1),.38*math.sin(cycle));rot_world('spine_03',(0,0,1),.15*math.sin(cycle))
- # Contact curves contain a real planted interval. A planted foot travels opposite
- # root velocity; recovery returns through a low arc. No generic sine-leg posing.
- for s,sign in [('l',1),('r',-1)]:
-  p=(phase+(0 if sign>0 else .5))%1;footx=sign*spread;footy=.027;lift=0
-  if kind=='cut_run' or kind=='start_stop':
-   stance=.60;stride=.44 if kind=='cut_run' else .26
-   if p<stance:footy+=-stride/2+stride*p/stance
-   else:
-    u=(p-stance)/(1-stance);footy+=stride/2-stride*(u*u*(3-2*u));lift=.11*math.sin(math.pi*u)
-  if kind.startswith('defense_slide'):
-   direction=1 if kind.endswith('left') else -1;stance=.64;stride=.42
-   if p<stance:footx+=direction*(stride/2-stride*p/stance)
-   else:
-    u=(p-stance)/(1-stance);footx+=direction*(-stride/2+stride*(u*u*(3-2*u)));lift=.045*math.sin(math.pi*u)
-  if kind=='pivot' and s=='r':footy+=.15*math.sin(cycle);lift=.025*abs(math.sin(cycle))
-  target=(footx,footy,.1037+lift)
-  two_bone('thigh_'+s,'calf_'+s,'foot_'+s,target,(sign*.19,-.32,.52))
-  foot_rot=REST_FOOT[s]
-  if lift>0:foot_rot=Quaternion((1,0,0),-.12*lift/.11)@foot_rot
-  orient('foot_'+s,foot_rot)
-  # Ready hands present distinct intent: wide denial, protected screen, offered
-  # catch target, pass extension, or one high hand with short closeout steps.
-  hx=sign*(.40 if defensive else .225);hy=-.20 if defensive else -.23;hz=(1.18+sign*.016*math.sin(cycle)) if defensive else 1.12
-  pole=(sign*.43,.055,1.10)
-  if kind=='cut_run' or kind=='start_stop':
-   hx=sign*.235;hy=-.10-sign*.14*math.sin(cycle);hz=1.03+sign*.075*math.sin(cycle);pole=(sign*.32,.10+sign*.10*math.sin(cycle),1.00)
-  if kind=='screen_plant':hx=sign*.095;hy=-.205;hz=1.03;pole=(sign*.30,.01,1.06)
-  if kind=='receive':hx=sign*.145;hy=-.38+.05*math.sin(cycle);hz=1.15;pole=(sign*.34,-.02,1.13)
-  if kind=='chest_pass':
-   extension=.5-.5*math.cos(cycle);hx=sign*(.12+.02*extension);hy=-.22-.32*extension;hz=1.17+.08*extension;pole=(sign*.37,-.06,1.12)
-  if kind=='shot_release':
-   extension=.5-.5*math.cos(cycle);hx=sign*(.10-.04*extension);hy=-.20-.025*extension;hz=1.52+.27*extension;pole=(sign*.21,-.09,1.48)
-  if kind=='dribble':
-   if s=='r':hx=-.32;hy=-.29;hz=.84+.18*(.5+.5*math.cos(cycle));pole=(-.34,.04,1.08)
-   else:hx=.31;hy=-.23;hz=1.10
-  if kind=='closeout':
-   if s=='l':hx=.24;hy=-.18;hz=1.72+.025*math.sin(cycle);pole=(.42,-.02,1.49)
-   else:hx=-.43;hy=-.25;hz=1.14
-  if kind=='pivot':hx=sign*.18;hy=-.29;hz=1.09
-  two_bone('upperarm_'+s,'lowerarm_'+s,'hand_'+s,(hx,hy,hz),pole)
- # Head counters torso roll and scans the possession with a quiet, authored look.
- rot_world('Head',(0,0,1),.05*math.sin(cycle+.4))
- # Relaxed fingers rather than a rigid T-pose fan; uniform hand curl is recorded.
- for b in bones:
-  if any(n in b.name for n in ['index_','middle_','ring_','pinky_']) and not b.name.endswith('_end'):
-   b.rotation_quaternion=Quaternion((1,0,0),.11 if kind=='receive' else .19)
- update()
-
-specs=[('offense_ready',2.4),('defense_ready',2.4),('defense_slide_left',.8),('defense_slide_right',.8),('cut_run',.72),('start_stop',1.0),('screen_plant',2.0),('pivot',1.4),('receive',1.0),('chest_pass',.8),('shot_release',1.0),('dribble',.8),('closeout',1.0)]
+rig.data.pose_position='POSE'
+sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
+import motion_lib
+# Relaxed athletic hand: curl the fingers once and make that the bind pose, so no
+# finger tracks are needed at runtime and every clip inherits natural hands.
+bpy.context.view_layer.objects.active=rig
+for b in rig.pose.bones:
+ b.rotation_mode='QUATERNION'
+ if any(n in b.name for n in ['index_','middle_','ring_','pinky_']) and not b.name.endswith('leaf_l') and not b.name.endswith('leaf_r'):
+  b.rotation_quaternion=Quaternion((1,0,0),.20)
+bpy.context.view_layer.update()
+for ob in [body,lod]:
+ bpy.ops.object.select_all(action='DESELECT');bpy.context.view_layer.objects.active=ob;ob.select_set(True)
+ for m in list(ob.modifiers):
+  if m.type=='ARMATURE':bpy.ops.object.modifier_apply(modifier=m.name)
+bpy.ops.object.select_all(action='DESELECT');bpy.context.view_layer.objects.active=rig;rig.select_set(True)
+bpy.ops.object.mode_set(mode='POSE');bpy.ops.pose.armature_apply(selected=False);bpy.ops.object.mode_set(mode='OBJECT')
+for ob in [body,lod]:
+ mod=ob.modifiers.new('Basketball deformation','ARMATURE');mod.object=rig
+bpy.context.view_layer.update()
+R=motion_lib.Rig(rig);bones=rig.pose.bones
+KEY_BONES=motion_lib.KEY_BONES
+def fcurves_of(action):
+ # Blender 4.x exposes action.fcurves; 5.x moved them into slotted layers/strips.
+ if hasattr(action,'fcurves'):return list(action.fcurves)
+ return [c for l in action.layers for st in l.strips for cb in st.channelbags for c in cb.fcurves]
 rig.animation_data_create();metrics=[]
-for name,duration in specs:
+for name,frames,actual,fn,meta in motion_lib.clip_frames():
  action=bpy.data.actions.new(name);action.use_fake_user=True;rig.animation_data.action=action
- frames=round(duration*FPS);actual=frames/FPS
- minimum=10;maximum=-10
+ minimum=10;maximum=-10;miss=0
  for f in range(frames+1):
-  bpy.context.scene.frame_set(f);pose(name,f/FPS,actual)
+  bpy.context.scene.frame_set(f);P=fn(f%frames);motion_lib.apply_pose(R,P)
   for key in KEY_BONES:
    b=bones[key];b.keyframe_insert(data_path='location',frame=f,group=key);b.keyframe_insert(data_path='rotation_quaternion',frame=f,group=key)
-  for s in ['l','r']:
-   z=bones['foot_'+s].matrix.translation.z;minimum=min(minimum,z);maximum=max(maximum,z)
- for curve in action.fcurves:
+  for s,foot in zip(['l','r'],P['feet']):
+   a=bones['foot_'+s].matrix.translation;z=a.z;minimum=min(minimum,z);maximum=max(maximum,z)
+   miss=max(miss,(a-Vector(foot['target'])).length)
+ for curve in fcurves_of(action):
   for k in curve.keyframe_points:k.interpolation='LINEAR'
- metrics.append({'name':name,'duration':actual,'frames':frames+1,'ankleHeightMin':round(minimum,4),'ankleHeightMax':round(maximum,4),'rootMotion':False})
-rig.animation_data.action=None;reset();bpy.context.scene.render.fps=FPS
+ entry={'name':name,'duration':actual,'frames':frames+1,'ankleHeightMin':round(minimum,4),'ankleHeightMax':round(maximum,4),'ikMissMax':round(miss,4),'rootMotion':False}
+ entry.update(meta);metrics.append(entry)
+rig.animation_data.action=None;R.reset();bpy.context.scene.render.fps=FPS
 # Keep production source editable: meshes, palette, rig and all reusable actions.
 sourcepath=ROOT+'/scripts/athlete/source/lab-athlete-studio.blend'
 bpy.ops.wm.save_as_mainfile(filepath=sourcepath,compress=True)
@@ -344,7 +279,8 @@ bpy.ops.export_scene.gltf(filepath=OUT+'/lab-athlete-tactical.glb',**kwargs)
 import sys
 sys.path.insert(0,os.path.dirname(__file__))
 from optimize_studio_glb import optimize
-for filename in ['lab-athlete.glb','lab-athlete-tactical.glb']:optimize(OUT+'/'+filename)
+motion_meta={'version':2,'fps':FPS,'clips':{m['name']:{k:m[k] for k in ('mode','duration','strideMeters','stanceFraction') if k in m} for m in metrics}}
+for filename in ['lab-athlete.glb','lab-athlete-tactical.glb']:print(optimize(OUT+'/'+filename,motion_meta))
 # Basic geometry and animation measurements ship as reviewable build evidence.
 for ob in [body,lod]:ob.data.calc_loop_triangles()
 report={'generator':'Blender '+bpy.app.version_string,'fps':FPS,'heightMeters':1.808,'sourceBlend':'scripts/athlete/source/lab-athlete-studio.blend','lod0':{'vertices':len(body.data.vertices),'triangles':len(body.data.loop_triangles)},'lod1':{'vertices':len(lod.data.vertices),'triangles':len(lod.data.loop_triangles)},'clips':metrics,'bytes':{n:os.path.getsize(OUT+'/'+n) for n in ['lab-athlete.glb','lab-athlete-tactical.glb']}}

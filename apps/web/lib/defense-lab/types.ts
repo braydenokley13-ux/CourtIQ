@@ -128,6 +128,11 @@ export interface PlayerState extends Point2 {
   role: RoleId
   number: number
   height: number
+  /** Resolved physical profile multipliers (see capability.ts). Absent means a neutral athlete. */
+  speed?: number
+  acceleration?: number
+  lateral?: number
+  contest?: number
   vx: number
   vz: number
   yaw: number
@@ -248,6 +253,8 @@ export interface SimulationResult {
 /** Content uses basketball actions, read nodes and continuations. No renderer data. */
 export interface ProblemPlayer {
   id: PlayerId; team: 'offense' | 'defense'; role: RoleId; number: number; height: number; start: Point2
+  /** Optional capability overrides (multipliers); defaults derive from height. */
+  speed?: number; acceleration?: number; lateral?: number; reach?: number
 }
 export interface OffensiveAction {
   id: string

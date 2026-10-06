@@ -8,6 +8,14 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 const player = (ps: PlayerState[], id: PlayerId) => ps.find(p => p.id === id)!
 const towardRim = (p: Point2, gap: number): Point2 => { const d = distance(p, rim) || 1; return { x: p.x - p.x / d * gap, z: p.z + (rim.z - p.z) / d * gap } }
 
+/** The drop line: where the big's body sits while the ball is above him. bigDepth
+ * is the depth mark in metres from the attacked baseline; the big's centre sits
+ * 1.9 m past it so his chest, not his heels, is on the mark. He holds that line
+ * and only steps up once the handler is within a body length of it, so a deeper
+ * line concedes the pull-up space and a higher line takes it away. */
+export const DROP_LINE_OFFSET = 1.9
+export const dropLine = (bigDepth: number) => bigDepth + DROP_LINE_OFFSET
+
 /** Role-based ball-screen coverage policy. Coaching rules choose obligations;
  * the independent world integrator determines physical arrival. */
 export interface DefensePolicyState { screenAt: number | null; showReleased: boolean }
@@ -43,7 +51,7 @@ export function defenseResponsibilities(observed: WorldFrame, answer: TeamAnswer
     if (hasScreen && answer.coverage === 'blitz' && ballAtHandler) bigTarget = { x: handler.x - 0.75, z: handler.z - 0.15 }
     else if (answer.coverage === 'hedge' && hasScreen && ballAtHandler && !showRecover) bigTarget = { x: handler.x - 0.35, z: handler.z - 0.55 }
     else if (!ballAtHandler || (answer.coverage === 'hedge' && hasScreen && showRecover)) bigTarget = towardRim(roller, 0.8)
-    else bigTarget = { x: handler.x, z: Math.max(answer.bigDepth, Math.min(5.3, handler.z - 0.95)) }
+    else bigTarget = { x: handler.x, z: Math.min(dropLine(answer.bigDepth), handler.z - 0.95) }
     if (!hasScreen) bigTarget = towardRim(roller, 0.8)
     const bigOwnsRoll = !hasScreen || !ballAtHandler || answer.coverage === 'hedge' && hasScreen && showRecover
     add(r.big, bigOwnsRoll ? roller.z > 7.7 && roller.vz >= 0 ? 'pop' : 'roll' : 'drive', bigOwnsRoll ? r.screener : r.ballhandler, answer.coverage === 'blitz' && ballAtHandler ? 'contain' : bigOwnsRoll ? 'recover' : 'contain', bigTarget, answer.coverage === 'blitz' ? 'Show two to the ball' : bigOwnsRoll ? 'Recover to the screener' : 'Contain ball and roll')
@@ -53,7 +61,7 @@ export function defenseResponsibilities(observed: WorldFrame, answer: TeamAnswer
   const passSeen = ball.phase === 'pass' || ball.phase === 'gather' || ball.phase === 'shot'
   const rollerSecured = distance(bigPlayer, roller) <= config.assumptions.contestRadius && !ballAtHandler
   const tagActive = hasScreen && answer.tag && !switched && rollerThreat && (answer.recovery === 'roller-secured' ? !rollerSecured : !passSeen)
-  const tagPlanned = hasScreen && answer.tag && !switched && ballAtHandler && roller.vz <= 0.2
+  const tagPlanned = hasScreen && answer.tag && answer.coverage !== 'switch' && ballAtHandler && roller.vz <= 0.2
   const cornerGuard = towardRim(corner, 0.9), liftGuard = towardRim(lift, 0.9)
   const tagTarget = { x: lerp(cornerGuard.x, roller.x - 0.8, answer.tagDepth), z: lerp(cornerGuard.z, clamp(roller.z - 1.2, 2.5, 3.7), answer.tagDepth) }
   const passCorner = passSeen && owner === r.weakCorner, passLift = passSeen && owner === r.weakLift
