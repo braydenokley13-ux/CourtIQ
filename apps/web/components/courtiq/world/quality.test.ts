@@ -78,9 +78,9 @@ describe('AdaptiveController', () => {
     expect(r.decisions.some(d => d.kind === 'tier' && d.tier === 'high')).toBe(true)
     // The upgrade immediately struggles: back down, and no second upgrade for a long while.
     r = run(c, 40, 20, r.end, 2)
-    expect(c.tier).toBe('balanced')
+    expect(c.tier).not.toBe('high')
     const flap = run(c, 16.7, 60, r.end, 2)
-    expect(flap.decisions.some(d => d.kind === 'tier' && d.tier === 'high')).toBe(false)
+    expect(flap.decisions.some(d => d.kind === 'tier')).toBe(false) // upgrades are blocked for 90 s+ after a failed attempt
   })
   it('treats a GPU timer over budget as bad even when frame intervals look fine', () => {
     const c = new AdaptiveController('high', 2)

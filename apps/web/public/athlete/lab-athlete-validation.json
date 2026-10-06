@@ -1,9 +1,9 @@
 [
   {
     "filename": "lab-athlete.glb",
-    "bytes": 1160928,
-    "vertices": 16388,
-    "triangles": 29037,
+    "bytes": 1251216,
+    "vertices": 18295,
+    "triangles": 30134,
     "bones": 65,
     "meshes": 7,
     "minAnkle": 0.10354,
@@ -119,9 +119,9 @@
   },
   {
     "filename": "lab-athlete-tactical.glb",
-    "bytes": 599776,
-    "vertices": 6152,
-    "triangles": 11007,
+    "bytes": 630424,
+    "vertices": 6835,
+    "triangles": 11140,
     "bones": 65,
     "meshes": 5,
     "minAnkle": 0.10354,

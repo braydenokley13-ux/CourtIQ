@@ -1,6 +1,6 @@
 {
   "actors": 10,
-  "largestRepeatDifference": 2.5673907444456745e-16,
+  "largestRepeatDifference": 0,
   "lowestAnkle": 0.09555713623114881,
   "oneSkeletonPerActor": true,
   "independentlyOwnedResources": true,

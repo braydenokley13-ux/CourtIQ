@@ -236,6 +236,23 @@ def inside_jersey_core(co, grow=0.):
     return True
 
 
+def fix_hem_weights(j):
+    # The hem must move with the hips exactly like the shorts waist (no pinching V in a crouch).
+    names = {g.index: g.name for g in j.vertex_groups}
+    for v in j.data.vertices:
+        t = 1 - smooth(v.co.z, JERSEY_Z0 - .01, 1.13)
+        if t <= 0:
+            continue
+        infl = {names[g.group]: g.weight for g in v.groups}
+        out = {n: w * (1 - t) for n, w in infl.items()}
+        out['pelvis'] = out.get('pelvis', 0) + t
+        for g in list(v.groups):
+            j.vertex_groups[g.group].remove([v.index])
+        for n, w in out.items():
+            if w > 1e-4:
+                j.vertex_groups[n].add([v.index], w, 'REPLACE')
+
+
 def build_jersey(body, mats):
     """mats: dict name->material. Returns jersey object (skinned weights transferred)."""
     j = body.copy()
@@ -302,7 +319,7 @@ def build_jersey(body, mats):
     vg.add(list(keep), 1.0, 'REPLACE')
     select_only(j)
     dm = j.modifiers.new('reduce', 'DECIMATE')
-    dm.ratio = .5
+    dm.ratio = .62
     dm.vertex_group = 'keep'; dm.invert_vertex_group = True
     dm.vertex_group_factor = 1.0
     dm.use_collapse_triangulate = True
@@ -311,6 +328,10 @@ def build_jersey(body, mats):
     j.data.materials.clear()
     for m in (mats['jersey'], mats['trim']):
         j.data.materials.append(m)
+    thin = j.copy()
+    thin.data = j.data.copy()
+    thin.name = 'LOD1_jersey'
+    bpy.context.collection.objects.link(thin)
     select_only(j)
     s = j.modifiers.new('thick', 'SOLIDIFY')
     s.thickness = .0075
@@ -323,23 +344,10 @@ def build_jersey(body, mats):
     apply_modifier(j, s)
     for p in j.data.polygons:
         p.use_smooth = True
-    transfer_weights(j, body)
-    # The hem must move with the hips exactly like the shorts waist (no pinching V in a crouch).
-    pelvis_group = j.vertex_groups['pelvis']
-    names = {g.index: g.name for g in j.vertex_groups}
-    for v in j.data.vertices:
-        t = 1 - smooth(v.co.z, JERSEY_Z0 - .01, 1.13)
-        if t <= 0:
-            continue
-        infl = {names[g.group]: g.weight for g in v.groups}
-        out = {n: w * (1 - t) for n, w in infl.items()}
-        out['pelvis'] = out.get('pelvis', 0) + t
-        for g in list(v.groups):
-            j.vertex_groups[g.group].remove([v.index])
-        for n, w in out.items():
-            if w > 1e-4:
-                j.vertex_groups[n].add([v.index], w, 'REPLACE')
-    return j
+    for part in (j, thin):
+        transfer_weights(part, body)
+        fix_hem_weights(part)
+    return j, thin
 
 
 def jersey_uv(co, normal_y_sign):
@@ -355,7 +363,7 @@ def ring_xy(a, cx, rx, ry, sign, r=1.0):
     """Point on a leg tube ring. The inner (crotch) side is squeezed to stay clear of the
     centre line instead of being clamped flat (which made a see-through sheet in a wide stance)."""
     c = math.cos(a)
-    limit = abs(cx) - .018
+    limit = abs(cx) - .004
     rxe = rx * r
     if sign * c < 0:
         rxe = min(rxe, limit)
@@ -372,18 +380,18 @@ def build_shorts(body_skinned_source, mats):
     for sign in (-1, 1):
         start = len(verts)
         side = 'l' if sign > 0 else 'r'
-        levels = [(.585, .108, .132, sign * .108),
-                  (.640, .113, .136, sign * .108),
-                  (.760, .122, .144, sign * .104),
+        levels = [(.585, .110, .132, sign * .100),
+                  (.640, .115, .136, sign * .100),
+                  (.760, .124, .144, sign * .100),
                   (.880, .122, .140, sign * .092),
-                  (.960, .110, .126, sign * .070),
-                  (1.000, .104, .120, sign * .064)]
+                  (.960, .098, .118, sign * .060),
+                  (1.000, .092, .112, sign * .054)]
         for k, (z, rx, ry, cx) in enumerate(levels):
             for i in range(n):
                 a = TAU * i / n
                 x, y = ring_xy(a, cx, rx, ry, sign)
                 verts.append((x, y, z))
-                pelvis = max(0., min(1., (z - .72) / .25))
+                pelvis = max(0., min(1., (z - .86) / .14)); pelvis = pelvis * pelvis * (3 - 2 * pelvis)
                 weights.append([('pelvis', pelvis), ('thigh_' + side, 1 - pelvis)])
         for k in range(len(levels) - 1):
             for i in range(n):
@@ -400,6 +408,10 @@ def build_shorts(body_skinned_source, mats):
         p.use_smooth = True
         p.material_index = mi[p.index]
     assign_weights(ob, weights)
+    thin = ob.copy()
+    thin.data = ob.data.copy()
+    thin.name = 'LOD1_shorts'
+    bpy.context.collection.objects.link(thin)
     select_only(ob)
     sd = ob.modifiers.new('thick', 'SOLIDIFY')
     sd.thickness = .007
@@ -410,7 +422,7 @@ def build_shorts(body_skinned_source, mats):
     apply_modifier(ob, sd)
     for p in ob.data.polygons:
         p.use_smooth = True
-    return ob
+    return ob, thin
 
 
 def assign_weights(ob, weights):
@@ -743,7 +755,7 @@ def set_jersey_uvs(ob, jersey_mat_name='athlete_jersey', trim_mat_name='athlete_
             uv.data[li].uv = (u, v)
 
 
-def bake_ao(ob, rays=20, dist=.20, strength=.62, floor=.46):
+def bake_ao(ob, rays=20, dist=.16, strength=.48, floor=.64):
     """Per-vertex hemisphere ambient occlusion from the CURRENT evaluated pose, stored as a
     byte colour attribute 'ao' (white = open)."""
     dg = bpy.context.evaluated_depsgraph_get()

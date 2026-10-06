@@ -36,6 +36,10 @@ export class GpuTimer {
   private pending: WebGLQuery[] = []
   private active: WebGLQuery | null = null
   readonly ring = new Ring(120)
+  /** New results since the last drain (so segments record each GPU sample once). */
+  private fresh: number[] = []
+  private c50: number | null | undefined
+  private c95: number | null | undefined
   constructor(private gl: WebGL2RenderingContext | WebGLRenderingContext) {
     const isGl2 = typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext
     const ext = isGl2 ? gl.getExtension('EXT_disjoint_timer_query_webgl2') : null
@@ -62,14 +66,15 @@ export class GpuTimer {
       const q = this.pending[0]
       if (!gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) break
       this.pending.shift()
-      if (!disjoint) this.ring.push(Number(gl.getQueryParameter(q, gl.QUERY_RESULT)) / 1e6)
+      if (!disjoint) { const ms = Number(gl.getQueryParameter(q, gl.QUERY_RESULT)) / 1e6; this.ring.push(ms); this.fresh.push(ms); this.c50 = this.c95 = undefined }
       gl.deleteQuery(q)
     }
     if (disjoint) { for (const q of this.pending) gl.deleteQuery(q); this.pending = [] }
   }
   /** Median GPU ms of recent frames, or null when unavailable / no sample yet. */
-  p50(): number | null { return this.available && this.ring.length ? this.ring.percentile(0.5) : null }
-  p95(): number | null { return this.available && this.ring.length ? this.ring.percentile(0.95) : null }
+  p50(): number | null { if (this.c50 === undefined) this.c50 = this.available && this.ring.length ? this.ring.percentile(0.5) : null; return this.c50 }
+  p95(): number | null { if (this.c95 === undefined) this.c95 = this.available && this.ring.length ? this.ring.percentile(0.95) : null; return this.c95 }
+  drain(): number[] { if (!this.fresh.length) return this.fresh; const out = this.fresh; this.fresh = []; return out }
 }
 
 export interface RenderCounters { calls: number; triangles: number; programs: number; textures: number; geometries: number }
@@ -128,14 +133,13 @@ export class PerfRecorder {
     this.total++
     this.js.push(jsMs)
     if (interval !== null) this.intervals.push(interval)
-    const g = this.gpu.p50()
     const s = this.seg
+    const fresh = this.gpu.drain()
     if (s) {
       s.ticks++
       if (interval !== null) s.intervals.push(interval)
       s.js.push(jsMs)
-      const last = this.gpu.ring.length ? this.gpu.ring.values().at(-1)! : null
-      if (last !== null && g !== null) s.gpu.push(last)
+      for (const g of fresh) s.gpu.push(g)
       s.peakCalls = Math.max(s.peakCalls, c.calls); s.peakTris = Math.max(s.peakTris, c.triangles)
     }
   }

@@ -76,6 +76,7 @@ export class WorldRuntime {
   private shadowStride = 1
   private shadowTick = 0
   private contactTex: THREE.CanvasTexture | null = null
+  private warm: MarkLayer | null = null
   private labelObserver: MutationObserver | null = null
   private lastChange: { at: number; why: string } | null = null
   private readonly proj = new THREE.Vector3()
@@ -170,7 +171,7 @@ export class WorldRuntime {
   dispose() {
     this.disposed = true
     cancelAnimationFrame(this.raf); this.observer.disconnect(); this.controls.dispose()
-    this.marks.clear(); this.perf.dispose(); this.labelObserver?.disconnect(); this.contactTex?.dispose(); this.contactTex = null
+    this.marks.clear(); this.warm?.clear(); this.perf.dispose(); this.labelObserver?.disconnect(); this.contactTex?.dispose(); this.contactTex = null
     this.environment.userData.disposed = true
     disposeTree(this.scene)
     ;(this.environment.userData.environmentTarget as THREE.WebGLRenderTarget | undefined)?.dispose()
@@ -216,6 +217,7 @@ export class WorldRuntime {
       this.rims.set(player.id, uniforms)
       this.athletes.set(player.id, athlete); this.scene.add(athlete.root)
     })
+    this.warmShaders()
     const blobs = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.3, 1.3), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false, opacity: 0.55, color: '#000000' }), this.state.frame.players.length)
     blobs.renderOrder = 1; blobs.frustumCulled = false; blobs.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
     this.contactShadows = blobs; this.scene.add(blobs)
@@ -277,6 +279,38 @@ export class WorldRuntime {
   /** Full device + tier description for the metrics JSON. */
   describe() { return { sceneReport: this.sceneReport(), probe: this.probe, tier: this.tier, tierReason: this.tierReason, override: this.override, scale: this.scale, lastChange: this.lastChange, settings: tierSettings(this.tier), software: this.software, nodraw: this.nodraw, canvas: { w: this.renderer.domElement.width, h: this.renderer.domElement.height } } }
 
+  /**
+   * Shader pre-warm. The first time a coach opens an X-Ray lens, every analytical mark material compiles its
+   * program on the render thread (a visible hitch; seconds under software GL). One of each mark kind is built once
+   * and kept (invisible) so the programs are compiled at start-up through compileAsync (KHR_parallel_shader_compile
+   * where present) and stay cached. Costs no draw calls: the layer is hidden after compiling.
+   */
+  private warmShaders() {
+    if (this.warm || this.nodraw || !this.state) return
+    const ids = this.state.frame.players.map(p => p.id)
+    if (ids.length < 2) return
+    const [a, b] = ids, P = (x: number, z: number) => ({ x, z })
+    try {
+      const layer = new MarkLayer(this.scene); this.warm = layer
+      const pts = [P(-2, 6), P(-1, 7), P(0, 8)]
+      layer.update([
+        { kind: 'ring', id: 'w-ring', at: a, tone: 'threat', pulse: true },
+        { kind: 'path', id: 'w-path', points: pts, tone: 'attack', arrow: true },
+        { kind: 'path', id: 'w-dash', points: pts, tone: 'warn', arrow: true, dashed: true },
+        { kind: 'lane', id: 'w-lane', from: a, to: b, tone: 'good' },
+        { kind: 'disc', id: 'w-disc', center: a, radius: 1, tone: 'defense', edge: true },
+        { kind: 'tether', id: 'w-tether', from: a, to: b, tone: 'defense' },
+        { kind: 'wedge', id: 'w-wedge', apex: a, toward: P(0, 1.575), length: 3, spread: 0.5, tone: 'threat' },
+        { kind: 'arrival', id: 'w-arrival', sources: [b], accel: 5, maxSpeed: 6, react: 0.2, contest: 1, ballTime: 1 },
+        { kind: 'pin', id: 'w-pin', at: a, tone: 'ghost' },
+        { kind: 'comet', id: 'w-comet', points: pts, outcome: 'held' },
+        { kind: 'flare', id: 'w-flare', at: a, tone: 'threat' },
+      ], this.state.frame, performance.now(), 0, 1)
+      const hide = () => { layer.root.visible = false; this.dirty = true }
+      this.renderer.compileAsync(this.scene, this.camera).then(hide, hide)
+    } catch { /* pre-warm is best-effort */ }
+  }
+
   /** Static scene census for the perf report: where objects, triangles and materials live (visible objects only). */
   sceneReport() {
     const groups: Record<string, { objects: number; meshes: number; skinned: number; instanced: number; triangles: number; materials: number; matrixAutoUpdate: number }> = {}
@@ -321,6 +355,39 @@ export class WorldRuntime {
     const ghost = createGhostWorld(gd.radial, gd.sphere)
     this.scene.add(ghost.root)
     return ghost
+  }
+
+  /** Views that sit at the post (baseline, behind-the-defense) take the stanchion, arm and pad out of the foreground. */
+  private stanchion: THREE.Mesh[] = []
+  private postHidden = false
+  private setStanchionHidden(hidden: boolean) {
+    if (hidden) {
+      // Resolved fresh: authored basket assets stream in after the first frame.
+      this.stanchion = []
+      const box = new THREE.Box3(), c = new THREE.Vector3(), size = new THREE.Vector3()
+      this.environment.updateMatrixWorld(true)
+      this.environment.traverse(o => {
+        const m = o as THREE.Mesh
+        if (!m.isMesh || !m.visible) return
+        box.setFromObject(m); box.getCenter(c); box.getSize(size)
+        // Post and pad (low, behind the baseline) and the overhead arm (long and thin); never the board, rim or net.
+        const post = Math.abs(c.x) < 0.7 && c.z > -1.7 && c.z < -0.1 && c.y < 3.6 && size.x < 2.2 && size.z < 3.2
+        const arm = Math.abs(c.x) < 0.35 && size.x < 0.5 && size.z > 0.8 && size.z < 2.6 && c.y > 2.6 && c.y < 4.4 && c.z > -0.9 && c.z < 1.7
+        if (post || arm) this.stanchion.push(m)
+      })
+      // The authored basket arrives as scene-level meshes (post, pad and arm).
+      for (const o of this.scene.children) {
+        const m = o as THREE.Mesh
+        if (!m.isMesh || !m.visible || m.geometry.type === 'PlaneGeometry') continue
+        box.setFromObject(m); box.getCenter(c); box.getSize(size)
+        if (Math.abs(c.x) < 0.4 && c.z > -1.2 && c.z < 0.3 && size.y > 2.4 && size.x < 2.2) this.stanchion.push(m)
+      }
+      for (const m of this.stanchion) m.visible = false
+    } else {
+      for (const m of this.stanchion) m.visible = true
+      this.stanchion = []
+    }
+    this.dirty = true
   }
 
   private createTagHandle() {
@@ -460,6 +527,8 @@ export class WorldRuntime {
 
     // Camera.
     const modeChanged = this.lastMode !== s.camera
+    const nearPost = s.camera === 'baseline' || (s.camera === 'director' && (s.rig?.azimuth ?? 0) > 2.5)
+    if (nearPost !== this.postHidden) { this.postHidden = nearPost; this.setStanchionHidden(nearPost) }
     if (modeChanged) {
       if (s.camera === 'free') this.controls.target.copy(this.director.target)
       else if (this.lastMode === 'free' || this.lastMode === null) this.director.adopt(this.lastMode === null ? this.director.target : this.controls.target)

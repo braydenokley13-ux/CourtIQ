@@ -5,16 +5,16 @@
   "sourceBlend": "scripts/athlete/source/lab-athlete-studio.blend",
   "meshes": {
     "LOD0_athlete": {
-      "vertices": 8096,
-      "triangles": 15544
+      "vertices": 8349,
+      "triangles": 16158
     },
     "LOD1_athlete": {
-      "vertices": 2880,
-      "triangles": 5283
+      "vertices": 3040,
+      "triangles": 5416
     },
     "LOD2_athlete": {
-      "vertices": 1439,
-      "triangles": 2486
+      "vertices": 1750,
+      "triangles": 2836
     },
     "HAIR_crop": {
       "vertices": 684,
@@ -34,16 +34,16 @@
     }
   },
   "lod0": {
-    "vertices": 8096,
-    "triangles": 15544
+    "vertices": 8349,
+    "triangles": 16158
   },
   "lod1": {
-    "vertices": 2880,
-    "triangles": 5283
+    "vertices": 3040,
+    "triangles": 5416
   },
   "lod2": {
-    "vertices": 1439,
-    "triangles": 2486
+    "vertices": 1750,
+    "triangles": 2836
   },
   "clips": [
     {
@@ -60,8 +60,8 @@
       "name": "defense_ready",
       "duration": 2.0,
       "frames": 49,
-      "ankleHeightMin": 0.1195,
-      "ankleHeightMax": 0.1195,
+      "ankleHeightMin": 0.1315,
+      "ankleHeightMax": 0.1315,
       "ikMissMax": 0.0,
       "rootMotion": false,
       "mode": "time"
@@ -276,7 +276,7 @@
     }
   ],
   "bytes": {
-    "lab-athlete.glb": 1160952,
-    "lab-athlete-tactical.glb": 599796
+    "lab-athlete.glb": 1251216,
+    "lab-athlete-tactical.glb": 630424
   }
 }

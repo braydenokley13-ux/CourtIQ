@@ -76,12 +76,21 @@ describe('director composition keeps the play inside the UI safe area and large'
   })
   it('behind-the-defense search camera stays inside the gym and keeps the nearest bodies in view', () => {
     const { camera, director, safe } = rig(1440, 900, { top: 120, bottom: 80 })
-    director.rig = { azimuth: Math.PI + 0.28, elevation: 0.3, fov: 38, minDistance: 7 }
+    director.rig = { azimuth: Math.PI + 0.6, elevation: 0.3, fov: 38, minDistance: 7 }
     const b = frame.ball
     const focus = [...frame.players].sort((p, q) => Math.hypot(p.x - b.x, p.z - b.z) - Math.hypot(q.x - b.x, q.z - b.z)).slice(0, 7).map(p => p.id)
     settle(director, 'director', frame, focus)
     expect(director.eye.z).toBeGreaterThanOrEqual(-3.35)
     const bb = box(camera, focus.map(id => { const p = frame.players.find(q => q.id === id)!; return new THREE.Vector3(p.x, 1, p.z) }))
     expect(bb.x0).toBeGreaterThan(safe.x0 - 0.05); expect(bb.x1).toBeLessThan(safe.x1 + 0.05)
+  })
+  it("defender's eyes keep his top assignment in view", () => {
+    const { camera, director } = rig(1440, 900, {})
+    settle(director, 'player', frame, [], 'D3')
+    camera.updateMatrixWorld()
+    const jobs = frame.responsibilities.filter(r => r.defenderId === 'D3').sort((a, b) => b.priority - a.priority)
+    const top = frame.players.find(p => p.id === jobs[0].offensivePlayerId)!
+    const v = new THREE.Vector3(top.x, 1.2, top.z).project(camera)
+    expect(Math.abs(v.x)).toBeLessThan(0.95); expect(v.z).toBeLessThan(1)
   })
 })

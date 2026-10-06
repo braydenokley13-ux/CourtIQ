@@ -52,7 +52,7 @@ G.shape_body(body)
 body.data.materials.append(MATS['skin'])
 for p in body.data.polygons:
     p.use_smooth = True
-jersey = G.build_jersey(body, MATS)
+jersey, jersey_thin = G.build_jersey(body, MATS)
 HAIR_STYLES = {
     'crop': dict(t_base=.003, t_top=.0085, shell=.006),
     'buzz': dict(t_base=.0018, t_top=.0035, shell=.0035),
@@ -88,18 +88,31 @@ body.data.update()
 select = G.select_only
 select(body)
 mod = body.modifiers.new('Production body reduction', 'DECIMATE')
-mod.ratio = .5
+mod.ratio = .45
 bpy.ops.object.modifier_apply(modifier=mod.name)
 
-pieces = [jersey, face]
-pieces.append(G.build_shorts(body, MATS))
+shorts, shorts_thin = G.build_shorts(body, MATS)
+pieces = [jersey, face, shorts]
 for side in 'lr':
     pieces.extend(G.build_shoe(side, MATS))
+
+
+def dup(ob, name):
+    c = ob.copy()
+    c.data = ob.data.copy()
+    c.name = name
+    bpy.context.collection.objects.link(c)
+    return c
+
+
+# LOD source: the same parts but with single-surface (thin) jersey/shorts, so aggressive
+# decimation never collapses an inner shell through the outer one.
+lod_parts = [dup(body, 'LODsrc_body')] + [dup(p, 'LODsrc_' + p.name) for p in pieces if p not in (jersey, shorts)] + [jersey_thin, shorts_thin]
 
 for ob in [body] + pieces:
     ob.data.calc_loop_triangles(); print('PIECE', ob.name, len(ob.data.loop_triangles))
 # ---- 2. join into LOD0, rig-bind every part
-for ob in pieces + hairs:
+for ob in pieces + hairs + [p for p in lod_parts if p.parent is None]:
     ob.parent = rig
     arm = ob.modifiers.new('Basketball deformation', 'ARMATURE')
     arm.object = rig
@@ -109,13 +122,22 @@ for ob in [body] + pieces:
 bpy.context.view_layer.objects.active = body
 bpy.ops.object.join()
 body.name = 'LOD0_athlete'
+lodbase = lod_parts[0]
+bpy.ops.object.select_all(action='DESELECT')
+for ob in lod_parts:
+    ob.select_set(True)
+bpy.context.view_layer.objects.active = lodbase
+bpy.ops.object.join()
+lodbase.name = 'LODbase'
 G.set_jersey_uvs(body)
+G.set_jersey_uvs(lodbase)
 ATLAS = G.material('athlete_atlas', (1, 1, 1), .62)
 nt = ATLAS.node_tree
 attr_node = nt.nodes.new('ShaderNodeVertexColor')
 attr_node.layer_name = 'ao'
 nt.links.new(attr_node.outputs['Color'], nt.nodes['Principled BSDF'].inputs['Base Color'])
 G.finalize_atlas(body, SWATCH_OF, ATLAS)
+G.finalize_atlas(lodbase, SWATCH_OF, ATLAS)
 for h in hairs:
     G.finalize_atlas(h, SWATCH_OF, ATLAS)
 
@@ -132,6 +154,7 @@ def normalize_weights(ob, keep=4):
 
 
 normalize_weights(body)
+normalize_weights(lodbase)
 for h in hairs:
     normalize_weights(h)
 
@@ -142,10 +165,36 @@ def make_lod(src, name, ratio, merge_fingers=True):
     bpy.context.collection.objects.link(lod)
     lod.name = name
     select(lod)
+    # Pin vertices that sit on a boundary between atlas regions (swatch <-> swatch / jersey) so
+    # collapses never smear one region's UV into its neighbour.
+    me = lod.data
+    uv = me.uv_layers['UVMap']
+    region_of_vertex = {}
+    for p in me.polygons:
+        li = p.loop_indices[0]
+        u, v = uv.data[li].uv
+        key = 'jersey' if v < G.JERSEY_V_MAX - .001 else (round(u * 8), round(v * 8))
+        for vi in p.vertices:
+            region_of_vertex.setdefault(vi, set()).add(key)
+    pinned = set(vi for vi, keys in region_of_vertex.items() if len(keys) > 1)
+    edge_faces = {}
+    for p in me.polygons:
+        for a, b in zip(p.vertices, list(p.vertices[1:]) + [p.vertices[0]]):
+            edge_faces[(min(a, b), max(a, b))] = edge_faces.get((min(a, b), max(a, b)), 0) + 1
+    for (a, b), n in edge_faces.items():
+        if n == 1:
+            pinned.add(a); pinned.add(b)
+    pinned = list(pinned)
+    vg = lod.vertex_groups.new(name='keep')
+    vg.add(pinned, 1.0, 'REPLACE')
     m = lod.modifiers.new('Reduction', 'DECIMATE')
     m.ratio = ratio
+    m.vertex_group = 'keep'
+    m.invert_vertex_group = True
+    m.vertex_group_factor = 1.0
     m.use_collapse_triangulate = True
     bpy.ops.object.modifier_apply(modifier=m.name)
+    lod.vertex_groups.remove(lod.vertex_groups['keep'])
     # Re-attach the armature modifier (decimate must run on the unposed mesh).
     if merge_fingers:
         for v in lod.data.vertices:
@@ -164,8 +213,9 @@ def make_lod(src, name, ratio, merge_fingers=True):
     return lod
 
 
-lod = make_lod(body, 'LOD1_athlete', .34)
-lod2 = make_lod(body, 'LOD2_athlete', .16)
+lod = make_lod(lodbase, 'LOD1_athlete', .42)
+lod2 = make_lod(lodbase, 'LOD2_athlete', .22)
+bpy.data.objects.remove(lodbase, do_unlink=True)
 
 # ---- 3. rig bind: relaxed curled hands baked into the bind pose, ambient occlusion in a
 # real basketball stance, then the animation library.

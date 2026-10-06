@@ -7,10 +7,10 @@ import type { Lens, Mark, Tone } from './world/types'
 /** Each lens reveals exactly one basketball idea. */
 export const LENSES: { id: Lens; plain: string; coach: string; idea: string }[] = [
   { id: 'normal', plain: 'Game view', coach: 'Game view', idea: 'What happens.' },
-  { id: 'ownership', plain: 'Who has who', coach: 'Responsibilities', idea: 'Every defender’s job right now — and who is being asked to do two things.' },
-  { id: 'reach', plain: 'Who can get there', coach: 'Reach in time', idea: 'How far each defender can get in half a second and one second. Anyone outside every circle is open.' },
-  { id: 'passing', plain: 'Open passes', coach: 'Passing windows', idea: 'Every pass the ball can make, lit when no defender gets there before the catch.' },
-  { id: 'space', plain: 'Room to drive', coach: 'Drive & roll space', idea: 'Lanes to the rim for the ball and the screener.' },
+  { id: 'ownership', plain: 'Who has who', coach: 'Responsibilities', idea: 'Each defender is tied to a job by a string. A long string is a job he can’t reach; two strings means he’s pulled two ways.' },
+  { id: 'reach', plain: 'Who can get there', coach: 'Reach in time', idea: 'Rings show how soon a defender can get to each spot. Red is a spot nobody reaches before the shot is ready.' },
+  { id: 'passing', plain: 'Open passes', coach: 'Passing windows', idea: 'Every pass the ball can make. Lit glass is open; a red notch is where a hand gets there first.' },
+  { id: 'space', plain: 'Room to drive', coach: 'Drive & roll space', idea: 'The lane to the rim for the ball and the screener, red when nobody can stop it.' },
 ]
 
 const THREAT_RECEIVER = (frame: WorldFrame, id: ThreatId) => frame.options.find(o => o.id === id)?.playerId

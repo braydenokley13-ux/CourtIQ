@@ -211,7 +211,7 @@ export type Decision =
   | null
 
 export const CONTROLLER = {
-  evalEveryMs: 750, minSamples: 30, window: 90, cooldownMs: 1500,
+  evalEveryMs: 750, minSamples: 12, window: 90, cooldownMs: 1500,
   badP50: 21, badP95: 34, badGpu: 14,
   goodP50: 18.8, goodP95: 26, goodGpu: 9,
   cpuBoundJs: 9,

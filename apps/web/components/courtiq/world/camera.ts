@@ -4,7 +4,7 @@ import type { CameraMode, WorldScene } from './types'
 
 const RIM = new THREE.Vector3(0, 3.05, 1.575)
 const ROOM_MIN_Z = -3.3
-const FOV = { director: 30, overhead: 34, baseline: 48, player: 66 } as const
+const FOV = { director: 30, overhead: 34, baseline: 48, player: 70 } as const
 
 /** Director camera: frames the basketball problem (focus bodies + ball), not the
  * gym. Critically damped so playback never chases actors jerkily. Every framed
@@ -58,7 +58,7 @@ export class DirectorCamera {
       // From beside the stanchion, looking out past the post at the play.
       const c = this.centroid(frame, focus)
       this.goalFov = FOV.baseline
-      this.goalEye.set(3.6, 2.5, -1.9)
+      this.goalEye.set(4.4, 2.5, -2.2)
       this.goalTarget.set(THREE.MathUtils.clamp(c.x * 0.5 - 0.4, -2.5, 2.5), 1.1, THREE.MathUtils.clamp(c.z, 4.5, 9))
       return
     }
@@ -66,20 +66,29 @@ export class DirectorCamera {
       const p = frame.players.find(q => q.id === pov) ?? frame.players.find(q => q.id === 'D3') ?? frame.players[0]
       // A helper's job is two assignments plus the ball: look at the middle of all three.
       const jobs = frame.responsibilities.filter(r => r.defenderId === p.id).sort((a, b) => b.priority - a.priority)
-      const seen = new Set<string>(), spots: { x: number; z: number; w: number }[] = []
+      const seen = new Set<string>(), spots: { x: number; z: number }[] = []
       for (const r of jobs) {
         if (seen.has(r.offensivePlayerId) || spots.length >= 2) continue
         seen.add(r.offensivePlayerId)
         const o = frame.players.find(q => q.id === r.offensivePlayerId)
-        if (o) spots.push({ x: o.x, z: o.z, w: 1 })
+        if (o) spots.push({ x: o.x, z: o.z })
       }
-      spots.push({ x: frame.ball.x, z: frame.ball.z, w: spots.length ? 0.6 : 1 })
-      let wx = 0, wz = 0, wsum = 0
-      for (const s of spots) { wx += s.x * s.w; wz += s.z * s.w; wsum += s.w }
-      wx /= wsum; wz /= wsum
-      let dx = wx - p.x, dz = wz - p.z
-      const dl = Math.hypot(dx, dz)
-      if (dl < 0.3) { dx = Math.sin(p.yaw); dz = Math.cos(p.yaw) } else { dx /= dl; dz /= dl }
+      spots.push({ x: frame.ball.x, z: frame.ball.z })
+      // Aim at the middle of the angular span of everything he owes (his two men and the ball),
+      // so both assignments sit inside the frustum rather than the average point sitting between them.
+      const ang = spots.map(sp => Math.atan2(sp.x - p.x, sp.z - p.z))
+      const ref = ang[0]
+      const rel = ang.map(a => Math.atan2(Math.sin(a - ref), Math.cos(a - ref)))
+      const lo = Math.min(...rel), hi = Math.max(...rel)
+      const hfov = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(FOV.player) / 2) * (this.fitAspect ?? this.camera.aspect))
+      let mid = (lo + hi) / 2
+      // Wider than the lens: lean toward his first job so it is never lost.
+      if (hi - lo > hfov * 0.92) mid = rel[0] + (mid - rel[0]) * 0.55
+      const heading = ref + mid
+      const far = Math.max(...spots.map(sp => Math.hypot(sp.x - p.x, sp.z - p.z)), 3)
+      const wx = p.x + Math.sin(heading) * Math.min(far, 6), wz = p.z + Math.cos(heading) * Math.min(far, 6)
+      let dx = Math.sin(heading), dz = Math.cos(heading)
+      if (!Number.isFinite(dx)) { dx = Math.sin(p.yaw); dz = Math.cos(p.yaw) }
       const eyeY = Math.min(1.78, p.height * 0.955)
       this.goalFov = FOV.player
       this.goalEye.set(p.x + dx * 0.1, eyeY, p.z + dz * 0.1)

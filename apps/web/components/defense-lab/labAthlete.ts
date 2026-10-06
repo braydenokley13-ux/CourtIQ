@@ -114,10 +114,11 @@ function labelTexture(id: string, defense: boolean) {
  * of 64 px (8 per row); below, the jersey front panel (x 15-240) and back panel (x 273-497),
  * hem at the bottom (y 512), shoulders at y 128. */
 const SWATCH_INDEX: Record<string, number> = { skin: 0, hair: 1, trim: 2, shorts: 3, shoe: 4, sole: 5, eye_white: 6, feature: 7, lips: 8, sock: 9, lace: 10, skin_shadow: 11, hair_hi: 12, accent: 13 }
-const SWATCH_ROUGH: Record<string, number> = { skin: .52, hair: .82, trim: .8, shorts: .86, shoe: .4, sole: .78, eye_white: .22, feature: .6, lips: .45, sock: .92, lace: .7, skin_shadow: .52, hair_hi: .6, accent: .7 }
+const SWATCH_ROUGH: Record<string, number> = { skin: .68, hair: .82, trim: .8, shorts: .86, shoe: .4, sole: .78, eye_white: .22, feature: .6, lips: .45, sock: .92, lace: .7, skin_shadow: .52, hair_hi: .6, accent: .7 }
 const shade = (c: string, k: number) => '#' + new THREE.Color(c).multiplyScalar(k).getHexString()
 const mix = (a: string, b: string, t: number) => '#' + new THREE.Color(a).lerp(new THREE.Color(b), t).getHexString()
 
+function hashString(s: string) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) } return h >>> 0 }
 interface AtlasSpec { kit: typeof DEFENSE_KIT; number: string; skin: string; hair: string; shoe: string; sole: string; accent: string }
 function paintAtlas(spec: AtlasSpec) {
   const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512
@@ -135,7 +136,7 @@ function paintAtlas(spec: AtlasSpec) {
     const r = Math.round(255 * SWATCH_ROUGH[name]); rctx.fillStyle = `rgb(${r},${r},${r})`; rctx.fillRect(x, y, 64, 64)
   }
   ctx.fillStyle = kit.body; ctx.fillRect(0, 128, 512, 384)
-  rctx.fillStyle = `rgb(${Math.round(255 * .88)},${Math.round(255 * .88)},${Math.round(255 * .88)})`; rctx.fillRect(0, 128, 512, 384)
+  rctx.fillStyle = `rgb(${Math.round(255 * .9)},${Math.round(255 * .9)},${Math.round(255 * .9)})`; rctx.fillRect(0, 128, 512, 384)
   // Jersey: tonal gradient (lighter shoulders), contrast side panels, strap piping, hem band.
   const g = ctx.createLinearGradient(0, 128, 0, 512)
   g.addColorStop(0, 'rgba(255,255,255,.07)'); g.addColorStop(.55, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,.10)')
@@ -145,9 +146,16 @@ function paintAtlas(spec: AtlasSpec) {
   ctx.fillStyle = mix(kit.body, kit.trim, .55); ctx.fillRect(0, 128, 512, 12)      // strap / yoke piping
   ctx.fillStyle = kit.trim; ctx.fillRect(0, 507, 512, 5)                   // hem piping
   
-  // faint knit
-  ctx.globalAlpha = .045; ctx.fillStyle = '#000'
-  for (let y = 130; y < 480; y += 4) ctx.fillRect(0, y, 512, 1)
+  // fine mesh weave + speckle so the fabric reads matte, not plastic
+  ctx.globalAlpha = .05; ctx.fillStyle = '#000'
+  for (let y = 130; y < 506; y += 3) ctx.fillRect(0, y, 512, 1)
+  for (let x = 0; x < 512; x += 3) ctx.fillRect(x, 130, 1, 376)
+  let seed = hashString(spec.number + kit.body) || 1
+  for (let i = 0; i < 2600; i++) {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0
+    const x = seed % 512; seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0
+    ctx.fillStyle = seed & 1 ? '#fff' : '#000'; ctx.globalAlpha = .035; ctx.fillRect(x, 130 + (seed >>> 8) % 376, 1, 1)
+  }
   ctx.globalAlpha = 1
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round'
   const digits = spec.number.length
@@ -175,7 +183,6 @@ interface State {
 }
 const newState = (): State => ({ t: NaN, dist: 0, cycle: 0, dir: [1, 0, 0, 0], valid: false, vx: 0, vz: 0, ax: 0, az: 0, off: 0, pitch: 0, roll: 0, crouch: 0, speedS: 0, lock: [{ on: false, x: 0, z: 0, yaw: 0 }, { on: false, x: 0, z: 0, yaw: 0 }] })
 const copyState = (s: State): State => ({ ...s, dir: [...s.dir] as State['dir'], lock: [{ ...s.lock[0] }, { ...s.lock[1] }] })
-const hashString = (s: string) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) } return h >>> 0 }
 
 export function createLabAthlete(player: AthleteAppearance, index: number, ready: boolean): LabAthlete {
   const defensive = player.team === 'defense' || player.id.startsWith('D')
@@ -205,8 +212,8 @@ export function createLabAthlete(player: AthleteAppearance, index: number, ready
   if (studio) {
     const shoes = shoeTones[index % shoeTones.length]
     atlas = paintAtlas({ kit, number, skin: skinColor, hair: hairTones[(player.skinTone ?? index) % hairTones.length], shoe: shoes[0], sole: shoes[1], accent: defensive ? '#e07a3c' : '#2b5f64' })
-    material = new THREE.MeshPhysicalMaterial({ name: 'athlete_atlas', map: atlas.map, roughnessMap: atlas.roughMap, roughness: 1, metalness: 0, vertexColors: true })
-    material.sheen = .7; material.sheenColor = new THREE.Color('#c9d3d8'); material.sheenRoughness = .55; material.specularIntensity = .6
+    material = new THREE.MeshPhysicalMaterial({ name: 'athlete_atlas', map: atlas.map, roughnessMap: atlas.roughMap, roughness: 1, metalness: 0, vertexColors: true, side: THREE.DoubleSide })
+    material.sheen = .55; material.sheenColor = new THREE.Color('#e9c9b2'); material.sheenRoughness = .6; material.specularIntensity = .28
     const hairMesh = hairName === 'bald' ? undefined : studio.getObjectByName('HAIR_' + hairName) as THREE.SkinnedMesh | undefined
     const sources: THREE.SkinnedMesh[] = []
     studio.traverse(o => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) sources.push(o as THREE.SkinnedMesh) })
@@ -300,8 +307,8 @@ export function createLabAthlete(player: AthleteAppearance, index: number, ready
     if (!material) return
     const rich = next === 'high'
     const wasSheen = material.sheen
-    material.sheen = rich ? .7 : 0
-    material.specularIntensity = rich ? .6 : .35
+    material.sheen = rich ? .55 : 0
+    material.specularIntensity = rich ? .28 : .2
     if (wasSheen !== material.sheen) material.needsUpdate = true
     const roughMap = rich ? atlas!.roughMap : null
     if (material.roughnessMap !== roughMap) { material.roughnessMap = roughMap; material.roughness = rich ? 1 : .7; material.needsUpdate = true }

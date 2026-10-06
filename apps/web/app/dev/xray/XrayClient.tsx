@@ -48,6 +48,20 @@ export default function XrayClient() {
         r.director.step(r.state.camera, r.state.frame, r.state.focus, r.state.pov, 1, true); r.dirty = true
         return true
       },
+      post: () => {
+        const r = rt.current as unknown as { stanchion: unknown[]; postHidden: boolean; environment: import('three').Object3D } | null
+        const out: string[] = [`hidden=${r?.postHidden} found=${r?.stanchion.length}`]
+        const box = new THREE_Box3(), c = new (THREE_Box3 as never as new () => { min: unknown }) as unknown as import('three').Vector3
+        void c
+        r?.environment.traverse(o => {
+          const m = o as import('three').Mesh
+          if (!m.isMesh) return
+          box.setFromObject(m)
+          const cx = (box.min.x + box.max.x) / 2, cy = (box.min.y + box.max.y) / 2, cz = (box.min.z + box.max.z) / 2
+          if (Math.abs(cx) < 1.6 && cz < 0.5 && cz > -2.2 && cy > 0 && cy < 4.6) out.push(`${m.geometry.type} c=${cx.toFixed(2)},${cy.toFixed(2)},${cz.toFixed(2)} size=${(box.max.x - box.min.x).toFixed(2)},${(box.max.y - box.min.y).toFixed(2)},${(box.max.z - box.min.z).toFixed(2)} vis=${m.visible} par=${m.parent?.name || m.parent?.type}`)
+        })
+        return out
+      },
       dump: () => {
         const scene = (rt.current as { scene?: import('three').Scene } | null)?.scene
         const out: string[] = []
@@ -101,7 +115,7 @@ export default function XrayClient() {
   }, [state.phase, state.lens, moment, w, frame])
   const scene: WorldScene = useMemo(() => ({
     frame, ghost, marks, lens: state.lens, focus, camera: state.camera, pov: (state.pov as never) ?? 'D3', selectedId: null, playing: false, editable: false,
-    rig: state.phase === 'break-search' ? { azimuth: Math.PI + 0.28, elevation: 0.3, fov: 38, minDistance: 7 } : null,
+    rig: state.phase === 'break-search' ? { azimuth: Math.PI + 0.6, elevation: 0.3, fov: 38, minDistance: 7 } : null,
     impact: state.phase === 'break-moment' ? 1 : undefined,
     inset: INSETS[state.inset],
   }), [frame, ghost, marks, state, focus])
