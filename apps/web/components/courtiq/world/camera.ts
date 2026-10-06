@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import type { PlayerId, WorldFrame } from '@/lib/defense-lab/types'
+import type { PlayerId, WorldFrame } from '@courtiq/basketball/types'
 import type { CameraMode, WorldScene } from './types'
 
 const RIM = new THREE.Vector3(0, 3.05, 1.575)
@@ -69,6 +69,7 @@ export class DirectorCamera {
       const jobs = frame.responsibilities.filter(r => r.defenderId === p.id).sort((a, b) => b.priority - a.priority)
       const seen = new Set<string>(), spots: { x: number; z: number }[] = []
       for (const r of jobs) {
+        if (!r.offensivePlayerId) { if (spots.length < 2) spots.push(r.target); continue }
         if (seen.has(r.offensivePlayerId) || spots.length >= 2) continue
         seen.add(r.offensivePlayerId)
         const o = frame.players.find(q => q.id === r.offensivePlayerId)

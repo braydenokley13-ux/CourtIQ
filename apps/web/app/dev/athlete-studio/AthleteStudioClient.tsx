@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
-import { createLabAthlete, loadGlbAthleteAsset, type AthleteMotion, type LabAthlete } from '@/components/defense-lab/labAthlete'
+import { createLabAthlete, loadGlbAthleteAsset, type AthleteMotion, type LabAthlete } from '@/components/courtiq/world/renderer/labAthlete'
 
-/** Minimal stand-in for the engine: integrates position/yaw/phase exactly like
- * lib/defense-lab/simulation.ts (phase += speed * dt * 4.2, accel-limited velocity,
- * rate-limited yaw) so the review stage exercises the same AthleteMotion inputs. */
+/** Asset-review motion stand-in: feeds distance-phased gait, bounded velocity
+ * and yaw into AthleteMotion. This gallery is presentation QA; the Lab uses
+ * the basketball package's simulation frames as its authoritative movement. */
 interface Cmd { vx: number; vz: number; yaw: number; pose: string; hands: number; hasBall?: boolean; passU?: number }
 interface Agent {
   id: string; team: 'offense' | 'defense'; number: number; x0: number; z0: number

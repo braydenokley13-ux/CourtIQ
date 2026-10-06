@@ -1,0 +1,53 @@
+{
+  "retrieved": "2026-10-06",
+  "conversion": "Original variable TTF compressed to WOFF2 with fontTools; glyphs and variation axes preserved.",
+  "fonts": [
+    {
+      "family": "Inter",
+      "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter%5Bopsz%2Cwght%5D.ttf",
+      "license": "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/OFL.txt",
+      "axes": {
+        "opsz": [
+          14.0,
+          14.0,
+          32.0
+        ],
+        "wght": [
+          100.0,
+          400.0,
+          900.0
+        ]
+      },
+      "sha256": "f2ce83ffce4d24de6d3012dd82b20054ff7d07ab7ef298008b234402ac08c11a",
+      "bytes": 350412
+    },
+    {
+      "family": "Space Grotesk",
+      "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/spacegrotesk/SpaceGrotesk%5Bwght%5D.ttf",
+      "license": "https://raw.githubusercontent.com/google/fonts/main/ofl/spacegrotesk/OFL.txt",
+      "axes": {
+        "wght": [
+          300.0,
+          300.0,
+          700.0
+        ]
+      },
+      "sha256": "39e27bc859a622b9c4363d7d59930dc0ce56cf46eaad311387c94729b73b65b3",
+      "bytes": 49280
+    },
+    {
+      "family": "JetBrains Mono",
+      "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf",
+      "license": "https://raw.githubusercontent.com/google/fonts/main/ofl/jetbrainsmono/OFL.txt",
+      "axes": {
+        "wght": [
+          100.0,
+          400.0,
+          800.0
+        ]
+      },
+      "sha256": "f20f958a89264b0e8797956cef22de847e2365fdf72bf634dd3f0c44ed7bd3aa",
+      "bytes": 71476
+    }
+  ]
+}

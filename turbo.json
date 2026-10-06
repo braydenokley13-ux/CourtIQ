@@ -1,49 +1,42 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "globalEnv": [
-    "DATABASE_URL",
-    "DIRECT_URL",
-    "NEXT_PUBLIC_SUPABASE_URL",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-    "SUPABASE_SERVICE_ROLE_KEY",
-    "NEXT_PUBLIC_POSTHOG_KEY",
-    "NEXT_PUBLIC_POSTHOG_HOST",
-    "NEXT_PUBLIC_SENTRY_DSN",
     "NEXT_PUBLIC_APP_URL",
-    "SENTRY_ORG",
-    "SENTRY_PROJECT",
-    "SENTRY_AUTH_TOKEN",
-    "SENTRY_SUPPRESS_GLOBAL_ERROR_HANDLER_FILE_WARNING",
-    "GMAIL_USER",
-    "GMAIL_APP_PASSWORD",
-    "EMAIL_FROM",
-    "CRON_SECRET",
-    "ENABLE_EXPERIMENTAL_COREPACK",
-    "VERCEL_GIT_COMMIT_SHA"
+    "VERCEL_GIT_COMMIT_SHA",
+    "ENABLE_DEV_ROUTES",
+    "NEXT_DIST_DIR",
+    "VERCEL_PROJECT_PRODUCTION_URL",
+    "VERCEL_URL"
   ],
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
-    },
-    "@courtiq/db#build": {
-      "cache": false
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "dist/**"
+      ]
     },
     "dev": {
       "persistent": true,
       "cache": false
     },
     "lint": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "test": {
-      "dependsOn": ["^build"]
-    },
-    "prisma:validate": {
-      "cache": false
+      "dependsOn": [
+        "^build"
+      ]
     }
   }
 }

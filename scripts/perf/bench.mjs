@@ -16,7 +16,7 @@
  *   --width/--height    CSS viewport (default 1440x900 with --gpu, 840x472 otherwise)   --dpr <n>  deviceScaleFactor (default 1; use 2 to emulate a MacBook)
  *   --chrome <path>     browser binary (default /opt/pw-browsers/chromium if present, else Playwright's own)
  *   --trace             also record a Chrome trace and report GC count / bytes freed per segment (adds overhead)
- *   --label <s>         name for the output files      --out <dir>  (default docs/defense-lab/v2/perf)
+ *   --label <s>         name for the output files      --out <dir>  (default docs/rendering/evidence)
  *   --timeout <sec>     whole-scenario timeout (default 900)
  *
  * Output: <out>/bench-<label>.json (full metrics) and .md (summary table). Exit code 0 = ran; see "verdict" in the JSON.
@@ -36,7 +36,7 @@ const base = opt('url', 'http://localhost:3000').replace(/\/$/, '')
 const quality = opt('quality', 'auto')
 const soak = Number(opt('soak', '0')) || 0
 const width = Number(opt('width', gpu ? '1440' : '840')), height = Number(opt('height', gpu ? '900' : '472')), dpr = Number(opt('dpr', '1'))
-const outDir = resolve(opt('out', resolve(here, '../../docs/defense-lab/v2/perf')))
+const outDir = resolve(opt('out', resolve(here, '../../docs/rendering/evidence')))
 const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
 const label = opt('label', `${gpu ? 'gpu' : 'swiftshader'}-${quality}${flag('nodraw') ? '-nodraw' : ''}${opt('uiclock', null) !== null ? '-uiclock' + opt('uiclock') : ''}-${stamp}`)
 const timeoutMs = Number(opt('timeout', '900')) * 1000

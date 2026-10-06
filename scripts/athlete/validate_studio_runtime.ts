@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import * as THREE from '../../apps/web/node_modules/three/build/three.module.js'
 import { GLTFLoader } from '../../apps/web/node_modules/three/examples/jsm/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from '../../apps/web/node_modules/three/examples/jsm/libs/meshopt_decoder.module.js'
-import { createLabAthlete, loadGlbAthleteAsset } from '../../apps/web/components/defense-lab/labAthlete'
+import { createLabAthlete, loadGlbAthleteAsset } from '../../apps/web/components/courtiq/world/renderer/labAthlete'
 
 async function main() {
   const buffer = await fs.readFile(new URL('../../apps/web/public/athlete/lab-athlete.glb', import.meta.url))

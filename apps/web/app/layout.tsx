@@ -1,22 +1,28 @@
 import type { Metadata, Viewport } from 'next'
-import { Space_Grotesk, Inter, JetBrains_Mono } from 'next/font/google'
+import localFont from 'next/font/local'
 import './globals.css'
-import { PostHogProvider } from '@/lib/analytics/posthog'
+import { siteUrl } from '@/lib/site'
 
-const spaceGrotesk = Space_Grotesk({
-  subsets: ['latin'],
+const spaceGrotesk = localFont({
+  src: './fonts/spacegrotesk-variable.woff2',
+  weight: '300 700',
+  style: 'normal',
   variable: '--font-display',
   display: 'swap',
 })
 
-const inter = Inter({
-  subsets: ['latin'],
+const inter = localFont({
+  src: './fonts/inter-variable.woff2',
+  weight: '100 900',
+  style: 'normal',
   variable: '--font-ui',
   display: 'swap',
 })
 
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
+const jetbrainsMono = localFont({
+  src: './fonts/jetbrainsmono-variable.woff2',
+  weight: '100 800',
+  style: 'normal',
   variable: '--font-mono',
   display: 'swap',
 })
@@ -27,7 +33,7 @@ export const metadata: Metadata = {
     template: '%s | CourtIQ',
   },
   description: 'The basketball strategy lab. Test your answer, see the tradeoffs, and teach the result.',
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'),
+  metadataBase: siteUrl(),
   manifest: '/manifest.json',
   applicationName: 'CourtIQ',
   appleWebApp: {
@@ -46,7 +52,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#f5f4ef',
+  themeColor: '#07080a',
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
@@ -55,9 +61,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable} dark`}>
-      <body>
-        <PostHogProvider>{children}</PostHogProvider>
-      </body>
+      <body>{children}</body>
     </html>
   )
 }

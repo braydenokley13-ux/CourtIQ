@@ -13,7 +13,7 @@
  *   - AdaptiveController        render scale first, then tier, with hysteresis, from real frame data
  *
  * Provisional thresholds (initial-tier heuristics, warm-up cut-offs, controller limits) are
- * NOT calibrated against real devices — see docs/defense-lab/v2/perf/README.md.
+ * NOT calibrated against real devices — see docs/rendering/performance-evidence.md.
  */
 
 export type QualityTier = 'high' | 'balanced' | 'low'

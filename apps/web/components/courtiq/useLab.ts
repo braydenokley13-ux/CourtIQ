@@ -1,15 +1,17 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { analyze, compare, type ComparisonResult } from '@/lib/defense-lab/analytics'
-import { attackAsync, type AttackPreview, type AttackReport } from '@/lib/defense-lab/attack'
-import { exploreAsync, robustnessAsync, type ExploreReport, type FixOption, type TeachingMoment } from '@/lib/defense-lab/exploreClient'
-import type { Robustness } from '@/lib/defense-lab/explore'
-import { findTeachingMoment } from '@/lib/defense-lab/explore'
-import { simulateCached } from '@/lib/defense-lab/replayCache'
-import { createDefaultConfig } from '@/lib/defense-lab/scenario'
-import { frameAt } from '@/lib/defense-lab/simulation'
-import type { LabConfig, PlayerId, Point2, SimulationResult, TeamAnswer } from '@/lib/defense-lab/types'
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from 'react'
+import { analyze, compare, type ComparisonResult } from '@courtiq/basketball/analytics'
+import { attackAsync, type AttackPreview, type AttackReport } from '@/lib/basketball/attack'
+import { exploreAsync, robustnessAsync, type ExploreReport, type FixOption, type TeachingMoment } from '@/lib/basketball/exploreClient'
+import type { Robustness } from '@courtiq/basketball/explore'
+import { findTeachingMoment } from '@courtiq/basketball/explore'
+import { simulateCached } from '@/lib/basketball/replayCache'
+import { createDefaultConfig } from '@courtiq/basketball/scenario'
+import { frameAt } from '@courtiq/basketball/simulation'
+import { fingerprint } from '@courtiq/basketball/program'
+import type { LabConfig, PlayerId, Point2, SimulationResult, TeamAnswer } from '@courtiq/basketball/types'
+import { newProgramId } from '@/lib/persistence/useProgram'
 
 export type Phase =
   | 'ambient' // behind the entry flow
@@ -40,6 +42,12 @@ const copy = <T,>(x: T): T => JSON.parse(JSON.stringify(x)) as T
  * Every number shown to the coach comes from these replays. */
 export function useLab() {
   const [config, setConfigRaw] = useState<LabConfig>(createDefaultConfig)
+  const setConfig = useCallback((next: SetStateAction<LabConfig>) => {
+    setConfigRaw(current => {
+      const draft = typeof next === 'function' ? next(current) : next
+      return { ...draft, interventions: [...draft.interventions].sort((a, b) => a.at - b.at) }
+    })
+  }, [])
   const [phase, setPhase] = useState<Phase>('ambient')
   const [time, setTimeState] = useState(0)
   const timeRef = useRef(0)
@@ -55,6 +63,9 @@ export function useLab() {
   const [lastFix, setLastFix] = useState<FixOption | null>(null)
   // Break Mode
   const [attack, setAttack] = useState<AttackReport | null>(null)
+  const [attackFingerprint, setAttackFingerprint] = useState<string | null>(null)
+  const lastAttack = useRef<AttackReport | null>(null)
+  const configRef = useRef(config); configRef.current = config
   const [attackPrevious, setAttackPrevious] = useState<AttackReport | null>(null)
   const [attempts, setAttempts] = useState<AttackPreview[]>([])
   const [attackProgress, setAttackProgress] = useState(0)
@@ -69,6 +80,11 @@ export function useLab() {
   const frame = useMemo(() => frameAt(display, time), [display, time])
   const comparison: ComparisonResult | null = useMemo(() => previous ? compare(previous.result, result) : null, [previous, result])
   const duration = config.assumptions.duration
+
+  // A witness belongs to the exact tested experiment. Presentation must not carry it into a new answer.
+  useEffect(() => {
+    attackAbort.current?.abort(); setAttack(null); setAttackFingerprint(null); setAttempts([]); setOverride(null)
+  }, [config])
 
   // Fixes are explored off the main thread whenever the answer changes.
   const active = phase !== 'ambient'
@@ -146,13 +162,14 @@ export function useLab() {
     const at = opts.from && opts.from > 0.02 ? Math.round(opts.from / config.assumptions.dt) * config.assumptions.dt : 0
     if (at > 0 && config.interventions.length < 60) {
       // From this moment forward: earlier frames are preserved exactly.
-      setConfigRaw(c => ({ ...c, interventions: [...c.interventions.filter(i => !(i.kind === 'answer' && Math.abs(i.at - at) < 1e-6 && Object.keys(i.patch).join() === Object.keys(patch).join())), { id: `ans-${Date.now()}`, at, kind: 'answer', patch }] }))
-    } else setConfigRaw(c => ({ ...c, answer: { ...c.answer, ...patch }, interventions: c.interventions.filter(i => i.kind !== 'answer') }))
+      const id = `ans-${newProgramId()}`
+      setConfig(c => ({ ...c, interventions: [...c.interventions.filter(i => !(i.kind === 'answer' && Math.abs(i.at - at) < 1e-6 && Object.keys(i.patch).join() === Object.keys(patch).join())), { id, at, kind: 'answer', patch }] }))
+    } else setConfig(c => ({ ...c, answer: { ...c.answer, ...patch }, interventions: c.interventions.filter(i => i.kind !== 'answer') }))
     // Dragging one control keeps comparing against where that drag began; a new
     // kind of change compares against the version just before it.
     setPrevious(prev => prev && opts.autoRun === false && prev.label === label ? prev : snap)
     if (opts.autoRun) setPendingRun(true)
-  }, [config, result, moment])
+  }, [config, result, moment, setConfig])
   const [pendingRun, setPendingRun] = useState(false)
   useEffect(() => {
     if (!pendingRun) return
@@ -172,16 +189,17 @@ export function useLab() {
     if (at >= duration - 0.1 || config.interventions.length > 60) return
     const snap: Snapshot = { config: copy(config), result, moment, label: 'Before the move' }
     setPrevious(snap)
-    setConfigRaw(c => ({ ...c, interventions: [...c.interventions, { id: `mv-${Date.now()}`, at, kind: 'move', playerId: id, target, untilTrigger: 'ball-leaves' }] }))
+    const cueId = `mv-${newProgramId()}`
+    setConfig(c => ({ ...c, interventions: [...c.interventions, { id: cueId, at, kind: 'move', playerId: id, target, untilTrigger: 'ball-leaves' }] }))
     setPendingRun(true)
-  }, [config, result, moment, duration])
+  }, [config, result, moment, duration, setConfig])
 
   const replaceConfig = useCallback((next: LabConfig, opts: { keepPrevious?: boolean } = {}) => {
     attackAbort.current?.abort()
     if (!opts.keepPrevious) setPrevious(null)
     setOverride(null); setAttack(null); setAttempts([])
-    setConfigRaw(copy(next))
-  }, [])
+    setConfig(copy(next))
+  }, [setConfig])
 
   // -------------------------------------------------- Break Mode
   const breakDefense = useCallback(() => {
@@ -189,38 +207,40 @@ export function useLab() {
     const ctrl = new AbortController(); attackAbort.current = ctrl
     pause(); setAttempts([]); setAttackProgress(0); setOverride(null)
     setPhase('break-search')
-    const prev = attack
+    const prev = lastAttack.current
+    const testedFingerprint = fingerprint(config)
     attackAsync(config, {
       signal: ctrl.signal, budget: 26, previousReport: prev ?? undefined,
-      onProgress: p => setAttackProgress(p),
-      onCandidate: c => setAttempts(list => [...list.filter(x => x.id !== c.id), c]),
+      onProgress: p => { if (!ctrl.signal.aborted) setAttackProgress(p) },
+      onCandidate: c => { if (!ctrl.signal.aborted) setAttempts(list => [...list.filter(x => x.id !== c.id), c]) },
     }).then(report => {
-      setAttackPrevious(prev); setAttack(report)
+      if (ctrl.signal.aborted || testedFingerprint !== fingerprint(configRef.current)) return
+      lastAttack.current = report; setAttackPrevious(prev); setAttack(report); setAttackFingerprint(testedFingerprint)
       const w = report.selected.witness
       if (!w) { setPhase('break-held'); return }
       setOverride(report.selected.result as SimulationResult)
       setPhase('break-play'); setLoop(false)
       play(0, w.at, () => setPhase(p => p === 'break-play' ? 'break-moment' : p))
     }).catch(() => { if (!ctrl.signal.aborted) setPhase('moment') })
-  }, [attack, config, pause, play])
+  }, [config, pause, play])
 
   /** Adopt the attacking offense so fixes are tested against it. */
   const fixBreak = useCallback(() => {
     if (!attack) return
     const opponent = attack.selected.opponent
     setOverride(null)
-    setConfigRaw(c => ({ ...c, opponent: { ...opponent } }))
+    setConfig(c => ({ ...c, opponent: { ...opponent } }))
     setPhase('fix')
-  }, [attack])
+  }, [attack, setConfig])
 
   const cancelBreak = useCallback(() => { attackAbort.current?.abort(); setOverride(null); setAttempts([]); setPhase(moment ? 'moment' : 'ready'); }, [moment])
 
   return {
-    config, setConfig: setConfigRaw, replaceConfig, phase, setPhase, time, setTime, playing, speed, setSpeed, setLoop, loop,
+    config, setConfig, replaceConfig, phase, setPhase, time, setTime, playing, speed, setSpeed, setLoop, loop,
     timeRef, result, display, analysis, moment, frame, comparison, previous, setPrevious, duration,
     explore, exploreBusy, robust, hoverFix, setHoverFix, lastFix, applyFix, change, moveDefender,
     play, pause, seek, run, runRef,
-    attack, attackPrevious, attempts, attackProgress, breakDefense, fixBreak, cancelBreak, override,
+    attack, attackFingerprint, attackPrevious, attempts, attackProgress, breakDefense, fixBreak, cancelBreak, override,
   }
 }
 export type Lab = ReturnType<typeof useLab>

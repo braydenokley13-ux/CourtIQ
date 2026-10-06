@@ -1,6 +1,6 @@
-import type { Voice } from '@/lib/defense-lab/corpus'
-import { HIGH_PNR_PROBLEM } from '@/lib/defense-lab/scenario'
-import type { PlayerId, TeamAnswer, WorldFrame } from '@/lib/defense-lab/types'
+import type { Voice } from '@courtiq/basketball/corpus'
+import { HIGH_PNR_PROBLEM } from '@courtiq/basketball/scenario'
+import type { PlayerId, TeamAnswer, WorldFrame } from '@courtiq/basketball/types'
 import type { Mark } from './world/types'
 
 /** Make each coverage legible on the floor around the screen, using the engine's

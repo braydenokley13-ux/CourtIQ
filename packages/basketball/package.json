@@ -1,0 +1,50 @@
+{
+  "name": "@courtiq/basketball",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./execution": "./src/execution.ts",
+    "./arrivalField": "./src/queries/arrivalField.ts",
+    "./content-manifest": "./src/content/manifest.ts",
+    "./scenario": "./src/content/highPnr/scenario.ts",
+    "./simulation": "./src/simulation/facade.ts",
+    "./analytics": "./src/queries/analytics.ts",
+    "./analyticalGeometry": "./src/simulation/analyticalGeometry.ts",
+    "./physicalExecution": "./src/simulation/physicalExecution.ts",
+    "./capability": "./src/simulation/capability.ts",
+    "./offensivePolicy": "./src/content/highPnr/offensivePolicy.ts",
+    "./defensivePolicy": "./src/content/highPnr/defensivePolicy.ts",
+    "./coachRules": "./src/content/highPnr/coachRules.ts",
+    "./coaching": "./src/content/highPnr/coaching.ts",
+    "./tagGuide": "./src/queries/tagGuide.ts",
+    "./attackCore": "./src/content/highPnr/attackCore.ts",
+    "./explore": "./src/content/highPnr/explore.ts",
+    "./stressCore": "./src/content/highPnr/stressCore.ts",
+    "./corpus": "./src/content/highPnr/index.ts",
+    "./corpus/*": "./src/content/highPnr/*.ts",
+    "./problems/baselineDrive": "./src/content/baselineDrive/program.ts",
+    "./program": "./src/program/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "content:materialize": "node --import tsx ../../scripts/materialize-content.ts",
+    "content:check": "node --import tsx ../../scripts/materialize-content.ts --check",
+    "test:boundaries": "node ../../scripts/check-boundaries.mjs"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8",
+    "tsx": "^4.19.2"
+  }
+}
