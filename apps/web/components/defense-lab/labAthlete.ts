@@ -485,7 +485,7 @@ export function createLabAthlete(player: AthleteAppearance, index: number, ready
           : closeoutIntent ? 'closeout' : pose === 'dribble' || motion.hasBall ? 'dribble' : ''
         debug.special = special
         if (special) {
-          const bodyOwner = special === 'screen_plant' || special === 'pivot' || special === 'screen_fight' || special === 'cut_plant'
+          const bodyOwner = special === 'screen_plant' || special === 'pivot' || special === 'screen_fight' || special === 'cut_plant' || special === 'chest_pass' || special === 'skip_pass' || special === 'shot_release'
           const settle = bodyOwner ? 1 - smoothstep(speed, special === 'screen_fight' ? 1.4 : .6, special === 'screen_fight' ? 2.4 : 1.3) : 0
           if (settle > 0) {
             for (const name of Object.keys(weights)) weights[name] *= 1 - settle
