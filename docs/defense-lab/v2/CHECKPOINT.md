@@ -9,7 +9,7 @@ Branch `claude/happy-mayer-xgfe3w`. Every pushed commit was verified in an isola
 | **A. Real coach usability** | **OPEN — needs a human.** Proxy verdict: ready for a supervised real-coach session (behaviors 1, 2, 4, 8 pass unaided; 3, 5, 9 partly; 6 "what if?" not shown by a proxy). Proxy findings since fixed. | `COACH-TEST.md` protocol; proxy walks `critique/coach-usability.md`, `critique/coach-proxy-2.md` |
 | **B. Core coverages are real** | Drop / Switch / Blitz / ICE behaviorally distinct; Hedge hidden. Coverage gate 54/57 (remaining: hedge-only and one timing-tuning assertion, deliberately not forced). | `coverage-spec.md`, `lib/defense-lab/coverageGate.test.ts` (`COVERAGE_GATE=1`), `lib/defense-lab/engineHonesty.test.ts` |
 | **C. Normal-laptop performance** | Instrumented and tiered; **real-GPU FPS unvalidated** (workspace has only software GL). | `perf/README.md`, `scripts/perf/bench.mjs --gpu`, in-app `/?bench`, `/?debug` HUD |
-| **D. Complete golden path** | **Passed** on the integrated build: choose → run → why → fix → compare → break → fix vs counter → break again → save → teach → Our System → reload (persisted) → reopen. No console errors. | `scripts/qa-local/golden2.mjs` (local), screenshots summarized below |
+| **D. Complete golden path** | **Passed** on the final integrated build (re-run after all fixes): choose → run → why → fix → compare → break → fix vs counter → break again → save → teach → Our System → reload (persisted) → reopen. No console errors. | `scripts/qa-local/golden2.mjs` (local), screenshots summarized below |
 | **E. Reusable engine proof** | Simulator: yes — baseline drive → drift/weakside rotation as 108 lines of content + 7 generic engine lines. Coach surface: not yet (P&R-bound UI, answer vocabulary, attack domain). | `reusability.md`, `lib/defense-lab/problems/baselineDrive*.ts` |
 
 ## What changed this sprint (high level)
@@ -29,6 +29,7 @@ Branch `claude/happy-mayer-xgfe3w`. Every pushed commit was verified in an isola
 - Switch mismatch shows on the handler and roller, but the post-seal layup can be marginal; drop's headline problem reproduces in only 3/8 jittered runs (shown to the coach).
 - Second problem is engine-only; the UI is still P&R-specific.
 - First Compare shows a one-time ~5 s stall under software GL (cause not pinned).
+- On very slow devices a click in the first moments after load can land before hydration and do nothing (seen once under software GL after a reload). Consider deferring the 3D world's startup until the shell is interactive.
 
 ## End-of-sprint attacks and what was done
 - `critique/final-adversarial.md`: (a) "FastDraw in 3D" mostly beaten (coverages produce different possessions and problems); (b) trust defensible but attackable; (c) above the mockup floor, below the premium target; (d) coach split → phone fixed since; (e) unproven without real GPUs. Fixed after: coverage signatures on court (trap / switch / ICE force / drop spot), honest eye-level and baseline cameras, placebo drop-depth control removed outside Drop/ICE, Coaching-terms copy, phone layout.
