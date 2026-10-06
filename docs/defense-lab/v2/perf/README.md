@@ -111,7 +111,8 @@ Raw: `bench-prod-*.json`, `.md`. FPS values are meaningless and deliberately not
 | Triangles | 84k low tier; 223-228k balanced (10 athletes x 17k because `balanced` currently falls back to the 16.5k-triangle high mesh) |
 | Scene census (balanced) | athletes 710 objects (71 bones each) / 170k tris, environment 43k tris, marks 2k; 88 materials, 30 textures; est. GPU memory 76 MB textures + 24 MB PMREM + 9 MB geometry + 4 MB shadow map |
 | Shader programs | 33 after exercising every lens, compare and break |
-| First-use shader compile hitch (software GL) | opening each X-Ray lens first time blocked the main thread 4.7-5.1 s; after pre-warm: JS p95 18 ms. Real GPUs hitch far less, but compiles still run synchronously without parallel-compile support |
+| First-use shader compile hitch (software GL) | opening each X-Ray lens first time blocked the main thread 4.7-5.1 s (program count rose 21 -> 29 and mark materials freed their programs on disposal); after pre-warm the program count is flat at 33 and X-Ray JS p95 is 15-22 ms, longest task 61 ms. Real GPUs hitch far less, but compiles are still synchronous without parallel-compile support |
+| Open issue: first Compare under software GL | one runtime tick of about 5.2 s in `compare-run` (reproduced in 3 of 3 draw runs, absent in `nodraw`). Program count is flat, so it is not shader compilation; most likely software-rasterizer back-pressure from the additive hologram overdraw. Undetermined; check `compare-run` max JS ms and long tasks on real hardware before trusting this |
 | Backdrop blur (14 `backdrop-filter` layers over the canvas) | software compositing, 1280x720: 34 -> 45 rAF/s with blur removed. Real-GPU effect unknown; LOW tier removes it |
 | Worker latency | fix search 1.0-2.3 s, Break search 2.1-2.9 s wall; UI timer lag p95 3-17 ms, max 60-190 ms (the max is the result-handling commit, not the search) |
 | Soak (3 repeats) | heap after GC 54.8 -> 55.1 MB; geometries 140, textures 49, programs 33 constant: no leak seen (3 iterations is short; run `--soak 10+` on hardware) |
@@ -178,3 +179,10 @@ None of the following could be done here (no GPU):
    acceptable, and that nothing basketball-relevant differs between tiers.
 6. Longer soak (`--soak 20`) for memory growth, and a 30-minute real session.
 7. Real-GPU effect of backdrop blur, 2048 vs 1024 shadows, MSAA and DPR 2 on integrated graphics.
+
+## Files in this folder
+
+- `bench-prod-nodraw-uiclock0.*` / `bench-prod-nodraw-uiclock80.*`: A/B of the React playback clock (old behaviour vs fix), JS pipeline only.
+- `bench-prod-swiftshader-balanced.*`: full draw run before the shader pre-warm (shows the 5 s first-use compile hitches).
+- `bench-prod-swiftshader-balanced-r2.*`, `...-final.*`: after pre-warm (final also includes the hologram warm-up). `r2` has the GC trace and soak.
+- All are software GL on 4 shared CPUs and were run while other jobs loaded the machine: treat single numbers as indicative.

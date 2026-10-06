@@ -1,14 +1,14 @@
 [
   {
     "filename": "lab-athlete.glb",
-    "bytes": 1251216,
-    "vertices": 18295,
+    "bytes": 670300,
+    "vertices": 18287,
     "triangles": 30134,
     "bones": 65,
     "meshes": 7,
-    "minAnkle": 0.10354,
-    "maxAnkle": 0.4037,
-    "maxLoopGap": 0,
+    "minAnkle": 0.10341,
+    "maxAnkle": 0.4038,
+    "maxLoopGap": 0.00006,
     "clips": [
       {
         "name": "backpedal",

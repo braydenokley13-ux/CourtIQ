@@ -5,11 +5,12 @@ import fs from 'node:fs/promises'
 import assert from 'node:assert/strict'
 import * as THREE from '../../apps/web/node_modules/three/build/three.module.js'
 import { GLTFLoader } from '../../apps/web/node_modules/three/examples/jsm/loaders/GLTFLoader.js'
+import { MeshoptDecoder } from '../../apps/web/node_modules/three/examples/jsm/libs/meshopt_decoder.module.js'
 const names = ['offense_ready', 'defense_ready', 'receive', 'screen_plant', 'screen_fight', 'closeout', 'pivot', 'cut_plant', 'chest_pass', 'skip_pass', 'shot_release', 'dribble', 'walk', 'jog', 'sprint', 'defense_slide_left', 'defense_slide_fast_left', 'defense_slide_right', 'defense_slide_fast_right', 'backpedal', 'chop']
 const report = []
 for (const filename of ['lab-athlete.glb', 'lab-athlete-tactical.glb']) {
   const buffer = await fs.readFile(new URL(`../../apps/web/public/athlete/${filename}`, import.meta.url))
-  const asset = await new GLTFLoader().parseAsync(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength), '')
+  const asset = await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength), '')
   assert.deepEqual(asset.animations.map(c => c.name).sort(), [...names].sort())
   const meshes = []; const bones = []
   asset.scene.traverse(o => { if (o.isSkinnedMesh) meshes.push(o); if (o.isBone) bones.push(o) })

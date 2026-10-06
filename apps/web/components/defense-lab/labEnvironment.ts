@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 
 /** Presentation units are metres; the analytical world is never derived from this geometry. */
@@ -569,7 +570,7 @@ export function setEnvironmentQuality(env: THREE.Group, renderer: THREE.WebGLRen
 const environmentAssets = new Map<string, Promise<THREE.Group>>()
 function loadEnvironmentAsset(url: string) {
   let load = environmentAssets.get(url)
-  if (!load) { load = new GLTFLoader().loadAsync(url).then(gltf => gltf.scene); environmentAssets.set(url, load) }
+  if (!load) { load = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url).then(gltf => gltf.scene); environmentAssets.set(url, load) }
   return load
 }
 

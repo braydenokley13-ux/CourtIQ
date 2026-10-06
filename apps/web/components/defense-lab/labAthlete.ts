@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { buildGlbAthletePreview, getGlbAthleteHandle, loadGlbAthleteAsset as loadSourceRig } from '../scenario3d/glbAthlete'
@@ -33,7 +34,7 @@ let loading: Promise<boolean> | undefined
 interface ClipMeta { mode?: string; strideMeters?: number; plant?: { l?: number[]; r?: number[] } }
 interface MotionTable { clips?: Record<string, ClipMeta>; hair?: string[] }
 export function loadGlbAthleteAsset(): Promise<boolean> {
-  if (!loading) loading = new GLTFLoader().loadAsync('/athlete/lab-athlete.glb').then(asset => {
+  if (!loading) loading = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync('/athlete/lab-athlete.glb').then(asset => {
     if (!asset.animations.length) throw new Error('Basketball action library missing')
     studioAsset = asset
     studioMotion = (asset.asset?.extras as { CourtIQMotion?: MotionTable } | undefined)?.CourtIQMotion

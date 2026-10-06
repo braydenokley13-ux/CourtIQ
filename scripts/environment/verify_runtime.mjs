@@ -4,13 +4,14 @@ import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import * as THREE from '../../apps/web/node_modules/three/build/three.module.js'
 import { GLTFLoader } from '../../apps/web/node_modules/three/examples/jsm/loaders/GLTFLoader.js'
+import { MeshoptDecoder } from '../../apps/web/node_modules/three/examples/jsm/libs/meshopt_decoder.module.js'
 
 const root = new URL('../../apps/web/public/environment/', import.meta.url)
 const manifest = JSON.parse(await readFile(new URL('manifest.json', root), 'utf8'))
 let totalBytes = 0
 for (const [filename, budget] of Object.entries(manifest.assets)) {
   const bytes = await readFile(new URL(filename, root))
-  const gltf = await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '')
+  const gltf = await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '')
   let triangles = 0, meshes = 0
   const materials = new Set()
   gltf.scene.traverse(object => {
@@ -44,7 +45,8 @@ for (const [filename, budget] of Object.entries(manifest.assets)) {
     assert(Math.abs(bounds.min.getComponent(i) - budget.bounds.min[i]) < .00001, 'Local origin/bounds changed')
     assert(Math.abs(bounds.max.getComponent(i) - budget.bounds.max[i]) < .00001, 'Local origin/bounds changed')
   }
-  assert.equal(triangles, budget.triangles)
+  // Meshopt packing (gltfpack) drops degenerate triangles; never more, never >1% fewer.
+  assert(triangles <= budget.triangles && triangles >= budget.triangles * 0.99, `triangles ${triangles} vs budget ${budget.triangles}`)
   assert.equal(meshes, budget.drawCalls)
   assert.equal(materials.size, budget.materials)
   assert.equal(bytes.byteLength, budget.bytes)

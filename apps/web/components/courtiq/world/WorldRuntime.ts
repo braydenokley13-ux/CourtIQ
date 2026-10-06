@@ -245,7 +245,7 @@ export class WorldRuntime {
     this.scale = Math.min(scale ?? this.scale, this.probe.devicePixelRatio, st.maxPixelRatio)
     this.scale = Math.max(Math.min(st.minScale, this.probe.devicePixelRatio), this.scale)
     this.renderer.setPixelRatio(this.scale); this.resize()
-    configureWorldRenderer(this.renderer, tier === 'high' ? 'high' : 'low')
+    configureWorldRenderer(this.renderer, tier)
     for (const a of this.athletes.values()) setAthleteQuality(a, st.athlete)
     const setEnv = (Env as unknown as Record<string, unknown>).setEnvironmentQuality as undefined | ((env: THREE.Group, r: THREE.WebGLRenderer, t: QualityTier) => void)
     if (changed && typeof setEnv === 'function') { try { setEnv(this.environment, this.renderer, st.environment) } catch { /* environment keeps its build-time quality */ } }
@@ -690,14 +690,9 @@ export class WorldRuntime {
 }
 
 
-/** Athlete detail per tier. labAthlete.setQuality(‘balanced’) is feature-detected so an older
- * athlete module (high | low only) never ends up with both meshes hidden. */
-let athleteBalanced: boolean | null = null
-function setAthleteQuality(a: LabAthlete, q: QualityTier) {
-  if (athleteBalanced === null) { const src = String(a.setQuality); athleteBalanced = /['"]balanced['"]/.test(src) }
-  const set = a.setQuality as (q: string) => void
-  set.call(a, q === 'balanced' && !athleteBalanced ? 'high' : q)
-}
+/** Athlete detail per tier. The athlete module supports high | balanced | low
+ * (LOD0 / LOD1 / LOD2); call it directly. */
+function setAthleteQuality(a: LabAthlete, q: QualityTier) { a.setQuality(q) }
 
 /** Throwaway context so the initial tier (and MSAA) is known before the real renderer exists. */
 function probeEarly(): DeviceProbe {
