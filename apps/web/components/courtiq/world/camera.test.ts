@@ -45,6 +45,7 @@ describe('director composition keeps the play inside the UI safe area and large'
       const p0 = frame.players.find(q => q.id === moment.involved[0])!
       const one = box(camera, [new THREE.Vector3(p0.x, 0, p0.z), new THREE.Vector3(p0.x, 1.95, p0.z)])
       expect((one.y1 - one.y0) / (safe.y1 - safe.y0)).toBeGreaterThan(0.13)
+      // eslint-disable-next-line no-console
       console.log(`${W}x${H}`, 'fill', fill.toFixed(2), 'hero', ((one.y1 - one.y0) / (safe.y1 - safe.y0)).toFixed(2), 'fov', camera.fov, 'dist', director.eye.distanceTo(director.target).toFixed(1))
     })
   }

@@ -18,12 +18,12 @@ import { LENSES, divergenceLabels, divergenceMarks, lensLabels, lensMarks, momen
 import { UI_CLOCK_MS, useLab } from './useLab'
 import Entry, { type EntryChoice } from './Entry'
 import { BreakBar, BreakHeldPanel, BreakMomentPanel, ComparePanel, FixPanel, HoldsPanel, MomentPanel } from './Panels'
-import { spoken } from './speech'
+import { opening, spoken } from './speech'
 import CoachCard from './CoachCard'
 import SaveSheet, { type SaveInput } from './SaveSheet'
 import OurSystem from './OurSystem'
 import Library from './Library'
-import { DEFENDER_ORDER, checkpointsFor, coverageName, jobSentence, primaryJob, threatShort, who } from './basketball'
+import { DEFENDER_ORDER, checkpointsFor, coverageName, jobSentence, primaryJob, who } from './basketball'
 import s from './courtiq.module.css'
 
 type Tab = 'lab' | 'system' | 'teach' | 'library'
@@ -283,10 +283,11 @@ export default function CourtIQApp() {
       out.push({ anchor: w.limitingDefenderId, text: `#${w.limitingDefenderId.slice(1)} · late ${spoken(Math.max(0, w.arrivalSeconds - w.releaseSeconds), voice)}`, tone: s.tagWarn })
     }
     if (lab.phase === 'compare' && compareDivergence) {
-      for (const w of compareDivergence.windows) {
-        const before = w.before ? w.before.end - w.before.start : 0, after = w.after ? w.after.end - w.after.start : 0
-        if (Math.abs(after - before) < 0.1) continue
-        out.push({ anchor: `pt:${w.location.x},${w.location.z}`, text: `${threatShort(w.threatId, voice)} ${after > before ? 'opened' : 'closed'} ${before.toFixed(1)}→${after.toFixed(1)} s`, tone: after > before ? s.tagThreat : s.tagGood, lift: 1.9 })
+      // Only the three biggest changes, named by who, pinned at the player.
+      const changed = compareDivergence.windows.map(w => ({ w, before: w.before ? w.before.end - w.before.start : 0, after: w.after ? w.after.end - w.after.start : 0 }))
+        .filter(x => Math.abs(x.after - x.before) >= 0.1).sort((a, b) => Math.abs(b.after - b.before) - Math.abs(a.after - a.before)).slice(0, 3)
+      for (const { w, before, after } of changed) {
+        out.push({ anchor: w.playerId, text: `${opening(w.threatId, w.playerId, voice)} ${after > before ? (voice.register === 'plain' ? 'now open' : `+${(after - before).toFixed(1)} s`) : (voice.register === 'plain' ? 'fixed' : `−${(before - after).toFixed(1)} s`)}`, tone: after > before ? s.tagThreat : s.tagGood, lift: 0.25 })
       }
     }
     if (hoverFix) for (const l of divergenceLabels(lab.result, hoverFix.result, lab.time)) out.push({ ...l, tone: s.tagDef })
@@ -464,10 +465,14 @@ function TeachHud({ teach, setTeach, voice, frame, checkpoints, playing, setPlay
       </div>
     </div>
     <div className={s.teachBar}>
-      <span className={s.railLabel} style={{ alignSelf: 'center' }}>I’m teaching</span>
-      {DEFENDER_ORDER.map(id => <button key={id} className={`${s.segBtn} ${teach.player === id ? s.segOn : ''}`} onClick={() => { setTeach(x => x && { ...x, player: id, step: 0 }); setT(0); setPlaying(false) }}>{who(id, voice)}</button>)}
-      <span style={{ width: 10 }} />
-      {(['team', 'player', 'overhead'] as const).map(v => <button key={v} className={`${s.segBtn} ${teach.view === v ? s.segOn : ''}`} onClick={() => setTeach(x => x && { ...x, view: v })}>{v === 'team' ? 'Whole team' : v === 'player' ? 'Through his eyes' : 'Bird’s-eye'}</button>)}
+      <span className={s.toolLabel}>Teaching</span>
+      {DEFENDER_ORDER.map(id => <button key={id} className={`${s.toolBtn} ${teach.player === id ? s.toolOn : ''}`} aria-pressed={teach.player === id} onClick={() => { setTeach(x => x && { ...x, player: id, step: 0 }); setT(0); setPlaying(false) }}>{who(id, voice)}</button>)}
+    </div>
+    <div className={s.toolbar} style={{ top: 64 }}>
+      <div className={s.toolGroup}>
+        <span className={s.toolLabel}>View</span>
+        {(['team', 'player', 'overhead'] as const).map(v => <button key={v} className={`${s.toolBtn} ${teach.view === v ? s.toolOn : ''}`} aria-pressed={teach.view === v} onClick={() => setTeach(x => x && { ...x, view: v })}>{v === 'team' ? 'Whole team' : v === 'player' ? 'Through his eyes' : 'Bird’s-eye'}</button>)}
+      </div>
     </div>
     {!teach.player ? (
       <div className={s.coachLine}><small>Pick a player</small><div>Who are you teaching? CourtIQ shows only his job, from his point of view.</div></div>

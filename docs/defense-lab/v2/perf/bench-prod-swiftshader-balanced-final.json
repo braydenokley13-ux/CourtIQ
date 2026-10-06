@@ -1,0 +1,737 @@
+{
+  "schema": 1,
+  "when": "2026-10-06T06:17:37.900Z",
+  "url": "http://localhost:3106/?bench=1&quality=balanced",
+  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.0.0 Safari/537.36",
+  "viewport": {
+    "w": 840,
+    "h": 472,
+    "dpr": 1
+  },
+  "device": {
+    "sceneReport": {
+      "groups": {
+        "other": {
+          "objects": 7,
+          "meshes": 5,
+          "skinned": 0,
+          "instanced": 1,
+          "triangles": 2236,
+          "materials": 0,
+          "matrixAutoUpdate": 7
+        },
+        "environment": {
+          "objects": 32,
+          "meshes": 19,
+          "skinned": 0,
+          "instanced": 1,
+          "triangles": 43412,
+          "materials": 0,
+          "matrixAutoUpdate": 32
+        },
+        "marks": {
+          "objects": 43,
+          "meshes": 35,
+          "skinned": 0,
+          "instanced": 0,
+          "triangles": 1824,
+          "materials": 0,
+          "matrixAutoUpdate": 43
+        },
+        "athletes": {
+          "objects": 710,
+          "meshes": 20,
+          "skinned": 10,
+          "instanced": 0,
+          "triangles": 176708,
+          "materials": 0,
+          "matrixAutoUpdate": 710
+        }
+      },
+      "uniqueMaterials": 77,
+      "uniqueTextures": 29,
+      "memoryMb": {
+        "textures": 76.5,
+        "geometry": 10.1,
+        "shadowMap": 4,
+        "environmentTarget": 24.1
+      },
+      "shadowCasters": 21
+    },
+    "probe": {
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "vendor": "Google Inc. (Google)",
+      "software": true,
+      "integrated": false,
+      "strong": false,
+      "mobile": false,
+      "devicePixelRatio": 1,
+      "hardwareConcurrency": 4,
+      "deviceMemory": 8,
+      "maxTextureSize": 8192,
+      "reducedMotion": false,
+      "timerQuery": true,
+      "webgl2": true,
+      "warmupMs": null,
+      "warmupMethod": null
+    },
+    "tier": "balanced",
+    "tierReason": "override:balanced",
+    "override": "balanced",
+    "scale": 1,
+    "lastChange": null,
+    "settings": {
+      "tier": "balanced",
+      "maxPixelRatio": 1.25,
+      "minScale": 0.7,
+      "shadows": {
+        "enabled": true,
+        "mapSize": 1024,
+        "stride": 2
+      },
+      "athlete": "balanced",
+      "environment": "balanced",
+      "markDetail": 0.75,
+      "ghost": {
+        "radial": 8,
+        "sphere": [
+          10,
+          6
+        ]
+      },
+      "antialias": true,
+      "contactShadowTex": 64
+    },
+    "software": true,
+    "nodraw": false,
+    "canvas": {
+      "w": 840,
+      "h": 472
+    }
+  },
+  "segments": [
+    {
+      "name": "entry-ambient",
+      "seconds": 4,
+      "frames": 1,
+      "fps": 0,
+      "intervalMs": {
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "jsMs": {
+        "p50": 9.8,
+        "p95": 9.8,
+        "max": 9.8,
+        "mean": 9.8
+      },
+      "gpuMs": {
+        "p50": 1864.51,
+        "p95": 1864.51
+      },
+      "longTasks": {
+        "count": 0,
+        "totalMs": 0,
+        "maxMs": 0
+      },
+      "counters": {
+        "calls": 32,
+        "triangles": 180252,
+        "programs": 33,
+        "textures": 43,
+        "geometries": 82,
+        "peakCalls": 32,
+        "peakTriangles": 180252
+      },
+      "tier": "balanced",
+      "scale": 1,
+      "heapMb": {
+        "start": 34,
+        "end": 34.5
+      },
+      "jsHeapGrowthMbPerMin": 7.45,
+      "mainThread": {
+        "busyMsPerFrame": 29.23,
+        "scriptMsPerFrame": 18.12,
+        "layoutMsPerFrame": 0.4,
+        "styleMsPerFrame": 0,
+        "busyPct": 0.7,
+        "nonRuntimeJsMsPerFrame": 8.32
+      }
+    },
+    {
+      "name": "run-normal",
+      "seconds": 72.33,
+      "frames": 39,
+      "fps": 10,
+      "intervalMs": {
+        "p50": 100.1,
+        "p95": 100.1,
+        "p99": 100.1,
+        "max": 100.1
+      },
+      "jsMs": {
+        "p50": 8.2,
+        "p95": 17.02,
+        "max": 29.3,
+        "mean": 9.44
+      },
+      "gpuMs": {
+        "p50": 1839.57,
+        "p95": 2168.1
+      },
+      "longTasks": {
+        "count": 1,
+        "totalMs": 57,
+        "maxMs": 57
+      },
+      "counters": {
+        "calls": 29,
+        "triangles": 182892,
+        "programs": 33,
+        "textures": 47,
+        "geometries": 84,
+        "peakCalls": 40,
+        "peakTriangles": 222912
+      },
+      "tier": "balanced",
+      "scale": 1,
+      "heapMb": {
+        "start": 34.8,
+        "end": 44.5
+      },
+      "jsHeapGrowthMbPerMin": 7.98,
+      "mainThread": {
+        "busyMsPerFrame": 25.83,
+        "scriptMsPerFrame": 13.44,
+        "layoutMsPerFrame": 0.65,
+        "styleMsPerFrame": 0.11,
+        "busyPct": 1.4,
+        "nonRuntimeJsMsPerFrame": 4
+      }
+    },
+    {
+      "name": "xray-ownership",
+      "seconds": 51.28,
+      "frames": 31,
+      "fps": 0,
+      "intervalMs": {
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "jsMs": {
+        "p50": 10.6,
+        "p95": 20.7,
+        "max": 22.1,
+        "mean": 11.72
+      },
+      "gpuMs": {
+        "p50": 1595.38,
+        "p95": 1770.42
+      },
+      "longTasks": {
+        "count": 0,
+        "totalMs": 0,
+        "maxMs": 0
+      },
+      "counters": {
+        "calls": 82,
+        "triangles": 222522,
+        "programs": 33,
+        "textures": 48,
+        "geometries": 110,
+        "peakCalls": 101,
+        "peakTriangles": 227414
+      },
+      "tier": "balanced",
+      "scale": 1,
+      "heapMb": {
+        "start": 44.7,
+        "end": 46.8
+      },
+      "jsHeapGrowthMbPerMin": 2.45,
+      "mainThread": {
+        "busyMsPerFrame": 21.41,
+        "scriptMsPerFrame": 14.03,
+        "layoutMsPerFrame": 0.51,
+        "styleMsPerFrame": 0.3,
+        "busyPct": 1.3,
+        "nonRuntimeJsMsPerFrame": 2.31
+      }
+    },
+    {
+      "name": "xray-reach",
+      "seconds": 53.47,
+      "frames": 32,
+      "fps": 17.1,
+      "intervalMs": {
+        "p50": 58.35,
+        "p95": 80.89,
+        "p99": 82.9,
+        "max": 83.4
+      },
+      "jsMs": {
+        "p50": 9.3,
+        "p95": 22.3,
+        "max": 59,
+        "mean": 11.68
+      },
+      "gpuMs": {
+        "p50": 1632.66,
+        "p95": 1877.64
+      },
+      "longTasks": {
+        "count": 1,
+        "totalMs": 61,
+        "maxMs": 61
+      },
+      "counters": {
+        "calls": 57,
+        "triangles": 220828,
+        "programs": 33,
+        "textures": 48,
+        "geometries": 98,
+        "peakCalls": 66,
+        "peakTriangles": 224360
+      },
+      "tier": "balanced",
+      "scale": 1,
+      "heapMb": {
+        "start": 46.9,
+        "end": 44.1
+      },
+      "jsHeapGrowthMbPerMin": -3.1,
+      "mainThread": {
+        "busyMsPerFrame": 26.73,
+        "scriptMsPerFrame": 13.87,
+        "layoutMsPerFrame": 0.32,
+        "styleMsPerFrame": 0.16,
+        "busyPct": 1.6,
+        "nonRuntimeJsMsPerFrame": 2.19
+      }
+    },
+    {
+      "name": "xray-passing",
+      "seconds": 51.88,
+      "frames": 32,
+      "fps": 17.1,
+      "intervalMs": {
+        "p50": 58.35,
+        "p95": 65.87,
+        "p99": 66.53,
+        "max": 66.7
+      },
+      "jsMs": {
+        "p50": 9.25,
+        "p95": 17.89,
+        "max": 24.8,
+        "mean": 10.59
+      },
+      "gpuMs": {
+        "p50": 1579.57,
+        "p95": 1811.59
+      },
+      "longTasks": {
+        "count": 0,
+        "totalMs": 0,
+        "maxMs": 0
+      },
+      "counters": {
+        "calls": 47,
+        "triangles": 219262,
+        "programs": 33,
+        "textures": 48,
+        "geometries": 95,
+        "peakCalls": 56,
+        "peakTriangles": 223354
+      },
+      "tier": "balanced",
+      "scale": 1,
+      "heapMb": {
+        "start": 44,
+        "end": 46.5
+      },
+      "jsHeapGrowthMbPerMin": 2.95,
+      "mainThread": {
+        "busyMsPerFrame": 19.91,
+        "scriptMsPerFrame": 13.14,
+        "layoutMsPerFrame": 0.35,
+        "styleMsPerFrame": 0.18,
+        "busyPct": 1.2,
+        "nonRuntimeJsMsPerFrame": 2.55
+      }
+    },
+    {
+      "name": "xray-space",
+      "seconds": 51.38,
+      "frames": 32,
+      "fps": 20,
+      "intervalMs": {
+        "p50": 50,
+        "p95": 50,
+        "p99": 50,
+        "max": 50
+      },
+      "jsMs": {
+        "p50": 8.35,
+        "p95": 14.68,
+        "max": 16.4,
+        "mean": 9.15
+      },
+      "gpuMs": {
+        "p50": 1577.51,
+        "p95": 1771.35
+      },
+      "longTasks": {
+        "count": 0,
+        "totalMs": 0,
+        "maxMs": 0
+      },
+      "counters": {
+        "calls": 44,
+        "triangles": 219502,
+        "programs": 33,
+        "textures": 48,
+        "geometries": 92,
+        "peakCalls": 47,
+        "peakTriangles": 223018
+      },
+      "tier": "balanced",
+      "scale": 1,
+      "heapMb": {
+        "start": 46.7,
+        "end": 47.8
+      },
+      "jsHeapGrowthMbPerMin": 1.23,
+      "mainThread": {
+        "busyMsPerFrame": 18.45,
+        "scriptMsPerFrame": 11.27,
+        "layoutMsPerFrame": 0.24,
+        "styleMsPerFrame": 0.16,
+        "busyPct": 1.1,
+        "nonRuntimeJsMsPerFrame": 2.12
+      }
+    },
+    {
+      "name": "compare-run",
+      "seconds": 54.81,
+      "frames": 42,
+      "fps": 16.4,
+      "intervalMs": {
+        "p50": 58.3,
+        "p95": 120.82,
+        "p99": 130.8,
+        "max": 133.3
+      },
+      "jsMs": {
+        "p50": 5.8,
+        "p95": 10.09,
+        "max": 5177.5,
+        "mean": 129.6
+      },
+      "gpuMs": {
+        "p50": 1050.36,
+        "p95": 1877.77
+      },
+      "longTasks": {
+        "count": 2,
+        "totalMs": 5271,
+        "maxMs": 5179
+      },
+      "counters": {
+        "calls": 29,
+        "triangles": 182892,
+        "programs": 33,
+        "textures": 48,
+        "geometries": 87,
+        "peakCalls": 40,
+        "peakTriangles": 222912
+      },
+      "tier": "balanced",
+      "scale": 1,
+      "heapMb": {
+        "start": 44.4,
+        "end": 53.2
+      },
+      "jsHeapGrowthMbPerMin": 9.55,
+      "mainThread": {
+        "busyMsPerFrame": 146.46,
+        "scriptMsPerFrame": 133.69,
+        "layoutMsPerFrame": 0.25,
+        "styleMsPerFrame": 0.07,
+        "busyPct": 11.2,
+        "nonRuntimeJsMsPerFrame": 4.09
+      }
+    },
+    {
+      "name": "break-search",
+      "seconds": 1.68,
+      "frames": 0,
+      "fps": 0,
+      "intervalMs": {
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "jsMs": {
+        "p50": 0,
+        "p95": 0,
+        "max": 0,
+        "mean": 0
+      },
+      "gpuMs": null,
+      "longTasks": {
+        "count": 0,
+        "totalMs": 0,
+        "maxMs": 0
+      },
+      "counters": {
+        "calls": 29,
+        "triangles": 182892,
+        "programs": 33,
+        "textures": 48,
+        "geometries": 87,
+        "peakCalls": 0,
+        "peakTriangles": 0
+      },
+      "tier": "balanced",
+      "scale": 1,
+      "heapMb": {
+        "start": 53.2,
+        "end": 54.9
+      },
+      "jsHeapGrowthMbPerMin": 59.87
+    },
+    {
+      "name": "break-play",
+      "seconds": 47.64,
+      "frames": 42,
+      "fps": 23.1,
+      "intervalMs": {
+        "p50": 33.3,
+        "p95": 76.72,
+        "p99": 82.06,
+        "max": 83.4
+      },
+      "jsMs": {
+        "p50": 7.55,
+        "p95": 12.6,
+        "max": 13.2,
+        "mean": 8.21
+      },
+      "gpuMs": {
+        "p50": 1014.24,
+        "p95": 1741.87
+      },
+      "longTasks": {
+        "count": 0,
+        "totalMs": 0,
+        "maxMs": 0
+      },
+      "counters": {
+        "calls": 99,
+        "triangles": 186540,
+        "programs": 33,
+        "textures": 48,
+        "geometries": 129,
+        "peakCalls": 110,
+        "peakTriangles": 226560
+      },
+      "tier": "balanced",
+      "scale": 1,
+      "heapMb": {
+        "start": 54.9,
+        "end": 55.9
+      },
+      "jsHeapGrowthMbPerMin": 1.33,
+      "mainThread": {
+        "busyMsPerFrame": 16.97,
+        "scriptMsPerFrame": 9.74,
+        "layoutMsPerFrame": 0.22,
+        "styleMsPerFrame": 0.07,
+        "busyPct": 1.5,
+        "nonRuntimeJsMsPerFrame": 1.53
+      }
+    }
+  ],
+  "workers": {
+    "explore": [
+      {
+        "ms": 1590,
+        "mainThreadLag": {
+          "samples": 148,
+          "p50": 0.1,
+          "p95": 2,
+          "max": 57.4,
+          "over50ms": 1
+        }
+      },
+      {
+        "ms": 1320,
+        "mainThreadLag": {
+          "samples": 112,
+          "p50": 0.2,
+          "p95": 7.6,
+          "max": 88.8,
+          "over50ms": 1
+        }
+      }
+    ],
+    "attack": [
+      {
+        "ms": 1672,
+        "mainThreadLag": {
+          "samples": 156,
+          "p50": 0.1,
+          "p95": 1.7,
+          "max": 45.8,
+          "over50ms": 0
+        }
+      }
+    ]
+  },
+  "resources": {
+    "totalTransferKb": 1601,
+    "byType": {
+      "font": {
+        "files": 3,
+        "transferKb": 110,
+        "decodedKb": 109
+      },
+      "css": {
+        "files": 2,
+        "transferKb": 18,
+        "decodedKb": 84
+      },
+      "js": {
+        "files": 33,
+        "transferKb": 715,
+        "decodedKb": 2403
+      },
+      "other": {
+        "files": 2,
+        "transferKb": 2,
+        "decodedKb": 1
+      },
+      "glb": {
+        "files": 4,
+        "transferKb": 757,
+        "decodedKb": 1703
+      }
+    },
+    "largest": [
+      {
+        "name": "/athlete/lab-athlete.glb",
+        "transferKb": 633
+      },
+      {
+        "name": "/_next/static/chunks/7264-d2f4d1f78f558aba.js",
+        "transferKb": 114
+      },
+      {
+        "name": "/_next/static/chunks/04ba8493-5143231cd701c83d.js",
+        "transferKb": 99
+      },
+      {
+        "name": "/_next/static/chunks/166d7eef-55f10ca0513bb7c6.js",
+        "transferKb": 86
+      },
+      {
+        "name": "/environment/courtiq-hoop.glb",
+        "transferKb": 81
+      },
+      {
+        "name": "/_next/static/chunks/42e14490-a82fc77cab443908.js",
+        "transferKb": 59
+      },
+      {
+        "name": "/_next/static/chunks/3fe90418-78d0a2b944713304.js",
+        "transferKb": 54
+      },
+      {
+        "name": "/_next/static/chunks/4207-4e0d179e9d72d860.js",
+        "transferKb": 50
+      },
+      {
+        "name": "/_next/static/chunks/5746-f3d6040a4f730179.js",
+        "transferKb": 49
+      },
+      {
+        "name": "/_next/static/media/e4af272ccee01ff0-s.p.woff2",
+        "transferKb": 48
+      }
+    ]
+  },
+  "soak": [],
+  "verdict": {
+    "tier": "balanced",
+    "valid": false,
+    "reason": "software GL: FPS not meaningful, JS/counters only",
+    "checks": [
+      {
+        "segment": "run-normal",
+        "fpsP50": 10,
+        "p95Interval": 100.1,
+        "pass": false
+      },
+      {
+        "segment": "xray-reach",
+        "fpsP50": 17.1,
+        "p95Interval": 80.89,
+        "pass": false
+      },
+      {
+        "segment": "xray-passing",
+        "fpsP50": 17.1,
+        "p95Interval": 65.87,
+        "pass": false
+      },
+      {
+        "segment": "xray-space",
+        "fpsP50": 20,
+        "p95Interval": 50,
+        "pass": false
+      },
+      {
+        "segment": "compare-run",
+        "fpsP50": 17.2,
+        "p95Interval": 120.82,
+        "pass": false
+      },
+      {
+        "segment": "break-play",
+        "fpsP50": 30,
+        "p95Interval": 76.72,
+        "pass": false
+      }
+    ],
+    "pass": false
+  },
+  "loadMs": 91,
+  "cdpFinal": {
+    "jsHeapUsedMb": 39.7,
+    "nodes": 443,
+    "listeners": 1336
+  },
+  "bench": {
+    "gpuFlags": false,
+    "args": [
+      "--enable-precise-memory-info",
+      "--js-flags=--expose-gc",
+      "--no-first-run",
+      "--disable-background-timer-throttling",
+      "--disable-renderer-backgrounding",
+      "--use-gl=angle",
+      "--use-angle=swiftshader",
+      "--enable-unsafe-swiftshader",
+      "--ignore-gpu-blocklist"
+    ],
+    "chrome": "/opt/pw-browsers/chromium",
+    "label": "prod-swiftshader-balanced-final"
+  }
+}

@@ -196,12 +196,12 @@
 .tagGood { border-color: rgba(62,224,161,.6); color: #c6f7e3; }
 
 /* break mode */
-.breakBar { position: absolute; z-index: 13; left: 50%; top: 70px; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-radius: 14px; background: rgba(30,6,14,.78); border: 1px solid rgba(255,61,110,.45); backdrop-filter: blur(16px); box-shadow: 0 0 40px rgba(255,61,110,.18); }
+.breakBar { position: absolute; z-index: 13; left: 50%; bottom: 88px; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-radius: 14px; background: rgba(30,6,14,.78); border: 1px solid rgba(255,61,110,.45); backdrop-filter: blur(16px); box-shadow: 0 0 40px rgba(255,61,110,.18); }
 .breakBar strong { font: 600 15px var(--display); letter-spacing: -0.01em; }
 .breakBar span { color: #ffb3c5; font-size: 13px; }
 .breakTrack { width: 160px; height: 4px; background: rgba(255,255,255,.1); border-radius: 4px; overflow: hidden; }
 .breakFill { height: 100%; background: linear-gradient(90deg, #ff3d6e, #ff9a3c); transition: width .2s; }
-.attempts { position: absolute; z-index: 12; left: 20px; bottom: 90px; display: flex; flex-direction: column-reverse; gap: 5px; max-height: 50vh; overflow: hidden; }
+.attempts { position: absolute; z-index: 12; left: 20px; bottom: 160px; display: flex; flex-direction: column-reverse; gap: 5px; max-height: 50vh; overflow: hidden; }
 .attempt { font: 500 12.5px var(--ui); padding: 6px 10px; border-radius: 9px; background: rgba(12,10,14,.7); border: 1px solid var(--line); color: var(--ink-2); display: flex; gap: 8px; align-items: center; animation: rise2 .3s; }
 .attempt i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 .attemptHeld i { background: #7d8a96; }
@@ -250,7 +250,7 @@
 .empty h3 { font: 600 22px var(--display); margin: 0 0 8px; color: var(--ink); }
 
 /* teach */
-.teachBar { position: absolute; z-index: 12; left: 50%; top: 70px; transform: translateX(-50%); display: flex; gap: 6px; padding: 6px; border-radius: 14px; background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(14px); flex-wrap: wrap; justify-content: center; max-width: calc(100vw - 24px); }
+.teachBar { position: absolute; z-index: 12; left: 20px; top: 190px; display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 6px; border-radius: 14px; background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(14px); flex-wrap: wrap; justify-content: center; max-width: calc(100vw - 24px); }
 .coachLine { position: absolute; z-index: 13; left: 50%; bottom: 92px; transform: translateX(-50%); width: min(620px, calc(100vw - 24px)); text-align: center; padding: 16px 20px; border-radius: 18px; background: var(--glass-strong); border: 1px solid rgba(79,184,255,.3); backdrop-filter: blur(20px); animation: rise2 .3s; }
 .coachLine small { display: block; font: 700 10.5px var(--ui); letter-spacing: .16em; text-transform: uppercase; color: var(--defense); margin-bottom: 6px; }
 .coachLine div { font: 600 21px var(--display); letter-spacing: -0.015em; line-height: 1.25; }

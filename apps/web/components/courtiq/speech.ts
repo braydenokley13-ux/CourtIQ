@@ -59,16 +59,16 @@ export function tradeoffWords(rows: Delta[], voice: Voice): { headline: string; 
   const gains = rows.filter(r => r.before - r.after >= EPS).sort((a, b) => (b.before - b.after) - (a.before - a.after))
   const costs = rows.filter(r => r.after - r.before >= EPS).sort((a, b) => (b.after - b.before) - (a.after - a.before))
   const p = voice.register === 'plain'
-  const list = (xs: Delta[]) => { const names = xs.map(x => opening(x.threatId, x.playerId, voice).toLowerCase()); return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0] }
+  const list = (xs: Delta[]) => { const names = xs.map(x => { const o = opening(x.threatId, x.playerId, voice); return o.startsWith('#') ? o : `the ${o.toLowerCase()}` }); return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0] }
   let headline: string, body: string
   if (gains.length && costs.length) {
-    headline = p ? `Fixes the ${list(gains.slice(0, 2))}. Gives up the ${list(costs.slice(0, 1))}.` : `Closes the ${list(gains.slice(0, 2))}; opens the ${list(costs.slice(0, 1))}.`
-    body = `${p ? 'New problem' : 'Cost'}: ${opening(costs[0].threatId, costs[0].playerId, voice).toLowerCase()} is now open for ${spoken(costs[0].after, voice)}${costs[0].before > 0.05 ? ` (was ${spoken(costs[0].before, voice)})` : ''}. That's the tradeoff — you decide which one you'd rather give up.`
+    headline = p ? `Fixes ${list(gains.slice(0, 2))}. Gives up ${list(costs.slice(0, 1))}.` : `Closes ${list(gains.slice(0, 2))}; opens ${list(costs.slice(0, 1))}.`
+    body = `${p ? 'New problem' : 'Cost'}: ${opening(costs[0].threatId, costs[0].playerId, voice)} is now open for ${spoken(costs[0].after, voice)}${costs[0].before > 0.05 ? ` (was ${spoken(costs[0].before, voice)})` : ''}. That's the tradeoff — you decide which one you'd rather give up.`
   } else if (gains.length) {
-    headline = p ? `Fixes the ${list(gains.slice(0, 2))}.` : `Closes the ${list(gains.slice(0, 2))}.`
+    headline = p ? `Fixes ${list(gains.slice(0, 2))}.` : `Closes ${list(gains.slice(0, 2))}.`
     body = p ? 'Nothing new opened in this run. Try Break My Defense — a real offense would look for the next weakness.' : 'No new window above 0.1 s in this run. Attack it to find the next weakness.'
   } else if (costs.length) {
-    headline = p ? `Worse: the ${list(costs.slice(0, 2))} opened up.` : `Opens the ${list(costs.slice(0, 2))}.`
+    headline = p ? `Worse: ${list(costs.slice(0, 2))} opened up.` : `Opens ${list(costs.slice(0, 2))}.`
     body = p ? 'This change made things easier for them. Try something else, or go back.' : 'Net regression for this action.'
   } else {
     headline = p ? 'Not much changed.' : 'No material change.'
