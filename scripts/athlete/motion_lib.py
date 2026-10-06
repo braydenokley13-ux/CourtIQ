@@ -325,7 +325,7 @@ def arms_chop(p, cyc):
     for sign in (1, -1):
         w = math.sin(cyc * 2 + (0 if sign > 0 else 1.9)) * .03
         if sign > 0:
-            out.append(hand(.22, -.26 + w, 1.88 + w, (.42, -.08, 1.55), roll=-1.3))
+            out.append(hand(.34, -.30 + w, 1.88 + w, (.60, -.04, 1.50), roll=-1.3))
         else:
             out.append(hand(-.44, -.22 - w, 1.12 + w, (-.50, .06, 1.02), roll=.5))
     return out
@@ -350,17 +350,17 @@ def make_specs():
     # covers slow/medium speeds and a hop-slide (brief flight) covers fast ones.
     for suffix, dirx in (('left', 1), ('right', -1)):
         yaw = (lambda dx: (lambda sg: dx * .10 + sg * .08))(dirx)
-        S['defense_slide_' + suffix] = dict(dir=(dirx, 0), L=.90, s=.40, toe=.30, hs=0., lift=.035, drop=.20, bounce=.012, sway=.026,
-                                          lean=.28, twist=.05, base=base_c(.30), foot_yaw=yaw, arms=arms_defensive_moving(),
+        S['defense_slide_' + suffix] = dict(dir=(dirx, 0), L=.90, s=.40, toe=.30, hs=0., lift=.035, drop=.25, bounce=.012, sway=.026,
+                                          lean=.42, twist=.05, base=base_c(.30), foot_yaw=yaw, arms=arms_defensive_moving(),
                                           heel_off=.7, knee_out=.20, ease=.1, roll=.03 * dirx)
-        S['defense_slide_fast_' + suffix] = dict(dir=(dirx, 0), L=1.50, s=.25, toe=.35, hs=0., lift=.09, drop=.18, bounce=-.022, sway=.02,
-                                               lean=.30, twist=.06, base=base_c(.33), foot_yaw=yaw, arms=arms_defensive_moving(.0, .07),
+        S['defense_slide_fast_' + suffix] = dict(dir=(dirx, 0), L=1.50, s=.25, toe=.35, hs=0., lift=.09, drop=.23, bounce=-.022, sway=.02,
+                                               lean=.44, twist=.06, base=base_c(.33), foot_yaw=yaw, arms=arms_defensive_moving(.0, .07),
                                                heel_off=.6, knee_out=.16, ease=.3, roll=.035 * dirx)
-    S['backpedal'] = dict(dir=(0, 1), L=1.75, s=.50, toe=.30, hs=-.12, lift=.085, drop=.17, bounce=.012, sway=.022,
-                          lean=.14, twist=.10, base=base_c(.15), foot_yaw=lambda sg: sg * .08, arms=arms_backpedal,
+    S['backpedal'] = dict(dir=(0, 1), L=1.75, s=.50, toe=.30, hs=-.12, lift=.085, drop=.22, bounce=.012, sway=.022,
+                          lean=.30, twist=.10, base=base_c(.20), foot_yaw=lambda sg: sg * .08, arms=arms_backpedal,
                           heel_off=.7, knee_out=.14)
-    S['chop'] = dict(dir=(0, -1), L=1.05, s=.56, toe=.25, hs=0., lift=.06, drop=.20, bounce=-.012, sway=.03,
-                     lean=.27, twist=.05, base=base_c(.20), foot_yaw=lambda sg: sg * .12, arms=arms_chop,
+    S['chop'] = dict(dir=(0, -1), L=1.05, s=.56, toe=.25, hs=0., lift=.06, drop=.25, bounce=-.012, sway=.03,
+                     lean=.42, twist=.05, base=base_c(.20), foot_yaw=lambda sg: sg * .12, arms=arms_chop,
                      heel_off=.7, knee_out=.16, ease=.1)
     return S
 
@@ -397,16 +397,16 @@ def pose_offense_ready(t, dur):
 def pose_defense_ready(t, dur):
     cyc = TAU * t / dur
     shift = math.sin(cyc)
-    feet = stand(.31, (-.10, .05), toe_out=.14, pitch_foot=.11)
+    feet = stand(.35, (-.12, .06), toe_out=.16, pitch_foot=.11)
     # Active hands: a high "mirror" hand in the passing lane and a low wide hand that
     # trade places slowly; quiet fingers wiggle is carried by the small wave terms.
     a = .5 + .5 * math.sin(cyc)
     hands = []
-    hands.append(hand(.34, -.32 - .03 * a, 1.64 + .06 * a, (.55, .0, 1.30), roll=-1.1))
-    hands.append(hand(-.50, -.20 - .03 * (1 - a), 1.10 - .07 * a + .05 * (1 - a), (-.54, .08, 1.00), roll=.5))
-    return {'pelvis': (.014 * shift, -.015, -.185 + .007 * math.sin(cyc * 2)), 'pelvis_rot': (.17, -.015 * shift, -.06 * shift),
-            'spine': (.20, .02 * shift, .05 * shift), 'head': (-.20, 0, .06 * math.sin(cyc * .5 + .6)),
-            'feet': feet, 'hands': hands, 'knee_out': .22}
+    hands.append(hand(.32, -.27 - .03 * a, 1.56 + .06 * a, (.52, .04, 1.20), roll=-1.1))
+    hands.append(hand(-.48, -.17 - .03 * (1 - a), 1.06 - .07 * a + .05 * (1 - a), (-.52, .10, .95), roll=.5))
+    return {'pelvis': (.014 * shift, -.03, -.235 + .007 * math.sin(cyc * 2)), 'pelvis_rot': (.25, -.015 * shift, -.06 * shift),
+            'spine': (.30, .02 * shift, .05 * shift), 'head': (-.30, 0, .06 * math.sin(cyc * .5 + .6)),
+            'feet': feet, 'hands': hands, 'knee_out': .24}
 
 
 def pose_receive(t, dur):
@@ -441,7 +441,7 @@ def pose_screen_fight(t, dur):
         q = (t / dur + ph) % 1
         step = math.sin(math.pi * q * 2) if q < .5 else 0.
         feet.append({'target': (sign * .25 + (.04 if sign > 0 else -.02), (-.14 if sign > 0 else .04) - .04 * math.sin(cyc), FOOT_Z + .05 * max(0, step)),
-                     'pitch': .1, 'yaw': .35 + (.0 if sign > 0 else .1)})
+                     'pitch': .1, 'yaw': .35 + (.0 if sign > 0 else .1), 'plant': 1 - smooth(max(0, step) / .2)})
     hands = [hand(.12, -.42, 1.30, (.40, -.02, 1.05), roll=-1.0),                 # lead hand through the gap
              hand(-.38, -.04, 1.17, (-.44, .20, 1.02), roll=.5)]                   # back arm tucked
     return {'pelvis': (-.02 + .02 * math.sin(cyc), .0, -.20), 'pelvis_rot': (.15, .02, .20), 'spine': (.20, 0, -turn),
@@ -457,11 +457,11 @@ def pose_closeout(t, dur):
         up = math.sin(math.pi * q) ** 1.5 if q < .5 else 0.
         # note: q wraps twice per clip -> four chops per loop
         feet.append({'target': (sign * .21, (-.10 if sign > 0 else .02) - .015 * math.sin(cyc * 2), FOOT_Z + .055 * up),
-                     'pitch': .08 + .1 * up, 'yaw': sign * .10})
-    hands = [hand(.20, -.22, 1.90 + .02 * math.sin(cyc * 2), (.40, -.10, 1.55), roll=-1.3),
+                     'pitch': .08 + .1 * up, 'yaw': sign * .10, 'plant': 1 - smooth(up / .25)})
+    hands = [hand(.34, -.30, 1.90 + .02 * math.sin(cyc * 2), (.60, -.04, 1.50), roll=-1.3),
              hand(-.46, -.22, 1.20 + .03 * math.sin(cyc * 2 + 1), (-.50, .06, 1.04), roll=.5)]
-    return {'pelvis': (.012 * math.sin(cyc * 2), -.02, -.205 + .012 * math.cos(cyc * 4)), 'pelvis_rot': (.16, 0, 0),
-            'spine': (.22, 0, .05), 'head': (-.22, 0, 0), 'feet': feet, 'hands': hands, 'knee_out': .18}
+    return {'pelvis': (.012 * math.sin(cyc * 2), -.04, -.25 + .012 * math.cos(cyc * 4)), 'pelvis_rot': (.26, 0, 0),
+            'spine': (.34, 0, .05), 'head': (-.34, 0, 0), 'feet': feet, 'hands': hands, 'knee_out': .18}
 
 
 def pose_pivot(t, dur):
@@ -471,17 +471,23 @@ def pose_pivot(t, dur):
     # Planted pivot foot (left) turns in place; free foot steps around it, ball protected.
     free = pivot + Quaternion((0, 0, 1), phi) @ Vector((-.27, .03, 0))
     lift = .03 * abs(math.cos(cyc))
-    feet = [{'target': (pivot.x, pivot.y, FOOT_Z), 'pitch': .15, 'yaw': phi * .5},
-            {'target': (free.x, free.y, FOOT_Z + lift), 'pitch': .0, 'yaw': phi * .8 - .1}]
+    feet = [{'target': (pivot.x, pivot.y, FOOT_Z), 'pitch': .15, 'yaw': phi * .5, 'plant': 1.0},
+            {'target': (free.x, free.y, FOOT_Z + lift), 'pitch': .0, 'yaw': phi * .8 - .1, 'plant': 0.0}]
     hands = [hand(.20, -.32, 1.12, (.40, -.0, 1.0), roll=-.5), hand(-.20, -.34, 1.10, (-.42, -.0, 1.0), roll=.5)]
     return {'pelvis': (.02 * math.sin(cyc), 0, -.12), 'pelvis_rot': (.12, 0, .40 * math.sin(cyc)), 'spine': (.12, 0, .18 * math.sin(cyc)),
             'head': (-.1, 0, -.20 * math.sin(cyc)), 'feet': feet, 'hands': hands, 'knee_out': .1}
+
+
+def step_plant(e):
+    """Foot is planted at the ends of a step (e = 0 or 1) and travelling in between."""
+    return 1 - smooth((e - .03) / .12) * (1 - smooth((e - .86) / .1))
 
 
 def pose_chest_pass(t, dur):
     cyc = TAU * t / dur
     e = .5 - .5 * math.cos(cyc)
     feet = stand(.19, (-.03, -.10 - .10 * e), pitch_foot=.08)
+    feet[1]['plant'] = step_plant(e)
     hands = []
     for sign in (1, -1):
         hands.append(hand(sign * lerp(.10, .15, e), lerp(-.22, -.64, e), lerp(1.30, 1.34, e),
@@ -495,6 +501,7 @@ def pose_skip_pass(t, dur):
     cyc = TAU * t / dur
     e = .5 - .5 * math.cos(cyc)
     feet = stand(.20, (-.02, -.12 - .12 * e), pitch_foot=.09)
+    feet[1]['plant'] = step_plant(e)
     hands = []
     for sign in (1, -1):
         hands.append(hand(sign * lerp(.12, .15, e), lerp(-.04, -.62, e), lerp(1.98, 1.78, e),
@@ -530,8 +537,8 @@ def pose_cut_plant(t, dur):
     then drive off the other way. Loops; runtime can sample it by plant amount."""
     cyc = TAU * t / dur
     k = .5 - .5 * math.cos(cyc)       # 0 = approaching, 1 = fully loaded plant
-    feet = [{'target': (.20 + .06 * k, -.20 + .06 * k, FOOT_Z + .1 * (1 - k) ** 2 * (1 if k < .2 else 0)), 'pitch': .15 * (1 - k), 'yaw': .15 * k},
-            {'target': (-.30 - .12 * k, -.08 - .10 * k, FOOT_Z), 'pitch': .05, 'yaw': -.55 * k}]
+    feet = [{'target': (.20 + .06 * k, -.20 + .06 * k, FOOT_Z + .1 * (1 - k) ** 2 * (1 if k < .2 else 0)), 'pitch': .15 * (1 - k), 'yaw': .15 * k, 'plant': smooth((k - .15) / .3)},
+            {'target': (-.30 - .12 * k, -.08 - .10 * k, FOOT_Z), 'pitch': .05, 'yaw': -.55 * k, 'plant': smooth((k - .05) / .2)}]
     hands = [hand(.30, -.20 - .1 * k, 1.12, (.46, .10, 1.0), roll=-.5), hand(-.36 - .1 * k, -.12, 1.02 + .08 * k, (-.52, .08, .96), roll=.5)]
     return {'pelvis': (-.09 * k, -.02, -.10 - .13 * k), 'pelvis_rot': (.18 + .08 * k, .10 * k, .18 * k), 'spine': (.18 + .10 * k, .05 * k, -.25 * k),
             'head': (-.2, 0, .3 * k), 'feet': feet, 'hands': hands, 'knee_out': .16}

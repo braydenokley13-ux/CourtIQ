@@ -11,6 +11,7 @@
  *   --gpu               real GPU flags, headed. Without it: software GL, headless, FPS is NOT meaningful.
  *   --quality <t>       auto|high|balanced|low (default auto). Passed as ?quality=
  *   --nodraw            run the scenario with rendering disabled (JS pipeline only)
+ *   --uiclock <ms>      React clock cadence during playback (default 80; 0 = update React every frame, the pre-fix behaviour)
  *   --soak <n>          repeat the possession n extra times and record heap + GPU resource counts (leak check)
  *   --width/--height    CSS viewport (default 1440x900 with --gpu, 840x472 otherwise)   --dpr <n>  deviceScaleFactor (default 1; use 2 to emulate a MacBook)
  *   --chrome <path>     browser binary (default /opt/pw-browsers/chromium if present, else Playwright's own)
@@ -37,7 +38,7 @@ const soak = Number(opt('soak', '0')) || 0
 const width = Number(opt('width', gpu ? '1440' : '840')), height = Number(opt('height', gpu ? '900' : '472')), dpr = Number(opt('dpr', '1'))
 const outDir = resolve(opt('out', resolve(here, '../../docs/defense-lab/v2/perf')))
 const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-const label = opt('label', `${gpu ? 'gpu' : 'swiftshader'}-${quality}${flag('nodraw') ? '-nodraw' : ''}-${stamp}`)
+const label = opt('label', `${gpu ? 'gpu' : 'swiftshader'}-${quality}${flag('nodraw') ? '-nodraw' : ''}${opt('uiclock', null) !== null ? '-uiclock' + opt('uiclock') : ''}-${stamp}`)
 const timeoutMs = Number(opt('timeout', '900')) * 1000
 const chrome = opt('chrome', existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : undefined)
 
@@ -49,6 +50,7 @@ const args = gpu
 const q = new URLSearchParams({ bench: '1' })
 if (quality !== 'auto') q.set('quality', quality)
 if (flag('nodraw')) q.set('nodraw', '1')
+if (opt('uiclock', null) !== null) q.set('uiclock', opt('uiclock'))
 if (soak) q.set('soak', String(soak))
 const url = `${base}/?${q}`
 
@@ -71,7 +73,9 @@ try {
   const t0 = Date.now()
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 180000 })
   const loadMs = Date.now() - t0
-  await page.waitForFunction(() => window.__courtiqBench?.done === true, null, { timeout: timeoutMs, polling: 1000 })
+  let lastStatus = ''
+  const progress = setInterval(async () => { const st = await page.evaluate(() => window.__courtiqBenchStatus || '').catch(() => ''); if (st && st !== lastStatus) { lastStatus = st; console.log(`  [${Math.round((Date.now() - t0) / 1000)}s] ${st}`) } }, 2000)
+  try { await page.waitForFunction(() => window.__courtiqBench?.done === true, null, { timeout: timeoutMs, polling: 1000 }) } finally { clearInterval(progress) }
   const out = await page.evaluate(() => window.__courtiqBench)
   if (!out.result) throw new Error(out.error || 'scenario produced no result')
   const heap = await snap()

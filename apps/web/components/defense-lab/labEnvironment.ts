@@ -250,7 +250,7 @@ function buildGymEnvScene(): THREE.Scene {
   const s = new THREE.Scene()
   const basic = (r: number, g: number, b: number, side: THREE.Side = THREE.FrontSide) => { const m = new THREE.MeshBasicMaterial({ side }); m.color.setRGB(r, g, b); return m }
   const shell = new THREE.Mesh(new THREE.BoxGeometry(140, 80, 140), basic(0.014, 0.017, 0.026, THREE.BackSide)); shell.position.y = 20; s.add(shell)
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(140, 140), basic(0.30, 0.17, 0.085)); floor.rotation.x = -Math.PI / 2; floor.position.y = -3; s.add(floor)
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(140, 140), basic(0.045, 0.04, 0.036)); floor.rotation.x = -Math.PI / 2; floor.position.y = -3; s.add(floor)
   // Fixture strips on rings around the room: a camera at any yaw reflects a few of them as long floor streaks.
   const bank = basic(24, 21, 16), cool = basic(3.5, 5, 8)
   const rings = [{ el: 24, n: 12, w: 9, h: 0.45 }, { el: 40, n: 8, w: 8, h: 0.45 }, { el: 62, n: 5, w: 8, h: 0.45 }]
@@ -268,7 +268,7 @@ function buildGymEnvScene(): THREE.Scene {
  * The room
  * ------------------------------------------------------------------------- */
 
-interface Tintable { material: THREE.Material; color: THREE.Color; emissive?: THREE.Color; emissiveIntensity?: number; opacity?: number }
+interface Tintable { material: THREE.Material; color: THREE.Color; emissive?: THREE.Color; emissiveIntensity?: number; opacity?: number; envIntensity?: number }
 interface EnvRig {
   tier: LabEnvironmentQuality
   floor: THREE.Mesh; apron: THREE.Mesh
@@ -331,13 +331,13 @@ export function buildLabEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRen
 
   // Floors
   const apronMap = track(makeApronTexture(ts.apron))
-  const apronHigh = new THREE.MeshPhysicalMaterial({ map: apronMap, roughness: 0.5, clearcoat: 0.5, clearcoatRoughness: 0.28 })
-  const apronLow = new THREE.MeshStandardMaterial({ map: apronMap, roughness: 0.45, metalness: 0 })
+  const apronHigh = new THREE.MeshPhysicalMaterial({ map: apronMap, roughness: 0.55, clearcoat: 0.4, clearcoatRoughness: 0.3, envMapIntensity: 0.4 })
+  const apronLow = new THREE.MeshStandardMaterial({ map: apronMap, roughness: 0.55, metalness: 0, envMapIntensity: 0.4 })
   const apron = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.x1 - ROOM.x0, ROOM.z1 - ROOM.z0), tier === 'high' ? apronHigh : apronLow)
   apron.name = 'apron-floor'; apron.rotation.x = -Math.PI / 2; apron.position.set((ROOM.x0 + ROOM.x1) / 2, -0.004, (ROOM.z0 + ROOM.z1) / 2); apron.receiveShadow = true; env.add(apron)
   const courtMap = track(makeCourtTexture(true, false, { scale: ts.court }))
   const courtRough = track(makeCourtRoughness(ts.court), 4)
-  const floorHigh = new THREE.MeshPhysicalMaterial({ map: courtMap, roughnessMap: courtRough, roughness: 1, metalness: 0, clearcoat: 0.75, clearcoatRoughness: 0.07, envMapIntensity: 1.0 })
+  const floorHigh = new THREE.MeshPhysicalMaterial({ map: courtMap, roughnessMap: courtRough, roughness: 1, metalness: 0, clearcoat: 0.75, clearcoatRoughness: 0.1, envMapIntensity: 1.0 })
   const floorLow = new THREE.MeshStandardMaterial({ map: courtMap, roughnessMap: courtRough, roughness: 0.62, metalness: 0, envMapIntensity: 1.1 })
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(COURT.width, COURT.length), tier === 'low' ? floorLow : floorHigh)
   floor.name = 'normal-court-floor'
@@ -395,7 +395,7 @@ export function buildLabEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRen
     // faint light shaft: open cone, additive vertex colour fades from lamp to floor
     const cone = new THREE.ConeGeometry(2.6, 7.4, 20, 1, true); cone.translate(0, -3.7, 0)
     const col: number[] = [], pos = cone.attributes.position
-    for (let k = 0; k < pos.count; k++) { const t = pos.getY(k) > -0.1 ? 1 : 0; col.push(0.055 * t, 0.05 * t, 0.04 * t) }
+    for (let k = 0; k < pos.count; k++) { const t = pos.getY(k) > -0.1 ? 1 : 0; col.push(0.011 * t, 0.010 * t, 0.008 * t) }
     cone.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); cone.deleteAttribute('uv'); cone.deleteAttribute('normal')
     cone.translate(x, 7.55, z); shaftGeos.push(cone)
   }
@@ -410,7 +410,7 @@ export function buildLabEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRen
 
   // Bleachers (retracted): tiered dark mass; thin warm rim strip on each tier edge catches the light.
   const bleachMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0.05 })
-  const edgeMat = new THREE.MeshBasicMaterial({ toneMapped: false }); edgeMat.color.setRGB(0.5, 0.36, 0.22)
+  const edgeMat = new THREE.MeshBasicMaterial({ toneMapped: false }); edgeMat.color.setRGB(0.3, 0.22, 0.14)
   const bleach = new Batch(), edges = new Batch()
   for (const s of [-1, 1]) for (let i = 0; i < 4; i++) {
     const h = 0.42 + i * 0.4, x = s * (9.75 + i * 0.5)
@@ -437,7 +437,7 @@ export function buildLabEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRen
   key.shadow.camera.near = 10; key.shadow.camera.far = 34; key.shadow.bias = -0.00025; key.shadow.normalBias = 0.03; key.shadow.radius = 3
   env.add(key, key.target)
   const rimA = new THREE.DirectionalLight('#9ec3ff', 1.35); rimA.position.set(13, 7, -2); rimA.target.position.set(0, 1, 6)
-  const rimB = new THREE.DirectionalLight('#ffb987', 0.5); rimB.position.set(-13, 7, -3); rimB.target.position.set(0, 1, 6)
+  const rimB = new THREE.DirectionalLight('#ffb987', 0.12); rimB.position.set(-13, 7, -3); rimB.target.position.set(0, 1, 6)
   const fill = new THREE.DirectionalLight('#c9d6ee', 0.32); fill.position.set(8, 9, 16); fill.target.position.set(0, 0.5, 5)
   env.add(rimA, rimA.target, rimB, rimB.target, fill, fill.target)
 
@@ -451,7 +451,7 @@ export function buildLabEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRen
     if (tintables.some(t => t.material === mat)) return
     const m = mat as THREE.MeshStandardMaterial
     if (!m.color) return
-    tintables.push({ material: mat, color: m.color.clone(), emissive: m.emissive?.clone(), emissiveIntensity: m.emissiveIntensity, opacity: undefined })
+    tintables.push({ material: mat, color: m.color.clone(), emissive: m.emissive?.clone(), emissiveIntensity: m.emissiveIntensity, opacity: undefined, envIntensity: m.envMapIntensity })
   }
   const skip = new Set<THREE.Material>([analyticalFloor.material, hazeMat, glowMat, vignette.material as THREE.Material])
   const registerTree = (root: THREE.Object3D) => root.traverse(o => { const m = (o as THREE.Mesh).material; for (const mat of Array.isArray(m) ? m : m ? [m] : []) if (!skip.has(mat) && ((mat as THREE.MeshStandardMaterial).isMeshStandardMaterial || (mat as THREE.MeshBasicMaterial).isMeshBasicMaterial)) register(mat) })
@@ -594,6 +594,7 @@ export function setLabEnvironmentAnalytical(env: THREE.Group, amount: number, st
     m.color.copy(t.color).lerp(dark, amount * 0.97)
     if (t.emissive && m.emissive) m.emissiveIntensity = (t.emissiveIntensity ?? 0) * (1 - amount * 0.92)
     if (t.opacity !== undefined) m.opacity = t.opacity * (1 - amount)
+    if (t.envIntensity !== undefined) m.envMapIntensity = t.envIntensity * (1 - amount * 0.92)
   }
   state.analyticalFloor.visible = amount > .001; state.analyticalFloor.material.opacity = amount
   state.analyticalFloor.material.color.set(spectral ? '#bfeaf0' : '#ffffff')

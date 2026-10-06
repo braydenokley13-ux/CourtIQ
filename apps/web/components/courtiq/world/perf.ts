@@ -109,6 +109,8 @@ export class PerfRecorder {
   readonly done: SegmentSummary[] = []
   private ltObs: PerformanceObserver | null = null
   longTaskCount = 0
+  /** Rendered frames since start. */
+  total = 0
   constructor(gl: WebGL2RenderingContext | WebGLRenderingContext) {
     this.gpu = new GpuTimer(gl)
     try {
@@ -123,6 +125,7 @@ export class PerfRecorder {
   }
   /** One rendered frame. interval = ms since the previous *rendered* frame (null on the first / after idle). */
   frame(interval: number | null, jsMs: number, c: RenderCounters) {
+    this.total++
     this.js.push(jsMs)
     if (interval !== null) this.intervals.push(interval)
     const g = this.gpu.p50()

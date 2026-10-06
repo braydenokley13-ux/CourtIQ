@@ -36,7 +36,7 @@ export default function CoachCard({ id, frame, config, voice, onChange, onClose,
       {id === 'D5' && <>
         <div className={s.ctrlLabel}>{p ? 'How we guard the screen' : 'Coverage'}</div>
         <Seg value={a.coverage} options={(['drop', 'blitz', 'switch', 'ice'] as const).map(c => ({ id: c, label: coverageName({ ...a, coverage: c }, voice) }))} onChange={v => onChange({ coverage: v, ...(v === 'switch' ? { tag: false } : { tag: true }) }, coverageName({ ...a, coverage: v }, voice))} />
-        <div className={s.ctrlLabel}><span>{p ? 'How far back he waits' : 'Drop depth'}</span><span>{a.bigDepth.toFixed(1)} m</span></div>
+        <div className={s.ctrlLabel}><span>{p ? 'How far back he waits' : 'Drop depth'}</span><span>{p ? `${Math.round(a.bigDepth * 3.281)} ft from the baseline` : `${a.bigDepth.toFixed(1)} m`}</span></div>
         <input className={s.range} type="range" min={1.6} max={6} step={0.1} value={a.bigDepth} onChange={e => onChange({ bigDepth: Number(e.target.value) }, 'Big depth')} />
         <div className={s.rangeEnds}><span>{p ? 'At the rim' : 'Deep'}</span><span>{p ? 'Up at the screen' : 'At the level'}</span></div>
       </>}
@@ -50,7 +50,7 @@ export default function CoachCard({ id, frame, config, voice, onChange, onClose,
           <div className={s.rangeEnds}><span>{p ? 'Stay near shooter' : 'Shallow'}</span><span>{p ? 'All the way' : 'Deep'}</span></div>
           <div className={s.ctrlLabel}>{p ? 'He goes back when' : 'Release'}</div>
           <Seg value={a.recovery} options={[{ id: 'on-pass', label: p ? 'The ball is passed' : 'On the pass' }, { id: 'roller-secured', label: p ? 'The big is back' : 'Roller secured' }]} onChange={v => onChange({ recovery: v }, 'Release timing')} />
-          <div className={s.hint}>Tip: when paused, drag the white dot on the floor to set exactly where he helps.</div>
+          <div className={s.hint}>Tip: pause, then drag the white dot on the floor to set exactly where he helps.</div>
         </>}
       </>}
 
@@ -64,8 +64,8 @@ export default function CoachCard({ id, frame, config, voice, onChange, onClose,
       {id === 'D2' && <div className={s.hint}>{p ? 'He stays home on the near-side shooter in this action.' : 'Strong-side defender stays attached; no strong-side help in this policy.'}</div>}
 
       {!isOffense && time > 0.05 && <>
-        <div className={s.ctrlLabel}>{p ? 'Change it from' : 'Apply from'}</div>
-        <Seg value={editFrom} options={[{ id: 'start', label: p ? 'The start of the play' : 'Start' }, { id: 'now', label: `${p ? 'This moment' : 'Now'} (${time.toFixed(1)} s)` }]} onChange={onEditFrom} />
+        <div className={s.ctrlLabel}>{p ? 'Apply to' : 'Apply from'}</div>
+        <Seg value={editFrom} options={[{ id: 'start', label: p ? 'The whole play' : 'Start' }, { id: 'now', label: p ? `Just from here on (${time.toFixed(1)} s)` : `Now (${time.toFixed(1)} s)` }]} onChange={onEditFrom} />
         {editFrom === 'now' && <div className={s.hint}>Everything before {time.toFixed(1)} s stays exactly the same; your change plays out from here.</div>}
       </>}
       <button className={s.ghostLink} aria-expanded={full} onClick={() => setFull(f => !f)}>{full ? 'Hide full control' : 'Full control →'}</button>

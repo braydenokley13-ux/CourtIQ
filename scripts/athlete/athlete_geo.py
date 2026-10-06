@@ -207,7 +207,7 @@ def clean_mesh(ob, merge=.0004):
 # Jersey: the athlete's own torso surface, cut to a tank-top, offset and thickened
 # ---------------------------------------------------------------------------
 JERSEY_NECK = dict(center=(0, -.07, 1.535), radii=(.098, .155, .098))
-JERSEY_ARM = dict(cz=1.355, cy=.005, rz=.125, ry=.088)
+JERSEY_ARM = dict(cz=1.36, cy=-.012, rz=.122, ry=.066)
 
 
 def jersey_cutters():
@@ -258,11 +258,40 @@ def build_jersey(body, mats):
     for v in bm.verts:
         z = v.co.z
         gap = .0045 + .022 * (1 - smooth(z, JERSEY_Z0, 1.32)) + .004 * bell((z - 1.40) / .09)
-        v.co += v.normal * gap
+        n = v.normal.copy()
+        if z < JERSEY_Z0 + .03:
+            n.z *= max(0., (z - JERSEY_Z0) / .03)     # keep the hem edge level
+            n.normalize()
+        v.co += n * gap
         # slightly flared hem
         v.co.x *= 1 + .02 * (1 - smooth(z, JERSEY_Z0, 1.15))
     bm.to_mesh(j.data)
     bm.free()
+    # Reduce the open shell while pinning every cut edge (neck / armholes / hem) so the bound
+    # edges stay as clean as the boolean made them.
+    bm = bmesh.new()
+    bm.from_mesh(j.data)
+    bnd = set()
+    for v in bm.verts:
+        if any(len(e.link_faces) == 1 for e in v.link_edges):
+            bnd.add(v.index)
+    ring1 = set()
+    for v in bm.verts:
+        if v.index in bnd:
+            for e in v.link_edges:
+                ring1.add(e.other_vert(v).index)
+    keep = bnd | ring1
+    bm.free()
+    vg = j.vertex_groups.new(name='keep')
+    vg.add(list(keep), 1.0, 'REPLACE')
+    select_only(j)
+    dm = j.modifiers.new('reduce', 'DECIMATE')
+    dm.ratio = .5
+    dm.vertex_group = 'keep'; dm.invert_vertex_group = True
+    dm.vertex_group_factor = 1.0
+    dm.use_collapse_triangulate = True
+    apply_modifier(j, dm)
+    j.vertex_groups.remove(j.vertex_groups['keep'])
     j.data.materials.clear()
     for m in (mats['jersey'], mats['trim']):
         j.data.materials.append(m)
@@ -306,15 +335,26 @@ def jersey_uv(co, normal_y_sign):
 # ---------------------------------------------------------------------------
 # Shorts: baggy double-ring tubes with a rolled, closed hem
 # ---------------------------------------------------------------------------
+def ring_xy(a, cx, rx, ry, sign, r=1.0):
+    """Point on a leg tube ring. The inner (crotch) side is squeezed to stay clear of the
+    centre line instead of being clamped flat (which made a see-through sheet in a wide stance)."""
+    c = math.cos(a)
+    limit = abs(cx) - .018
+    rxe = rx * r
+    if sign * c < 0:
+        rxe = min(rxe, limit)
+    return cx + rxe * c, .014 + ry * r * math.sin(a)
+
+
 def build_shorts(body_skinned_source, mats):
     verts = []
     faces = []
     mi = []
     weights = []
     n = 32
-    # (z, rx, ry, cx) outward profile, top -> hem. Waist is wide and the legs flare.
     for sign in (-1, 1):
         start = len(verts)
+        side = 'l' if sign > 0 else 'r'
         levels = [(.600, .122, .146, sign * .110),
                   (.640, .122, .146, sign * .110),
                   (.760, .130, .150, sign * .106),
@@ -324,43 +364,26 @@ def build_shorts(body_skinned_source, mats):
         for k, (z, rx, ry, cx) in enumerate(levels):
             for i in range(n):
                 a = TAU * i / n
-                x = cx + rx * math.cos(a)
-                y = .014 + ry * math.sin(a)
-                if sign * x < .014:
-                    x = sign * .014
+                x, y = ring_xy(a, cx, rx, ry, sign)
                 verts.append((x, y + .0015 * math.sin(a * 6 + k), z))
                 pelvis = max(0., min(1., (z - .72) / .25))
-                weights.append([('pelvis', pelvis), ('thigh_' + ('l' if sign > 0 else 'r'), 1 - pelvis)])
+                weights.append([('pelvis', pelvis), ('thigh_' + side, 1 - pelvis)])
         for k in range(len(levels) - 1):
             for i in range(n):
                 faces.append((start + k * n + i, start + k * n + (i + 1) % n, start + (k + 1) * n + (i + 1) % n, start + (k + 1) * n + i))
                 a = TAU * (i + .5) / n
-                # hem band + side slit stripe via trim material
-                mi.append(1 if (abs(math.cos(a)) > .965 and sign * math.cos(a) > 0 and k >= 1) else 0)
-        # rolled hem: out-turn lip, then fold back inside (closed, no see-through sliver)
-        z0 = levels[0][0]
+                mi.append(1 if (abs(math.cos(a)) > .965 and sign * math.cos(a) > 0 and 1 <= k <= 3) else 0)
+        z0, rx0, ry0, cx0 = levels[0][0], levels[0][1], levels[0][2], levels[0][3]
         lip = len(verts)
         for i in range(n):
-            a = TAU * i / n
-            cx, rx, ry = levels[0][3], levels[0][1], levels[0][2]
-            r = .985
-            x = cx + rx * r * math.cos(a)
-            y = .014 + ry * r * math.sin(a)
-            if sign * x < .014:
-                x = sign * .014
+            x, y = ring_xy(TAU * i / n, cx0, rx0, ry0, sign, .985)
             verts.append((x, y, z0 - .012))
-            weights.append([('thigh_' + ('l' if sign > 0 else 'r'), 1.)])
+            weights.append([('thigh_' + side, 1.)])
         inner = len(verts)
         for i in range(n):
-            a = TAU * i / n
-            cx, rx, ry = levels[0][3], levels[0][1], levels[0][2]
-            r = .94
-            x = cx + rx * r * math.cos(a)
-            y = .014 + ry * r * math.sin(a)
-            if sign * x < .014:
-                x = sign * .014
+            x, y = ring_xy(TAU * i / n, cx0, rx0, ry0, sign, .94)
             verts.append((x, y, z0 + .022))
-            weights.append([('thigh_' + ('l' if sign > 0 else 'r'), 1.)])
+            weights.append([('thigh_' + side, 1.)])
         for i in range(n):
             faces.append((start + i, start + (i + 1) % n, lip + (i + 1) % n, lip + i)); mi.append(1)
             faces.append((lip + i, lip + (i + 1) % n, inner + (i + 1) % n, inner + i)); mi.append(0)

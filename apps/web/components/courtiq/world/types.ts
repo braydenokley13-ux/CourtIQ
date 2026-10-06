@@ -17,7 +17,7 @@ export type Mark =
   | { kind: 'tether'; id: string; from: Anchor; to: Anchor; tone: Tone; opacity?: number; width?: number; /** Chest-height duty string: height of both ends, droop and fraying. */ y?: number; sag?: number; fray?: boolean; /** 0..1 recent transfer: brightens and thickens. */ flash?: number }
   | { kind: 'wedge'; id: string; apex: Anchor; toward: Anchor; length: number; spread: number; tone: Tone; opacity?: number }
   /** Time-to-arrive map: isochrone bands of the fastest defender at every floor point. */
-  | { kind: 'arrival'; id: string; sources: Anchor[]; accel: number; maxSpeed: number; react: number; contest: number; /** Ball clock: floor beyond this arrival time (nobody gets there) glows threat. */ ballTime?: number | null; opacity?: number }
+  | { kind: 'arrival'; id: string; sources: Anchor[]; accel: number; maxSpeed: number; react: number; contest: number; /** Ball clock: floor beyond this arrival time (nobody gets there) glows threat. */ ballTime?: number | null; /** Open receivers: where the floor beyond the ball clock is marked as the uncovered island. */ islands?: Anchor[]; opacity?: number }
   /** Vertical pin with a floor ring: where an alternate-world body stands. */
   | { kind: 'pin'; id: string; at: Anchor; tone: Tone; height?: number; radius?: number; opacity?: number }
   /** A counter drawn in time: head runs the route; outcome decides what remains. */
@@ -62,6 +62,8 @@ export interface WorldCallbacks {
   onCameraMode?(mode: CameraMode): void
   onReady?(info: { webgl: boolean; software: boolean }): void
   onStats?(stats: WorldStats): void
+  /** Fired on start and whenever the quality tier changes (the shell uses it to drop expensive CSS on 'low'). */
+  onTier?(tier: 'high' | 'balanced' | 'low'): void
 }
 
 /** Debug-HUD / perf contract, emitted ~1 Hz while the world renders. Times in ms. */

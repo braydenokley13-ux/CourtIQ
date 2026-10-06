@@ -72,7 +72,7 @@ export interface LabAthlete {
   setQuality(quality: AthleteQuality): void
   /** Optional: in 'low' quality, unfocused athletes update their skeleton at half rate and use
    * the cheapest mesh. Focused (selected / ball handler / near camera) athletes stay full. */
-  setFocus?(focused: boolean): void
+  setFocus?(focused: boolean | undefined): void
   /** Optional: visible mesh stats for the current tier (draw calls exclude ring/label). */
   stats?(): AthleteStats
 }
@@ -140,12 +140,10 @@ function paintAtlas(spec: AtlasSpec) {
   const g = ctx.createLinearGradient(0, 128, 0, 512)
   g.addColorStop(0, 'rgba(255,255,255,.07)'); g.addColorStop(.55, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,.10)')
   ctx.fillStyle = g; ctx.fillRect(0, 128, 512, 384)
-  ctx.fillStyle = kit.trim
-  for (const x of [0, 15, 225, 240, 257, 273, 482, 497]) ctx.fillRect(x - (x === 0 ? 0 : 0), 128, 0, 0)
   // side panels: front panel edges (x 15..240) and back panel edges (x 273..497)
-  for (const [a, b] of [[8, 34], [221, 247], [262, 288], [472, 504]]) { ctx.fillStyle = kit.trim; ctx.fillRect(a, 128, b - a, 384) }
+  for (const [a, b] of [[10, 28], [228, 246], [266, 284], [484, 502]]) { ctx.fillStyle = kit.trim; ctx.fillRect(a, 128, b - a, 384) }
   ctx.fillStyle = mix(kit.body, kit.trim, .55); ctx.fillRect(0, 128, 512, 12)      // strap / yoke piping
-  ctx.fillStyle = kit.trim; ctx.fillRect(0, 502, 512, 10)                  // hem band
+  ctx.fillStyle = kit.trim; ctx.fillRect(0, 507, 512, 5)                   // hem piping
   
   // faint knit
   ctx.globalAlpha = .045; ctx.fillStyle = '#000'
@@ -292,9 +290,9 @@ export function createLabAthlete(player: AthleteAppearance, index: number, ready
   const weights: Record<string, number> = {}, armWeights: Record<string, number> = {}
   const st = newState()
   const history: State[] = []
-  const debug = { clip: '', stride: 0, cycle: 0, dir: [1, 0, 0, 0] as number[], cadence: 0, special: '', hipOffset: 0, locks: 0, weights: weights as Record<string, number> }
+  const debug = { clip: '', stride: 0, cycle: 0, dir: [1, 0, 0, 0] as number[], cadence: 0, special: '', hipOffset: 0, locks: 0, lockOn: [false, false] as boolean[], weights: weights as Record<string, number> }
   figure.userData.motionDebug = debug
-  let quality: AthleteQuality = 'high', lastFallbackClip = '', focused = true, frameParity = 0
+  let quality: AthleteQuality = 'high', lastFallbackClip = '', focused = false, focusOverride: boolean | undefined, frameParity = 0
   const addWeight = (target: Record<string, number>, name: string, weight: number) => { if (weight > 1e-5) target[name] = (target[name] ?? 0) + weight }
 
   const applyQuality = (next: AthleteQuality) => {
@@ -439,7 +437,7 @@ export function createLabAthlete(player: AthleteAppearance, index: number, ready
   return {
     root, figure, ring, label, hit,
     setQuality(next) { applyQuality(next) },
-    setFocus(next) { focused = next; applyQuality(quality) },
+    setFocus(next) { focusOverride = next; if (next !== undefined && next !== focused) { focused = next; applyQuality(quality) } },
     stats() {
       const mesh = lodMeshes[activeLod]
       const idx = mesh?.geometry.index
@@ -447,6 +445,9 @@ export function createLabAthlete(player: AthleteAppearance, index: number, ready
     },
     setPose(motion) {
       const pose = motion.pose ?? ''
+      // Without an explicit setFocus(), the ball handler is the focus athlete.
+      const wantFocus = focusOverride ?? motion.hasBall
+      if (wantFocus !== focused) { focused = wantFocus; applyQuality(quality) }
       let flightAllowance = 0
       root.rotation.y = motion.facing
       if (studio && mixer) {
@@ -506,9 +507,6 @@ export function createLabAthlete(player: AthleteAppearance, index: number, ready
           // Locomotion loops are driven by ground distance; everything else by sim time.
           const cycle = gaitClip ? st.cycle : motion.time / duration + index * .173
           action.time = ((cycle % 1) + 1) % 1 * duration
-          if (section === 'lower') {
-            plantMix[0] += weight * plantAt(name, 'l', cycle); plantMix[1] += weight * plantAt(name, 'r', cycle); weightSum += weight
-          }
           if ((name === 'chest_pass' || name === 'skip_pass') && motion.ball) {
             const distance = Math.hypot(motion.ball.x - root.position.x, motion.ball.z - root.position.z)
             action.time = duration * .5 * THREE.MathUtils.clamp((distance - .16) / (name === 'skip_pass' ? 1.3 : .85), 0, 1)
@@ -517,6 +515,10 @@ export function createLabAthlete(player: AthleteAppearance, index: number, ready
           if (name === 'dribble' && motion.ball) {
             const bounce = THREE.MathUtils.clamp((motion.ball.y - .5) / .65, 0, 1)
             action.time = Math.acos(2 * bounce - 1) / TAU * duration
+          }
+          if (section === 'lower') {
+            const u = action.time / duration
+            plantMix[0] += weight * plantAt(name, 'l', u); plantMix[1] += weight * plantAt(name, 'r', u); weightSum += weight
           }
         }
         debug.cycle = st.cycle; debug.dir = st.dir; debug.stride = effectiveStride(mixScratch); debug.hipOffset = hipYaw / DEG
@@ -579,7 +581,7 @@ export function createLabAthlete(player: AthleteAppearance, index: number, ready
             if (fullRig && (st.crouch > .002)) solveLeg(leg, A, ankleQuat[i])
           }
         }
-        debug.locks = lockCount
+        debug.locks = lockCount; debug.lockOn = [st.lock[0].on, st.lock[1].on]
         record()
       } else {
         const clip = motion.speed > .22 ? motion.defensive && motion.speed < 3.2 ? 'defense_slide' : 'cut_sprint' : motion.defensive && glb ? 'defensive_deny' : 'idle_ready'
@@ -606,9 +608,13 @@ export function createLabAthlete(player: AthleteAppearance, index: number, ready
         if (pose === 'dribble') target.y = Math.max(target.y + .10, .9)
         if (target.distanceToSquared(root.position) < 4.5) {
           const iterations = quality === 'high' ? 2 : 1
+          const twoHanded = /catch|pass|shoot|skip/.test(pose)
+          // character-left in world space is (cos f, 0, -sin f): the two hands bracket the ball
+          const sx = Math.cos(motion.facing), sz = -Math.sin(motion.facing)
+          if (twoHanded) target.x -= sx * .085, target.z -= sz * .085
           if (rightHand) aimArm(arms.right, rightHand, target, scratch, iterations)
-          if (leftHand && /catch|pass|shoot|skip/.test(pose)) {
-            otherTarget.copy(target); otherTarget.x -= Math.cos(motion.facing) * .11; otherTarget.z += Math.sin(motion.facing) * .11
+          if (leftHand && twoHanded) {
+            otherTarget.set(motion.ball.x + sx * .085, motion.ball.y, motion.ball.z + sz * .085)
             aimArm(arms.left, leftHand, otherTarget, scratch, iterations)
           }
         }

@@ -35,13 +35,19 @@ async function main() {
     athlete.setPose(motion); const again = snapshot()
     first.forEach((value, index) => { largestRepeatDifference = Math.max(largestRepeatDifference, Math.abs(value - again[index])) })
     for (const side of ['l', 'r']) { const bone = athlete.figure.getObjectByName(`foot_${side}`)!; lowestAnkle = Math.min(lowestAnkle, bone.getWorldPosition(new THREE.Vector3()).y) }
-    const high = athlete.figure.getObjectByName('LOD0_athlete')!, low = athlete.figure.getObjectByName('LOD1_athlete')!
-    athlete.setQuality('low'); assert(!high.visible && low.visible); athlete.setPose(motion)
-    athlete.setQuality('high'); assert(high.visible && !low.visible)
+    const lod = [0, 1, 2].map(n => athlete.figure.getObjectByName(`LOD${n}_athlete`)!)
+    const visible = () => lod.map(m => m.visible)
+    athlete.setQuality('balanced'); assert.deepEqual(visible(), [false, true, false]); athlete.setPose(motion)
+    athlete.setQuality('low'); if (!motion.hasBall) assert(lod[2].visible && !lod[0].visible && !lod[1].visible, 'low (unfocused) = LOD2'); athlete.setPose(motion); athlete.setPose({ ...motion, time: motion.time + .025 })
+    athlete.setFocus?.(true); assert(lod[1].visible && !lod[2].visible, 'focused low = LOD1'); athlete.setFocus?.(undefined); athlete.setPose({ ...motion, hasBall: motion.hasBall })
+    athlete.setQuality('high'); assert.deepEqual(visible(), [true, false, false])
+    // one draw call per athlete: exactly one visible skinned mesh, one material
+    let visibleSkinned = 0; athlete.figure.traverse(o => { if ((o as THREE.SkinnedMesh).isSkinnedMesh && o.visible) visibleSkinned++ })
+    assert.equal(visibleSkinned, 1)
   }
   assert(largestRepeatDifference < 1e-6, `Scrub history changed sampled pose: ${largestRepeatDifference}`)
   assert(lowestAnkle > .08 && lowestAnkle < .13, `Unexpected grounded ankle height: ${lowestAnkle}`)
-  const report = { actors: athletes.length, largestRepeatDifference, lowestAnkle, oneSkeletonPerActor: true, independentlyOwnedResources: true, qualitySwitches: 'passed', upperLowerMotionLayers: 'passed' }
+  const report = { actors: athletes.length, largestRepeatDifference, lowestAnkle, oneSkeletonPerActor: true, independentlyOwnedResources: true, qualitySwitches: 'passed (high/balanced/low, focus override)', drawCallsPerAthlete: 1, upperLowerMotionLayers: 'passed' }
   console.log(JSON.stringify(report, null, 2))
   await fs.writeFile(new URL('../../apps/web/public/athlete/lab-athlete-runtime-validation.json', import.meta.url), JSON.stringify(report, null, 2) + '\n')
 }

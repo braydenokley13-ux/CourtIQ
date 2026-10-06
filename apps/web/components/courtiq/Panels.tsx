@@ -1,36 +1,87 @@
 'use client'
 
-import { describeTradeoff, explainMoment, formatSeconds, type Voice } from '@/lib/defense-lab/corpus'
+import { useState } from 'react'
+import { explainMoment, type Voice } from '@/lib/defense-lab/corpus'
 import { attackIntentLabel, type AttackPreview, type AttackReport } from '@/lib/defense-lab/attack'
-import type { ComparisonResult } from '@/lib/defense-lab/analytics'
-import type { FixOption, Robustness, TeachingMoment } from '@/lib/defense-lab/explore'
-import type { ThreatId } from '@/lib/defense-lab/types'
-import { ROLE_OF, threatShort } from './basketball'
+import type { Divergence, FixOption, Robustness, TeachingMoment } from '@/lib/defense-lab/explore'
+import type { AttackChange } from '@/lib/defense-lab/attack'
+import type { PlayerId, ThreatId } from '@/lib/defense-lab/types'
+import { ROLE_OF } from './basketball'
+import { FIX_PLAIN, cap, opening, person, spoken, tradeoffWords, type Delta } from './speech'
 import s from './courtiq.module.css'
 
 export function momentCopy(m: TeachingMoment, voice: Voice) {
   return explainMoment({ threatId: m.threatId, openFor: m.openFor, defenderNeeds: m.defenderNeeds ?? undefined, responsibleRole: m.bestDefenderId ? ROLE_OF[m.bestDefenderId] : undefined, pulledRole: m.pulledDefenderId ? ROLE_OF[m.pulledDefenderId] : undefined, cause: m.cause, receiverRole: ROLE_OF[m.receiverId], releaseIn: m.releaseIn ?? undefined, finish: m.finish }, voice)
 }
 
+/** One cause, named by who did what — a sentence a player could hear. */
+function causeSentence(m: TeachingMoment, voice: Voice): string | null {
+  const p = voice.register === 'plain'
+  const pulled = m.pulledDefenderId, rec = person(m.receiverId, voice)
+  switch (m.cause) {
+    case 'deep-tag': return pulled ? (p ? `${cap(person(pulled, voice))} ran all the way to the screener, so nobody was left for ${rec}.` : `${person(pulled, voice)} tagged deep; nobody left for ${rec}.`) : null
+    case 'late-rotation': return p ? `Nobody stepped in front of ${rec} in time.` : `Late rotation to ${rec}.`
+    case 'switch-mismatch': return pulled ? (p ? `After the switch, ${person(pulled, voice)} is guarding someone bigger or quicker than him — and ${rec} goes right at it.` : `Switch mismatch: ${rec} attacks ${person(pulled, voice)}.`) : null
+    case 'two-on-ball': return p ? `Two of your players went to the ball, so ${rec} caught it with room behind them.` : `Two on the ball; ${rec} plays 4-on-3 behind it.`
+    case 'big-too-deep': return p ? 'Your big waited too far back, so the ball handler had room.' : 'Big too deep — handler has space.'
+    case 'big-too-high': return p ? 'Your big came up too high, so the screener had a path to the rim.' : 'Big too high — roller behind him.'
+    default: return null
+  }
+}
+
+function timeSentence(m: TeachingMoment, voice: Voice): string | null {
+  if (m.releaseIn == null || m.defenderNeeds == null) return null
+  const late = m.defenderNeeds - m.releaseIn
+  const shot = m.finish === 'layup' || (m.finish == null && (m.threatId === 'drive' || m.threatId === 'roll')) ? 'layup' : 'shot'
+  const who = m.bestDefenderId ? person(m.bestDefenderId, voice) : 'your closest defender'
+  if (voice.register !== 'plain') return `Release ready ${spoken(m.releaseIn, voice)}; ${who} needs ${spoken(m.defenderNeeds, voice)}${late > 0 ? ` — late ${spoken(late, voice)}` : ''}.`
+  if (late <= 0) return `${cap(who)} gets there just in time — but only just.`
+  return `He’s ready to ${shot === 'layup' ? 'finish' : 'shoot'} in ${spoken(m.releaseIn, voice)}. ${cap(who)} needs ${spoken(m.defenderNeeds, voice)} to get there — ${late < 0.15 ? 'a hair late' : `late by ${spoken(late, voice)}`}. That’s an open ${shot}.`
+}
+
 export function MomentPanel({ moment, voice, onWhy, onFix, onBreak, onSave, whyOn, fixesReady, robust }: { robust: Robustness | null; moment: TeachingMoment; voice: Voice; onWhy(): void; onFix(): void; onBreak(): void; onSave(): void; whyOn: boolean; fixesReady: boolean }) {
   const copy = momentCopy(moment, voice)
+  const [details, setDetails] = useState(voice.register !== 'plain')
+  const cause = causeSentence(moment, voice), time = timeSentence(moment, voice)
+  const p = voice.register === 'plain'
   return (
     <div className={s.panel} role="dialog" aria-label="The problem">
       <div className={s.panelKicker}><span className={s.pulseDot} />Here’s the problem</div>
       <h2>{copy.headline}</h2>
-      <p>{copy.body}</p>
-      <MomentNumbers openFor={moment.openFor} ready={moment.releaseIn} needs={moment.defenderNeeds} threatId={moment.threatId} voice={voice} finish={moment.finish} />
-      <div className={s.robust}>{robust ? <><b>{robust.opened} of {robust.samples}</b> {voice.register === 'plain' ? 'slightly different runs (a step slower, a step out of place) end the same way.' : 'jittered runs (seed, ±0.05 s reaction, ±4% speed, ±0.25 m spots) reproduce it.'} {robust.opened >= Math.ceil(robust.samples * 0.75) ? (voice.register === 'plain' ? 'This is a real problem.' : 'Robust.') : robust.opened <= robust.samples / 4 ? (voice.register === 'plain' ? 'It depends on small details — worth a look, not a panic.' : 'Fragile — detail-dependent.') : (voice.register === 'plain' ? 'It happens often enough to plan for.' : 'Likely.')}</> : (voice.register === 'plain' ? 'Checking how often this happens…' : 'Testing robustness…')}</div>
+      {cause && <p className={s.lead}>{cause}</p>}
+      {time && <p>{time}</p>}
+      {!cause && !time && <p>{copy.body}</p>}
+      {details && <MomentNumbers openFor={moment.openFor} ready={moment.releaseIn} needs={moment.defenderNeeds} threatId={moment.threatId} voice={voice} finish={moment.finish} realized={moment.realizedArrival} />}
+      <div className={s.robust}>{robust ? <><b>{robust.opened} of {robust.samples}</b> {p ? 'slightly different tries (a step slower, a step out of place) end the same way.' : 'jittered runs (seed, ±0.05 s reaction, ±4% speed, ±0.25 m spots) reproduce it.'} {robust.opened >= Math.ceil(robust.samples * 0.75) ? (p ? 'This is a real problem.' : 'Robust.') : robust.opened <= robust.samples / 4 ? (p ? 'It depends on small details — worth a look, not a panic.' : 'Fragile — detail-dependent.') : (p ? 'It happens often enough to plan for.' : 'Likely.')}</> : (p ? 'Checking how often this happens…' : 'Testing robustness…')}</div>
       <div className={s.row}>
-        <button className={`${s.btn} ${s.btnPrimary}`} onClick={onFix} disabled={!fixesReady}>{fixesReady ? 'How do I fix it?' : 'Testing fixes…'}</button>
-        <button className={s.btn} onClick={onWhy} aria-pressed={whyOn}>{whyOn ? 'Back to game view' : 'Show me why'}</button>
+        <button className={`${s.btn} ${s.btnPrimary}`} onClick={onFix} disabled={!fixesReady}>{fixesReady ? 'How do I fix it?' : 'Trying fixes…'}</button>
+        <button className={s.btn} onClick={onWhy} aria-pressed={whyOn}>{whyOn ? 'Back to the game view' : 'Show me why'}</button>
       </div>
       <div className={s.row} style={{ marginTop: 8 }}>
-        <button className={s.btn} onClick={onSave}>This is fine — save it</button>
-        <button className={`${s.btn}`} style={{ color: '#ff9db6' }} onClick={onBreak}>Break my defense</button>
+        <button className={s.btn} onClick={onSave}>We can live with this — save it</button>
+        <button className={s.btn} style={{ color: '#ff9db6' }} onClick={onBreak}>Break my defense</button>
       </div>
-      <div className={s.honesty}>Measured from this run: positions, speeds and reaction time are modeled for high-school players. It doesn’t predict makes or misses.</div>
+      <button className={s.linkBtn} onClick={() => setDetails(d => !d)} aria-expanded={details}>{details ? 'Hide the numbers' : 'Show the numbers'}</button>
+      <div className={s.honesty}>{p ? 'From this run, with high-school speeds and reaction times. It doesn’t predict makes or misses.' : 'Best-case straight-line arrival vs. catch-and-release horizon; modeled HS assumptions. No make/miss prediction.'}</div>
     </div>
+  )
+}
+
+export function MomentNumbers({ openFor, ready, needs, threatId, voice, finish, realized }: { openFor: number; ready: number | null | undefined; needs: number | null | undefined; threatId: ThreatId; voice: Voice; finish?: TeachingMoment['finish']; realized?: number | null }) {
+  const p = voice.register === 'plain'
+  const late = ready != null && needs != null ? needs - ready : null
+  const layup = finish ? finish === 'layup' : threatId === 'drive' || threatId === 'roll'
+  const tenth = (x: number) => `${(Math.round(x * 10) / 10).toFixed(1)} s`
+  return (
+    <>
+      <div className={s.numbers} style={{ gridTemplateColumns: late != null ? '1fr 1fr 1fr' : '1fr 1fr' }}>
+        {ready != null && <div className={s.number}><b>{tenth(ready)}</b><span>{layup ? (p ? 'Layup is ready in' : 'Finish ready') : (p ? 'Shooter is ready in' : 'Release ready')}</span></div>}
+        {needs != null && <div className={`${s.number} ${s.numWarn}`}><b>{tenth(needs)}</b><span>{p ? 'Nearest defender needs' : 'Best-case arrival'}</span></div>}
+        {late != null ? <div className={`${s.number} ${s.numThreat}`}><b>{tenth(Math.abs(late))}</b><span>{late > 0 ? (p ? 'He’s late by' : 'Late by') : 'In time by'}</span></div>
+          : <div className={`${s.number} ${s.numThreat}`}><b>{tenth(openFor)}</b><span>{p ? 'Open for' : 'Window'}</span></div>}
+      </div>
+      {realized != null && ready != null && <div className={s.hint} style={{ marginTop: -6, marginBottom: 10 }}>{p ? `In the actual replay he got there ${tenth(realized)} after the catch.` : `Realized arrival in replay: ${tenth(realized)} (best-case above).`}</div>}
+    </>
   )
 }
 
@@ -49,95 +100,91 @@ export function HoldsPanel({ voice, onBreak, onSave, onAgain }: { voice: Voice; 
   )
 }
 
+/** At most one gain and one cost, named by who. */
 function Effects({ fix, voice }: { fix: FixOption; voice: Voice }) {
-  if (!fix.improves.length && !fix.opens.length) return <div className={s.effects}><span className={`${s.effect} ${s.effectNone}`}>{fix.id === 'keep' ? 'Accept this tradeoff' : 'No real change'}</span></div>
+  const rows: Delta[] = [...fix.improves, ...fix.opens].map(c => ({ threatId: c.threatId, playerId: c.playerId, before: c.before, after: c.after }))
+  const { gains, costs } = tradeoffWords(rows, voice)
+  if (!gains.length && !costs.length) return <div className={s.effects}><span className={`${s.effect} ${s.effectNone}`}>No real change</span></div>
+  const p = voice.register === 'plain'
   return (
     <div className={s.effects}>
-      {fix.improves.map(c => <span key={`i${c.threatId}`} className={`${s.effect} ${s.effectGood}`}>{threatShort(c.threatId, voice)} −{(c.before - c.after).toFixed(1)} s</span>)}
-      {fix.opens.map(c => <span key={`o${c.threatId}`} className={`${s.effect} ${s.effectBad}`}>{threatShort(c.threatId, voice)} +{(c.after - c.before).toFixed(1)} s</span>)}
+      {gains[0] && <span className={`${s.effect} ${s.effectGood}`}>{p ? 'Stops' : 'Closes'}: {opening(gains[0].threatId, gains[0].playerId, voice).toLowerCase()}{gains.length > 1 ? ` +${gains.length - 1}` : ''}</span>}
+      {costs[0] && <span className={`${s.effect} ${s.effectBad}`}>{p ? 'Gives up' : 'Opens'}: {opening(costs[0].threatId, costs[0].playerId, voice).toLowerCase()}</span>}
     </div>
   )
 }
 
+export function fixLabel(f: FixOption, voice: Voice) {
+  const plain = voice.register === 'plain' ? FIX_PLAIN[f.id] : undefined
+  return { title: plain?.plain ?? f.plain, detail: plain?.detail ?? f.detail }
+}
+
 export function FixPanel({ fixes, voice, busy, onHover, onPick, onClose, onKeep }: { fixes: FixOption[]; voice: Voice; busy: boolean; onHover(f: FixOption | null): void; onPick(f: FixOption): void; onClose(): void; onKeep(): void }) {
   return (
-    <div className={s.panel} onMouseLeave={() => onHover(null)}>
+    <div className={s.panel} onMouseLeave={() => onHover(null)} role="dialog" aria-label="Fixes">
       <button className={s.closeX} onClick={onClose} aria-label="Close">×</button>
       <div className={`${s.panelKicker} ${s.def}`}>Your call</div>
       <h2>How do you want to handle it?</h2>
-      <p>Each option was already run. Hover to see where your defenders would be instead — then pick one to watch it.</p>
-      {busy && !fixes.length && <p>Testing options…</p>}
+      <p>CourtIQ already ran each one. Point at an option to see where your defenders would go — pick one to watch it.</p>
+      {busy && !fixes.length && <p>Trying options…</p>}
       <div className={s.fixes}>
-        {fixes.filter(f => f.id !== 'keep').map(f => (
-          <button key={f.id} className={s.fix} onMouseEnter={() => onHover(f)} onFocus={() => onHover(f)} onClick={() => onPick(f)}>
-            <strong>{f.plain}</strong>
-            <span>{f.detail}</span>
-            <Effects fix={f} voice={voice} />
-            <em>→</em>
-          </button>
-        ))}
+        {fixes.filter(f => f.id !== 'keep').map(f => {
+          const l = fixLabel(f, voice)
+          return (
+            <button key={f.id} className={s.fix} onMouseEnter={() => onHover(f)} onFocus={() => onHover(f)} onClick={() => onPick(f)}>
+              <strong>{l.title}</strong>
+              <span>{l.detail}</span>
+              <Effects fix={f} voice={voice} />
+              <em>→</em>
+            </button>
+          )
+        })}
         <button className={s.fix} onClick={onKeep}>
           <strong>Keep it as-is</strong>
           <span>Accept this tradeoff — every defense gives something up.</span>
           <em>→</em>
         </button>
       </div>
-      <div className={s.hint}>Or coach it yourself: click any defender on the floor.</div>
+      <div className={s.hint}>Or coach it yourself: click any of your defenders on the floor.</div>
     </div>
   )
 }
 
-export function MomentNumbers({ openFor, ready, needs, threatId, voice, finish }: { openFor: number; ready: number | null | undefined; needs: number | null | undefined; threatId: ThreatId; voice: Voice; finish?: TeachingMoment['finish'] }) {
-  const p = voice.register === 'plain'
-  const late = ready != null && needs != null ? needs - ready : null
-  const layup = finish ? finish === 'layup' : threatId === 'drive' || threatId === 'roll'
-  const action = layup ? (p ? 'Layup ready in' : 'Finish ready') : (p ? 'Shot ready in' : 'Release ready')
-  return (
-    <div className={s.numbers} style={{ gridTemplateColumns: late != null ? '1fr 1fr 1fr' : '1fr 1fr' }}>
-      {ready != null && <div className={s.number}><b>{formatSeconds(ready)}</b><span>{action}</span></div>}
-      {needs != null && <div className={`${s.number} ${s.numWarn}`}><b>{formatSeconds(needs)}</b><span>{p ? 'Closest defender needs' : 'Closest arrival'}</span></div>}
-      {late != null ? <div className={`${s.number} ${s.numThreat}`}><b>{late > 0 ? '+' : ''}{formatSeconds(Math.abs(late))}</b><span>{late > 0 ? (late < 0.1 ? (p ? 'Barely too late' : 'Just late') : (p ? 'Too late by' : 'Late by')) : 'In time by'}</span></div>
-        : <div className={`${s.number} ${s.numThreat}`}><b>{formatSeconds(openFor)}</b><span>{p ? 'Open before anyone gets there' : 'Window'}</span></div>}
-    </div>
-  )
+/** Rows come from per-player divergence windows, so labels never collide and the
+ * headline, body and bars all describe the same data. */
+export function compareRows(d: Divergence | null): Delta[] {
+  if (!d) return []
+  return d.windows.map(w => ({ threatId: w.threatId, playerId: w.playerId, before: w.before ? w.before.end - w.before.start : 0, after: w.after ? w.after.end - w.after.start : 0 }))
+    .filter(r => r.before > 0.04 || r.after > 0.04)
 }
 
-/** Short, scannable verdict; the full sentence follows as body text. */
-export function tradeoffHeadline(rows: { id: ThreatId; direction: 'closes' | 'opens' | 'similar' }[], voice: Voice): string {
-  const closed = rows.filter(r => r.direction === 'closes').map(r => threatShort(r.id, voice).toLowerCase())
-  const opened = rows.filter(r => r.direction === 'opens').map(r => threatShort(r.id, voice).toLowerCase())
-  const list = (xs: string[]) => xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0]
-  if (closed.length && opened.length) return `Closed the ${list(closed)}. Opened the ${list(opened)}.`
-  if (closed.length) return `Closed the ${list(closed)} — nothing new opened.`
-  if (opened.length) return `Worse: the ${list(opened)} opened up.`
-  return 'Not much changed.'
-}
-
-const ORDER: ThreatId[] = ['lift', 'corner', 'roll', 'drive', 'pop', 'strong']
-export function ComparePanel({ comparison, voice, label, onAgain, onBreak, onSave, onMore, onClose }: { comparison: ComparisonResult; voice: Voice; label: string; onAgain(): void; onBreak(): void; onSave(): void; onMore(): void; onClose(): void }) {
-  const rows = ORDER.map(id => comparison.tradeoffs.find(t => t.id === id)).filter((t): t is NonNullable<typeof t> => !!t && (t.before > 0.04 || t.after > 0.04))
-  const sentence = describeTradeoff(rows.map(r => ({ threatId: r.id, before: r.before, after: r.after })), voice)
+export function ComparePanel({ divergence, voice, label, onAgain, onBreak, onSave, onMore, onClose }: { divergence: Divergence | null; voice: Voice; label: string; onAgain(): void; onBreak(): void; onSave(): void; onMore(): void; onClose(): void }) {
+  const rows = compareRows(divergence)
+  const words = tradeoffWords(rows, voice)
   const max = Math.max(0.5, ...rows.flatMap(r => [r.before, r.after]))
-  const better = rows.some(r => r.direction === 'closes'), worse = rows.some(r => r.direction === 'opens')
+  const shown = [...rows].sort((a, b) => Math.abs(b.after - b.before) - Math.abs(a.after - a.before)).slice(0, 4)
   return (
-    <div className={s.panel}>
+    <div className={s.panel} role="dialog" aria-label="What changed">
       <button className={s.closeX} onClick={onClose} aria-label="Close">×</button>
-      <div className={`${s.panelKicker} ${better && !worse ? s.good : s.def}`}>{label}</div>
-      <h2>{tradeoffHeadline(rows, voice)}</h2>
-      <p>{sentence} The faint figures are where your defenders were before; trails show where each one went instead.</p>
+      <div className={`${s.panelKicker} ${words.gains.length && !words.costs.length ? s.good : s.def}`}>{label}</div>
+      <h2>{words.headline}</h2>
+      <p>{words.body}</p>
       <div className={s.bars}>
-        {rows.length ? rows.map(r => (
-          <div key={r.id} className={s.bar}>
-            <span>{threatShort(r.id, voice)}</span>
-            <div className={s.barTrack}>
-              <div className={s.barBefore} style={{ width: `${r.before / max * 100}%` }} />
-              <div className={s.barAfter} style={{ width: `${r.after / max * 100}%`, background: r.direction === 'opens' ? 'var(--threat)' : r.direction === 'closes' ? 'var(--good)' : 'var(--ink-2)' }} />
+        {shown.map(r => {
+          const dir = r.after - r.before
+          return (
+            <div key={`${r.threatId}-${r.playerId}`} className={s.bar}>
+              <span>{opening(r.threatId, r.playerId, voice)}</span>
+              <div className={s.barTrack}>
+                <div className={s.barBefore} style={{ width: `${r.before / max * 100}%` }} />
+                <div className={s.barAfter} style={{ width: `${r.after / max * 100}%`, background: dir >= 0.1 ? 'var(--threat)' : dir <= -0.1 ? 'var(--good)' : 'var(--ink-2)' }} />
+              </div>
+              <span className={s.barVal}>{voice.register === 'plain' ? (dir <= -0.1 ? 'fixed' : dir >= 0.1 ? 'worse' : 'same') : `${r.before.toFixed(1)}→${r.after.toFixed(1)}`}</span>
             </div>
-            <span className={s.barVal}>{r.before.toFixed(1)}→{r.after.toFixed(1)} s</span>
-          </div>
-        )) : <p>No pass or drive opened in either version.</p>}
+          )
+        })}
       </div>
-      <div className={s.hint} style={{ marginTop: 0 }}>Seconds open before anyone could get there. Faint bar: before. Bright bar: now.</div>
+      <div className={s.hint} style={{ marginTop: 0 }}>{voice.register === 'plain' ? 'How long each player is open before a defender gets there. Faint: before. Bright: now. Faint figures on the court show where your defenders were.' : 'Open seconds before contest. Faint = previous answer; ghosts on court = previous positions.'}</div>
       <div className={s.row} style={{ marginTop: 14 }}>
         <button className={`${s.btn} ${s.btnAttack}`} onClick={onBreak}>Break it</button>
         <button className={`${s.btn} ${s.btnPrimary}`} onClick={onSave}>Save as our answer</button>
@@ -158,41 +205,55 @@ export function BreakBar({ progress, attempts, onCancel }: { progress: number; a
         <span className={s.pulseDot} style={{ color: '#ff3d6e' }} />
         <div>
           <strong>Attacking your defense</strong><br />
-          <span>{attempts.length} counters run · {broke} found something</span>
+          <span>{attempts.length} things tried · {broke} found a way in</span>
         </div>
         <div className={s.breakTrack}><div className={s.breakFill} style={{ width: `${Math.round(progress * 100)}%` }} /></div>
         <button className={s.btn} onClick={onCancel}>Stop</button>
       </div>
       <div className={s.attempts}>
         {attempts.map(a => (
-          <div key={a.id} className={`${s.attempt} ${a.verdict === 'held' ? s.attemptHeld : s.attemptBroke}`}><i />{a.label}{a.verdict !== 'held' ? ' — opening' : ' — held'}</div>
+          <div key={a.id} className={`${s.attempt} ${a.verdict === 'held' ? s.attemptHeld : s.attemptBroke}`}><i />{plainAttack(a.label)}{a.verdict !== 'held' ? ' — found a way in' : ' — held'}</div>
         ))}
       </div>
     </>
   )
 }
 
+/** Turn search edits into what an opposing coach would actually tell his players. */
+function plainAttack(label: string): string {
+  return label
+    .replace(/Turn screen ([+−-])(\d+)°/g, (_, sign: string, deg: string) => `Set the screen at a ${Number(deg) > 20 ? 'sharper' : 'slightly different'} angle (${sign === '+' ? 'right' : 'left'})`)
+    .replace(/Lift (\d+) ms earlier/g, 'Far-wing shooter moves up sooner').replace(/Lift (\d+) ms later/g, 'Far-wing shooter waits, then moves up')
+    .replace(/Shift lift ([\d.]+) m/g, 'Far-wing shooter spaces wider')
+    .replace('Allow the reject', 'Ball handler goes away from the screen').replace('Allow a second screen', 'Screener sets it again')
+    .replace('Allow the short roll', 'Screener stops short and catches').replace('Their current offense', 'Their normal play')
+}
+function plainChanges(changes: AttackChange[], fallback: string): string {
+  if (!changes.length) return 'their normal play already finds it'
+  return plainAttack(fallback).toLowerCase()
+}
+
 export function BreakMomentPanel({ report, voice, onFix, onAccept, onReplay, onExit }: { report: AttackReport; voice: Voice; onFix(): void; onAccept(): void; onReplay(): void; onExit(): void }) {
   const w = report.selected.witness!
+  const p = voice.register === 'plain'
   const copy = explainMoment({ threatId: w.threatId, openFor: Math.max(0, w.interval.end - w.interval.start), defenderNeeds: w.arrivalSeconds, responsibleRole: w.limitingRole, cause: 'unknown', receiverRole: ROLE_OF[w.playerId], releaseIn: w.releaseSeconds }, voice)
-  const how = attackIntentLabel(report.selected)
+  const how = p ? plainChanges(report.selected.changes, attackIntentLabel(report.selected)) : attackIntentLabel(report.selected)
   const retest = report.pairedRetest
+  const late = w.arrivalSeconds - w.releaseSeconds
   return (
-    <div className={s.panel}>
+    <div className={s.panel} role="dialog" aria-label="They broke it">
       <div className={`${s.panelKicker} ${s.attack}`}><span className={s.pulseDot} />They broke it</div>
       <h2>{copy.headline}</h2>
-      <p><b style={{ color: 'var(--ink)' }}>How:</b> {how === 'Their current offense' ? 'Their normal offense already finds this.' : how}. {copy.body}</p>
-      <MomentNumbers openFor={Math.max(0, w.interval.end - w.interval.start)} ready={w.releaseSeconds} needs={w.arrivalSeconds} threatId={w.threatId} voice={voice} />
-      {retest && <p style={{ fontSize: 13 }}>{retest.current.witness ? 'Their previous counter still works against your new answer.' : 'Your fix holds against their previous counter — this is a new way in.'}</p>}
+      <p className={s.lead}>{p ? `How: ${how}.` : `Counter: ${how}.`}</p>
+      <p>{p ? `${cap(person(w.limitingDefenderId as PlayerId, voice))} needs ${spoken(w.arrivalSeconds, voice)} to get there — ${late > 0.15 ? `late by ${spoken(late, voice)}` : 'a hair late'}.` : `${person(w.limitingDefenderId as PlayerId, voice)} arrival ${spoken(w.arrivalSeconds, voice)} vs release ${spoken(w.releaseSeconds, voice)}.`}</p>
+      {retest && <p style={{ fontSize: 13 }}>{retest.current.witness ? 'Their last counter still works against your new answer.' : 'Your fix holds against their last counter — this is a new way in.'}</p>}
       <div className={s.row}>
         <button className={`${s.btn} ${s.btnPrimary}`} onClick={onFix}>Fix it</button>
         <button className={s.btn} onClick={onReplay}>Watch it again</button>
-      </div>
-      <div className={s.row} style={{ marginTop: 8 }}>
         <button className={s.btn} onClick={onAccept}>We can live with that</button>
-        <button className={s.btn} onClick={onExit}>Leave Break Mode</button>
       </div>
-      <div className={s.honesty}>CourtIQ tried {report.budget.used} basketball-legal counters (screen angle, lift timing and spacing, reject, re-screen, short roll). It’s a search, not a guarantee — real teams have more.</div>
+      <button className={s.linkBtn} onClick={onExit}>Back to my defense</button>
+      <div className={s.honesty}>{p ? `CourtIQ tried ${report.budget.used} different things an offense could run against you. Real teams can try more.` : `${report.budget.used} bounded counters (screen angle, lift timing/spacing, reject, re-screen, short roll). A search, not a guarantee.`}</div>
     </div>
   )
 }
@@ -202,12 +263,12 @@ export function BreakHeldPanel({ report, onExit, onSave }: { report: AttackRepor
     <div className={s.panel}>
       <div className={`${s.panelKicker} ${s.good}`}>It held up</div>
       <h2>CourtIQ couldn’t break it.</h2>
-      <p>{report.budget.used} counters tried — none found an opening the offense could actually use in time. Against these counters and assumptions, this answer holds.</p>
+      <p>{report.budget.used} things tried — none found an opening the offense could use in time.</p>
       <div className={s.row}>
         <button className={`${s.btn} ${s.btnPrimary}`} onClick={onSave}>Save as our answer</button>
-        <button className={s.btn} onClick={onExit}>Back to the Lab</button>
+        <button className={s.btn} onClick={onExit}>Back to my defense</button>
       </div>
-      <div className={s.honesty}>A bounded search isn’t a guarantee. It does not include every offense or player-specific matchups.</div>
+      <div className={s.honesty}>A search isn’t a guarantee. It doesn’t include every offense or your actual players.</div>
     </div>
   )
 }

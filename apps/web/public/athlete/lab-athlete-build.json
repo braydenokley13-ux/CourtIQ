@@ -5,16 +5,16 @@
   "sourceBlend": "scripts/athlete/source/lab-athlete-studio.blend",
   "meshes": {
     "LOD0_athlete": {
-      "vertices": 8489,
-      "triangles": 16336
+      "vertices": 8096,
+      "triangles": 15544
     },
     "LOD1_athlete": {
-      "vertices": 3010,
-      "triangles": 5553
+      "vertices": 2880,
+      "triangles": 5283
     },
     "LOD2_athlete": {
-      "vertices": 1155,
-      "triangles": 1960
+      "vertices": 1439,
+      "triangles": 2486
     },
     "HAIR_crop": {
       "vertices": 684,
@@ -34,16 +34,16 @@
     }
   },
   "lod0": {
-    "vertices": 8489,
-    "triangles": 16336
+    "vertices": 8096,
+    "triangles": 15544
   },
   "lod1": {
-    "vertices": 3010,
-    "triangles": 5553
+    "vertices": 2880,
+    "triangles": 5283
   },
   "lod2": {
-    "vertices": 1155,
-    "triangles": 1960
+    "vertices": 1439,
+    "triangles": 2486
   },
   "clips": [
     {
@@ -276,7 +276,7 @@
     }
   ],
   "bytes": {
-    "lab-athlete.glb": 1178160,
-    "lab-athlete-tactical.glb": 491636
+    "lab-athlete.glb": 1160928,
+    "lab-athlete-tactical.glb": 599776
   }
 }

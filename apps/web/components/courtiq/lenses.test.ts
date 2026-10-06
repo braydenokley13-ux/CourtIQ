@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultConfig } from '@/lib/defense-lab/scenario'
 import { frameAt, simulate } from '@/lib/defense-lab/simulation'
-import { LENSES, divergenceLabels, divergenceMarks, ballClock, lensMarks } from './lenses'
+import { LENSES, divergenceLabels, divergenceMarks, ballClock, lensLabels, lensMarks } from './lenses'
 import type { Lens } from './world/types'
 
 const config = createDefaultConfig()
 const result = simulate(config)
 // A frame while the problem is live: after the screen, ball handler on the ball.
-const times = [0.8, 1.6, 2.4, 3.2]
+import { analyze } from '@/lib/defense-lab/analytics'
+import { findTeachingMoment } from '@/lib/defense-lab/explore'
+const moment = findTeachingMoment(result, analyze(result))
+const times = [0.8, 1.6, 2.4, 3.2, ...(moment ? [moment.t] : [])]
 
 describe('x-ray lenses are pure and always yield marks for the default frame', () => {
   for (const lens of LENSES.filter(l => l.id !== 'normal').map(l => l.id as Lens)) {
@@ -42,7 +45,7 @@ describe('x-ray lenses are pure and always yield marks for the default frame', (
 
   it('glass corridors: one lane per available receiver, cuts stay in 0..1', () => {
     const frame = frameAt(result, 0.8)
-    const lanes = lensMarks('passing', frame, config.assumptions, null).filter(m => m.kind === 'lane')
+    const lanes = lensMarks('passing', frame, config.assumptions, null).filter(m => m.kind === 'lane' && m.id !== 'lane-drive')
     const mates = frame.players.filter(p => p.team === 'offense' && p.id !== frame.ball.owner)
     expect(lanes.length).toBe(mates.length)
     for (const l of lanes) if (l.kind === 'lane') for (const [a, b] of l.cuts ?? []) { expect(a).toBeGreaterThanOrEqual(0); expect(b).toBeLessThanOrEqual(1); expect(b).toBeGreaterThanOrEqual(a) }
@@ -54,5 +57,17 @@ describe('x-ray lenses are pure and always yield marks for the default frame', (
     const other = simulate({ ...config, answer: { ...config.answer, tagDepth: Math.min(1, config.answer.tagDepth + 0.6) } })
     const marks = divergenceMarks(result, other, 2.6)
     for (const m of marks) if (m.kind === 'path' && m.id.startsWith('dv-b-')) expect(m.points.length).toBeLessThanOrEqual(11)
+  })
+})
+
+describe('the default teaching frame shows the open man in every lens', () => {
+  it('draws the open player (ring or island) and a pinned phrase', () => {
+    expect(moment).toBeTruthy()
+    const frame = frameAt(result, moment!.t)
+    for (const lens of ['ownership', 'reach', 'passing', 'space'] as Lens[]) {
+      expect(lensLabels(lens, frame, config.assumptions).length, lens).toBeGreaterThan(0)
+    }
+    const arrival = lensMarks('reach', frame, config.assumptions, null).find(m => m.kind === 'arrival')
+    expect(arrival && arrival.kind === 'arrival' && (arrival.islands ?? []).length).toBeGreaterThan(0)
   })
 })

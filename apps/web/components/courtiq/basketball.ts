@@ -30,7 +30,7 @@ export function rulesTable(answer: TeamAnswer, voice: Voice): [string, string][]
   const rows: [string, string][] = [
     [p ? 'On the ball screen' : 'Coverage', coverageName(answer, voice)],
     [p ? 'Ball defender' : 'POA', answer.poa === 'over' ? (p ? 'Fights over the screen' : 'Over') : (p ? 'Goes under the screen' : 'Under')],
-    [p ? 'Screener’s defender' : 'Big', `${answer.bigDepth <= 2.6 ? (p ? 'Deep, near the rim' : 'Deep drop') : answer.bigDepth <= 3.6 ? (p ? 'Near the free-throw line' : 'Drop at the nail') : (p ? 'Up near the screen' : 'High / at the level')} (${answer.bigDepth.toFixed(1)} m)`],
+    [p ? 'Screener’s defender' : 'Big', `${answer.bigDepth <= 2.6 ? (p ? 'Deep, near the rim' : 'Deep drop') : answer.bigDepth <= 3.6 ? (p ? 'Near the free-throw line' : 'Drop at the nail') : (p ? 'Up near the screen' : 'High / at the level')} (${p ? `${Math.round(answer.bigDepth * 3.281)} ft from the baseline` : `${answer.bigDepth.toFixed(1)} m`})`],
     [p ? 'Helper under the basket' : 'Low man', answer.tag ? helpAmount(answer.tagDepth, voice) : (p ? 'Doesn’t help' : 'No tag')],
     [p ? 'Far-side defender' : 'Backside', answer.backside === 'x-out' ? (p ? 'Swaps with the helper' : 'X-out') : (p ? 'Stays with his shooter' : 'Stay')],
     [p ? 'When they swap' : 'Rotation timing', answer.rotationTiming === 'early' ? (p ? 'Before the pass' : 'Early') : (p ? 'When the ball is passed' : 'On the pass')],

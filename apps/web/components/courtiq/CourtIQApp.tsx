@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { answerById, formatSeconds, term, type AnswerPreset, type Voice } from '@/lib/defense-lab/corpus'
+import { answerById, term, type AnswerPreset, type Voice } from '@/lib/defense-lab/corpus'
 import { divergence } from '@/lib/defense-lab/explore'
 import { getTagGuide } from '@/lib/defense-lab/tagGuide'
 import { HIGH_PNR_PROBLEM, createDefaultConfig } from '@/lib/defense-lab/scenario'
@@ -14,10 +14,11 @@ import type { CameraMode, Lens, Mark, WorldScene, WorldStats } from './world/typ
 import PerfHud from './PerfHud'
 import { BenchOverlay, useBench } from './bench'
 import type { WorldRuntime } from './world/WorldRuntime'
-import { LENSES, divergenceLabels, divergenceMarks, lensMarks, momentMarks, whyMarks } from './lenses'
+import { LENSES, divergenceLabels, divergenceMarks, lensLabels, lensMarks, momentMarks, whyMarks } from './lenses'
 import { UI_CLOCK_MS, useLab } from './useLab'
 import Entry, { type EntryChoice } from './Entry'
 import { BreakBar, BreakHeldPanel, BreakMomentPanel, ComparePanel, FixPanel, HoldsPanel, MomentPanel } from './Panels'
+import { spoken } from './speech'
 import CoachCard from './CoachCard'
 import SaveSheet, { type SaveInput } from './SaveSheet'
 import OurSystem from './OurSystem'
@@ -49,6 +50,7 @@ export default function CourtIQApp() {
   const [debug, setDebug] = useState(false)
   const debugRef = useRef(false); debugRef.current = debug
   const [benchOn, setBenchOn] = useState(false)
+  const [tier, setTier] = useState<WorldStats['tier']>('balanced')
   useEffect(() => { const q = new URLSearchParams(window.location.search); setDebug(q.has('debug')); setBenchOn(q.has('bench')); const sel = q.get('select'); if (sel && /^[OD][1-5]$/.test(sel)) setSelected(sel as PlayerId) }, [])
 
   useEffect(() => { setSystemState(loadSystem()) }, [])
@@ -113,7 +115,8 @@ export default function CourtIQApp() {
   // ------------------------------------------------ world scene
   const [viewport, setViewport] = useState({ w: 1440, h: 900 })
   useEffect(() => { const on = () => setViewport({ w: window.innerWidth, h: window.innerHeight }); on(); window.addEventListener('resize', on); return () => window.removeEventListener('resize', on) }, [])
-  const panelOpen = ['moment', 'holds', 'fix', 'compare', 'break-moment', 'break-held'].includes(lab.phase) && !lab.playing
+  // Coaching a player collapses the problem panel to one line: one thing at a time.
+  const panelOpen = ['moment', 'holds', 'fix', 'compare', 'break-moment', 'break-held'].includes(lab.phase) && !lab.playing && !(selected && !inBreakPhase(lab.phase))
   const inBreak = lab.phase.startsWith('break')
   const whyOn = why && lab.phase === 'moment' && !!lab.moment
   const whyView = useMemo(() => whyOn && lab.moment ? whyMarks(lab.moment, lab.result, lab.time, lab.config.assumptions) : null, [whyOn, lab.moment, lab.result, lab.time, lab.config.assumptions])
@@ -182,7 +185,7 @@ export default function CourtIQApp() {
     if (lab.phase === 'break-moment' && lab.attack?.selected.witness) { const w = lab.attack.selected.witness; return [...new Set([w.playerId, w.limitingDefenderId, lab.frame.ball.owner ?? 'O1'])] }
     if (lab.phase === 'break-search') return lab.frame.players.map(p => p.id)
     return []
-  }, [tab, teach, frame, lab.phase, lab.moment, lab.attack])
+  }, [tab, teach, frame, lab.phase, lab.moment, lab.attack, lab.frame])
 
   const scene: WorldScene = useMemo(() => ({
     frame, ghost, marks, lens: tab === 'teach' ? 'normal' : whyOn ? 'space' : lens, focus,
@@ -193,7 +196,7 @@ export default function CourtIQApp() {
     rig: lab.phase === 'break-search' ? { azimuth: Math.PI + 0.28, elevation: 0.3, fov: 34, minDistance: 8 } : null,
     impact: lab.phase === 'break-moment' ? lab.attack?.selected.witness?.at ?? 1 : undefined,
     inset: ambient ? { left: Math.min(640, viewport.w * 0.45), top: 60 } : tab === 'lab' && entered && viewport.w > 820 ? { right: panelOpen ? 430 : 0, left: selected && !lab.playing && !inBreak ? 350 : 0, top: 150, bottom: 80 } : { top: 120, bottom: 150 },
-  }), [viewport, panelOpen, frame, ghost, marks, lens, focus, tab, teach, camera, selected, hover, teachPlaying, ambient, lab.playing, entered, inBreak, tagGuide, lab.phase, lab.attack, live])
+  }), [viewport, panelOpen, frame, ghost, marks, lens, whyOn, focus, tab, teach, camera, selected, hover, teachPlaying, ambient, lab.playing, entered, inBreak, tagGuide, lab.phase, lab.attack, live])
 
   // ------------------------------------------------ actions
   const ruleFired = useMemo(() => {
@@ -218,7 +221,7 @@ export default function CourtIQApp() {
   const save = useCallback((input: SaveInput, thenTeach: boolean) => {
     const { system: next, entry, version } = saveToSystem(system, { name: input.name, situationId: SITUATION_ID, scope: input.scope, when: input.when, presetIds, config: lab.config, note: input.note, accepts, knownBreaks, teachAt: lab.moment?.t })
     setSystem(next); setSaving(false)
-    notify(`“${entry.name}” saved to Our System — v${version.v}`)
+    notify(version.v > 1 ? `Updated “${entry.name}” — version ${version.v}. Find it in Our System.` : `Saved “${entry.name}”. Find it in Our System.`)
     if (thenTeach) startTeach(entry)
   }, [system, presetIds, lab.config, lab.moment, accepts, knownBreaks, setSystem, notify, startTeach])
 
@@ -235,14 +238,25 @@ export default function CourtIQApp() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement
-      if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(t.tagName) || tab !== 'lab' || !entered) return
+      const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName)
+      if (e.key === 'Escape') {
+        // Close the top-most thing, one at a time.
+        if (saving) { setSaving(false); return }
+        if (selected) { setSelected(null); return }
+        if (why) { setWhy(false); return }
+        if (lens !== 'normal') { setLens('normal'); return }
+        if (lab.phase === 'fix' || lab.phase === 'compare') { lab.setPhase(lab.moment ? 'moment' : 'holds'); return }
+        return
+      }
+      if (typing || saving || tab !== 'lab' || !entered) return
       if (e.code === 'Space') { e.preventDefault(); if (lab.playing) lab.pause(); else lab.play(lab.time >= lab.duration - 0.02 ? 0 : null, null) }
-      if (e.key === 'ArrowRight') lab.seek(lab.time + 0.1)
-      if (e.key === 'ArrowLeft') lab.seek(lab.time - 0.1)
-      if (e.key === 'Escape') { setSelected(null); setLens('normal') }
+      if (t.getAttribute('role') === 'slider' || t === document.body) {
+        if (e.key === 'ArrowRight') { e.preventDefault(); lab.seek(lab.time + 0.1) }
+        if (e.key === 'ArrowLeft') { e.preventDefault(); lab.seek(lab.time - 0.1) }
+      }
     }
     window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey)
-  }, [lab, tab, entered])
+  }, [lab, tab, entered, saving, selected, why, lens])
 
   // ------------------------------------------------ labels pinned to the court
   const labels = useMemo(() => {
@@ -252,17 +266,18 @@ export default function CourtIQApp() {
       return out
     }
     if (ambient) return out
+    if (lens !== 'normal' && !whyView) for (const l of lensLabels(lens, frame, lab.config.assumptions)) out.push({ anchor: l.anchor, text: l.text, tone: l.tone === 'threat' ? s.tagThreat : l.tone === 'warn' ? s.tagWarn : l.tone === 'good' ? s.tagGood : s.tagDef })
     if (whyView) for (const l of whyView.labels) out.push({ anchor: l.anchor, text: l.text, tone: l.kind === 'reach' ? s.tagDef : l.kind === 'help' ? s.tagWarn : '', lift: l.kind === 'pass' ? 0.4 : 0.1 })
     if (lab.phase === 'moment' && lab.moment && lens === 'normal') {
       const m = lab.moment
-      out.push({ anchor: m.receiverId, text: `Open ${formatSeconds(m.openFor)}`, tone: s.tagThreat })
-      if (m.bestDefenderId) out.push({ anchor: m.bestDefenderId, text: m.defenderNeeds != null ? `Needs ${formatSeconds(m.defenderNeeds)}` : 'Late', tone: s.tagWarn })
-      if (m.pulledDefenderId && m.pulledDefenderId !== m.bestDefenderId) out.push({ anchor: m.pulledDefenderId, text: voice.register === 'plain' ? 'Helping here' : 'Tagging', tone: s.tagDef })
+      out.push({ anchor: m.receiverId, text: `#${m.receiverId.slice(1)} · open`, tone: s.tagThreat })
+      if (m.bestDefenderId) out.push({ anchor: m.bestDefenderId, text: `#${m.bestDefenderId.slice(1)} · ${m.defenderNeeds != null && m.releaseIn != null && m.defenderNeeds > m.releaseIn ? `late ${spoken(m.defenderNeeds - m.releaseIn, voice)}` : 'just in time'}`, tone: s.tagWarn })
+      if (m.pulledDefenderId && m.pulledDefenderId !== m.bestDefenderId) out.push({ anchor: m.pulledDefenderId, text: `#${m.pulledDefenderId.slice(1)} · ${voice.register === 'plain' ? 'helping here' : 'tagging'}`, tone: s.tagDef })
     }
     if (lab.phase === 'break-moment' && lab.attack?.selected.witness) {
       const w = lab.attack.selected.witness
-      out.push({ anchor: w.playerId, text: `Open ${formatSeconds(w.interval.end - w.interval.start)}`, tone: s.tagThreat })
-      out.push({ anchor: w.limitingDefenderId, text: `Needs ${formatSeconds(w.arrivalSeconds)}`, tone: s.tagWarn })
+      out.push({ anchor: w.playerId, text: `#${w.playerId.slice(1)} · open`, tone: s.tagThreat })
+      out.push({ anchor: w.limitingDefenderId, text: `#${w.limitingDefenderId.slice(1)} · late ${spoken(Math.max(0, w.arrivalSeconds - w.releaseSeconds), voice)}`, tone: s.tagWarn })
     }
     if (lab.phase === 'compare' && compareDivergence) {
       for (const w of compareDivergence.windows) {
@@ -276,7 +291,7 @@ export default function CourtIQApp() {
     if (selected && !out.some(l => l.anchor === selected)) out.push({ anchor: selected, text: who(selected, voice), tone: s.tagDef })
     if (hover && hover !== selected && !out.some(l => l.anchor === hover)) out.push({ anchor: hover, text: who(hover, voice), tone: '' })
     return out
-  }, [tab, teach, voice, ambient, lab.phase, lab.moment, lens, lab.attack, compareDivergence, selected, hover, whyView, hoverFix, lab.previous, lab.result, lab.time])
+  }, [tab, teach, voice, ambient, frame, lab.config.assumptions, lab.phase, lab.moment, lens, lab.attack, compareDivergence, selected, hover, whyView, hoverFix, lab.previous, lab.result, lab.time])
 
   // ------------------------------------------------ ?bench (scripts/perf/bench.mjs and on-device checks)
   const bench = useBench(benchOn, { lab, runtime, enter: () => enterLab(null), setLens })
@@ -291,7 +306,7 @@ export default function CourtIQApp() {
   const answerSummary = coverageName(lab.config.answer, voice)
 
   return (
-    <div className={s.app}>
+    <div className={s.app} data-quality={tier}>
       <div className={s.world}>
         <CourtWorld scene={scene} onRuntime={r => { runtime.current = r }} callbacks={{
           onSelect: id => { if (tab !== 'lab' || !entered) return; setSelected(id); if (id && lab.playing) lab.pause() },
@@ -300,6 +315,7 @@ export default function CourtIQApp() {
           onTagDepth: (depth, final) => { if (final) change({ tagDepth: Math.round(depth * 100) / 100 }, 'Help depth') },
           onCameraMode: m => setCamera(m),
           onStats: st => { if (debugRef.current) setStats(st) },
+          onTier: setTier,
         }}>
           {labels.map((l, i) => (
             <div key={`${i}-${l.anchor}-${l.text}`} className={s.tag} data-anchor={l.anchor} data-lift={l.lift ?? 0}>
@@ -320,11 +336,11 @@ export default function CourtIQApp() {
           ))}
         </nav>
         <div className={s.topRight}>
-          <span className={s.chip} title="Program">{system.program} · {system.entries.length} answers</span>
+          {system.entries.length > 0 && <button className={s.chip} onClick={() => setTab('system')} title="Open Our System">{system.program} · {system.entries.length} saved</button>}
           <div className={s.voice} role="group" aria-label="Language">
-            <button className={system.register === 'plain' ? s.voiceOn : ''} onClick={() => setSystem({ ...system, register: 'plain' })}>Plain</button>
-            <button className={system.register === 'coach' ? s.voiceOn : ''} onClick={() => setSystem({ ...system, register: 'coach' })}>Coach</button>
-            <button className={system.register === 'program' ? s.voiceOn : ''} title={Object.keys(system.terms).length ? 'Our own words' : 'Name things in Our System → Our words'} onClick={() => setSystem({ ...system, register: 'program' })}>Ours</button>
+            <button className={system.register === 'plain' ? s.voiceOn : ''} onClick={() => setSystem({ ...system, register: 'plain' })}>Simple words</button>
+            <button className={system.register === 'coach' ? s.voiceOn : ''} onClick={() => setSystem({ ...system, register: 'coach' })}>Coaching terms</button>
+            <button className={system.register === 'program' ? s.voiceOn : ''} title={Object.keys(system.terms).length ? 'Our own words' : 'Name things in Our System → Our words'} onClick={() => setSystem({ ...system, register: 'program' })}>Our words</button>
           </div>
         </div>
       </header>
@@ -336,10 +352,10 @@ export default function CourtIQApp() {
           <div className={s.kicker} style={{ marginBottom: 0 }}><i />{voice.register === 'plain' ? 'Ball screen · top of the key' : 'High P&R · middle'}</div>
           <div className={s.sitTitle}>{voice.terms?.[lab.config.answer.coverage] ? `${voice.terms[lab.config.answer.coverage]} ` : ''}{voice.register === 'plain' ? 'vs. a ball screen with a shooter lifting' : 'vs. high P&R → weakside lift'}</div>
           <div className={s.sitMeta}>
-            <button className={s.pill} onClick={() => setSelected('D5')}><span className={s.pillDot} />{answerSummary}</button>
-            <button className={s.pill} onClick={() => setSelected('D3')}>{voice.register === 'plain' ? 'Helper' : term('low-man', voice)}: {lab.config.answer.tag ? `${Math.round(lab.config.answer.tagDepth * 100)}%` : 'home'}</button>
-            <button className={s.pill} onClick={() => setSelected('D4')}>{lab.config.answer.backside === 'x-out' ? (voice.register === 'plain' ? 'Far side swaps' : term('x-out', voice)) : 'Far side stays'}</button>
-            <button className={s.pill} onClick={() => { setEntered(false); lab.setPhase('ambient'); lab.pause() }}>Change problem</button>
+            <button className={s.pill} onClick={() => setSelected('D5')}><span className={s.pillDot} />{answerSummary} ✎</button>
+            <button className={s.pill} onClick={() => setSelected('D3')}>{voice.register === 'plain' ? `Helper: ${!lab.config.answer.tag ? 'stays home' : lab.config.answer.tagDepth > 0.75 ? 'goes all the way' : lab.config.answer.tagDepth > 0.4 ? 'goes halfway' : 'steps in a little'}` : `${term('low-man', voice)}: ${lab.config.answer.tag ? `${Math.round(lab.config.answer.tagDepth * 100)}% tag` : 'no tag'}`} ✎</button>
+            <button className={s.pill} onClick={() => setSelected('D4')}>{lab.config.answer.backside === 'x-out' ? (voice.register === 'plain' ? 'Far-side defender covers for the helper' : term('x-out', voice)) : (voice.register === 'plain' ? 'Far-side defender stays home' : 'Backside stays')} ✎</button>
+            <button className={s.pill} onClick={() => { setEntered(false); lab.setPhase('ambient'); lab.pause() }}>New problem</button>
           </div>
         </div>
 
@@ -365,13 +381,16 @@ export default function CourtIQApp() {
             onCounter={counter => lab.setConfig(c => ({ ...c, counter }))} onConfig={f => lab.setConfig(f)} />
         )}
 
-        {lab.phase === 'moment' && moment && <MomentPanel moment={moment} voice={voice} robust={lab.robust} whyOn={whyOn} fixesReady={!!lab.explore?.fixes.length}
+        {lab.phase === 'moment' && moment && !selected && <MomentPanel moment={moment} voice={voice} robust={lab.robust} whyOn={whyOn} fixesReady={!!lab.explore?.fixes.length}
           onWhy={() => { setLens('normal'); setWhy(w => !w) }}
           onFix={() => { setWhy(false); setLens('normal'); lab.setPhase('fix') }} onBreak={lab.breakDefense} onSave={() => setSaving(true)} />}
-        {lab.phase === 'holds' && <HoldsPanel voice={voice} onBreak={lab.breakDefense} onSave={() => setSaving(true)} onAgain={() => lab.run()} />}
-        {lab.phase === 'fix' && <FixPanel fixes={lab.explore?.fixes ?? []} busy={lab.exploreBusy} voice={voice} onHover={lab.setHoverFix} onPick={lab.applyFix} onClose={() => lab.setPhase(moment ? 'moment' : 'ready')} onKeep={() => setSaving(true)} />}
-        {lab.phase === 'compare' && lab.comparison && !lab.playing && <ComparePanel comparison={lab.comparison} voice={voice} label={lab.previous?.label ? `After: ${lab.previous.label}` : 'What changed'}
+        {lab.phase === 'holds' && !selected && <HoldsPanel voice={voice} onBreak={lab.breakDefense} onSave={() => setSaving(true)} onAgain={() => lab.run()} />}
+        {lab.phase === 'fix' && !selected && <FixPanel fixes={lab.explore?.fixes ?? []} busy={lab.exploreBusy} voice={voice} onHover={lab.setHoverFix} onPick={lab.applyFix} onClose={() => lab.setPhase(moment ? 'moment' : 'ready')} onKeep={() => setSaving(true)} />}
+        {lab.phase === 'compare' && compareDivergence && !lab.playing && !selected && <ComparePanel divergence={compareDivergence} voice={voice} label={lab.previous?.label ? `After: ${lab.previous.label}` : 'What changed'}
           onAgain={() => lab.run({ compareTo: lab.previous })} onBreak={lab.breakDefense} onSave={() => setSaving(true)} onMore={() => lab.setPhase('fix')} onClose={() => lab.setPhase(moment ? 'moment' : 'holds')} />}
+        {selected && !lab.playing && !inBreak && ['moment', 'holds', 'fix', 'compare'].includes(lab.phase) && (
+          <button className={s.collapsed} onClick={() => setSelected(null)}>{lab.phase === 'compare' ? 'What changed' : 'The problem'} — show again</button>
+        )}
         {lab.phase === 'break-search' && <BreakBar progress={lab.attackProgress} attempts={lab.attempts} onCancel={lab.cancelBreak} />}
         {lab.phase === 'break-moment' && lab.attack && <BreakMomentPanel report={lab.attack} voice={voice} onFix={lab.fixBreak} onAccept={() => setSaving(true)}
           onReplay={() => { lab.setPhase('break-play'); lab.play(0, lab.attack!.selected.witness!.at, () => lab.setPhase('break-moment')) }} onExit={lab.cancelBreak} />}
@@ -386,7 +405,7 @@ export default function CourtIQApp() {
             const set = (x: number) => lab.seek((x - rect.left) / rect.width * lab.duration)
             set(e.clientX); el.setPointerCapture(e.pointerId)
             el.onpointermove = ev => set(ev.clientX); el.onpointerup = () => { el.onpointermove = null }
-          }} role="slider" aria-label="Possession time" aria-valuemin={0} aria-valuemax={lab.duration} aria-valuenow={lab.time}>
+          }} role="slider" aria-label="Possession time" aria-valuemin={0} aria-valuemax={lab.duration} aria-valuenow={lab.time} aria-valuetext={`${lab.time.toFixed(1)} seconds`} tabIndex={0}>
             <div className={s.scrubTrack} />
             <div className={s.scrubFill} style={{ width: `${lab.time / lab.duration * 100}%` }} />
             {checkpoints.map(c => <span key={c.label} className={s.tick} style={{ left: `${c.t / lab.duration * 100}%` }}>{c.label}</span>)}
@@ -401,7 +420,7 @@ export default function CourtIQApp() {
         </div>
       </>}
 
-      {tab === 'teach' && teach && <TeachHud teach={teach} setTeach={setTeach} voice={voice} frame={frame} checkpoints={teachCheckpoints} playing={teachPlaying} setPlaying={setTeachPlaying} t={teachT} setT={setTeachT} system={system} onPickEntry={e => startTeach(e)} />}
+      {tab === 'teach' && teach && <TeachHud teach={teach} setTeach={setTeach} voice={voice} frame={frame} checkpoints={teachCheckpoints} playing={teachPlaying} setPlaying={setTeachPlaying} t={teachT} setT={setTeachT} system={system} onPickEntry={e => startTeach(e)} hasLab={entered} onGoLab={() => setTab('lab')} />}
 
       {tab === 'system' && <OurSystem system={system} voice={voice} onOpen={openEntry} onTeach={e => startTeach(e)} onSolve={() => { setTab('lab'); setEntered(false); lab.setPhase('ambient') }}
         onTerms={terms => setSystem({ ...system, terms })} onProgram={program => setSystem({ ...system, program })} />}
@@ -417,19 +436,26 @@ export default function CourtIQApp() {
   )
 }
 
-function TeachHud({ teach, setTeach, voice, frame, checkpoints, playing, setPlaying, t, setT, system, onPickEntry }: {
+function TeachHud({ teach, setTeach, voice, frame, checkpoints, playing, setPlaying, t, setT, system, onPickEntry, hasLab, onGoLab }: {
   teach: TeachState
   setTeach(fn: (t: TeachState | null) => TeachState | null): void; voice: Voice; frame: ReturnType<typeof frameAt>
   checkpoints: { t: number; job: NonNullable<ReturnType<typeof primaryJob>> }[]; playing: boolean; setPlaying(p: boolean): void; t: number; setT(t: number): void
-  system: ProgramSystem; onPickEntry(e: SystemEntry | null): void
+  system: ProgramSystem; onPickEntry(e: SystemEntry | null): void; hasLab: boolean; onGoLab(): void
 }) {
   const step = checkpoints[teach.step]
   const atCheckpoint = !!step && Math.abs(t - step.t) < 0.03 && !playing
   const done = !playing && teach.step >= checkpoints.length && t > 0
+  if (!teach.entry && !hasLab) return (
+    <div className={s.teachEmpty}>
+      <h2>Teach starts from your answer.</h2>
+      <p>Try a problem in the Lab and save how you want to guard it. Then CourtIQ shows each player only his job — from his side of the floor.</p>
+      <button className={`${s.btn} ${s.btnPrimary}`} onClick={onGoLab}>Go to the Lab</button>
+    </div>
+  )
   return <>
     <div className={s.situation}>
       <div className={s.kicker} style={{ marginBottom: 0 }}><i />Teach</div>
-      <div className={s.sitTitle}>{teach.entry ? `${teach.entry.name} — v${teach.entry.versions.at(-1)!.v}` : 'Current Lab answer (not saved)'}</div>
+      <div className={s.sitTitle}>{teach.entry ? `${teach.entry.name} — version ${teach.entry.versions.at(-1)!.v}` : 'What you just tried in the Lab'}</div>
       <div className={s.sitMeta}>
         {system.entries.map(e => <button key={e.id} className={s.pill} onClick={() => onPickEntry(e)}>{e.name}</button>)}
       </div>
@@ -438,7 +464,7 @@ function TeachHud({ teach, setTeach, voice, frame, checkpoints, playing, setPlay
       <span className={s.railLabel} style={{ alignSelf: 'center' }}>I’m teaching</span>
       {DEFENDER_ORDER.map(id => <button key={id} className={`${s.segBtn} ${teach.player === id ? s.segOn : ''}`} onClick={() => { setTeach(x => x && { ...x, player: id, step: 0 }); setT(0); setPlaying(false) }}>{who(id, voice)}</button>)}
       <span style={{ width: 10 }} />
-      {(['team', 'player', 'overhead'] as const).map(v => <button key={v} className={`${s.segBtn} ${teach.view === v ? s.segOn : ''}`} onClick={() => setTeach(x => x && { ...x, view: v })}>{v === 'team' ? 'Team view' : v === 'player' ? 'His eyes' : 'Overhead'}</button>)}
+      {(['team', 'player', 'overhead'] as const).map(v => <button key={v} className={`${s.segBtn} ${teach.view === v ? s.segOn : ''}`} onClick={() => setTeach(x => x && { ...x, view: v })}>{v === 'team' ? 'Whole team' : v === 'player' ? 'Through his eyes' : 'Bird’s-eye'}</button>)}
     </div>
     {!teach.player ? (
       <div className={s.coachLine}><small>Pick a player</small><div>Who are you teaching? CourtIQ shows only his job, from his point of view.</div></div>
@@ -457,3 +483,5 @@ function TeachHud({ teach, setTeach, voice, frame, checkpoints, playing, setPlay
     )}
   </>
 }
+
+function inBreakPhase(phase: string) { return phase.startsWith('break') }

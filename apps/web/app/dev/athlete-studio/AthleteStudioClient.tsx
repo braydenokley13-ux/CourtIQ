@@ -8,7 +8,7 @@ import { createLabAthlete, loadGlbAthleteAsset, type AthleteMotion, type LabAthl
 /** Minimal stand-in for the engine: integrates position/yaw/phase exactly like
  * lib/defense-lab/simulation.ts (phase += speed * dt * 4.2, accel-limited velocity,
  * rate-limited yaw) so the review stage exercises the same AthleteMotion inputs. */
-interface Cmd { vx: number; vz: number; yaw: number; pose: string; hands: number; hasBall?: boolean }
+interface Cmd { vx: number; vz: number; yaw: number; pose: string; hands: number; hasBall?: boolean; passU?: number }
 interface Agent {
   id: string; team: 'offense' | 'defense'; number: number; x0: number; z0: number
   script: (t: number) => Cmd
@@ -51,7 +51,7 @@ function gallery(): Agent[] {
   add('O3', 'offense', 33, dx[2], -1.2, t => {
     const u = t % 4
     const pose = u < 1.6 ? 'catch' : u < 2.6 ? 'pass' : 'ready'
-    return { vx: 0, vz: 0, yaw: faceCamera, pose, hands: .8, hasBall: u >= 1.6 && u < 2.6 }
+    return { vx: 0, vz: 0, yaw: faceCamera, pose, hands: .8, hasBall: u >= 1.6 && u < 2.6, passU: u - 1.6 }
   })
   add('O4', 'offense', 44, dx[3], -1.2, t => ({ vx: Math.sin(t * .9) * 1.3, vz: 0, yaw: Math.sign(Math.cos(t * .9)) > 0 ? Math.PI / 2 : -Math.PI / 2, pose: 'dribble', hands: .25, hasBall: true }))
   add('O5', 'offense', 55, dx[4], -1.2, t => {
@@ -106,7 +106,7 @@ export function AthleteStudioClient() {
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
     renderer.setPixelRatio(1); renderer.setSize(w, h)
     renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = .95
-    renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap
+    renderer.shadowMap.enabled = q.get('noshadow') !== '1'; renderer.shadowMap.type = THREE.PCFShadowMap
     el.appendChild(renderer.domElement)
     const scene = new THREE.Scene(); scene.background = new THREE.Color('#10151a')
     const pm = new THREE.PMREMGenerator(renderer)
@@ -141,10 +141,17 @@ export function AthleteStudioClient() {
         // Ball: a dribbled ball bounces in front; a passed/caught ball sits in the hands.
         let ballPos = { x: s.x + Math.sin(s.yaw) * .22, y: .5 + Math.abs(Math.sin(time * 9)) * .65, z: s.z + Math.cos(s.yaw) * .22 }
         if (cmd.pose === 'pass' || cmd.pose === 'catch' || cmd.pose === 'shoot') ballPos = { x: s.x + Math.sin(s.yaw) * (cmd.pose === 'catch' ? .55 : .3), y: cmd.pose === 'shoot' ? 1.9 : 1.3, z: s.z + Math.cos(s.yaw) * (cmd.pose === 'catch' ? .55 : .3) }
+        if (cmd.pose === 'pass') { const d = .3 + 7 * Math.max(0, cmd.passU ?? 0); ballPos = { x: s.x + Math.sin(s.yaw) * d, y: 1.3, z: s.z + Math.cos(s.yaw) * d } }
         if (cmd.hasBall) { ballShown = true; ball.position.set(ballPos.x, ballPos.y, ballPos.z) }
         a.athlete.root.position.set(s.x, 0, s.z)
         const motion: AthleteMotion = { time, speed, velocity: { x: s.vx, z: s.vz }, defensive: a.team === 'defense', pose: cmd.pose, phase: s.phase, hands: cmd.hands, ball: ballPos, hasBall: !!cmd.hasBall, facing: s.yaw }
         a.athlete.setPose(motion)
+        if (a === agents[Math.min(focus, agents.length - 1)]) {
+          const trace = ((window as unknown as { __footTrace?: number[][] }).__footTrace ??= [])
+          const p = new THREE.Vector3(), row = [time, s.x, s.z, Math.hypot(s.vx, s.vz)]
+          for (const name of ['foot_l', 'foot_r']) { a.athlete.figure.getObjectByName(name)!.getWorldPosition(p); row.push(p.x, p.y, p.z) }
+          const dbg = a.athlete.figure.userData.motionDebug as { lockOn: boolean[] }; row.push(dbg.lockOn[0] ? 1 : 0, dbg.lockOn[1] ? 1 : 0); trace.push(row)
+        }
       }
       ball.visible = ballShown
     }
@@ -175,6 +182,7 @@ export function AthleteStudioClient() {
       camera.position.copy(eye); camera.lookAt(center); camera.updateProjectionMatrix()
       key.target.position.copy(center); key.position.set(center.x - 5, 9, center.z + 6)
       renderer.render(scene, camera)
+      ;(window as unknown as { __rinfo?: object }).__rinfo = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures }
       hudTimer += 1
       if (hudTimer % 10 === 0 && f.athlete) {
         const d = f.athlete.figure.userData.motionDebug as { clip: string; stride: number; cadence: number; special: string } | undefined

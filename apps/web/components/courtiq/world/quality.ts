@@ -26,7 +26,8 @@ export interface TierSettings {
   maxPixelRatio: number
   /** Lowest pixel ratio the controller may drop to inside this tier. */
   minScale: number
-  shadows: { enabled: boolean; mapSize: number }
+  /** stride: re-render the shadow map every Nth rendered frame during playback (exact whenever paused). */
+  shadows: { enabled: boolean; mapSize: number; stride: number }
   /** Passed to labAthlete.setQuality (mapped safely until 'balanced' exists there). */
   athlete: QualityTier
   /** Passed to setEnvironmentQuality when exported; otherwise only the build-time option applies. */
@@ -42,9 +43,9 @@ export interface TierSettings {
 }
 
 const TABLE: Record<QualityTier, TierSettings> = {
-  high: { tier: 'high', maxPixelRatio: 2, minScale: 0.85, shadows: { enabled: true, mapSize: 2048 }, athlete: 'high', environment: 'high', markDetail: 1, ghost: { radial: 10, sphere: [12, 8] }, antialias: true, contactShadowTex: 64 },
-  balanced: { tier: 'balanced', maxPixelRatio: 1.25, minScale: 0.7, shadows: { enabled: true, mapSize: 1024 }, athlete: 'balanced', environment: 'balanced', markDetail: 0.75, ghost: { radial: 8, sphere: [10, 6] }, antialias: true, contactShadowTex: 64 },
-  low: { tier: 'low', maxPixelRatio: 1, minScale: 0.55, shadows: { enabled: false, mapSize: 512 }, athlete: 'low', environment: 'low', markDetail: 0.5, ghost: { radial: 6, sphere: [8, 6] }, antialias: false, contactShadowTex: 32 },
+  high: { tier: 'high', maxPixelRatio: 2, minScale: 0.85, shadows: { enabled: true, mapSize: 2048, stride: 1 }, athlete: 'high', environment: 'high', markDetail: 1, ghost: { radial: 10, sphere: [12, 8] }, antialias: true, contactShadowTex: 64 },
+  balanced: { tier: 'balanced', maxPixelRatio: 1.25, minScale: 0.7, shadows: { enabled: true, mapSize: 1024, stride: 2 }, athlete: 'balanced', environment: 'balanced', markDetail: 0.75, ghost: { radial: 8, sphere: [10, 6] }, antialias: true, contactShadowTex: 64 },
+  low: { tier: 'low', maxPixelRatio: 1, minScale: 0.55, shadows: { enabled: false, mapSize: 512, stride: 1 }, athlete: 'low', environment: 'low', markDetail: 0.5, ghost: { radial: 6, sphere: [8, 6] }, antialias: false, contactShadowTex: 32 },
 }
 export const tierSettings = (t: QualityTier): TierSettings => TABLE[t]
 export const tierIndex = (t: QualityTier) => TIERS.indexOf(t)

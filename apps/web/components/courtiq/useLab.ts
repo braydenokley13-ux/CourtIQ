@@ -27,7 +27,12 @@ export type Phase =
 export interface Snapshot { config: LabConfig; result: SimulationResult; moment: TeachingMoment | null; label: string }
 
 /** React-visible playback clock cadence (ms). The world itself reads the clock every frame. */
-export const UI_CLOCK_MS = 80
+export const UI_CLOCK_MS = (() => {
+  // ?uiclock=0 restores a React update on every animation frame (A/B knob for scripts/perf/bench.mjs).
+  if (typeof window === 'undefined') return 80
+  const v = Number(new URLSearchParams(window.location.search).get('uiclock'))
+  return Number.isFinite(v) && new URLSearchParams(window.location.search).has('uiclock') ? Math.max(0, v) : 80
+})()
 
 const copy = <T,>(x: T): T => JSON.parse(JSON.stringify(x)) as T
 

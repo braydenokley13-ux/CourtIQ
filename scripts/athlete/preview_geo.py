@@ -14,8 +14,10 @@ rig = next(o for o in bpy.data.objects if o.type == 'ARMATURE')
 def hexc(h): h = h.lstrip('#'); return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
 atlas = Image.new('RGB', (512, 512), (128, 128, 128))
 d = ImageDraw.Draw(atlas)
+dbg = opts.get('debug')
 sw = {'skin': skin, 'hair': hairc, 'trim': '#e6efe9', 'shorts': '#12363e', 'shoe': '#eceae0', 'sole': '#2d3836', 'eye_white': '#eeeeea', 'feature': '#1a1210', 'lips': '#8b4b3c', 'sock': '#f0f0ea', 'lace': '#dcdcd4', 'skin_shadow': '#a06040', 'hair_hi': '#3a2a1c', 'accent': '#d2672b'}
 names = ['skin', 'hair', 'trim', 'shorts', 'shoe', 'sole', 'eye_white', 'feature', 'lips', 'sock', 'lace', 'skin_shadow', 'hair_hi', 'accent']
+if dbg: sw['shorts']='#e07020'; sw['trim']='#ff00ff'
 for i, n in enumerate(names):
     c, r = i % 8, i // 8
     d.rectangle([c*64, r*64, c*64+63, r*64+63], fill=sw[n])
@@ -53,7 +55,7 @@ pose = opts.get('pose', 'none')
 if pose == 'ready':
     sys.path.insert(0, ROOT + '/scripts/athlete')
     import motion_lib
-    R = motion_lib.Rig(rig); motion_lib.apply_pose(R, motion_lib.pose_defense_ready(0.5, 2.0)); bpy.context.view_layer.update()
+    R = motion_lib.Rig(rig); motion_lib.apply_pose(R, motion_lib.pose_defense_ready(0.5, 2.0) if opts.get('clip','ready')=='ready' else motion_lib.gait_pose(motion_lib.GAITS[opts['clip']], float(opts.get('p',0)))); bpy.context.view_layer.update()
 def cam(name, eye, target, ortho=None, fov=None):
     cd = bpy.data.cameras.new(name)
     if ortho: cd.type = 'ORTHO'; cd.ortho_scale = ortho
@@ -66,6 +68,8 @@ views = {
  'back': cam('c3', (0, 6, 1.1), (0, 0, .95), ortho=2.3 if pose == 'none' else 2.1),
  'head': cam('c4', (1.2, -1.6, 1.75), (0, -.04, 1.69), fov=85),
  'head_side': cam('c5', (1.6, -.2, 1.74), (0, -.04, 1.70), ortho=.42),
+ 'hip': cam('c7', (2.0, -.3, 1.05), (0, 0, 1.05), ortho=.7),
+ 'hipf': cam('c8', (1.0, -2.0, 1.25), (0, 0, 1.0), ortho=.9),
  'torso': cam('c6', (-1.4, -1.9, 1.55), (0, 0, 1.2), fov=55),
 }
 keys = opts.get('views', 'front,side,back,head,head_side,torso').split(',')

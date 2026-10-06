@@ -91,10 +91,6 @@ mod = body.modifiers.new('Production body reduction', 'DECIMATE')
 mod.ratio = .5
 bpy.ops.object.modifier_apply(modifier=mod.name)
 
-select(jersey)
-jm = jersey.modifiers.new('Jersey reduction', 'DECIMATE')
-jm.ratio = .62
-bpy.ops.object.modifier_apply(modifier=jm.name)
 pieces = [jersey, face]
 pieces.append(G.build_shorts(body, MATS))
 for side in 'lr':
@@ -169,7 +165,7 @@ def make_lod(src, name, ratio, merge_fingers=True):
 
 
 lod = make_lod(body, 'LOD1_athlete', .34)
-lod2 = make_lod(body, 'LOD2_athlete', .12)
+lod2 = make_lod(body, 'LOD2_athlete', .16)
 
 # ---- 3. rig bind: relaxed curled hands baked into the bind pose, ambient occlusion in a
 # real basketball stance, then the animation library.
@@ -275,7 +271,7 @@ kwargs = dict(export_format='GLB', use_selection=True, export_animations=True, e
               export_extras=True)
 bpy.ops.export_scene.gltf(filepath=OUT + '/lab-athlete.glb', **kwargs)
 bpy.ops.object.select_all(action='DESELECT')
-for ob in [rig, lod2] + hairs:
+for ob in [rig, lod] + hairs:
     ob.select_set(True)
 bpy.context.view_layer.objects.active = rig
 bpy.ops.export_scene.gltf(filepath=OUT + '/lab-athlete-tactical.glb', **kwargs)

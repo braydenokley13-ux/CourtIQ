@@ -55,6 +55,8 @@ export default function WorldLookClient() {
     container.appendChild(canvas)
     const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(view.fov, 1, 0.06, 100)
     const env = buildLabEnvironment(scene, renderer, false, () => { renderer.shadowMap.needsUpdate = true; dirty = true }, { quality })
+    const off = (q.get('off') ?? '').split(',').filter(Boolean)
+    { const st = env.userData.analysisState as { base: Record<string, number>; key: THREE.Light }; for (const k of off) if (k in st.base) st.base[k] = 0; if (off.includes('env')) scene.environmentIntensity = 0, st.base.envIntensity = 0 }
     const controls = new OrbitControls(camera, canvas)
     controls.target.set(...(view.target as unknown as [number, number, number])); camera.position.set(...(view.eye as unknown as [number, number, number])); controls.update()
     const then = q.get('then') as 'high' | 'balanced' | 'low' | null

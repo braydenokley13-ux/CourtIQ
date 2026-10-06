@@ -131,13 +131,13 @@ function arrivalMaterial() {
   const m = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.NormalBlending,
     uniforms: {
-      uSrc: { value: Array.from({ length: MAX_SRC }, () => new THREE.Vector4(0, 0, 0, 0)) }, uN: { value: 0 },
+      uSrc: { value: Array.from({ length: MAX_SRC }, () => new THREE.Vector4(0, 0, 0, 0)) }, uN: { value: 0 }, uIsl: { value: Array.from({ length: 3 }, () => new THREE.Vector3(0, 0, 0)) }, uNI: { value: 0 },
       uAccel: { value: 6.2 }, uVmax: { value: 4.7 }, uReact: { value: 0.3 }, uContest: { value: 1.25 }, uBall: { value: -1 },
       uOpacity: { value: 1 }, uTime: { value: 0 },
       uBand: { value: new THREE.Color(TONES.defense) }, uThreat: { value: new THREE.Color(TONES.threat) },
     },
     vertexShader: VERT,
-    fragmentShader: `uniform vec4 uSrc[${MAX_SRC}]; uniform int uN; uniform float uAccel, uVmax, uReact, uContest, uBall, uOpacity, uTime; uniform vec3 uBand, uThreat;
+    fragmentShader: `uniform vec4 uSrc[${MAX_SRC}]; uniform int uN; uniform vec3 uIsl[3]; uniform int uNI; uniform float uAccel, uVmax, uReact, uContest, uBall, uOpacity, uTime; uniform vec3 uBand, uThreat;
 varying vec2 vUv; varying vec3 vW;
 float travelT(float d, float v0){
   if (d <= 0.0) return 0.0;
@@ -160,18 +160,24 @@ void main(){
   float w = max(fwidth(T) / step_, 0.015);
   float line = (1.0 - smoothstep(0.0, w * 1.6, min(f, 1.0 - f))) * step(band, 6.0) * step(0.5, T);
   float fill = 0.46 * pow(0.66, max(band - 1.0, 0.0)) * step(band, 6.0);
-  float beyond = 0.0, ballLine = 0.0;
+  float beyond = 0.0, ballLine = 0.0, island = 0.0;
   if (uBall > 0.0) {
     beyond = smoothstep(uBall, uBall + 0.03, T);
     ballLine = 1.0 - smoothstep(0.0, max(fwidth(T) * 2.4, 0.01), abs(T - uBall));
+    for (int i = 0; i < 3; i++) {
+      if (i >= uNI) break;
+      float dd = length(vW.xz - uIsl[i].xy);
+      island = max(island, 1.0 - smoothstep(uIsl[i].z * 0.7, uIsl[i].z, dd));
+    }
   }
-  vec3 col = uBand; float a = fill * (1.0 - beyond) + line * 0.55;
+  vec3 col = uBand; float a = fill + line * 0.55;
   col = mix(col, vec3(1.0), line * 0.5);
-  col = mix(col, uThreat, beyond);
-  a += beyond * (0.16 + 0.1 * sin(uTime * 0.004));
-  col = mix(col, vec3(1.0), ballLine);
-  a = max(a, ballLine * 0.95);
-  if (T > 40.0) a = beyond * 0.16;
+  // The uncovered island: nobody can get here before the ball clock runs out.
+  float isl = island * beyond;
+  col = mix(col, uThreat, isl); a = mix(a, 0.34 + 0.12 * sin(uTime * 0.004), isl);
+  col = mix(col, vec3(1.0), ballLine * (1.0 - isl) * 0.7);
+  a = max(a, ballLine * 0.5);
+  if (T > 40.0) a = isl * 0.34;
   gl_FragColor = vec4(col, a * uOpacity);
 }`,
   })
@@ -612,6 +618,10 @@ export class MarkLayer {
       }
       u.uN.value = n; u.uAccel.value = mark.accel; u.uVmax.value = mark.maxSpeed; u.uReact.value = mark.react; u.uContest.value = mark.contest
       u.uBall.value = mark.ballTime ?? -1
+      const isl = u.uIsl.value as THREE.Vector3[]
+      let ni = 0
+      for (const anchor of mark.islands ?? []) { const p = resolveAnchor(frame, anchor); if (p && ni < 3) isl[ni++].set(p.x, p.z, 1.15) }
+      u.uNI.value = ni
     } else if (dynamic(mark)) {
       this.reshape(entry, frame, now)
       // Transfers flash: the string pulses bright as the job lands.

@@ -72,7 +72,8 @@ function judge(segments: SegmentSummary[], tier: string, software: boolean, nodr
 
 export function useBench(enabled: boolean, api: BenchApi) {
   const apiRef = useRef(api); apiRef.current = api
-  const [status, setStatus] = useState('waiting for the world…')
+  const [status, setStatusRaw] = useState('waiting for the world…')
+  const setStatus = (m: string) => { (window as unknown as { __courtiqBenchStatus?: string }).__courtiqBenchStatus = m; setStatusRaw(m) }
   const [result, setResult] = useState<BenchResult | null>(null)
   const started = useRef(false)
   const workers = useRef<BenchResult['workers']>({ explore: [], attack: [] })
@@ -116,7 +117,9 @@ export function useBench(enabled: boolean, api: BenchApi) {
       g.__courtiqBench = { done: false, result: null }
       try {
         if (!(await waitFor(() => !!rt(), 180000))) throw new Error('world never started (WebGL unavailable?)')
-        await sleep(3000) // let the GLB athletes and environment settle
+        // Software GL queues a lot of GPU work at start-up: wait until frames actually flow, then let GLBs settle.
+        await waitFor(() => (rt()?.frameTotal() ?? 0) >= 30, 240000)
+        await sleep(2000)
         await seg('entry-ambient', () => sleep(4000))
 
         setStatus('entering the lab and running the possession…')

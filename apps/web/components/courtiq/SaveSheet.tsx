@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { formatSeconds, type Voice } from '@/lib/defense-lab/corpus'
 import { SCOPES, type Scope, type Tradeoff } from '@/lib/defense-lab/system'
 import type { LabConfig } from '@/lib/defense-lab/types'
@@ -18,17 +18,20 @@ export default function SaveSheet({ config, voice, defaultName, accepts, knownBr
   const [scope, setScope] = useState<Scope>('varsity')
   const [when, setWhen] = useState('High ball screen, middle of the floor')
   const [note, setNote] = useState('')
+  const [more, setMore] = useState(false)
+  const first = useRef<HTMLInputElement>(null)
+  useEffect(() => { first.current?.focus(); first.current?.select() }, [])
   const version = existingVersions(name, scope) + 1
   const input = { name: name.trim() || defaultName, scope, when, note }
   return (
-    <div className={s.scrim} onClick={onClose}>
+    <div className={s.scrim} onClick={onClose} onKeyDown={e => { if (e.key === 'Escape') onClose() }}>
       <div className={s.sheet} onClick={e => e.stopPropagation()} role="dialog" aria-label="Save as our answer">
         <div className={s.sheetMain}>
           <div className={`${s.panelKicker} ${s.good}`}>Save as our answer</div>
           <h2>Make it part of how you play.</h2>
           <div className={s.field}>
             <label htmlFor="ans-name">What do you call it?</label>
-            <input id="ans-name" className={s.textInput} value={name} onChange={e => setName(e.target.value)} />
+            <input id="ans-name" ref={first} className={s.textInput} value={name} onChange={e => setName(e.target.value)} />
           </div>
           <div className={s.field}>
             <label>Who uses it?</label>
@@ -38,14 +41,14 @@ export default function SaveSheet({ config, voice, defaultName, accepts, knownBr
             <label htmlFor="ans-when">When do we use it?</label>
             <input id="ans-when" className={s.textInput} value={when} onChange={e => setWhen(e.target.value)} />
           </div>
-          <div className={s.field}>
+          {more ? <div className={s.field}>
             <label htmlFor="ans-note">Anything to remember? (optional)</label>
             <input id="ans-note" className={s.textInput} placeholder="e.g. Helper stops at the dotted line vs. good shooters" value={note} onChange={e => setNote(e.target.value)} />
-          </div>
+          </div> : <button className={s.linkBtn} onClick={() => setMore(true)}>+ Add a note</button>}
           <div className={s.row} style={{ marginTop: 22 }}>
-            <button className={`${s.btn} ${s.btnPrimary}`} onClick={() => onSave(input, false)}>Save to Our System{version > 1 ? ` (v${version})` : ''}</button>
-            <button className={`${s.btn} ${s.btnGood}`} onClick={() => onSave(input, true)}>Save & teach it</button>
-            <button className={s.btn} onClick={onClose}>Not yet</button>
+            <button className={`${s.btn} ${s.btnPrimary}`} onClick={() => onSave(input, false)}>{version > 1 ? `Update “${input.name}” (version ${version})` : 'Save'}</button>
+            <button className={`${s.btn} ${s.btnGood}`} onClick={() => onSave(input, true)}>Save and show the players</button>
+            <button className={s.btn} onClick={onClose}>Cancel</button>
           </div>
         </div>
         <div className={s.sheetSide}>

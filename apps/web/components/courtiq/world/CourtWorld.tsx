@@ -27,6 +27,7 @@ export default function CourtWorld({ scene, callbacks, children, onRuntime }: { 
           onCameraMode: (...a) => latest.current.onCameraMode?.(...a),
           onReady: (...a) => latest.current.onReady?.(...a),
           onStats: (...a) => latest.current.onStats?.(...a),
+          onTier: (...a) => latest.current.onTier?.(...a),
         }
         runtime.current = new WorldRuntime(host.current, proxy)
         runtime.current.setLabelLayer(labels.current)

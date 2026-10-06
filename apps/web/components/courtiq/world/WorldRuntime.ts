@@ -28,7 +28,9 @@ export class WorldRuntime {
   private environment: THREE.Group
   private athletes = new Map<PlayerId, LabAthlete>()
   private rims = new Map<PlayerId, RimUniforms[]>()
-  private shadows = new Map<PlayerId, THREE.Mesh>()
+  /** One instanced draw for every athlete's contact shadow (was one mesh + material per athlete). */
+  private contactShadows: THREE.InstancedMesh | null = null
+  private readonly shadowDummy = new THREE.Object3D()
   private ball: THREE.Group
   private marks: MarkLayer
   private ghost: GhostWorld
@@ -71,6 +73,8 @@ export class WorldRuntime {
   private tierAdjusted = false
   private view: WorldScene | null = null
   private tierShadows = true
+  private shadowStride = 1
+  private shadowTick = 0
   private contactTex: THREE.CanvasTexture | null = null
   private labelObserver: MutationObserver | null = null
   private lastChange: { at: number; why: string } | null = null
@@ -137,6 +141,7 @@ export class WorldRuntime {
     this.bindInput()
     void loadGlbAthleteAsset().then(ok => { if (!this.disposed && ok) { this.glbReady = true; this.rebuildAthletes() } })
     this.callbacks.onReady?.({ webgl: true, software: this.software })
+    this.callbacks.onTier?.(this.tier)
     this.raf = requestAnimationFrame(this.tick)
   }
 
@@ -177,8 +182,8 @@ export class WorldRuntime {
   private rebuildAthletes() {
     if (!this.state) return
     for (const [, a] of this.athletes) { this.scene.remove(a.root); disposeTree(a.root) }
-    for (const [, s] of this.shadows) { this.scene.remove(s); s.geometry.dispose(); (s.material as THREE.Material).dispose() }
-    this.athletes.clear(); this.rims.clear(); this.shadows.clear()
+    if (this.contactShadows) { this.scene.remove(this.contactShadows); this.contactShadows.geometry.dispose(); (this.contactShadows.material as THREE.Material).dispose(); this.contactShadows.dispose(); this.contactShadows = null }
+    this.athletes.clear(); this.rims.clear()
     const shadowTex = this.contactTex ??= contactShadowTexture(tierSettings(this.tier).contactShadowTex)
     this.state.frame.players.forEach((player, i) => {
       const athlete = createLabAthlete(player, i, this.glbReady)
@@ -210,10 +215,10 @@ export class WorldRuntime {
       athlete.label.visible = false; athlete.ring.visible = false
       this.rims.set(player.id, uniforms)
       this.athletes.set(player.id, athlete); this.scene.add(athlete.root)
-      const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 1.3), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false, opacity: 0.55, color: '#000000' }))
-      shadow.rotation.x = -Math.PI / 2; shadow.renderOrder = 1
-      this.shadows.set(player.id, shadow); this.scene.add(shadow)
     })
+    const blobs = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.3, 1.3), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false, opacity: 0.55, color: '#000000' }), this.state.frame.players.length)
+    blobs.renderOrder = 1; blobs.frustumCulled = false; blobs.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+    this.contactShadows = blobs; this.scene.add(blobs)
     this.dirty = true
   }
 
@@ -225,7 +230,7 @@ export class WorldRuntime {
     if (!key) return
     const size = this.software ? Math.min(st.shadows.mapSize, 1024) : st.shadows.mapSize
     if (key.shadow.mapSize.x !== size) { key.shadow.mapSize.set(size, size); key.shadow.map?.dispose(); key.shadow.map = null }
-    key.castShadow = st.shadows.enabled; this.tierShadows = st.shadows.enabled
+    key.castShadow = st.shadows.enabled; this.tierShadows = st.shadows.enabled; this.shadowStride = st.shadows.stride
     this.renderer.shadowMap.needsUpdate = true; this.dirty = true
   }
 
@@ -251,6 +256,7 @@ export class WorldRuntime {
     this.controller.setTier(tier, this.scale, this.override !== 'auto')
     this.lastRenderAt = 0; this.lastXray = -1
     this.lastChange = { at: performance.now(), why: `${why} -> ${tier} ×${this.scale.toFixed(2)}` }
+    this.callbacks.onTier?.(tier)
     this.dirty = true
   }
 
@@ -267,8 +273,43 @@ export class WorldRuntime {
   beginSegment(name: string) { this.perf.begin(name) }
   endSegment(): SegmentSummary | null { return this.perf.end(this.counters(), this.tier, this.scale) }
   segments(): SegmentSummary[] { return this.perf.done }
+  frameTotal() { return this.perf.total }
   /** Full device + tier description for the metrics JSON. */
-  describe() { return { probe: this.probe, tier: this.tier, tierReason: this.tierReason, override: this.override, scale: this.scale, lastChange: this.lastChange, settings: tierSettings(this.tier), software: this.software, nodraw: this.nodraw, canvas: { w: this.renderer.domElement.width, h: this.renderer.domElement.height } } }
+  describe() { return { sceneReport: this.sceneReport(), probe: this.probe, tier: this.tier, tierReason: this.tierReason, override: this.override, scale: this.scale, lastChange: this.lastChange, settings: tierSettings(this.tier), software: this.software, nodraw: this.nodraw, canvas: { w: this.renderer.domElement.width, h: this.renderer.domElement.height } } }
+
+  /** Static scene census for the perf report: where objects, triangles and materials live (visible objects only). */
+  sceneReport() {
+    const groups: Record<string, { objects: number; meshes: number; skinned: number; instanced: number; triangles: number; materials: number; matrixAutoUpdate: number }> = {}
+    const mats = new Set<THREE.Material>()
+    const label = (o: THREE.Object3D) => { let n: THREE.Object3D | null = o; while (n && n.parent && n.parent !== this.scene) n = n.parent; if (!n) return 'scene'; if (n === this.environment) return 'environment'; if (n === this.marks.root) return 'marks'; if (n === this.ghost.root) return 'ghost'; for (const a of this.athletes.values()) if (a.root === n) return 'athletes'; return 'other' }
+    this.scene.traverseVisible(o => {
+      const g = groups[label(o)] ??= { objects: 0, meshes: 0, skinned: 0, instanced: 0, triangles: 0, materials: 0, matrixAutoUpdate: 0 }
+      g.objects++; if (o.matrixAutoUpdate) g.matrixAutoUpdate++
+      const m = o as THREE.Mesh
+      if (!m.isMesh) return
+      g.meshes++
+      if ((m as THREE.SkinnedMesh).isSkinnedMesh) g.skinned++
+      const geo = m.geometry, tris = (geo.index ? geo.index.count : geo.getAttribute('position')?.count ?? 0) / 3
+      const inst = (m as THREE.InstancedMesh).isInstancedMesh ? (m as THREE.InstancedMesh).count : 1
+      if ((m as THREE.InstancedMesh).isInstancedMesh) g.instanced++
+      g.triangles += Math.round(tris * inst)
+      for (const mat of Array.isArray(m.material) ? m.material : [m.material]) mats.add(mat)
+    })
+    for (const k of Object.keys(groups)) groups[k].materials = 0
+    // GPU memory estimate: unique textures (with mip chain) + geometry attributes + shadow map + PMREM environment.
+    const texs = new Set<THREE.Texture>(), geos = new Set<THREE.BufferGeometry>()
+    for (const mat of mats) for (const v of Object.values(mat)) if (v && (v as THREE.Texture).isTexture) texs.add(v as THREE.Texture)
+    this.scene.traverse(o => { const g = (o as THREE.Mesh).geometry; if (g) geos.add(g) })
+    const texBytes = (t: THREE.Texture) => { const im = t.image as { width?: number; height?: number } | undefined; return (im?.width ?? 0) * (im?.height ?? 0) * 4 * (t.generateMipmaps || t.minFilter >= THREE.NearestMipmapNearestFilter ? 1.34 : 1) }
+    let textureBytes = 0; for (const t of texs) textureBytes += texBytes(t)
+    let geometryBytes = 0; for (const g of geos) { for (const a of Object.values(g.attributes)) geometryBytes += (a as THREE.BufferAttribute).array.byteLength; if (g.index) geometryBytes += g.index.array.byteLength }
+    const key = (this.environment.userData.analysisState as { key?: THREE.SpotLight } | undefined)?.key
+    const shadowBytes = key?.shadow.map ? key.shadow.map.width * key.shadow.map.height * 4 : 0
+    const envT = this.environment.userData.environmentTarget as THREE.WebGLRenderTarget | undefined
+    const envBytes = envT ? envT.width * envT.height * 4 * 6 * 1.34 : 0
+    const mb = (n: number) => Math.round(n / 1048576 * 10) / 10
+    return { groups, uniqueMaterials: mats.size, uniqueTextures: texs.size, memoryMb: { textures: mb(textureBytes), geometry: mb(geometryBytes), shadowMap: mb(shadowBytes), environmentTarget: mb(envBytes) }, shadowCasters: (() => { let n = 0; this.scene.traverseVisible(o => { if ((o as THREE.Mesh).isMesh && o.castShadow) n++ }); return n })() }
+  }
 
   private counters() {
     const i = this.renderer.info
@@ -387,7 +428,7 @@ export class WorldRuntime {
     let s: WorldScene = s0
     if (this.view && s0.playing && s0.live) {
       this.view.frame = s0.live.frame(); if (s0.live.ghost) this.view.ghost = s0.live.ghost()
-      if (this.tierShadows) this.renderer.shadowMap.needsUpdate = true
+      if (this.tierShadows && ++this.shadowTick % this.shadowStride === 0) this.renderer.shadowMap.needsUpdate = true
       s = this.view
     }
     const dt = this.lastTick ? Math.min(0.1, (now - this.lastTick) / 1000) : 1 / 60
@@ -454,7 +495,10 @@ export class WorldRuntime {
   private applyFrame(s: WorldScene, now: number) {
     const frame = s.frame
     const highlight = s.highlight && s.highlight.length ? new Set(s.highlight) : null
-    for (const p of frame.players) {
+    const blobs = this.contactShadows, dummy = this.shadowDummy
+    if (blobs) { (blobs.material as THREE.MeshBasicMaterial).opacity = 0.5 * (1 - this.xray * 0.6); dummy.rotation.set(-Math.PI / 2, 0, 0) }
+    for (let pi = 0; pi < frame.players.length; pi++) {
+      const p = frame.players[pi]
       const a = this.athletes.get(p.id); if (!a) continue
       a.root.position.set(p.x, p.pose.jump, p.z)
       a.setPose({ time: frame.t, speed: Math.hypot(p.vx, p.vz), velocity: { x: p.vx, z: p.vz }, defensive: p.team === 'defense', pose: poseIntent(frame, p), phase: p.pose.phase, hands: p.pose.hands, ball: frame.ball, hasBall: frame.ball.owner === p.id && frame.ball.phase !== 'pass', facing: p.yaw })
@@ -462,9 +506,9 @@ export class WorldRuntime {
       a.figure.visible = !hidden
       const fade = highlight ? (highlight.has(p.id) ? 1 : 0) : 1
       for (const u of this.rims.get(p.id) ?? []) { u.uXray.value = this.xray; u.uFade.value = fade }
-      const shadow = this.shadows.get(p.id)
-      if (shadow) { shadow.position.set(p.x, 0.012, p.z); (shadow.material as THREE.MeshBasicMaterial).opacity = 0.5 * (1 - this.xray * 0.6) * (hidden ? 0 : 1) }
+      if (blobs && pi < blobs.count) { dummy.position.set(p.x, 0.012, p.z); dummy.scale.setScalar(hidden ? 0 : 1); dummy.updateMatrix(); blobs.setMatrixAt(pi, dummy.matrix) }
     }
+    if (blobs) blobs.instanceMatrix.needsUpdate = true
     this.ball.position.set(frame.ball.x, frame.ball.y, frame.ball.z)
     this.ball.rotation.set(frame.t * 6, frame.t * 1.3, 0)
     this.ball.visible = frame.ball.phase !== 'dead' || true

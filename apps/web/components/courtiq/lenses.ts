@@ -1,4 +1,4 @@
-import { defenderArrival, isThreatOpen, travelTime } from '@/lib/defense-lab/analytics'
+import { defenderArrival, estimateArrival, isThreatOpen, travelTime } from '@/lib/defense-lab/analytics'
 import type { TeachingMoment } from '@/lib/defense-lab/explore'
 import type { ModelAssumptions, PlayerId, Point2, SimulationResult, ThreatId, WorldFrame } from '@/lib/defense-lab/types'
 import { frameAt } from '@/lib/defense-lab/simulation'
@@ -51,21 +51,21 @@ function earliestArrival(frame: WorldFrame, assumptions: ModelAssumptions, targe
 /** The ball clock: how long until a shot/pass is ready, the time every defender must beat. */
 export function ballClock(frame: WorldFrame, assumptions: ModelAssumptions, open: Set<string>): number {
   const base = assumptions.gatherTime + assumptions.readInterval
-  const pick = frame.options.filter(o => o.kind !== 'drive' && o.available && (open.size ? open.has(o.id) : true))
+  const pick = frame.options.filter(o => o.available && (open.size ? open.has(o.id) : o.kind !== 'drive'))
   const times = pick.map(o => o.timeToRelease ?? base).filter(t => t > 0)
   return times.length ? Math.min(...times) : base
 }
 
-/** Parts of a lane (0..1) a defender could get a hand on before the ball passes. */
-export function laneCuts(frame: WorldFrame, assumptions: ModelAssumptions, a: Point2, b: Point2, releaseIn: number, skipEnd = 0.0): [number, number][] {
+/** Parts of a lane (0..1) a defender could get a hand on before the thing travelling along it
+ * (a pass at `speed`, after `delay`; or the dribbler) gets there. Same estimator as the verdict. */
+export function laneCuts(frame: WorldFrame, assumptions: ModelAssumptions, a: Point2, b: Point2, delay: number, skipEnd = 0.0, speed = assumptions.passSpeed, influence = 0.8): [number, number][] {
   const len = Math.hypot(b.x - a.x, b.z - a.z) || 1, N = 22
   const defenders = frame.players.filter(p => p.team === 'defense')
   const hit: boolean[] = []
   for (let i = 0; i <= N; i++) {
-    const f = i / N, x = a.x + (b.x - a.x) * f, z = a.z + (b.z - a.z) * f
-    const t = releaseIn + len * f / assumptions.passSpeed
-    const r = reachDistance(t, assumptions) + assumptions.bodyRadius + 0.35
-    hit.push(f <= 1 - skipEnd && defenders.some(d => Math.hypot(d.x - x, d.z - z) <= r))
+    const f = i / N, pt = { x: a.x + (b.x - a.x) * f, z: a.z + (b.z - a.z) * f }
+    const ball = delay + len * f / speed
+    hit.push(f <= 1 - skipEnd && defenders.some(d => estimateArrival(d, pt, assumptions, influence) <= ball))
   }
   const out: [number, number][] = []
   let start = -1
@@ -93,8 +93,8 @@ export function lensMarks(lens: Lens, frame: WorldFrame, assumptions: ModelAssum
       const young = frame.t - top.startedAt
       const flash = top.startedAt > 0.05 && young >= 0 && young < 0.6 ? 1 - young / 0.6 : 0
       const tone: Tone = torn ? 'threat' : KIND_TONE[top.kind] ?? 'defense'
-      marks.push({ kind: 'tether', id: `own-${d.id}`, from: d.id, to: top.offensivePlayerId, tone, y: CHEST, sag: torn ? 0.14 : 0.04, width: d.id === selected ? 0.085 : 0.055, fray: !!torn, flash, opacity: 0.95 })
-      if (torn) marks.push({ kind: 'tether', id: `own2-${d.id}`, from: d.id, to: torn[1].offensivePlayerId, tone: 'threat', y: CHEST + 0.08, sag: 0.16, width: 0.05, fray: true, opacity: 0.8 })
+      marks.push({ kind: 'tether', id: `own-${d.id}`, from: d.id, to: top.offensivePlayerId, tone, y: CHEST, sag: torn ? 0.14 : 0.04, width: d.id === selected ? 0.11 : 0.075, fray: !!torn, flash, opacity: 0.95 })
+      if (torn) marks.push({ kind: 'tether', id: `own2-${d.id}`, from: d.id, to: torn[1].offensivePlayerId, tone: 'threat', y: CHEST + 0.08, sag: 0.16, width: 0.07, fray: true, opacity: 0.85 })
       // A transfer: the old string snaps loose while the new one whips tight.
       const prev = before ? topJobs(before, d.id)[0] : null
       if (prev && prev.offensivePlayerId !== top.offensivePlayerId && flash > 0) marks.push({ kind: 'tether', id: `own-snap-${d.id}`, from: d.id, to: prev.offensivePlayerId, tone: 'neutral', y: CHEST, sag: 0.3, width: 0.04, fray: true, opacity: 0.6 * flash })
@@ -106,20 +106,22 @@ export function lensMarks(lens: Lens, frame: WorldFrame, assumptions: ModelAssum
       } else marks.push({ kind: 'ring', id: `ownr-${d.id}`, at: d.id, tone: 'defense', radius: 0.42, opacity: 0.5 })
     }
     // The open man: the one figure nobody is tied to.
-    for (const o of frame.options) if (open.has(o.id) && o.kind !== 'drive') marks.push({ kind: 'ring', id: `open-${o.id}`, at: o.playerId, tone: 'threat', pulse: true, radius: 0.62 })
+    for (const o of frame.options) if (open.has(o.id)) marks.push({ kind: 'ring', id: `open-${o.id}`, at: o.playerId, tone: 'threat', pulse: true, radius: 0.62 })
     return marks
   }
 
   // ---- Arrival map: when can anyone get there? The open man sits outside every band.
   if (lens === 'reach') {
     const clock = ballClock(frame, assumptions, open)
-    marks.push({ kind: 'arrival', id: 'arrival', sources: frame.players.filter(p => p.team === 'defense').map(p => p.id), accel: assumptions.acceleration, maxSpeed: assumptions.maxSpeed, react: assumptions.reactionDelay, contest: assumptions.contestRadius, ballTime: clock })
+    marks.push({ kind: 'arrival', id: 'arrival', sources: frame.players.filter(p => p.team === 'defense').map(p => p.id), accel: assumptions.acceleration, maxSpeed: assumptions.maxSpeed, react: assumptions.reactionDelay, contest: assumptions.contestRadius, ballTime: clock, islands: frame.options.filter(o => open.has(o.id)).map(o => o.playerId) })
+    const ringed = new Set<string>()
     for (const o of frame.options) {
-      if (o.kind === 'drive') continue
       const isOpen = open.has(o.id)
+      if (ringed.has(o.playerId) || (o.kind === 'drive' && !isOpen)) continue
+      ringed.add(o.playerId)
       marks.push({ kind: 'ring', id: `rcv-${o.id}`, at: o.playerId, tone: isOpen ? 'threat' : 'neutral', radius: 0.5, pulse: isOpen, opacity: isOpen ? 1 : 0.4 })
     }
-    const target = frame.options.find(o => open.has(o.id) && o.kind !== 'drive' && o.playerId !== owner)
+    const target = frame.options.find(o => open.has(o.id) && o.playerId !== owner)
     const from = owner ? resolveTarget(frame, owner) : null
     const to = target ? resolveTarget(frame, target.playerId) : null
     if (from && to) marks.push({ kind: 'path', id: 'arrival-ball', points: [from, to], tone: 'offense', width: 0.09, arrow: true, lift: 0.02, grow: 700, opacity: 0.9 })
@@ -141,23 +143,25 @@ export function lensMarks(lens: Lens, frame: WorldFrame, assumptions: ModelAssum
       marks.push({
         kind: 'lane', id: `lane-${p.id}`, from: holder, to: p.id, tone: isOpen ? 'good' : 'neutral',
         width: isOpen ? Math.min(0.7, Math.max(0.16, margin * 0.9)) : 0.22, blocked: !isOpen, arc: 2.1,
-        cuts: isOpen ? [] : laneCuts(frame, assumptions, from, to, o?.timeToRelease ?? release, 0.04), opacity: isOpen ? 0.9 : 0.5,
+        cuts: isOpen ? [] : laneCuts(frame, assumptions, from, to, assumptions.readInterval, 0.04), opacity: isOpen ? 0.9 : 0.5,
       })
       if (isOpen) marks.push({ kind: 'ring', id: `lane-r-${p.id}`, at: p.id, tone: 'good', radius: 0.6, pulse: true })
     }
+    // The drive corridor: the ball's other way to the rim.
+    const drive = frame.options.find(o => o.id === 'drive')
+    if (holder && from && drive) marks.push({ kind: 'lane', id: 'lane-drive', from: holder, to: RIM, tone: open.has('drive') ? 'threat' : 'neutral', width: open.has('drive') ? 0.6 : 0.26, blocked: !open.has('drive'), arc: 1.2, cuts: open.has('drive') ? [] : laneCuts(frame, assumptions, from, RIM, 0.15, 0.2, 4.2, 1.0), opacity: open.has('drive') ? 0.85 : 0.45 })
     return marks
   }
 
   // ---- Space: the drive corridor to the rim (and the roller's), same glass language.
   const ball = owner ?? 'O1'
   const from = resolveTarget(frame, ball)
-  const release = ballClock(frame, assumptions, new Set())
   const drive = frame.options.find(o => o.id === 'drive')
   const roller = THREAT_RECEIVER(frame, 'roll')
   const corridor = (id: string, who: PlayerId, isOpen: boolean, apex: number) => {
     const a = resolveTarget(frame, who)
     if (!a) return
-    marks.push({ kind: 'lane', id, from: who, to: RIM, tone: isOpen ? 'threat' : 'neutral', width: isOpen ? 0.7 : 0.3, blocked: !isOpen, arc: apex, cuts: isOpen ? [] : laneCuts(frame, assumptions, a, RIM, release + 0.2, 0.2), opacity: isOpen ? 0.9 : 0.55 })
+    marks.push({ kind: 'lane', id, from: who, to: RIM, tone: isOpen ? 'threat' : 'neutral', width: isOpen ? 0.7 : 0.3, blocked: !isOpen, arc: apex, cuts: isOpen ? [] : laneCuts(frame, assumptions, a, RIM, 0.15, 0.2, 4.2, 1.0), opacity: isOpen ? 0.9 : 0.55 })
   }
   if (from) corridor('space-drive', ball, !!drive && open.has('drive'), 1.2)
   if (roller) corridor('space-roll', roller, open.has('roll'), 1.9)
@@ -274,4 +278,25 @@ export function whyMarks(moment: TeachingMoment, result: SimulationResult, t: nu
   }
   if (moment.threatId === 'drive' && receiver) marks.push({ kind: 'wedge', id: 'why-lane', apex: receiver.id, toward: { x: 0, z: 1.575 }, length: Math.hypot(receiver.x, receiver.z - 1.575), spread: 0.42, tone: 'threat', opacity: 0.55 })
   return { marks, labels }
+}
+
+/** One short pinned phrase per lens, only where the idea needs a word (3 words and a number). */
+export function lensLabels(lens: Lens, frame: WorldFrame, assumptions: ModelAssumptions): { anchor: string; text: string; tone: 'threat' | 'warn' | 'good' | 'defense' }[] {
+  if (lens === 'normal') return []
+  const out: { anchor: string; text: string; tone: 'threat' | 'warn' | 'good' | 'defense' }[] = []
+  const open = new Set(frame.options.filter(o => isThreatOpen(o, frame, assumptions)).map(o => o.id))
+  const openOpt = frame.options.find(o => open.has(o.id))
+  if (lens === 'ownership') {
+    for (const p of frame.players) if (p.team === 'defense' && tornJobs(frame, p.id)) out.push({ anchor: p.id, text: 'Owes two jobs', tone: 'threat' })
+    if (openOpt) out.push({ anchor: openOpt.playerId, text: 'Nobody tied to him', tone: 'threat' })
+  } else if (lens === 'reach' && openOpt) {
+    out.push({ anchor: openOpt.playerId, text: `Nobody there in ${ballClock(frame, assumptions, open).toFixed(1)} s`, tone: 'threat' })
+  } else if (lens === 'passing') {
+    for (const o of frame.options) if (open.has(o.id) && o.kind !== 'drive' && o.playerId !== frame.ball.owner) out.push({ anchor: o.playerId, text: 'Open pass', tone: 'good' })
+    if (open.has('drive')) out.push({ anchor: frame.ball.owner ?? 'O1', text: 'Drive lane open', tone: 'threat' })
+  } else if (lens === 'space') {
+    if (open.has('drive')) out.push({ anchor: frame.ball.owner ?? 'O1', text: 'Room to drive', tone: 'threat' })
+    if (open.has('roll')) { const r = frame.options.find(o => o.id === 'roll'); if (r) out.push({ anchor: r.playerId, text: 'Room to roll', tone: 'threat' }) }
+  }
+  return out
 }
