@@ -1,6 +1,7 @@
 import { analyze, compare, defenderArrival, isThreatOpen } from './analytics'
 import type { AnalysisResult, ComparisonResult } from './analytics'
 import { findAttackWitness } from './attackCore'
+import { contestScale } from './capability'
 import { HIGH_PNR_PROBLEM, PROBLEMS } from './scenario'
 import { frameAt, simulate } from './simulation'
 import type { LabConfig, PlayerId, Point2, ProblemDefinition, SimulationResult, TeamAnswer, ThreatId, ThreatOption, WorldFrame } from './types'
@@ -33,6 +34,14 @@ export interface TeachingMoment {
   cause: TeachingCause
   /** Finer than `cause` where one cause has two faces: help that came too shallow to stop the roller. */
   mechanism?: 'shallow-tag'
+  /** What the actor actually did after the freeze, read from the replay (shot distance to the rim, dribble path). null if the replay never resolves it. */
+  finish: 'layup' | 'pull-up' | 'catch-and-shoot' | 'pass' | null
+  /** Metres the actor dribbled between the freeze (or his catch) and his shot. */
+  dribbleMetres: number | null
+  /** Seconds after the freeze until a defender was actually within contest range of the actor in the replay; null = never before the release. */
+  realizedArrival: number | null
+  /** realizedArrival - releaseIn. Best-case lateBy above is optimistic for the defense; this one is what the replay did. */
+  realizedLateBy: number | null
   evidence: string[]
   /** used: the offense's actual read took it. witness: attack-witness semantics. window: largest window fallback. */
   basis: 'used' | 'witness' | 'window'
@@ -44,6 +53,11 @@ const NOISE_SECONDS = 0.05
 /** Window changes under this are ignored (a tenth of a second). */
 export const MIN_MEANINGFUL_SECONDS = 0.1
 const dist = (a: Point2, b: Point2) => Math.hypot(a.x - b.x, a.z - b.z)
+const RIM: Point2 = { x: 0, z: 1.575 }
+/** A release this close to the rim is a layup; further out is a jumper. */
+const LAYUP_METRES = 2.4
+/** Dribbling further than this before the shot makes it a pull-up. */
+const PULL_UP_METRES = 1.0
 const problemFor = (result: SimulationResult): ProblemDefinition => PROBLEMS.find(p => p.id === result.config.problemId) ?? HIGH_PNR_PROBLEM
 const sec = (n: number) => `${n.toFixed(2)} s`
 
@@ -52,28 +66,35 @@ function arrivals(frame: WorldFrame, option: ThreatOption, result: SimulationRes
   return frame.players.filter(p => p.team === 'defense').map(player => {
     const task = frame.responsibilities.find(task => task.defenderId === player.id && task.threatId === option.id)
     const reaction = task ? Math.max(0, a.reactionDelay - (frame.t - task.startedAt)) : a.reactionDelay
-    return { id: player.id, seconds: defenderArrival(player, option.target, a, reaction, frame.players.find(p => p.id === option.playerId)?.height) }
+    return { id: player.id, seconds: defenderArrival(player, option.target, a, reaction, frame.players.find(p => p.id === option.playerId)) }
   }).sort((x, y) => x.seconds - y.seconds || x.id.localeCompare(y.id))
+}
+
+
+interface UsedOpening { frame: WorldFrame; threatId: ThreatId; receiverId: PlayerId; lateBy: number }
+/** Every read the offense took while that opening was open, in time order. */
+function usedOpenings(result: SimulationResult, windows: PlayerWindow[]): UsedOpening[] {
+  const a = result.config.assumptions
+  return result.decisions.flatMap(decision => {
+    if (decision.selected === 'hold') return []
+    const frame = result.frames.find(f => Math.abs(f.t - decision.t) < 1e-8)
+    const option = frame?.options.find(o => o.id === decision.selected)
+    if (!frame || !option || !isThreatOpen(option, frame, a)) return []
+    const interval = windows.find(w => w.threatId === option.id && w.playerId === option.playerId)?.intervals.find(i => frame.t >= i.start - EPS && frame.t < i.end - EPS)
+    if (!interval || interval.end - interval.start < NOISE_SECONDS - EPS) return []
+    const best = arrivals(frame, option, result)[0]
+    const release = option.timeToRelease ?? a.gatherTime + a.readInterval
+    return [{ frame, threatId: option.id, receiverId: option.playerId, lateBy: best ? best.seconds - release : 0 }]
+  }).sort((x, y) => x.frame.t - y.frame.t)
 }
 
 interface Picked { frame: WorldFrame; threatId: ThreatId; basis: TeachingMoment['basis']; origin?: { frame: WorldFrame; threatId: ThreatId } }
 function pickFrame(result: SimulationResult, analysis: AnalysisResult, windows: PlayerWindow[]): Picked | null {
   const a = result.config.assumptions
-  const intervalAt = (id: ThreatId, playerId: PlayerId, t: number) => windows.find(w => w.threatId === id && w.playerId === playerId)?.intervals.find(i => t >= i.start - EPS && t < i.end - EPS)
   // 1. Reads the offense actually took while the opening was open. The freeze is the
   //    one it exploited most dangerously (largest lateBy: how late the best closeout is
   //    against the release horizon); the first such read is the origin of the chain.
-  const used = result.decisions.flatMap(decision => {
-    if (decision.selected === 'hold') return []
-    const frame = result.frames.find(f => Math.abs(f.t - decision.t) < 1e-8)
-    const option = frame?.options.find(o => o.id === decision.selected)
-    if (!frame || !option || !isThreatOpen(option, frame, a)) return []
-    const interval = intervalAt(option.id, option.playerId, frame.t)
-    if (!interval || interval.end - interval.start < NOISE_SECONDS - EPS) return []
-    const best = arrivals(frame, option, result)[0]
-    const release = option.timeToRelease ?? a.gatherTime + a.readInterval
-    return [{ frame, threatId: option.id, lateBy: best ? best.seconds - release : 0 }]
-  }).sort((x, y) => x.frame.t - y.frame.t)
+  const used = usedOpenings(result, windows)
   if (used.length) {
     const top = used.reduce((best, u) => (u.lateBy > best.lateBy + EPS ? u : best), used[0])
     return { frame: top.frame, threatId: top.threatId, basis: 'used', ...(top !== used[0] ? { origin: { frame: used[0].frame, threatId: used[0].threatId } } : {}) }
@@ -109,6 +130,32 @@ export function findTeachingMoment(result: SimulationResult, analysis: AnalysisR
   const involved = [...moment.involved]
   for (const id of origin.involved) if (!involved.includes(id)) involved.push(id)
   return { ...moment, cause: origin.cause, ...(origin.mechanism ? { mechanism: origin.mechanism } : {}), ...(origin.pulledDefenderId ? { pulledDefenderId: origin.pulledDefenderId } : {}), involved, evidence: [moment.evidence[0], `It started at ${sec(origin.t)}: ${origin.evidence.slice(1).join(' ')}`] }
+}
+
+
+/** Reads what the actor did from the replay, never from the threat id. */
+function realized(result: SimulationResult, actorId: PlayerId, from: number, releaseIn: number) {
+  const next = result.events.find(e => e.t >= from - 1e-8 && (e.type === 'shot' || e.type === 'pass') && e.playerId === actorId)
+  const at = (t: number) => frameAt(result, t).players.find(p => p.id === actorId)!
+  let finish: TeachingMoment['finish'] = null, dribbleMetres: number | null = null
+  const catchEvent = result.events.find(e => e.t >= from - 1e-8 && e.type === 'catch' && e.playerId === actorId && (!next || e.t <= next.t))
+  const start = catchEvent?.t ?? from
+  if (next?.type === 'pass') finish = 'pass'
+  else if (next?.type === 'shot') {
+    let path = 0, previous = at(start)
+    for (const f of result.frames) { if (f.t <= start || f.t > next.t + 1e-9) continue; const q = f.players.find(p => p.id === actorId)!; path += dist(previous, q); previous = q }
+    dribbleMetres = path
+    finish = dist(at(next.t), RIM) <= LAYUP_METRES ? 'layup' : path >= PULL_UP_METRES ? 'pull-up' : 'catch-and-shoot'
+  }
+  const end = next?.t ?? Infinity
+  const a = result.config.assumptions
+  let realizedArrival: number | null = null
+  for (const f of result.frames) {
+    if (f.t < from - 1e-8 || f.t > end + 1e-9) continue
+    const actor = f.players.find(p => p.id === actorId)!
+    if (f.players.some(d => d.team === 'defense' && dist(d, actor) <= a.contestRadius * contestScale(d, actor))) { realizedArrival = Math.max(0, f.t - from); break }
+  }
+  return { finish, dribbleMetres, realizedArrival, realizedLateBy: realizedArrival === null ? null : realizedArrival - releaseIn }
 }
 
 function buildMoment(result: SimulationResult, windows: PlayerWindow[], frame: WorldFrame, threatId: ThreatId, basis: TeachingMoment['basis']): TeachingMoment | null {
@@ -168,7 +215,7 @@ function buildMoment(result: SimulationResult, windows: PlayerWindow[], frame: W
   const add = (id?: PlayerId | null) => { if (id && !involved.includes(id)) involved.push(id) }
   add(receiver.id); add(responsibleDefenderId); add(pulledDefenderId); add(tag?.offensivePlayerId); add(owner as PlayerId)
   if (cause === 'two-on-ball') onBall.forEach(r => add(r.defenderId))
-  return { t: frame.t, threatId, receiverId: receiver.id, openFor: interval.end - interval.start, window: { ...interval }, defenderNeeds: best ? best.seconds : null, bestDefenderId: best?.id ?? null, releaseIn, lateBy: best ? best.seconds - releaseIn : null, ...(responsibleDefenderId ? { responsibleDefenderId } : {}), ...(pulledDefenderId ? { pulledDefenderId } : {}), involved, cause, ...(mechanism ? { mechanism } : {}), evidence, basis }
+  return { t: frame.t, threatId, receiverId: receiver.id, openFor: interval.end - interval.start, window: { ...interval }, defenderNeeds: best ? best.seconds : null, bestDefenderId: best?.id ?? null, releaseIn, lateBy: best ? best.seconds - releaseIn : null, ...realized(result, receiver.id, frame.t, releaseIn), ...(responsibleDefenderId ? { responsibleDefenderId } : {}), ...(pulledDefenderId ? { pulledDefenderId } : {}), involved, cause, ...(mechanism ? { mechanism } : {}), evidence, basis }
 }
 
 /** Smallest circle containing the involved players and the ball at t. */
@@ -358,4 +405,48 @@ export function divergence(before: SimulationResult, after: SimulationResult): D
     return { threatId, playerId, before: b ? { ...b } : null, after: a ? { ...a } : null, location: { x: receiver.x, z: receiver.z } }
   })
   return { firstDivergenceAt, perPlayer, windows }
+}
+
+export interface Robustness {
+  samples: number
+  /** Runs in which the same threat and receiver opened AND the offense used it (when the reference run has a moment). */
+  opened: number
+  /** Runs with no used opening at all (when the reference run holds). */
+  held: number
+  /** Range of best-case lateBy across the runs where it opened. */
+  lateByRange: [number, number] | null
+  verdictLabel: string
+  /** Wall-clock cost of the ensemble. */
+  ms: number
+}
+function jitterStream(seed: number) {
+  let x = (seed ^ 0x9e3779b9) >>> 0
+  return () => { x = (Math.imul(1664525, x) + 1013904223) >>> 0; return x / 4294967296 * 2 - 1 }
+}
+/** The deterministic perturbation behind sample `index`: seed, reaction +-0.05 s, top speed +-4%, every start +-0.25 m. */
+export function jitterConfig(config: LabConfig, index: number): LabConfig {
+  const u = jitterStream((config.seed + 1000003 * (index + 1)) >>> 0)
+  const problem = PROBLEMS.find(p => p.id === config.problemId) ?? HIGH_PNR_PROBLEM
+  const a = config.assumptions
+  const startingPositions: LabConfig['startingPositions'] = { ...config.startingPositions }
+  for (const p of problem.players) {
+    const start = config.startingPositions?.[p.id] ?? p.start
+    startingPositions[p.id] = { x: Math.max(-7.2, Math.min(7.2, start.x + u() * 0.25)), z: Math.max(0.5, Math.min(13.5, start.z + u() * 0.25)) }
+  }
+  return { ...config, seed: (config.seed + 1000003 * (index + 1)) >>> 0, startingPositions, assumptions: { ...a, reactionDelay: Math.max(0, Math.min(0.8, a.reactionDelay + u() * 0.05)), maxSpeed: Math.max(1, Math.min(8, a.maxSpeed * (1 + u() * 0.04))) } }
+}
+/** Would the same verdict survive small, deterministic changes to the world? */
+export function robustness(config: LabConfig, opts: { samples?: number; moment?: TeachingMoment | null; baseline?: SimulationResult } = {}): Robustness {
+  const started = performance.now(), n = Math.max(1, opts.samples ?? 8)
+  const reference = opts.moment !== undefined ? opts.moment : findTeachingMoment(opts.baseline ?? simulate(config))
+  let opened = 0, held = 0
+  const lates: number[] = []
+  for (let i = 0; i < n; i++) {
+    const result = simulate(jitterConfig(config, i)), used = usedOpenings(result, playerWindows(result))
+    if (!used.length) held++
+    const same = reference ? used.filter(u => u.threatId === reference.threatId && u.receiverId === reference.receiverId) : []
+    if (same.length) { opened++; lates.push(Math.max(...same.map(u => u.lateBy))) }
+  }
+  const verdictLabel = reference ? `Opened in ${opened} of ${n} runs` : `Held in ${held} of ${n} runs`
+  return { samples: n, opened, held, lateByRange: lates.length ? [Math.min(...lates), Math.max(...lates)] : null, verdictLabel, ms: performance.now() - started }
 }

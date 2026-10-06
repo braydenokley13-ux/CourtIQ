@@ -203,7 +203,7 @@ function makeApronTexture(scale: number): THREE.CanvasTexture {
   const ppmX = size / spanX, ppmZ = size / spanZ, ppm = (ppmX + ppmZ) / 2
   paintBoards(ctx, size, size, ppm, [138, 94, 56], 18, rnd)
   // dark out-of-bounds stain, then the shared light pool
-  ctx.fillStyle = 'rgba(10,7,6,.5)'; ctx.fillRect(0, 0, size, size)
+  ctx.fillStyle = 'rgba(10,7,6,.62)'; ctx.fillRect(0, 0, size, size)
   ctx.save(); ctx.translate((POOL.x - ROOM.x0) * ppmX, (POOL.z - ROOM.z0) * ppmZ)
   ctx.scale(ppmX / ppm, ppmZ / ppm)
   const stops: [number, number][] = [[0, 0], [3, 0.02], [6, 0.2], [9, 0.46], [13, 0.72], [19, 0.92]]
@@ -253,7 +253,7 @@ function buildGymEnvScene(): THREE.Scene {
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(140, 140), basic(0.30, 0.17, 0.085)); floor.rotation.x = -Math.PI / 2; floor.position.y = -3; s.add(floor)
   // Fixture strips on rings around the room: a camera at any yaw reflects a few of them as long floor streaks.
   const bank = basic(24, 21, 16), cool = basic(3.5, 5, 8)
-  const rings = [{ el: 24, n: 12, w: 7, h: 0.8 }, { el: 40, n: 8, w: 6, h: 0.8 }, { el: 62, n: 5, w: 6, h: 0.8 }]
+  const rings = [{ el: 24, n: 12, w: 9, h: 0.45 }, { el: 40, n: 8, w: 8, h: 0.45 }, { el: 62, n: 5, w: 8, h: 0.45 }]
   rings.forEach((r, ri) => {
     for (let i = 0; i < r.n; i++) {
       const az = Math.PI * 2 * (i + 0.5 * ri) / r.n, el = r.el * Math.PI / 180, R = 32
@@ -337,7 +337,7 @@ export function buildLabEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRen
   apron.name = 'apron-floor'; apron.rotation.x = -Math.PI / 2; apron.position.set((ROOM.x0 + ROOM.x1) / 2, -0.004, (ROOM.z0 + ROOM.z1) / 2); apron.receiveShadow = true; env.add(apron)
   const courtMap = track(makeCourtTexture(true, false, { scale: ts.court }))
   const courtRough = track(makeCourtRoughness(ts.court), 4)
-  const floorHigh = new THREE.MeshPhysicalMaterial({ map: courtMap, roughnessMap: courtRough, roughness: 1, metalness: 0, clearcoat: 0.75, clearcoatRoughness: 0.1, envMapIntensity: 1.0 })
+  const floorHigh = new THREE.MeshPhysicalMaterial({ map: courtMap, roughnessMap: courtRough, roughness: 1, metalness: 0, clearcoat: 0.75, clearcoatRoughness: 0.07, envMapIntensity: 1.0 })
   const floorLow = new THREE.MeshStandardMaterial({ map: courtMap, roughnessMap: courtRough, roughness: 0.62, metalness: 0, envMapIntensity: 1.1 })
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(COURT.width, COURT.length), tier === 'low' ? floorLow : floorHigh)
   floor.name = 'normal-court-floor'
@@ -429,12 +429,12 @@ export function buildLabEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRen
 
   // Lighting rig: one shadowed warm-white spot (hot spot + falloff), cool rim lights sculpt athletes.
   const hemi = new THREE.HemisphereLight('#6f80a6', '#3a2c22', 0.26); env.add(hemi)
-  const key = new THREE.SpotLight('#fff0d8', 2.7, 0, 0.62, 1, 0)
-  key.position.set(-2.5, 14, 4.5); key.target.position.set(0, 0, 5.4)
+  const key = new THREE.SpotLight('#fff0d8', 3.0, 0, 0.5, 1, 0)
+  key.position.set(-1.2, 18, 5.2); key.target.position.set(0, 0, 5.0)
   key.castShadow = ts.shadow > 0
   const sp = ts.shadow || 1024
   key.shadow.mapSize.set(sp, sp)
-  key.shadow.camera.near = 6; key.shadow.camera.far = 30; key.shadow.bias = -0.00025; key.shadow.normalBias = 0.03; key.shadow.radius = 3
+  key.shadow.camera.near = 10; key.shadow.camera.far = 34; key.shadow.bias = -0.00025; key.shadow.normalBias = 0.03; key.shadow.radius = 3
   env.add(key, key.target)
   const rimA = new THREE.DirectionalLight('#9ec3ff', 1.3); rimA.position.set(7, 10, -9); rimA.target.position.set(0, 1, 6)
   const rimB = new THREE.DirectionalLight('#ffb987', 0.75); rimB.position.set(-9, 10, -8); rimB.target.position.set(0, 1, 6)

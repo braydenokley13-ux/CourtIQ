@@ -103,7 +103,7 @@ export default function WorldLookClient() {
       }
     }
     // keep rendering during load so late GLBs show up
-    const keep = setInterval(() => { dirty = true }, 400)
+    const keep = setInterval(() => { dirty = true }, 1500); setTimeout(() => clearInterval(keep), 40000)
     loop()
     return () => { disposed = true; cancelAnimationFrame(raf); clearInterval(keep); window.removeEventListener('resize', resize); controls.dispose(); athletes.forEach(a => disposeTree(a.root)); disposeTree(env); renderer.dispose(); canvas.remove() }
   }, [hud])

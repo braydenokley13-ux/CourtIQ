@@ -71,8 +71,8 @@ function validate(config: LabConfig, problem: ProblemDefinition) {
 
 /** Idealized straight-line arrival estimate, ignoring transverse velocity and
  * bodies. The policy uses it as a read approximation, not an impossibility proof. */
-function arrival(p: PlayerState, target: Point2, influence: number, config: LabConfig, receiverHeight?: number): number {
-  return estimateArrival(p, target, config.assumptions, influence * (receiverHeight === undefined ? p.contest ?? 1 : contestScale(p, receiverHeight)), 0)
+function arrival(p: PlayerState, target: Point2, influence: number, config: LabConfig, receiver?: PlayerState): number {
+  return estimateArrival(p, target, config.assumptions, influence * (receiver === undefined ? p.contest ?? 1 : contestScale(p, receiver)), 0)
 }
 function segmentDistance(p: Point2, a: Point2, b: Point2) {
   const dx = b.x - a.x, dz = b.z - a.z
@@ -95,7 +95,7 @@ function optionSet(players: PlayerState[], ball: BallState, problem: ProblemDefi
     const target = id === 'drive' ? { x: p.x - (p.x - rim.x) / ahead * DRIVE_STEP, z: p.z - (p.z - rim.z) / ahead * DRIVE_STEP } : { x: p.x, z: p.z }
     const isPop = config.counter === 'pop'
     const available = t >= earliest && ball.phase !== 'pass' && ball.phase !== 'dead' && ball.phase !== 'shot' && (id === 'pop' ? isPop : id === 'roll' ? !isPop && p.z < 7.7 : id === 'drive' ? true : idPlayer !== owner) && (!nodeOptions || nodeOptions.includes(id))
-    const scaled = (d: PlayerState) => distance(d, target) / contestScale(d, p.height)
+    const scaled = (d: PlayerState) => distance(d, target) / contestScale(d, p)
     const nearest = defenders.reduce((best, d) => scaled(d) < scaled(best) ? d : best, defenders[0])
     const flightTime = distance(carrier, p) / config.assumptions.passSpeed + 0.12
     // A handler with a live dribble needs a first step, not a catch and gather.
@@ -244,7 +244,7 @@ function readCandidates(options: ThreatOption[], players: PlayerState[], actorId
   const actor = player(players, actorId), defenders = players.filter(p => p.team === 'defense')
   return options.map(option => {
     const receiver = player(players, option.playerId), travel = distance(actor, receiver) / config.assumptions.passSpeed + 0.12
-    const arrivals = defenders.map(d => arrival(d, receiver, config.assumptions.contestRadius, config, receiver.height))
+    const arrivals = defenders.map(d => arrival(d, receiver, config.assumptions.contestRadius, config, receiver))
     const gap = Math.min(...arrivals) - (option.id === 'drive' ? 0.35 : travel + config.assumptions.gatherTime)
     const lane = option.passClearance ?? 1
     let preference = 0
@@ -335,7 +335,8 @@ export function simulateProblem(problem: ProblemDefinition, input: LabConfig): S
       }
     }
     for (const task of responsibilities) { if (!starts.has(task.id)) starts.set(task.id, t); task.startedAt = starts.get(task.id)! }
-    if (!tagAnnounced && responsibilities.some(r => r.kind === 'tag')) { tagAnnounced = true; event({ t, type: 'tag', label: 'Low man commits to the roll', playerId: problem.roles.lowMan, targetId: problem.roles.screener, threatId: 'roll' }) }
+    const helpTask = tagAnnounced ? undefined : responsibilities.find(r => r.kind === 'tag')
+    if (helpTask) { tagAnnounced = true; const helper = player(players, helpTask.defenderId), classic = helpTask.defenderId === problem.roles.lowMan && helpTask.threatId === 'roll'; event({ t, type: 'tag', label: classic ? 'Low man commits to the roll' : `${helper.number} commits to help on ${helpTask.threatId === 'drive' ? 'the ball' : helpTask.threatId}`, playerId: helpTask.defenderId, targetId: helpTask.offensivePlayerId, threatId: helpTask.threatId }) }
     for (const p of players.filter(p => p.team === 'defense')) {
       const primary = responsibilities.filter(r => r.defenderId === p.id).sort((a, b) => b.priority - a.priority)[0]
       if (!primary) continue
@@ -374,7 +375,7 @@ export function simulateProblem(problem: ProblemDefinition, input: LabConfig): S
       if (choice) {
         const alternative = ranked[1]
         const decision: ReadDecision = { t, nodeId: node.id, actorId: runtime.owner, selected: choice.threatId, reason: choice.threatId === 'drive' ? 'The ball carrier keeps the current advantage; passing options offer less time before defensive influence.' : `${choice.threatId === 'roll' ? 'The roller' : choice.threatId === 'corner' ? 'The weak corner' : choice.threatId === 'lift' ? 'The lift' : choice.threatId === 'pop' ? 'The popping screener' : 'Strong-side spacing'} offers the larger modeled catch-and-read opportunity${alternative ? ` than ${alternative.threatId}` : ''}. The read uses current defenders and offensive intent.`, candidates }
-        decisions.push(decision); event({ t, type: 'read', label: `Offense reads → ${choice.threatId === 'drive' ? 'keep' : choice.threatId}`, playerId: runtime.owner, targetId: choice.playerId, threatId: choice.threatId, details: decision.reason })
+        decisions.push(decision); event({ t, type: 'read', label: `Offense reads → ${choice.threatId === 'drive' ? 'shoot or attack' : choice.threatId}`, playerId: runtime.owner, targetId: choice.playerId, threatId: choice.threatId, details: decision.reason })
         if (choice.threatId === 'drive') { runtime.driveAt = t; runtime.nodeId = null; runtime.phase = 'handle' }
         else {
           const passer = player(players, runtime.owner), receiver = player(players, choice.playerId), goals = offenseGoals(players, problem, config, t, runtime), goal = goals.get(receiver.id)!
@@ -409,7 +410,7 @@ export function simulateProblem(problem: ProblemDefinition, input: LabConfig): S
       p.pose.hands = p.team === 'defense' ? ball.phase === 'pass' || ball.phase === 'shot' ? 0.85 : 0.6 : 0.2
       if (p.id === ball.owner && ball.phase !== 'dead') { p.pose.stance = ball.phase === 'handle' ? 'dribble' : ball.phase === 'gather' ? 'catch' : ball.phase === 'shot' ? 'shoot' : 'pass'; p.pose.hands = ball.phase === 'handle' ? 0.25 : 0.8 }
       if (p.id === ball.receiver && ball.phase === 'pass') { p.pose.stance = 'catch'; p.pose.hands = 0.8 }
-      if (p.id === problem.roles.screener && t < 0.48 && config.counter !== 'slip') p.pose.stance = 'screen'
+      if (p.id === problem.roles.screener && t < 0.48 && config.counter !== 'slip' && problem.actions.some(a => a.kind === 'screen')) p.pose.stance = 'screen'
       p.pose.jump = runtime.shotAt !== null && p.id === runtime.owner ? Math.max(0, 0.23 * Math.sin(Math.min(Math.PI, (t - runtime.shotAt) * 8))) : 0
     }
     // Typed field copies avoid JSON serialization on the hot motion clock while

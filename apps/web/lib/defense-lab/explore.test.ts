@@ -52,17 +52,20 @@ describe('teaching moment on the default scenario', () => {
     const m = findTeachingMoment(simulate(withAnswer({ tag: false })))
     expect(m?.cause).not.toBe('deep-tag')
   })
-  it('names a real switch mismatch: the big caught on the ball handler, with the slow lateral big as the cause', () => {
+  it('names a real switch mismatch: the roller seals the smaller guard and finishes at the rim, or the handler beats the big', () => {
     const result = simulate(withAnswer({ coverage: 'switch' }))
     const m = findTeachingMoment(result)!
     expect(m).not.toBeNull()
     expect(m.cause).toBe('switch-mismatch')
-    expect(m.threatId).toBe('drive')
-    expect(m.receiverId).toBe(roles.ballhandler)
-    expect(m.pulledDefenderId).toBe(roles.big)
+    expect([roles.ballhandler, roles.screener]).toContain(m.receiverId)
+    expect([roles.big, roles.poa]).toContain(m.pulledDefenderId)
     expect(m.openFor).toBeGreaterThanOrEqual(0.2)
     expect(m.lateBy!).toBeGreaterThan(0.1)
     expect(m.defenderNeeds!).toBeGreaterThan(m.releaseIn!)
+    // The roll window exists because the guard is shorter and behind the roller, not because of a clock.
+    expect(playerWindows(result).find(w => w.threatId === 'roll' && w.playerId === roles.screener)!.duration).toBeGreaterThanOrEqual(0.2)
+    const even = simulate(withAnswer({ coverage: 'switch' })), guard = even.frames[0].players.find(p => p.id === roles.poa)!, roller = even.frames[0].players.find(p => p.id === roles.screener)!
+    expect(roller.height - guard.height).toBeGreaterThanOrEqual(0.1)
   })
   it('returns null for a defense that holds', () => {
     const held = { ...baseResult, decisions: [], frames: baseResult.frames.map(f => ({ ...f, options: f.options.map(o => ({ ...o, available: false })) })) }

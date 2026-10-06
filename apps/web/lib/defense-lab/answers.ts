@@ -63,6 +63,8 @@ const opponentStrategySchema = z.object({
   screenAngle: finite(-0.65, 0.65), liftDelay: finite(-0.25, 0.6), liftWidth: finite(-0.7, 0.7),
   reject: z.boolean(), rescreen: z.boolean(), shortRoll: z.boolean(),
 }).strict()
+/** Per-player athletic overrides (multipliers; height in metres). Absent = engine default from height. */
+const personnelSchema = z.record(z.enum(playerIds), z.object({ speed: finite(0.6, 1.4).optional(), lateral: finite(0.4, 1.1).optional(), height: finite(1.5, 2.3).optional() }).strict())
 const interventionSchema = z.discriminatedUnion('kind', [
   z.object({ id: z.string().min(1).max(120), at: finite(0, 12), kind: z.literal('answer'), patch: teamAnswerSchema.partial().refine(p => Object.keys(p).length > 0, 'An adjustment needs at least one rule.') }).strict(),
   z.object({ id: z.string().min(1).max(120), at: finite(0, 12), kind: z.literal('opponent'), patch: opponentStrategySchema.partial().refine(p => Object.keys(p).length > 0, 'An opponent adjustment needs at least one rule.') }).strict(),
@@ -79,6 +81,8 @@ export const labConfigSchema: z.ZodType<LabConfig> = z.object({
   startingPositions: z.record(z.enum(playerIds), pointSchema).optional(),
   screenAngle: finite(-Math.PI, Math.PI).optional(),
   opponent: opponentStrategySchema.optional(),
+  // TODO(engine): LabConfig.personnel is not in types.ts yet; the schema accepts it so saved answers keep it.
+  personnel: personnelSchema.optional(),
 }).strict().superRefine((config, ctx) => {
   const ids = new Set<string>()
   let previous = -Infinity

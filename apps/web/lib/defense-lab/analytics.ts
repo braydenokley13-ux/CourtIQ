@@ -1,5 +1,5 @@
 import { ballBodyClearance } from './analyticalGeometry'
-import { contestScale, directionalSpeed } from './capability'
+import { contestScale, directionalSpeed, type ReceiverRef } from './capability'
 import { flightPosition, interpolateBody } from './physicalExecution'
 import type { BallFlight, ModelAssumptions, PlayerId, PlayerState, Point2, Point3, Responsibility, SimulationResult, ThreatId, ThreatOption, WorldFrame } from './types'
 
@@ -64,8 +64,8 @@ export function estimateArrival(player: Mover, target: Point2, assumptions: Pick
   return Math.max(0, remainingReaction) + travelTime(gap - influenceRadius, projectedSpeed, assumptions.acceleration * (player.acceleration ?? 1), cap)
 }
 /** A defender's modeled time to contest a target: own capability, own reach. */
-export function defenderArrival(player: PlayerState, target: Point2, assumptions: ModelAssumptions, remainingReaction = assumptions.reactionDelay, receiverHeight?: number) {
-  const scale = receiverHeight === undefined ? player.contest ?? 1 : contestScale(player, receiverHeight)
+export function defenderArrival(player: PlayerState, target: Point2, assumptions: ModelAssumptions, remainingReaction = assumptions.reactionDelay, receiver?: ReceiverRef) {
+  const scale = receiver === undefined ? player.contest ?? 1 : contestScale(player, receiver)
   return estimateArrival(player, target, assumptions, assumptions.contestRadius * scale, remainingReaction)
 }
 
@@ -88,7 +88,7 @@ export function responsibilityConflict(frame: WorldFrame, first: Responsibility,
 function arrivalForOption(player: PlayerState, option: ThreatOption, frame: WorldFrame, assumptions: ModelAssumptions) {
   const commitment = frame.responsibilities.find(task => task.defenderId === player.id && task.threatId === option.id)
   const remainingReaction = commitment ? Math.max(0, assumptions.reactionDelay - (frame.t - commitment.startedAt)) : assumptions.reactionDelay
-  return defenderArrival(player, option.target, assumptions, remainingReaction, frame.players.find(p => p.id === option.playerId)?.height)
+  return defenderArrival(player, option.target, assumptions, remainingReaction, frame.players.find(p => p.id === option.playerId))
 }
 
 export function isThreatOpen(option: ThreatOption, frame: WorldFrame, assumptions: ModelAssumptions) {

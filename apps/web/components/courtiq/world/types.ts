@@ -10,12 +10,20 @@ export type Tone = 'threat' | 'good' | 'defense' | 'offense' | 'neutral' | 'ghos
 export type Anchor = PlayerId | Point2
 
 export type Mark =
-  | { kind: 'ring'; id: string; at: Anchor; tone: Tone; radius?: number; pulse?: boolean; opacity?: number }
+  | { kind: 'ring'; id: string; at: Anchor; tone: Tone; radius?: number; pulse?: boolean; opacity?: number; /** Stretch along `rot` (radians, about +y): a defender pulled two ways. */ aspect?: number; rot?: number }
   | { kind: 'path'; id: string; points: Point2[]; tone: Tone; width?: number; arrow?: boolean; dashed?: boolean; opacity?: number; lift?: number; /** Draw-on duration in ms (animates from first appearance). */ grow?: number }
-  | { kind: 'lane'; id: string; from: Anchor; to: Anchor; tone: Tone; width?: number; opacity?: number }
+  | { kind: 'lane'; id: string; from: Anchor; to: Anchor; tone: Tone; width?: number; opacity?: number; /** Flight apex in metres: a glass corridor following the ball's arc. */ arc?: number; /** Fractions along the lane a defender could reach in time (cut out of the glass). */ cuts?: [number, number][]; /** Hatched, greyed: blocked. */ blocked?: boolean }
   | { kind: 'disc'; id: string; center: Anchor; radius: number; tone: Tone; opacity?: number; edge?: boolean }
-  | { kind: 'tether'; id: string; from: Anchor; to: Anchor; tone: Tone; opacity?: number; width?: number }
+  | { kind: 'tether'; id: string; from: Anchor; to: Anchor; tone: Tone; opacity?: number; width?: number; /** Chest-height duty string: height of both ends, droop and fraying. */ y?: number; sag?: number; fray?: boolean; /** 0..1 recent transfer: brightens and thickens. */ flash?: number }
   | { kind: 'wedge'; id: string; apex: Anchor; toward: Anchor; length: number; spread: number; tone: Tone; opacity?: number }
+  /** Time-to-arrive map: isochrone bands of the fastest defender at every floor point. */
+  | { kind: 'arrival'; id: string; sources: Anchor[]; accel: number; maxSpeed: number; react: number; contest: number; /** Ball clock: floor beyond this arrival time (nobody gets there) glows threat. */ ballTime?: number | null; opacity?: number }
+  /** Vertical pin with a floor ring: where an alternate-world body stands. */
+  | { kind: 'pin'; id: string; at: Anchor; tone: Tone; height?: number; radius?: number; opacity?: number }
+  /** A counter drawn in time: head runs the route; outcome decides what remains. */
+  | { kind: 'comet'; id: string; points: Point2[]; outcome: 'held' | 'exposed'; /** Run time in ms. */ run?: number; selected?: boolean }
+  /** One-shot expanding impact at a point. */
+  | { kind: 'flare'; id: string; at: Anchor; tone: Tone; radius?: number; /** ms */ duration?: number }
 
 export interface WorldScene {
   frame: WorldFrame
@@ -34,6 +42,10 @@ export interface WorldScene {
   playing: boolean
   editable: boolean
   tagGuide?: TagGuide | null
+  /** Director composition overrides (Break staging, etc.). */
+  rig?: { azimuth?: number; elevation?: number; fov?: number; minDistance?: number; rim?: boolean } | null
+  /** Changes whenever a beat should kick the camera (hit-stop at the vulnerability). */
+  impact?: number
   /** Screen-space safe area (px) occupied by UI; the director composes the
    * basketball inside the remaining region instead of under the panels. */
   inset?: { left?: number; right?: number; top?: number; bottom?: number }
