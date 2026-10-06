@@ -17,6 +17,7 @@ const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3000'
 const QA_ACCESS_URL = process.env.QA_ACCESS_URL
 const QA_FROM_IMPORT_FILE = process.env.QA_FROM_IMPORT_FILE
 const QA_SKIP_IMPORTED_TEACH = process.env.QA_SKIP_IMPORTED_TEACH === '1'
+const QA_NAVIGATION_ONLY = process.env.QA_NAVIGATION_ONLY === '1'
 const ARTIFACT_DIR = path.resolve(process.env.QA_ARTIFACT_DIR ?? '/tmp/courtiq-qa')
 const QA_ROUTE_MODE = process.env.QA_ROUTE_MODE ?? 'skip'
 const QA_ALLOW_DEV_RETIRED_ROUTES = process.env.QA_ALLOW_DEV_RETIRED_ROUTES === '1'
@@ -39,6 +40,8 @@ const backendRequests = []
 const steps = []
 let currentStep = null
 let intentionalNavigationTarget = null
+const inFlightRequests = new Set()
+let previousPageRequestsAtNavigation = new Set()
 let activeRetiredProbe = null
 let activeRetiredProbeConfirmed404 = false
 const assert = (condition, message) => {
@@ -194,10 +197,12 @@ async function main() {
   page.setDefaultTimeout(TIMEOUT)
   const navigate = async (url) => {
     intentionalNavigationTarget = new URL(url).pathname
+    previousPageRequestsAtNavigation = new Set(inFlightRequests)
     try {
       return await page.goto(url, { waitUntil: 'domcontentloaded' })
     } finally {
       intentionalNavigationTarget = null
+      previousPageRequestsAtNavigation.clear()
     }
   }
   page.on('console', (message) => {
@@ -207,17 +212,11 @@ async function main() {
     let locationMatchesProbe = false
     try {
       const sourceUrl = new URL(location.url)
-      locationMatchesProbe =
-        sourceUrl.origin === new URL(BASE_URL).origin && sourceUrl.pathname === activeRetiredProbe
+      locationMatchesProbe = sourceUrl.origin === new URL(BASE_URL).origin && sourceUrl.pathname === activeRetiredProbe
     } catch {
       locationMatchesProbe = false
     }
-    if (
-      activeRetiredProbe &&
-      activeRetiredProbeConfirmed404 &&
-      locationMatchesProbe &&
-      /status of 404/i.test(text)
-    ) {
+    if (activeRetiredProbe && activeRetiredProbeConfirmed404 && locationMatchesProbe && /status of 404/i.test(text)) {
       expectedRetiredProbeErrors.push({
         route: activeRetiredProbe,
         sourceUrl: safeUrl(location.url),
@@ -229,18 +228,26 @@ async function main() {
   })
   page.on('pageerror', (error) => errors.push({ type: 'pageerror', text: error.message }))
   page.on('requestfailed', (request) => {
+    inFlightRequests.delete(request)
     const url = request.url()
     const errorText = request.failure()?.errorText
     if (
       errorText === 'net::ERR_ABORTED' &&
       intentionalNavigationTarget &&
+      previousPageRequestsAtNavigation.has(request) &&
       new URL(url).origin === new URL(BASE_URL).origin
     ) {
-      expectedNavigationAborts.push({ url, duringNavigationTo: intentionalNavigationTarget, error: errorText })
+      expectedNavigationAborts.push({
+        url,
+        duringNavigationTo: intentionalNavigationTarget,
+        error: errorText,
+        provenPreviousPageRequest: true,
+      })
     } else if (/\.(?:js|css|woff2?|ttf|otf|png|jpe?g|webp|svg|glb|gltf)(?:\?|$)/i.test(url)) {
       failedAssets.push({ url, error: request.failure()?.errorText })
     }
   })
+  page.on('requestfinished', (request) => inFlightRequests.delete(request))
   page.on('response', (response) => {
     if (
       activeRetiredProbe &&
@@ -258,6 +265,7 @@ async function main() {
     }
   })
   page.on('request', (request) => {
+    inFlightRequests.add(request)
     const url = new URL(request.url())
     const baseOrigin = new URL(BASE_URL).origin
     const unsafeMethod = !['GET', 'HEAD', 'OPTIONS'].includes(request.method())
@@ -329,12 +337,31 @@ async function main() {
             activeRetiredProbe = null
           }
           retiredRouteStatuses.push({ route, status })
-          assert(
-            status === 404,
-            `Retired route ${route} returned ${status}, expected 404`,
-          )
+          assert(status === 404, `Retired route ${route} returned ${status}, expected 404`)
         }
       })
+
+    if (QA_NAVIGATION_ONLY) {
+      await page.waitForTimeout(2_000)
+      const runtime = await runtimeInfo(page)
+      assert(backendRequests.length === 0, 'Unexpected backend requests during navigation verification')
+      assert(failedAssets.length === 0, 'Asset failures during navigation verification')
+      assert(errors.length === 0, 'Browser errors during navigation verification')
+      await writeFile(
+        path.join(ARTIFACT_DIR, 'report.json'),
+        JSON.stringify(
+          { baseUrl: safeUrl(BASE_URL), runMode: 'navigation-only', ...runtime, steps, ...sanitizedDiagnostics() },
+          null,
+          2,
+        ),
+      )
+      assert(
+        backendRequests.length === 0 && failedAssets.length === 0 && errors.length === 0,
+        'Late navigation diagnostics failed',
+      )
+      console.log('PASS — navigation-only verification; this is not a full golden path.')
+      return
+    }
 
     const answerName = 'QA Foundation Answer'
     if (QA_FROM_IMPORT_FILE) {
@@ -713,6 +740,9 @@ async function main() {
       screenshots: screenshotNames().map((file) => path.join(ARTIFACT_DIR, file)),
     }
     await writeFile(path.join(ARTIFACT_DIR, 'report.json'), JSON.stringify(report, null, 2))
+    assert(backendRequests.length === 0, 'Late API/backend or cross-origin requests were detected')
+    assert(failedAssets.length === 0, 'Late asset load failures were detected')
+    assert(errors.length === 0, 'Late browser console or page errors were detected')
     console.log(`PASS — ${steps.length} browser flow stages; no backend API calls, browser errors, or failed assets.`)
     console.log(`Artifacts: ${ARTIFACT_DIR}`)
   } catch (error) {
