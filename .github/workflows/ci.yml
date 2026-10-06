@@ -6,38 +6,41 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 env:
-  DATABASE_URL: "postgresql://postgres:password@localhost:5432/courtiq_ci"
-  # Prisma's schema declares `directUrl = env("DIRECT_URL")`; `prisma
-  # validate` resolves every referenced env var, so it must be present
-  # even though CI never opens a connection. Placeholder, same as
-  # DATABASE_URL.
-  DIRECT_URL: "postgresql://postgres:password@localhost:5432/courtiq_ci"
-  NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-anon-key"
-  NEXT_PUBLIC_POSTHOG_KEY: "phc_placeholder"
-  NEXT_PUBLIC_POSTHOG_HOST: "https://app.posthog.com"
-  NEXT_PUBLIC_SENTRY_DSN: "https://placeholder@sentry.io/0"
-  NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+  NEXT_TELEMETRY_DISABLED: '1'
 
 jobs:
   ci:
-    name: Typecheck → Lint → Validate → Build
+    name: Content → Boundaries → Typecheck → Lint → Test → Build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+          cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Check authored content
+        run: pnpm content:check
+
+      - name: Check package boundaries
+        run: pnpm boundaries:check
 
       - name: Typecheck
         run: pnpm typecheck
@@ -45,37 +48,8 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Prisma validate
-        run: pnpm prisma:validate
-
-      # Vitest — runs all package + app unit tests (~2.5k tests).
-      # Gates merges against regressions in the IQ/XP/streak services,
-      # the scenario-engine pure helpers, the adaptive decoder logic,
-      # the renderer determinism contracts, and the route handlers.
       - name: Unit tests
         run: pnpm test
-
-      # Pack 2 (Phase 3.1.6) — content gates.
-      #
-      # 1. Materialize check fails on any drift between
-      #    template+variant sources and packs/templates-v1/*.json. A
-      #    drift means the materialized JSONs are stale; running
-      #    `pnpm templates:materialize` regenerates them.
-      # 2. Variants lint fails on duplicate signatures, TODO prose in
-      #    LIVE/REVIEW variants, cross-template / cross-pack collisions.
-      # 3. Seed dry-run validates every fixture against the Zod schema
-      #    (concept_tag enum, decoder enum, choice quality, wrongDemo
-      #    coverage, coach_validation gating). DATABASE_URL is set at
-      #    the workflow `env` block so the seeder script compiles, but
-      #    --dry-run never opens a connection.
-      - name: Templates materialize check
-        run: pnpm templates:check
-
-      - name: Templates variants lint
-        run: pnpm templates:lint
-
-      - name: Seed scenarios dry-run
-        run: pnpm seed:scenarios -- --dry-run
 
       - name: Build
         run: pnpm build

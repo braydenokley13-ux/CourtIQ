@@ -1,8 +1,5 @@
 'use client'
 
-import * as Sentry from '@sentry/nextjs'
-import { useEffect } from 'react'
-
 export default function GlobalError({
   error,
   reset,
@@ -10,10 +7,6 @@ export default function GlobalError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
-  useEffect(() => {
-    Sentry.captureException(error)
-  }, [error])
-
   return (
     <html lang="en">
       <body
@@ -34,8 +27,9 @@ export default function GlobalError({
             Something went wrong
           </h1>
           <p style={{ opacity: 0.7, marginBottom: '1.5rem' }}>
-            We&apos;ve been notified and are looking into it.
+            Try opening CourtIQ again.
           </p>
+          {error.digest && <p style={{ opacity: 0.5, fontSize: 12 }}>Reference: {error.digest}</p>}
           <button
             onClick={reset}
             style={{

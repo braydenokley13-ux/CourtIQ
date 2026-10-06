@@ -1,6 +1,6 @@
 # Anatomical Defense Lab athlete
 
-Built 2026-10-05. `lab-human.glb` is a locally generated derivative of two CC0 assets. It is the anatomical bind-source intermediate for the Blender studio pipeline. Defense Lab now loads `lab-athlete.glb`; see `LAB-ATHLETE-STUDIO.md`. The legacy scenario renderer keeps its original mesh.
+Built 2026-10-05. `lab-human.glb` is a locally generated derivative of two CC0 assets. It is the anatomical bind-source intermediate for the Blender studio pipeline that produces `lab-athlete.glb`; see `LAB-ATHLETE-STUDIO.md`. The current renderer in `apps/web/components/courtiq/world/renderer` loads the studio athlete and retains a procedural/skinned fallback when the GLB is unavailable.
 
 ## Sources and rights
 

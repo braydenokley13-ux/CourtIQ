@@ -1,9 +1,9 @@
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
-import { createDefaultConfig } from '@/lib/defense-lab/scenario'
-import { frameAt, simulate } from '@/lib/defense-lab/simulation'
-import { analyze } from '@/lib/defense-lab/analytics'
-import { findTeachingMoment } from '@/lib/defense-lab/explore'
+import { createDefaultConfig } from '@courtiq/basketball/scenario'
+import { frameAt, simulate } from '@courtiq/basketball/simulation'
+import { analyze } from '@courtiq/basketball/analytics'
+import { findTeachingMoment } from '@courtiq/basketball/explore'
 import { DirectorCamera } from './camera'
 
 const config = createDefaultConfig(), result = simulate(config)

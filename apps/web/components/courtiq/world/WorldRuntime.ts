@@ -1,11 +1,11 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import type { PlayerId, PlayerState, Point2 } from '@/lib/defense-lab/types'
-import { tagDepthFromFloorPoint } from '@/lib/defense-lab/tagGuide'
-import * as Env from '../../defense-lab/labEnvironment'
-import { buildBall, buildLabEnvironment, disposeTree, setLabEnvironmentAnalytical, updateEnvironmentForCamera } from '../../defense-lab/labEnvironment'
-import { configureWorldRenderer } from '../../defense-lab/worldLook'
-import { createLabAthlete, loadGlbAthleteAsset, type LabAthlete } from '../../defense-lab/labAthlete'
+import type { PlayerId, PlayerState, Point2 } from '@courtiq/basketball/types'
+import { tagDepthFromFloorPoint } from '@courtiq/basketball/tagGuide'
+import * as Env from './renderer/labEnvironment'
+import { buildBall, buildLabEnvironment, disposeTree, setLabEnvironmentAnalytical, updateEnvironmentForCamera } from './renderer/labEnvironment'
+import { configureWorldRenderer } from './renderer/worldLook'
+import { createLabAthlete, loadGlbAthleteAsset, type LabAthlete } from './renderer/labAthlete'
 import { DirectorCamera } from './camera'
 import { createGhostWorld, type GhostWorld } from './ghost'
 import { MarkLayer, TONES, resolveAnchor, setMarkDetail } from './marks'
@@ -301,7 +301,7 @@ export class WorldRuntime {
         { kind: 'disc', id: 'w-disc', center: a, radius: 1, tone: 'defense', edge: true },
         { kind: 'tether', id: 'w-tether', from: a, to: b, tone: 'defense' },
         { kind: 'wedge', id: 'w-wedge', apex: a, toward: P(0, 1.575), length: 3, spread: 0.5, tone: 'threat' },
-        { kind: 'arrival', id: 'w-arrival', sources: [b], accel: 5, maxSpeed: 6, react: 0.2, contest: 1, ballTime: 1 },
+        { kind: 'arrival', id: 'w-arrival', field: { width: 2, height: 2, bounds: { minX: -7.62, maxX: 7.62, minZ: 0, maxZ: 14.326 }, seconds: [1, 1, 1, 1] }, ballTime: 1 },
         { kind: 'pin', id: 'w-pin', at: a, tone: 'ghost' },
         { kind: 'comet', id: 'w-comet', points: pts, outcome: 'held' },
         { kind: 'flare', id: 'w-flare', at: a, tone: 'threat' },
@@ -588,7 +588,7 @@ export class WorldRuntime {
     this.ball.visible = frame.ball.phase !== 'dead' || true
 
     // Ghost world (hologram bodies for divergent defenders; see ghost.ts).
-    this.ghost.update(frame, s.ghost ?? null, now)
+    this.ghost.update(frame, s.ghost ?? null, now, s.ghostAssumptions ?? s.assumptions)
 
     // Tag handle.
     const guide = s.tagGuide
@@ -719,7 +719,7 @@ function contactShadowTexture(size = 64) {
 
 /** Basketball intent for the animation layer, derived from the engine's own
  * responsibilities and ball state (never invented by the renderer). */
-export function poseIntent(frame: import('@/lib/defense-lab/types').WorldFrame, p: PlayerState): string {
+export function poseIntent(frame: import('@courtiq/basketball/types').WorldFrame, p: PlayerState): string {
   const speed = Math.hypot(p.vx, p.vz)
   const fl = frame.ball.flight
   if (fl && fl.from === p.id && frame.t - fl.start < 0.3 && fl.kind !== 'shot') return fl.kind === 'skip' || fl.kind === 'lob' ? 'skip' : 'pass'

@@ -1,12 +1,8 @@
 /**
  * Production security headers applied via next.config.ts `headers()`.
  *
- * Scope intentionally excludes Content-Security-Policy. CSP needs an
- * explicit allowlist for Sentry, PostHog, Supabase, Vercel monitoring,
- * GLB CDN sources, three.js workers, and inline runtime hashes; a
- * mis-tuned policy will silently break analytics or the renderer.
- * Tracked as a follow-up: ship CSP-Report-Only first, observe, then
- * enforce.
+ * Content-Security-Policy needs a reviewed policy for local assets,
+ * browser workers and Next.js runtime scripts before enforcement.
  *
  * Header set (defensible defaults for a consumer web app):
  *  - Strict-Transport-Security: lock the apex + subdomains to HTTPS
@@ -17,7 +13,7 @@
  *    origin to cross-site navigation.
  *  - Permissions-Policy: deny camera/mic/geolocation/usb/payment by
  *    default; we don't ask for any of these yet.
- *  - X-DNS-Prefetch-Control: on — small TTFB win for Supabase + CDN.
+ *  - X-DNS-Prefetch-Control: off — the app serves its assets locally.
  */
 
 interface NextHeader {
@@ -44,5 +40,5 @@ export const PRODUCTION_SECURITY_HEADERS: NextHeader[] = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'Permissions-Policy', value: PERMISSIONS_POLICY },
-  { key: 'X-DNS-Prefetch-Control', value: 'on' },
+  { key: 'X-DNS-Prefetch-Control', value: 'off' },
 ]

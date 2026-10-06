@@ -1,44 +1,29 @@
 {
   "name": "courtiq",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@9.15.0",
   "engines": {
     "node": "22.x",
-    "pnpm": ">=9"
+    "pnpm": "9.x"
   },
   "scripts": {
-    "build": "turbo run build",
+    "build": "pnpm content:materialize && turbo run build",
     "dev": "turbo run dev --parallel",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "prisma:validate": "turbo run prisma:validate",
-    "db:push": "pnpm --filter @courtiq/db exec prisma db push",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "templates:materialize": "pnpm exec tsx scripts/materialize-templates.ts",
-    "templates:check": "pnpm exec tsx scripts/materialize-templates.ts --check",
-    "templates:lint": "pnpm exec tsx scripts/lint-variants.ts",
-    "templates:scaffold": "pnpm exec tsx scripts/scaffold-variant.ts",
-    "templates:prose-bank": "pnpm exec tsx scripts/scaffold-prose-bank.ts",
-    "seed:scenarios": "pnpm exec tsx scripts/seed-scenarios.ts",
-    "seed:lessons": "pnpm exec tsx scripts/seed-lessons.ts",
-    "seed:content": "pnpm templates:materialize && pnpm seed:scenarios && pnpm seed:lessons",
-    "qa:auth": "pnpm exec tsx scripts/playwright-auth-setup.ts",
-    "qa:screenshot": "pnpm exec tsx scripts/screenshot-scenario.ts",
-    "qa:screenshot:baseline": "pnpm exec tsx scripts/screenshot-scenario.ts baseline",
-    "qa:screenshot:diff": "pnpm exec tsx scripts/screenshot-scenario.ts diff",
-    "qa:preview:baseline": "pnpm exec tsx scripts/screenshot-scenario.ts baseline --via preview",
-    "qa:preview:diff": "pnpm exec tsx scripts/screenshot-scenario.ts diff --via preview",
-    "qa:preview:diff:soft": "ALLOW_MISSING_BASELINE=1 pnpm exec tsx scripts/screenshot-scenario.ts diff --via preview",
-    "qa:scene:screenshots": "pnpm exec tsx scripts/screenshot-scene-phase-f.ts",
-    "screenshot:bdw": "pnpm exec tsx scripts/screenshot-scenario.ts diff --id BDW-01"
+    "content:materialize": "node --import tsx scripts/materialize-content.ts",
+    "content:check": "node --import tsx scripts/materialize-content.ts --check",
+    "boundaries:check": "node scripts/check-boundaries.mjs",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
   },
   "devDependencies": {
+    "@courtiq/basketball": "workspace:*",
     "@playwright/test": "^1.59.1",
     "prettier": "^3.3.3",
     "tsx": "^4.19.2",
     "turbo": "^2.3.3",
-    "typescript": "^5.7.2",
-    "zod": "^3.24.1"
+    "typescript": "^5.7.2"
   }
 }

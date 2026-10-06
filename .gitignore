@@ -31,9 +31,6 @@ next-env.d.ts
 .DS_Store
 Thumbs.db
 
-# Prisma
-/packages/db/node_modules
-
 # Debug
 npm-debug.log*
 pnpm-debug.log*
@@ -47,12 +44,6 @@ coverage/
 # Vercel
 .vercel
 
-# Sentry
-.sentryclirc
-
-# Playwright auth state (contains session cookies — never commit)
-.auth/
-
 # Claude Code: ignore transient agent state, but keep the committed
 # project config (SessionStart hook + settings) under version control.
 .claude/*
@@ -62,5 +53,6 @@ coverage/
 .next-*/
 scripts/athlete/__pycache__/
 *.blend1
-# Workers' throwaway engine probes
-apps/web/lib/defense-lab/zz*
+# Local provider/browser test state
+.sentryclirc
+.auth/

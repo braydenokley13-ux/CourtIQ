@@ -5,11 +5,11 @@ import { Box3 as THREE_Box3 } from 'three'
 import CourtWorld from '@/components/courtiq/world/CourtWorld'
 import type { CameraMode, Lens, Mark, WorldScene } from '@/components/courtiq/world/types'
 import { LENSES, lensLabels, divergenceLabels, divergenceMarks, lensMarks, momentMarks } from '@/components/courtiq/lenses'
-import { createDefaultConfig } from '@/lib/defense-lab/scenario'
-import { frameAt, simulate } from '@/lib/defense-lab/simulation'
-import { analyze } from '@/lib/defense-lab/analytics'
-import { findTeachingMoment } from '@/lib/defense-lab/explore'
-import { attack, type AttackPreview, type AttackReport } from '@/lib/defense-lab/attack'
+import { createDefaultConfig } from '@courtiq/basketball/scenario'
+import { frameAt, simulate } from '@courtiq/basketball/simulation'
+import { analyze } from '@courtiq/basketball/analytics'
+import { findTeachingMoment } from '@courtiq/basketball/explore'
+import { attack, type AttackPreview, type AttackReport } from '@/lib/basketball/attack'
 
 type State = { t: number; lens: Lens; camera: CameraMode; ghost: boolean; phase: 'normal' | 'moment' | 'break-search' | 'break-moment'; inset: 'panel' | 'none'; pov: string | null; shown: number; marks: boolean }
 const INSETS = { panel: { right: 430, left: 0, top: 150, bottom: 80 }, none: {} }
@@ -114,11 +114,11 @@ export default function XrayClient() {
     return state.lens !== 'normal' && moment ? moment.involved : []
   }, [state.phase, state.lens, moment, w, frame])
   const scene: WorldScene = useMemo(() => ({
-    frame, ghost, marks, lens: state.lens, focus, camera: state.camera, pov: (state.pov as never) ?? 'D3', selectedId: null, playing: false, editable: false,
+    frame, ghost, assumptions: config.assumptions, ghostAssumptions: config.assumptions, marks, lens: state.lens, focus, camera: state.camera, pov: (state.pov as never) ?? 'D3', selectedId: null, playing: false, editable: false,
     rig: state.phase === 'break-search' ? { azimuth: Math.PI + 0.6, elevation: 0.3, fov: 38, minDistance: 7 } : null,
     impact: state.phase === 'break-moment' ? 1 : undefined,
     inset: INSETS[state.inset],
-  }), [frame, ghost, marks, state, focus])
+  }), [frame, ghost, config.assumptions, marks, state, focus])
   const labels = useMemo(() => [...(state.ghost ? divergenceLabels(result, alt, state.t) : []), ...(state.lens !== 'normal' ? lensLabels(state.lens, frame, config.assumptions) : [])], [state.ghost, state.lens, result, alt, state.t, frame, config])
   void setFlash; void flash
   return (

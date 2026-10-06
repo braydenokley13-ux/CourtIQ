@@ -5,11 +5,7 @@
  * fonts + theme are already mounted. The catastrophic case
  * (RootLayout itself throws) is handled by app/global-error.tsx.
  *
- * Sentry capture happens here too so we still log when the parent
- * layout is intact and only a child segment threw.
  */
-import * as Sentry from '@sentry/nextjs'
-import { useEffect } from 'react'
 
 export default function RouteError({
   error,
@@ -18,10 +14,6 @@ export default function RouteError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
-  useEffect(() => {
-    Sentry.captureException(error)
-  }, [error])
-
   return (
     <main className="min-h-[100dvh] bg-bg-0 text-foreground flex items-center justify-center px-6">
       <div className="w-full max-w-md text-center">
@@ -32,7 +24,7 @@ export default function RouteError({
           Something went sideways.
         </h1>
         <p className="font-ui text-[15px] text-foreground-dim mb-2">
-          We&apos;ve been notified and are on it. Try the play again.
+          Try opening the Lab again. Your saved program stays in this browser.
         </p>
         {error.digest && (
           <p className="font-mono text-[11px] text-foreground-mute mb-8">

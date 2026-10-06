@@ -1,9 +1,9 @@
 'use client'
 
-import type { Voice } from '@/lib/defense-lab/corpus'
-import { COACH_RULE_BOUNDS, coachRuleSentence } from '@/lib/defense-lab/coachRules'
-import { COUNTERS } from '@/lib/defense-lab/scenario'
-import type { CoachRule, Intervention, LabConfig, PlayerId, TeamAnswer } from '@/lib/defense-lab/types'
+import type { Voice } from '@courtiq/basketball/corpus'
+import { COACH_RULE_BOUNDS, coachRuleSentence } from '@courtiq/basketball/coachRules'
+import { COUNTERS } from '@courtiq/basketball/scenario'
+import type { CoachRule, Intervention, LabConfig, PlayerId, TeamAnswer } from '@courtiq/basketball/types'
 import { who } from './basketball'
 import s from './courtiq.module.css'
 

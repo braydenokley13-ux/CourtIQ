@@ -60,7 +60,7 @@ function summarizeResources(): ResourceSummary {
   return { totalTransferKb: round(total, 0), byType, largest }
 }
 
-/** Pass criteria (docs/defense-lab/v2/perf/README.md): p50 >= 45 fps and p95 frame interval < 33 ms on playback segments. */
+/** Pass criteria (docs/rendering/performance-evidence.md): p50 >= 45 fps and p95 frame interval < 33 ms on playback segments. */
 function judge(segments: SegmentSummary[], tier: string, software: boolean, nodraw: boolean): BenchResult['verdict'] {
   const checks = segments.filter(s => PLAY_SEGMENTS.test(s.name) && s.intervalMs.p50 > 0).map(s => {
     const fpsP50 = round(1000 / s.intervalMs.p50, 1)

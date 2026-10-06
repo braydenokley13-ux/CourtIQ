@@ -1,14 +1,16 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { answerById, term, type AnswerPreset, type Voice } from '@/lib/defense-lab/corpus'
-import { divergence } from '@/lib/defense-lab/explore'
-import { getTagGuide } from '@/lib/defense-lab/tagGuide'
-import { HIGH_PNR_PROBLEM, createDefaultConfig } from '@/lib/defense-lab/scenario'
-import { frameAt } from '@/lib/defense-lab/simulation'
-import { simulateCached } from '@/lib/defense-lab/replayCache'
-import { loadSystem, persistSystem, programVoice, saveToSystem, type ProgramSystem, type SystemEntry } from '@/lib/defense-lab/system'
-import type { LabConfig, PlayerId, SimulationResult, ThreatId } from '@/lib/defense-lab/types'
+import { answerById, term, type AnswerPreset, type Voice } from '@courtiq/basketball/corpus'
+import { divergence } from '@courtiq/basketball/explore'
+import { getTagGuide } from '@courtiq/basketball/tagGuide'
+import { HIGH_PNR_PROBLEM, createDefaultConfig } from '@courtiq/basketball/scenario'
+import { compileExperiment, frameAt, replayExecution } from '@courtiq/basketball/simulation'
+import { canonicalInputFingerprint, executionCompatibility, parseExecutionInput, QUERY_VERSION } from '@courtiq/basketball/execution'
+import { ATTACK_DOMAIN } from '@courtiq/basketball/attackCore'
+import { acceptAnswer, clone, fingerprint, headVersion, programVoice, recipeFor, selectDefault, type LabOrigin, type ProgramSystem, type SystemEntry, type SystemVersion } from '@courtiq/basketball/program'
+import type { ExecutionTrace, PlayerId, SimulationResult, ThreatId, WorldFrame } from '@courtiq/basketball/types'
+import { newProgramId, useProgram } from '@/lib/persistence/useProgram'
 import CourtWorld from './world/CourtWorld'
 import type { CameraMode, Lens, Mark, WorldScene, WorldStats } from './world/types'
 import PerfHud from './PerfHud'
@@ -24,19 +26,23 @@ import CoachCard from './CoachCard'
 import SaveSheet, { type SaveInput } from './SaveSheet'
 import OurSystem from './OurSystem'
 import Library from './Library'
-import { DEFENDER_ORDER, checkpointsFor, coverageName, jobSentence, primaryJob, who } from './basketball'
+import { DEFENDER_ORDER, ROLE_OF, checkpointsFor, coverageName, jobSentence, primaryJob, who } from './basketball'
 import s from './courtiq.module.css'
 
 type Tab = 'lab' | 'system' | 'teach' | 'library'
 const SITUATION_ID = 'high-pnr-middle'
-type TeachState = { entry: SystemEntry | null; config: LabConfig; player: PlayerId | null; view: 'team' | 'player' | 'overhead'; step: number }
+type TeachState = { entry: SystemEntry | null; version: SystemVersion | null; result: ExecutionTrace; player: PlayerId | null; view: 'team' | 'player' | 'overhead'; step: number }
 
 export default function CourtIQApp() {
   const lab = useLab()
   const [tab, setTab] = useState<Tab>('lab')
   const [entered, setEntered] = useState(false)
   const [preview, setPreview] = useState<SimulationResult | null>(null)
-  const [system, setSystemState] = useState<ProgramSystem>(() => ({ schema: 1, program: 'Our program', register: 'plain', terms: {}, entries: [] }))
+  const persistence = useProgram()
+  const mutateProgram = persistence.mutate, hasPendingProgram = persistence.hasPending
+  const system = persistence.system
+  const [labOrigin, setLabOrigin] = useState<LabOrigin | null>(null)
+  const [saveError, setSaveError] = useState<string | undefined>()
   const [lens, setLens] = useState<Lens>('normal')
   const [why, setWhy] = useState(false)
   const [camera, setCamera] = useState<CameraMode>('director')
@@ -54,9 +60,8 @@ export default function CourtIQApp() {
   const [tier, setTier] = useState<WorldStats['tier']>('balanced')
   useEffect(() => { const q = new URLSearchParams(window.location.search); setDebug(q.has('debug')); setBenchOn(q.has('bench')); const sel = q.get('select'); if (sel && /^[OD][1-5]$/.test(sel)) setSelected(sel as PlayerId) }, [])
 
-  useEffect(() => { setSystemState(loadSystem()) }, [])
-  const setSystem = useCallback((next: ProgramSystem) => { setSystemState(next); persistSystem(next) }, [])
-  const voice: Voice = useMemo(() => programVoice(system), [system])
+  const setSystem = useCallback((change: (current: ProgramSystem) => ProgramSystem) => { void mutateProgram(change) }, [mutateProgram])
+  const voice: Voice = useMemo(() => programVoice(system, tab === 'teach' ? teach?.version?.terms : undefined), [system, tab, teach])
   const notify = useCallback((text: string) => { setToast(text); setTimeout(() => setToast(t => t === text ? null : t), 3800) }, [])
 
   // ------------------------------------------------ ambient world behind entry
@@ -74,19 +79,19 @@ export default function CourtIQApp() {
   useEffect(() => { ambientT.current = 0 }, [preview])
 
   const enterLab = useCallback((choice: EntryChoice | null) => {
-    setEntered(true); setPreview(null)
+    setEntered(true); setPreview(null); setLabOrigin(null)
     if (choice) {
       lab.replaceConfig(choice.config)
       setPresetIds(choice.presetIds)
       const preset = answerById(choice.presetIds[0])
-      if (choice.term && preset?.patch.coverage) setSystem({ ...system, terms: { ...system.terms, [preset.patch.coverage]: choice.term } })
+      if (choice.term && preset?.patch.coverage) setSystem(current => ({ ...current, terms: { ...current.terms, [`coverage:${preset.patch.coverage}`]: choice.term! } }))
     }
     lab.setPhase('ready')
     setTimeout(() => lab.runRef.current(), 450)
-  }, [lab, setSystem, system])
+  }, [lab, setSystem])
 
   // ------------------------------------------------ teach
-  const teachResult = useMemo(() => teach ? simulateCached(teach.config) : null, [teach])
+  const teachResult = teach?.result ?? null
   const teachCheckpoints = useMemo(() => teach && teachResult && teach.player ? checkpointsFor(teachResult.frames, teach.player) : [], [teach, teachResult])
   // Teach clock: ref for the world (every frame), React state at UI_CLOCK_MS cadence + exact at stops.
   const teachTRef = useRef(0)
@@ -96,7 +101,7 @@ export default function CourtIQApp() {
   useEffect(() => {
     if (!teachPlaying || !teach || !teachResult) return
     let raf = 0, last = 0, uiAt = 0
-    const stopAt = teachCheckpoints[teach.step]?.t ?? lab.duration
+    const stopAt = teachCheckpoints[teach.step]?.t ?? teachResult.input.assumptions.duration
     const loop = (now: number) => {
       const dt = last ? (now - last) / 1000 : 0; last = now
       const next = teachTRef.current + dt * 0.6
@@ -107,11 +112,16 @@ export default function CourtIQApp() {
     }
     raf = requestAnimationFrame(loop)
     return () => { cancelAnimationFrame(raf); setTeachTState(teachTRef.current) }
-  }, [teachPlaying, teach, teachResult, teachCheckpoints, lab.duration, setTeachT])
-  const startTeach = useCallback((entry: SystemEntry | null) => {
-    const config = entry ? entry.versions.at(-1)!.config : lab.config
-    setTeach({ entry, config, player: null, view: 'team', step: 0 }); setTeachT(0); setTeachPlaying(false); setTab('teach'); setLens('normal'); setSelected(null)
-  }, [lab.config, setTeachT])
+  }, [teachPlaying, teach, teachResult, teachCheckpoints, setTeachT])
+  const startTeach = useCallback((entry: SystemEntry | null, versionId?: string) => {
+    const version = entry ? (versionId ? entry.versions.find(v => v.id === versionId) : headVersion(entry)) : null
+    if (entry && !version) { notify('This saved version is missing. Open Our System to choose a version.'); return }
+    if (version && (version.snapshot.kind !== 'executable' || !executionCompatibility(version.snapshot.input).replayable)) { notify('This earlier model is preserved. Re-test it in the Lab before teaching a new accepted version.'); setTab('system'); return }
+    try {
+      const result = version?.snapshot.kind === 'executable' ? replayExecution(parseExecutionInput(version.snapshot.input)) : lab.result
+      setTeach({ entry: entry ? clone(entry) : null, version: version ? clone(version) : null, result, player: null, view: 'team', step: 0 }); setTeachT(0); setTeachPlaying(false); setTab('teach'); setLens('normal'); setSelected(null)
+    } catch { notify('This saved replay could not run. Its inputs are preserved in Our System.'); setTab('system') }
+  }, [lab.result, notify, setTeachT])
 
   // ------------------------------------------------ world scene
   const [viewport, setViewport] = useState({ w: 1440, h: 900 })
@@ -132,7 +142,7 @@ export default function CourtIQApp() {
   const ghost = ghostResult && tab === 'lab' ? frameAt(ghostResult, lab.time) : null
 
   // Per-frame world clock (see WorldScene.live): the runtime samples this each animation frame while playing.
-  const liveSrc = useRef<{ result: SimulationResult; t: () => number; ghost: SimulationResult | null }>({ result: lab.display, t: () => 0, ghost: null })
+  const liveSrc = useRef<{ result: ExecutionTrace; t: () => number; ghost: ExecutionTrace | null }>({ result: lab.display, t: () => 0, ghost: null })
   liveSrc.current = tab === 'teach' && teachResult ? { result: teachResult, t: () => teachTRef.current, ghost: null }
     : ambient ? { result: ambientResult, t: () => Math.min(ambientT.current, lab.duration), ghost: null }
     : { result: lab.display, t: () => lab.timeRef.current, ghost: tab === 'lab' ? ghostResult : null }
@@ -184,7 +194,7 @@ export default function CourtIQApp() {
   }, [tab, teach, frame, teachPlaying, ambient, lens, lab.phase, lab.moment, lab.config.assumptions, selected, hoverFix, lab.result, lab.time, lab.previous, inBreak, lab.attempts, lab.attack, compareDivergence, whyView, signature])
 
   const focus: PlayerId[] = useMemo(() => {
-    if (tab === 'teach' && teach?.player) { const j = primaryJob(frame, teach.player); return [teach.player, ...(j ? [j.offensivePlayerId] : []), 'O1', 'O5'] }
+    if (tab === 'teach' && teach?.player) return teachFocus(frame, teach.player)
     if (lab.phase === 'moment' && lab.moment) return lab.moment.involved
     if (lab.phase === 'break-moment' && lab.attack?.selected.witness) { const w = lab.attack.selected.witness, at = lab.frame.players.find(p => p.id === w.playerId)
       // The hole in context: the open man, the late defender, the ball, and the two other defenders nearest him.
@@ -196,14 +206,16 @@ export default function CourtIQApp() {
 
   const scene: WorldScene = useMemo(() => ({
     frame, ghost, marks, lens: tab === 'teach' ? 'normal' : whyOn ? 'space' : lens, focus,
+    assumptions: tab === 'teach' && teachResult ? teachResult.input.assumptions : ambient ? ambientResult.input.assumptions : lab.display.input.assumptions,
+    ghostAssumptions: ghostResult?.input.assumptions,
     camera: tab === 'teach' ? (teach?.view === 'player' && teach.player ? 'player' : teach?.view === 'overhead' ? 'overhead' : 'director') : camera,
     pov: tab === 'teach' ? teach?.player : selected, selectedId: selected, hoverId: hover,
-    highlight: tab === 'teach' && teach?.player ? [teach.player, ...(primaryJob(frame, teach.player) ? [primaryJob(frame, teach.player)!.offensivePlayerId] : []), frame.ball.owner ?? 'O1'] : null,
+    highlight: tab === 'teach' && teach?.player ? focus : null,
     playing: tab === 'teach' ? teachPlaying : ambient || lab.playing, live, editable: tab === 'lab' && entered && !inBreak, tagGuide,
     rig: lab.phase === 'break-search' ? { azimuth: Math.PI + 0.6, elevation: 0.3, fov: 38, minDistance: 7 } : null,
     impact: lab.phase === 'break-moment' ? lab.attack?.selected.witness?.at ?? 1 : undefined,
     inset: ambient ? { left: Math.min(640, viewport.w * 0.45), top: 60 } : tab === 'lab' && entered && viewport.w <= 600 ? { top: 150, bottom: panelOpen ? Math.round(viewport.h * 0.44) + 70 : 70 } : tab === 'lab' && entered && viewport.w > 820 ? { right: panelOpen ? 430 : 0, left: selected && !lab.playing && !inBreak ? 350 : 0, top: 215, bottom: 80 } : { top: 120, bottom: 150 },
-  }), [viewport, panelOpen, frame, ghost, marks, lens, whyOn, focus, tab, teach, camera, selected, hover, teachPlaying, ambient, lab.playing, entered, inBreak, tagGuide, lab.phase, lab.attack, live])
+  }), [viewport, panelOpen, frame, ghost, marks, lens, whyOn, focus, tab, teach, teachResult, ambientResult, lab.display, ghostResult, camera, selected, hover, teachPlaying, ambient, lab.playing, entered, inBreak, tagGuide, lab.phase, lab.attack, live])
 
   // ------------------------------------------------ actions
   const ruleFired = useMemo(() => {
@@ -221,24 +233,49 @@ export default function CourtIQApp() {
   }, [lab, editFrom])
   const accepts = useMemo(() => lab.analysis.windows.filter(w => w.duration >= 0.1).slice(0, 4).map(w => ({ threatId: w.id as ThreatId, seconds: Math.round(w.duration * 100) / 100 })), [lab.analysis])
   const knownBreaks = useMemo(() => {
+    if (lab.attackFingerprint !== fingerprint(lab.config)) return []
     const w = lab.attack?.selected.witness
-    return w ? [{ label: lab.attack!.selected.changes.map(c => c.label).join(', ') || 'Their base offense', threatId: w.threatId, seconds: Math.round((w.interval.end - w.interval.start) * 100) / 100 }] : []
-  }, [lab.attack])
-  const defaultName = system.terms[lab.config.answer.coverage] ?? `${coverageName(lab.config.answer, { register: 'coach' })} vs high P&R`
-  const save = useCallback((input: SaveInput, thenTeach: boolean) => {
-    const { system: next, entry, version } = saveToSystem(system, { name: input.name, situationId: SITUATION_ID, scope: input.scope, when: input.when, presetIds, config: lab.config, note: input.note, accepts, knownBreaks, teachAt: lab.moment?.t })
-    setSystem(next); setSaving(false)
-    notify(version.v > 1 ? `Updated “${entry.name}” — version ${version.v}. Find it in Our System.` : `Saved “${entry.name}”. Find it in Our System.`)
-    if (thenTeach) startTeach(entry)
-  }, [system, presetIds, lab.config, lab.moment, accepts, knownBreaks, setSystem, notify, startTeach])
+    const candidate = lab.attack ? compileExperiment(lab.attack.selected.config) : null
+    return w && candidate ? [{ label: lab.attack!.selected.changes.map(c => c.label).join(', ') || 'Their base offense', threatId: w.threatId, seconds: Math.round((w.interval.end - w.interval.start) * 100) / 100,
+      candidate, candidateInputFingerprint: canonicalInputFingerprint(candidate), baseInputFingerprint: canonicalInputFingerprint(lab.result.input), queryVersion: QUERY_VERSION,
+      search: { id: 'high-pnr-bounded-attack', version: QUERY_VERSION, recipe: { budget: lab.attack!.budget.limit, used: lab.attack!.budget.used, pruned: lab.attack!.budget.pruned, selectedCandidateId: lab.attack!.selected.id, scope: lab.attack!.scope, beamWidth: 3, maxEdits: 2, domain: clone(ATTACK_DOMAIN), permissionParameters: ['reject', 'rescreen', 'shortRoll'] }, allowedParameterIds: ['screenAngle', 'liftDelay', 'liftWidth', 'reject', 'rescreen', 'shortRoll'].map(id => `offense.${id}`) },
+      witness: { at: w.at, start: w.interval.start, end: w.interval.end, playerId: w.playerId, defenderId: w.limitingDefenderId } }] : []
+  }, [lab.attack, lab.attackFingerprint, lab.config, lab.result.input])
+  const defaultName = labOrigin?.name ?? system.terms[`coverage:${lab.config.answer.coverage}`] ?? `${coverageName(lab.config.answer, { register: 'coach' })} vs high P&R`
+  const save = useCallback(async (input: SaveInput, thenTeach: boolean) => {
+    if (hasPendingProgram) { setSaveError('An earlier session save is pending. Export or retry it in Our System before accepting another version.'); return }
+    setSaveError(undefined)
+    try {
+      const recipe = clone(lab.config), executable = compileExperiment(recipe), versionId = newProgramId(), entryId = newProgramId()
+      if (canonicalInputFingerprint(executable) !== canonicalInputFingerprint(lab.result.input)) throw new Error('The analyzed run does not match this executable answer. Run it again before accepting.')
+      const acceptance = { entryId, versionId, at: new Date().toISOString(), targetEntryId: input.targetEntryId, expectedHeadVersionId: input.expectedHeadVersionId,
+        ...(labOrigin ? { basedOn: { entryId: labOrigin.entryId, versionId: labOrigin.versionId } } : {}), name: input.name, situationId: SITUATION_ID, scope: input.scope, when: input.when, presetIds: [...presetIds],
+        snapshot: { kind: 'executable' as const, input: executable, recipe }, note: input.note, accepts: clone(accepts), knownBreaks: clone(knownBreaks),
+        evidence: { state: 'recorded' as const, configFingerprint: fingerprint(recipe), inputFingerprint: canonicalInputFingerprint(executable), engineVersion: executable.engineVersion, content: executable.content, queryVersion: QUERY_VERSION },
+        ...(lab.moment ? { teachAt: lab.moment.t } : {}),
+      }
+      const result = await mutateProgram(current => acceptAnswer(current, acceptance).program)
+      if (!result.ok) { setSaveError(result.reason); notify(result.program.entries.some(e => e.versions.some(v => v.id === versionId)) ? 'This answer remains in the session. Export or retry saving in Our System.' : 'This version was not accepted. Your Lab draft remains open.'); return }
+      const entry = result.program.entries.find(e => e.id === (input.targetEntryId ?? entryId))!, version = headVersion(entry)
+      setSaving(false); setLabOrigin({ entryId: entry.id, versionId: version.id, expectedHeadVersionId: entry.headVersionId, name: entry.name, scope: entry.scope, when: entry.when, presetIds: [...version.presetIds] })
+      notify(version.v > 1 ? `Updated “${entry.name}” — version ${version.v}. Find it in Our System.` : `Saved “${entry.name}”. Find it in Our System.`)
+      if (thenTeach) startTeach(entry, version.id)
+    } catch (error) { setSaveError(error instanceof Error ? error.message : 'This answer could not be accepted.'); }
+  }, [labOrigin, presetIds, lab.config, lab.result.input, lab.moment, accepts, knownBreaks, hasPendingProgram, mutateProgram, notify, startTeach])
 
-  const openEntry = useCallback((entry: SystemEntry, v?: number) => {
-    const version = entry.versions.find(x => x.v === v) ?? entry.versions.at(-1)!
-    lab.replaceConfig(version.config); setEntered(true); setTab('lab'); lab.setPhase('ready'); setTimeout(() => lab.runRef.current(), 300)
-  }, [lab])
+  const openEntry = useCallback((entry: SystemEntry, versionId?: string) => {
+    try {
+      const version = versionId ? entry.versions.find(x => x.id === versionId) : headVersion(entry)
+      const recipe = version ? recipeFor(version, compileExperiment) : null
+      if (!version || !recipe) { notify('This version has no available Lab recipe that reproduces its accepted inputs. Its executable inputs remain available for teaching and export.'); return }
+      lab.replaceConfig(recipe); setPresetIds([...version.presetIds]); setLabOrigin({ entryId: entry.id, versionId: version.id, expectedHeadVersionId: entry.headVersionId, name: entry.name, scope: entry.scope, when: entry.when, presetIds: [...version.presetIds] })
+      setEntered(true); setTab('lab'); lab.setPhase('ready'); setTimeout(() => lab.runRef.current(), 300)
+      if (version.snapshot.kind === 'legacy-unverified') notify('Re-testing preserved inputs with the current model. The earlier accepted version stays unchanged.')
+    } catch (error) { notify(error instanceof Error ? error.message : 'This saved answer could not open in the Lab. Its accepted inputs remain preserved.'); }
+  }, [lab, notify])
   const tryPreset = useCallback((preset: AnswerPreset) => {
     const base = createDefaultConfig()
-    lab.replaceConfig({ ...base, answer: { ...base.answer, ...preset.patch } }); setPresetIds([preset.id]); setEntered(true); setTab('lab'); lab.setPhase('ready'); setTimeout(() => lab.runRef.current(), 300)
+    lab.replaceConfig({ ...base, answer: { ...base.answer, ...preset.patch } }); setLabOrigin(null); setPresetIds([preset.id]); setEntered(true); setTab('lab'); lab.setPhase('ready'); setTimeout(() => lab.runRef.current(), 300)
   }, [lab])
 
   // Keyboard: space plays/pauses, arrows scrub.
@@ -269,7 +306,7 @@ export default function CourtIQApp() {
   const labels = useMemo(() => {
     const out: { anchor: string; text: string; tone: string; lift?: number }[] = []
     if (tab === 'teach') {
-      if (teach?.player) out.push({ anchor: teach.player, text: teach.entry ? `You · ${who(teach.player, voice)}` : who(teach.player, voice), tone: s.tagDef })
+      if (teach?.player) out.push({ anchor: teach.player, text: teach.entry ? `You · ${teachPlayerLabel(frame, teach.player, voice)}` : teachPlayerLabel(frame, teach.player, voice), tone: s.tagDef })
       return out
     }
     if (ambient) return out
@@ -339,18 +376,18 @@ export default function CourtIQApp() {
         <div className={s.logo}><span className={s.logoMark} />Court<b>IQ</b></div>
         <nav className={s.tabs}>
           {(['lab', 'system', 'teach', 'library'] as Tab[]).map(t => (
-            <button key={t} className={`${s.tab} ${tab === t ? s.tabOn : ''}`} onClick={() => { if (t === 'teach') startTeach((teach?.entry && system.entries.find(e => e.id === teach.entry!.id)) ?? system.entries.at(-1) ?? null); else setTab(t) }}>
+            <button key={t} className={`${s.tab} ${tab === t ? s.tabOn : ''}`} onClick={() => { if (t === 'teach') { if (teach) setTab('teach'); else startTeach(system.entries.at(-1) ?? null) } else setTab(t) }}>
               {t === 'lab' ? 'Lab' : t === 'system' ? 'Our System' : t === 'teach' ? 'Teach' : 'Library'}
             </button>
           ))}
         </nav>
         <div className={s.topRight}>
           {system.entries.length > 0 && <button className={s.chip} onClick={() => setTab('system')} title="Open Our System">{system.program} · {system.entries.length} saved</button>}
-          <button className={s.voiceCycle} aria-label="Change wording" onClick={() => setSystem({ ...system, register: system.register === 'plain' ? 'coach' : system.register === 'coach' ? 'program' : 'plain' })}>{system.register === 'plain' ? 'Simple' : system.register === 'coach' ? 'Coach' : 'Ours'}</button>
+          <button className={s.voiceCycle} aria-label="Change wording" onClick={() => setSystem(current => ({ ...current, register: current.register === 'plain' ? 'coach' : current.register === 'coach' ? 'program' : 'plain' }))}>{system.register === 'plain' ? 'Simple' : system.register === 'coach' ? 'Coach' : 'Ours'}</button>
           <div className={s.voice} role="group" aria-label="Language">
-            <button className={system.register === 'plain' ? s.voiceOn : ''} onClick={() => setSystem({ ...system, register: 'plain' })}>Simple words</button>
-            <button className={system.register === 'coach' ? s.voiceOn : ''} onClick={() => setSystem({ ...system, register: 'coach' })}>Coaching terms</button>
-            <button className={system.register === 'program' ? s.voiceOn : ''} title={Object.keys(system.terms).length ? 'Our own words' : 'Name things in Our System → Our words'} onClick={() => setSystem({ ...system, register: 'program' })}>Our words</button>
+            <button className={system.register === 'plain' ? s.voiceOn : ''} onClick={() => setSystem(current => ({ ...current, register: 'plain' }))}>Simple words</button>
+            <button className={system.register === 'coach' ? s.voiceOn : ''} onClick={() => setSystem(current => ({ ...current, register: 'coach' }))}>Coaching terms</button>
+            <button className={system.register === 'program' ? s.voiceOn : ''} title={Object.keys(system.terms).length ? 'Our own words' : 'Name things in Our System → Our words'} onClick={() => setSystem(current => ({ ...current, register: 'program' }))}>Our words</button>
           </div>
         </div>
       </header>
@@ -432,12 +469,14 @@ export default function CourtIQApp() {
 
       {tab === 'teach' && teach && <TeachHud teach={teach} setTeach={setTeach} voice={voice} frame={frame} checkpoints={teachCheckpoints} playing={teachPlaying} setPlaying={setTeachPlaying} t={teachT} setT={setTeachT} system={system} onPickEntry={e => startTeach(e)} hasLab={entered} onGoLab={() => setTab('lab')} />}
 
-      {tab === 'system' && <OurSystem system={system} voice={voice} onOpen={openEntry} onTeach={e => startTeach(e)} onSolve={() => { setTab('lab'); setEntered(false); lab.setPhase('ambient') }}
-        onTerms={terms => setSystem({ ...system, terms })} onProgram={program => setSystem({ ...system, program })} />}
+      {tab === 'system' && <OurSystem system={system} voice={voice} persistence={persistence} onOpen={openEntry} onTeach={e => startTeach(e)} onSolve={() => { setTab('lab'); setEntered(false); lab.setPhase('ambient') }}
+        onTerm={(key, value) => setSystem(current => { const terms = { ...current.terms }; if (value) terms[key] = value; else delete terms[key]; return { ...current, terms } })}
+        onProgram={program => setSystem(current => ({ ...current, program }))} onDefault={entry => setSystem(current => selectDefault(current, entry.id))} />}
       {tab === 'library' && <Library voice={voice} onTry={tryPreset} />}
 
       {saving && <SaveSheet config={lab.config} voice={voice} defaultName={defaultName} accepts={accepts} knownBreaks={knownBreaks}
-        existingVersions={(name, scope) => system.entries.find(e => e.scope === scope && e.name.toLowerCase() === name.trim().toLowerCase())?.versions.at(-1)?.v ?? 0}
+        defaultScope={labOrigin?.scope} defaultWhen={labOrigin?.when} originEntryId={labOrigin?.entryId} originExpectedHeadVersionId={labOrigin?.expectedHeadVersionId} matches={system.entries.filter(e => e.situationId === SITUATION_ID)}
+        existingVersions={entryId => { const entry = system.entries.find(e => e.id === entryId); return entry ? headVersion(entry).v : 0 }} busy={persistence.busy || persistence.status === 'loading'} error={saveError}
         onSave={save} onClose={() => setSaving(false)} />}
       {toast && <div className={s.toast} role="status">{toast}</div>}
       {debug && <PerfHud stats={stats} runtime={runtime.current} />}
@@ -446,7 +485,26 @@ export default function CourtIQApp() {
   )
 }
 
-function TeachHud({ teach, setTeach, voice, frame, checkpoints, playing, setPlaying, t, setT, system, onPickEntry, hasLab, onGoLab }: {
+function teachPlayerLabel(frame: WorldFrame, id: PlayerId, voice: Voice): string {
+  const player = frame.players.find(p => p.id === id)
+  if (player && ROLE_OF[id] === player.role) return who(id, voice)
+  const text = player ? voice.terms?.[`role:${player.role}`] ?? player.role : id
+  const words = text.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[-_]/g, ' ')
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+/** Teaching context names only players that exist in the pinned replay. */
+export function teachFocus(frame: WorldFrame, defenderId: PlayerId): PlayerId[] {
+  if (!frame.players.some(p => p.id === defenderId && p.team === 'defense')) return []
+  const job = primaryJob(frame, defenderId)
+  const owner = frame.players.find(p => p.id === frame.ball.owner)
+  const target = job?.target ?? frame.ball
+  const context = owner ?? frame.players.filter(p => p.team === 'offense').sort((a, b) => Math.hypot(a.x - target.x, a.z - target.z) - Math.hypot(b.x - target.x, b.z - target.z))[0]
+  const actual = new Set(frame.players.map(p => p.id))
+  return [...new Set([defenderId, job?.offensivePlayerId, context?.id].filter((id): id is PlayerId => typeof id === 'string' && actual.has(id)))]
+}
+
+export function TeachHud({ teach, setTeach, voice, frame, checkpoints, playing, setPlaying, t, setT, system, onPickEntry, hasLab, onGoLab }: {
   teach: TeachState
   setTeach(fn: (t: TeachState | null) => TeachState | null): void; voice: Voice; frame: ReturnType<typeof frameAt>
   checkpoints: { t: number; job: NonNullable<ReturnType<typeof primaryJob>> }[]; playing: boolean; setPlaying(p: boolean): void; t: number; setT(t: number): void
@@ -455,6 +513,10 @@ function TeachHud({ teach, setTeach, voice, frame, checkpoints, playing, setPlay
   const step = checkpoints[teach.step]
   const atCheckpoint = !!step && Math.abs(t - step.t) < 0.03 && !playing
   const done = !playing && teach.step >= checkpoints.length && t > 0
+  const defenders = frame.players.filter(p => p.team === 'defense').sort((a, b) => {
+    const heroA = DEFENDER_ORDER.indexOf(a.id), heroB = DEFENDER_ORDER.indexOf(b.id)
+    return (heroA < 0 ? DEFENDER_ORDER.length : heroA) - (heroB < 0 ? DEFENDER_ORDER.length : heroB) || a.number - b.number
+  })
   if (!teach.entry && !hasLab) return (
     <div className={s.teachEmpty}>
       <h2>Teach starts from your answer.</h2>
@@ -465,14 +527,14 @@ function TeachHud({ teach, setTeach, voice, frame, checkpoints, playing, setPlay
   return <>
     <div className={s.situation}>
       <div className={s.kicker} style={{ marginBottom: 0 }}><i />Teach</div>
-      <div className={s.sitTitle}>{teach.entry ? `${teach.entry.name} — version ${teach.entry.versions.at(-1)!.v}` : 'What you just tried in the Lab'}</div>
+      <div className={s.sitTitle}>{teach.entry ? `${teach.entry.name} — version ${teach.version!.v}` : 'Preview — what you just tried in the Lab'}</div>
       <div className={s.sitMeta}>
         {system.entries.map(e => <button key={e.id} className={s.pill} onClick={() => onPickEntry(e)}>{e.name}</button>)}
       </div>
     </div>
     <div className={s.teachBar}>
       <span className={s.toolLabel}>Teaching</span>
-      {DEFENDER_ORDER.map(id => <button key={id} className={`${s.toolBtn} ${teach.player === id ? s.toolOn : ''}`} aria-pressed={teach.player === id} onClick={() => { setTeach(x => x && { ...x, player: id, step: 0 }); setT(0); setPlaying(false) }}>{who(id, voice)}</button>)}
+      {defenders.map(player => <button key={player.id} data-player-id={player.id} className={`${s.toolBtn} ${teach.player === player.id ? s.toolOn : ''}`} aria-pressed={teach.player === player.id} onClick={() => { setTeach(x => x && { ...x, player: player.id, step: 0 }); setT(0); setPlaying(false) }}>{teachPlayerLabel(frame, player.id, voice)}</button>)}
     </div>
     <div className={s.toolbar} style={{ top: 64 }}>
       <div className={s.toolGroup}>
@@ -483,7 +545,7 @@ function TeachHud({ teach, setTeach, voice, frame, checkpoints, playing, setPlay
     {!teach.player ? (
       <div className={s.coachLine}><small>Pick a player</small><div>Who are you teaching? CourtIQ shows only his job, from his point of view.</div></div>
     ) : done ? (
-      <div className={s.coachLine}><small>That’s the possession</small><div>{checkpoints.length} reads for {who(teach.player, voice).toLowerCase()}.</div>
+      <div className={s.coachLine}><small>That’s the possession</small><div>{checkpoints.length} reads for {teachPlayerLabel(frame, teach.player, voice).toLowerCase()}.</div>
         <div className={s.row} style={{ justifyContent: 'center', marginTop: 12 }}><button className={`${s.btn} ${s.btnPrimary}`} onClick={() => { setTeach(x => x && { ...x, step: 0 }); setT(0); setPlaying(true) }}>Watch again</button></div></div>
     ) : (
       <div className={s.coachLine}>

@@ -1,5 +1,6 @@
-import type { PlayerId, Point2, WorldFrame } from '@/lib/defense-lab/types'
-import type { TagGuide } from '@/lib/defense-lab/tagGuide'
+import type { ModelAssumptions, PlayerId, Point2, WorldFrame } from '@courtiq/basketball/types'
+import type { ArrivalField } from '@courtiq/basketball/arrivalField'
+import type { TagGuide } from '@courtiq/basketball/tagGuide'
 
 /** The renderer draws basketball state plus generic world-anchored marks.
  * It never decides basketball: lenses, moments and comparisons are computed
@@ -10,23 +11,93 @@ export type Tone = 'threat' | 'good' | 'defense' | 'offense' | 'neutral' | 'ghos
 export type Anchor = PlayerId | Point2
 
 export type Mark =
-  | { kind: 'ring'; id: string; at: Anchor; tone: Tone; radius?: number; pulse?: boolean; opacity?: number; /** Stretch along `rot` (radians, about +y): a defender pulled two ways. */ aspect?: number; rot?: number }
-  | { kind: 'path'; id: string; points: Point2[]; tone: Tone; width?: number; arrow?: boolean; dashed?: boolean; opacity?: number; lift?: number; /** Draw-on duration in ms (animates from first appearance). */ grow?: number }
-  | { kind: 'lane'; id: string; from: Anchor; to: Anchor; tone: Tone; width?: number; opacity?: number; /** Flight apex in metres: a glass corridor following the ball's arc. */ arc?: number; /** Fractions along the lane a defender could reach in time (cut out of the glass). */ cuts?: [number, number][]; /** Hatched, greyed: blocked. */ blocked?: boolean }
+  | {
+      kind: 'ring'
+      id: string
+      at: Anchor
+      tone: Tone
+      radius?: number
+      pulse?: boolean
+      opacity?: number
+      /** Stretch along `rot` (radians, about +y): a defender pulled two ways. */ aspect?: number
+      rot?: number
+    }
+  | {
+      kind: 'path'
+      id: string
+      points: Point2[]
+      tone: Tone
+      width?: number
+      arrow?: boolean
+      dashed?: boolean
+      opacity?: number
+      lift?: number
+      /** Draw-on duration in ms (animates from first appearance). */ grow?: number
+    }
+  | {
+      kind: 'lane'
+      id: string
+      from: Anchor
+      to: Anchor
+      tone: Tone
+      width?: number
+      opacity?: number
+      /** Flight apex in metres: a glass corridor following the ball's arc. */ arc?: number
+      /** Fractions along the lane a defender could reach in time (cut out of the glass). */ cuts?: [number, number][]
+      /** Hatched, greyed: blocked. */ blocked?: boolean
+    }
   | { kind: 'disc'; id: string; center: Anchor; radius: number; tone: Tone; opacity?: number; edge?: boolean }
-  | { kind: 'tether'; id: string; from: Anchor; to: Anchor; tone: Tone; opacity?: number; width?: number; /** Chest-height duty string: height of both ends, droop and fraying. */ y?: number; sag?: number; fray?: boolean; /** 0..1 recent transfer: brightens and thickens. */ flash?: number }
-  | { kind: 'wedge'; id: string; apex: Anchor; toward: Anchor; length: number; spread: number; tone: Tone; opacity?: number }
+  | {
+      kind: 'tether'
+      id: string
+      from: Anchor
+      to: Anchor
+      tone: Tone
+      opacity?: number
+      width?: number
+      /** Chest-height duty string: height of both ends, droop and fraying. */ y?: number
+      sag?: number
+      fray?: boolean
+      /** 0..1 recent transfer: brightens and thickens. */ flash?: number
+    }
+  | {
+      kind: 'wedge'
+      id: string
+      apex: Anchor
+      toward: Anchor
+      length: number
+      spread: number
+      tone: Tone
+      opacity?: number
+    }
   /** Time-to-arrive map: isochrone bands of the fastest defender at every floor point. */
-  | { kind: 'arrival'; id: string; sources: Anchor[]; accel: number; maxSpeed: number; react: number; contest: number; /** Ball clock: floor beyond this arrival time (nobody gets there) glows threat. */ ballTime?: number | null; /** Open receivers: where the floor beyond the ball clock is marked as the uncovered island. */ islands?: Anchor[]; opacity?: number }
+  | {
+      kind: 'arrival'
+      id: string
+      field: ArrivalField
+      /** Ball clock compared with modeled arrival samples. */ ballTime?: number | null
+      /** Open receivers marked on the sampled floor field. */ islands?: Anchor[]
+      opacity?: number
+    }
   /** Vertical pin with a floor ring: where an alternate-world body stands. */
   | { kind: 'pin'; id: string; at: Anchor; tone: Tone; height?: number; radius?: number; opacity?: number }
   /** A counter drawn in time: head runs the route; outcome decides what remains. */
-  | { kind: 'comet'; id: string; points: Point2[]; outcome: 'held' | 'exposed'; /** Run time in ms. */ run?: number; selected?: boolean }
+  | {
+      kind: 'comet'
+      id: string
+      points: Point2[]
+      outcome: 'held' | 'exposed'
+      /** Run time in ms. */ run?: number
+      selected?: boolean
+    }
   /** One-shot expanding impact at a point. */
   | { kind: 'flare'; id: string; at: Anchor; tone: Tone; radius?: number; /** ms */ duration?: number }
 
 export interface WorldScene {
   frame: WorldFrame
+  /** The physical assumptions of this world and its independently run comparison. */
+  assumptions?: ModelAssumptions
+  ghostAssumptions?: ModelAssumptions
   /** Alternate world at the same clock: a previous answer or a candidate fix. */
   ghost?: WorldFrame | null
   marks: Mark[]

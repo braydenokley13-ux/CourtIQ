@@ -276,7 +276,8 @@
     }
   ],
   "bytes": {
-    "lab-athlete.glb": 1251216,
-    "lab-athlete-tactical.glb": 630424
-  }
+    "lab-athlete.glb": 670300,
+    "lab-athlete-tactical.glb": 348600
+  },
+  "byteMeasurement": "Measured from the current public GLBs by scripts/athlete/validate_studio_athlete.mjs on 2026-10-06 with Node 22.23.3. The Blender asset build was not rerun."
 }

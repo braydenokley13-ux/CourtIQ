@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import type { Voice } from '@/lib/defense-lab/corpus'
-import { answerAt } from '@/lib/defense-lab/simulation'
-import type { CoachRule, CounterId, LabConfig, PlayerId, WorldFrame } from '@/lib/defense-lab/types'
+import type { Voice } from '@courtiq/basketball/corpus'
+import { answerAt } from '@courtiq/basketball/simulation'
+import type { CoachRule, CounterId, LabConfig, PlayerId, WorldFrame } from '@courtiq/basketball/types'
 import { coverageName, helpAmount, jobSentence, primaryJob, who } from './basketball'
 import FullControl, { Seg, type Change } from './FullControl'
 import s from './courtiq.module.css'

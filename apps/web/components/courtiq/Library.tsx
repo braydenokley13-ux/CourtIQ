@@ -1,10 +1,10 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ANSWERS, COLLISIONS, CONCEPTS, SITUATIONS, applyAnswers, isOfferable, type AnswerPreset, type Voice } from '@/lib/defense-lab/corpus'
-import { simulateCached } from '@/lib/defense-lab/replayCache'
-import { createDefaultConfig } from '@/lib/defense-lab/scenario'
-import { findTeachingMoment } from '@/lib/defense-lab/explore'
+import { ANSWERS, COLLISIONS, CONCEPTS, SITUATIONS, applyAnswers, isOfferable, type AnswerPreset, type Voice } from '@courtiq/basketball/corpus'
+import { simulateCached } from '@/lib/basketball/replayCache'
+import { createDefaultConfig } from '@courtiq/basketball/scenario'
+import { findTeachingMoment } from '@courtiq/basketball/explore'
 import MiniCourt from './MiniCourt'
 import s from './courtiq.module.css'
 

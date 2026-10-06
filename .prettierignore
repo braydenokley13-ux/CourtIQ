@@ -1,0 +1,9 @@
+# Materializer owns this byte-stable artifact.
+packages/basketball/src/content/generated/
+# Generated asset measurements and build products.
+apps/web/public/athlete/*.json
+apps/web/public/environment/*.json
+**/.next*/
+**/dist/
+**/node_modules/
+**/.turbo/
