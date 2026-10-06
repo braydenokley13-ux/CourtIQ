@@ -7,7 +7,8 @@ export function spoken(seconds: number, voice: Voice): string {
   if (voice.register !== 'plain') return `${(Math.round(seconds * 10) / 10).toFixed(1)} s`
   const s = Math.abs(seconds)
   if (s < 0.15) return 'a split second'
-  if (s < 0.35) return 'about a quarter second'
+  if (s < 0.25) return 'about a step (a fifth of a second)'
+  if (s < 0.35) return 'about a third of a second'
   if (s < 0.45) return 'less than half a second'
   if (s < 0.65) return 'about half a second'
   if (s < 0.9) return 'almost a second'

@@ -255,8 +255,8 @@ export function BreakMomentPanel({ report, voice, onFix, onAccept, onReplay, onE
   return (
     <div className={s.panel} role="dialog" aria-label="They broke it">
       <div className={`${s.panelKicker} ${s.attack}`}><span className={s.pulseDot} />They broke it</div>
-      <h2>{copy.headline}</h2>
-      <p className={s.lead}>{p ? `How: ${how}.` : `Counter: ${how}.`}</p>
+      <h2>{p ? `${cap(person(w.playerId as PlayerId, voice))} is open.` : copy.headline}</h2>
+      <p className={s.lead}>{p ? (report.selected.changes.length ? `How: ${how}.` : 'Their usual play already gets him a shot — no trick needed.') : `Counter: ${how}.`}</p>
       <p>{p ? `${cap(person(w.limitingDefenderId as PlayerId, voice))} needs ${spoken(w.arrivalSeconds, voice)} to get there — ${late > 0.15 ? `late by ${spoken(late, voice)}` : 'a hair late'}.` : `${person(w.limitingDefenderId as PlayerId, voice)} arrival ${spoken(w.arrivalSeconds, voice)} vs release ${spoken(w.releaseSeconds, voice)}.`}</p>
       {retest && <p style={{ fontSize: 13 }}>{retest.current.witness ? 'Their last counter still works against your new answer.' : 'Your fix holds against their last counter — this is a new way in.'}</p>}
       <div className={s.row}>

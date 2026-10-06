@@ -339,7 +339,7 @@ export default function CourtIQApp() {
         <div className={s.logo}><span className={s.logoMark} />Court<b>IQ</b></div>
         <nav className={s.tabs}>
           {(['lab', 'system', 'teach', 'library'] as Tab[]).map(t => (
-            <button key={t} className={`${s.tab} ${tab === t ? s.tabOn : ''}`} onClick={() => { if (t === 'teach') startTeach(teach?.entry ?? system.entries.at(-1) ?? null); else setTab(t) }}>
+            <button key={t} className={`${s.tab} ${tab === t ? s.tabOn : ''}`} onClick={() => { if (t === 'teach') startTeach((teach?.entry && system.entries.find(e => e.id === teach.entry!.id)) ?? system.entries.at(-1) ?? null); else setTab(t) }}>
               {t === 'lab' ? 'Lab' : t === 'system' ? 'Our System' : t === 'teach' ? 'Teach' : 'Library'}
             </button>
           ))}

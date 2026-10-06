@@ -33,7 +33,7 @@ Branch `claude/happy-mayer-xgfe3w`. Every pushed commit was verified in an isola
 
 ## End-of-sprint attacks and what was done
 - `critique/final-adversarial.md`: (a) "FastDraw in 3D" mostly beaten (coverages produce different possessions and problems); (b) trust defensible but attackable; (c) above the mockup floor, below the premium target; (d) coach split → phone fixed since; (e) unproven without real GPUs. Fixed after: coverage signatures on court (trap / switch / ICE force / drop spot), honest eye-level and baseline cameras, placebo drop-depth control removed outside Drop/ICE, Coaching-terms copy, phone layout.
-- `critique/coach-proxy-2.md` (proxy): fixed after — their/your jersey numbers, rounding that never contradicts, fixes ranked by the problem on screen with "makes it worse" flags, Simple-words jargon, feet, compact 720p card, compare labels naming the latest change, court labels never over the UI.
+- `critique/coach-proxy-2.md` (proxy): fixed after — their/your jersey numbers, rounding that never contradicts, fixes ranked by the problem on screen with "makes it worse" flags, Simple-words jargon, feet, compact 720p card, compare labels naming the latest change, court labels never over the UI; Teach always opens the latest saved version; 0.2 s is spoken as "about a step", never "a quarter"; Break results name the open player and say when their usual play already beats you.
 
 ## Next (ranked)
 1. Run the real coach test (`COACH-TEST.md`) and `/?bench` on 2–3 real laptops; calibrate tiers.
