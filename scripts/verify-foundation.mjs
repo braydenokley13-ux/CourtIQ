@@ -41,7 +41,7 @@ const steps = []
 let currentStep = null
 let intentionalNavigationTarget = null
 const inFlightRequests = new Set()
-let previousPageRequestsAtNavigation = new Set()
+const previousPageRequestsAtNavigation = new Map()
 let activeRetiredProbe = null
 let activeRetiredProbeConfirmed404 = false
 const assert = (condition, message) => {
@@ -197,12 +197,14 @@ async function main() {
   page.setDefaultTimeout(TIMEOUT)
   const navigate = async (url) => {
     intentionalNavigationTarget = new URL(url).pathname
-    previousPageRequestsAtNavigation = new Set(inFlightRequests)
+    for (const request of inFlightRequests) {
+      if (!previousPageRequestsAtNavigation.has(request))
+        previousPageRequestsAtNavigation.set(request, intentionalNavigationTarget)
+    }
     try {
       return await page.goto(url, { waitUntil: 'domcontentloaded' })
     } finally {
       intentionalNavigationTarget = null
-      previousPageRequestsAtNavigation.clear()
     }
   }
   page.on('console', (message) => {
@@ -229,17 +231,18 @@ async function main() {
   page.on('pageerror', (error) => errors.push({ type: 'pageerror', text: error.message }))
   page.on('requestfailed', (request) => {
     inFlightRequests.delete(request)
+    const previousPageNavigation = previousPageRequestsAtNavigation.get(request)
+    previousPageRequestsAtNavigation.delete(request)
     const url = request.url()
     const errorText = request.failure()?.errorText
     if (
       errorText === 'net::ERR_ABORTED' &&
-      intentionalNavigationTarget &&
-      previousPageRequestsAtNavigation.has(request) &&
+      previousPageNavigation &&
       new URL(url).origin === new URL(BASE_URL).origin
     ) {
       expectedNavigationAborts.push({
         url,
-        duringNavigationTo: intentionalNavigationTarget,
+        duringNavigationTo: previousPageNavigation,
         error: errorText,
         provenPreviousPageRequest: true,
       })
@@ -247,7 +250,10 @@ async function main() {
       failedAssets.push({ url, error: request.failure()?.errorText })
     }
   })
-  page.on('requestfinished', (request) => inFlightRequests.delete(request))
+  page.on('requestfinished', (request) => {
+    inFlightRequests.delete(request)
+    previousPageRequestsAtNavigation.delete(request)
+  })
   page.on('response', (response) => {
     if (
       activeRetiredProbe &&
@@ -733,7 +739,11 @@ async function main() {
       route: '/lab',
       protectedBootstrap: Boolean(QA_ACCESS_URL),
       routeMode: QA_ROUTE_MODE,
-      runMode: QA_FROM_IMPORT_FILE ? 'imported-system-shakedown' : 'full-golden-path',
+      runMode: QA_NAVIGATION_ONLY
+        ? 'navigation-only'
+        : QA_FROM_IMPORT_FILE
+          ? 'imported-system-shakedown'
+          : 'full-golden-path',
       ...(await runtimeInfo(page)),
       steps,
       ...sanitizedDiagnostics(),
@@ -757,7 +767,11 @@ async function main() {
       route: '/lab',
       protectedBootstrap: Boolean(QA_ACCESS_URL),
       routeMode: QA_ROUTE_MODE,
-      runMode: QA_FROM_IMPORT_FILE ? 'imported-system-shakedown' : 'full-golden-path',
+      runMode: QA_NAVIGATION_ONLY
+        ? 'navigation-only'
+        : QA_FROM_IMPORT_FILE
+          ? 'imported-system-shakedown'
+          : 'full-golden-path',
       ...(await runtimeInfo(page)),
       steps,
       failedStep: currentStep,
