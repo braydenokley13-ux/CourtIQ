@@ -6,7 +6,7 @@ Branch `claude/happy-mayer-xgfe3w`. Every pushed commit was verified in an isola
 
 | Gate | Status | Evidence |
 | --- | --- | --- |
-| **A. Real coach usability** | **OPEN — needs a human.** Product prepared; agent proxies only. | `COACH-TEST.md` protocol; proxy walks `critique/coach-usability.md`, `critique/coach-proxy-2.md` |
+| **A. Real coach usability** | **OPEN — needs a human.** Proxy verdict: ready for a supervised real-coach session (behaviors 1, 2, 4, 8 pass unaided; 3, 5, 9 partly; 6 "what if?" not shown by a proxy). Proxy findings since fixed. | `COACH-TEST.md` protocol; proxy walks `critique/coach-usability.md`, `critique/coach-proxy-2.md` |
 | **B. Core coverages are real** | Drop / Switch / Blitz / ICE behaviorally distinct; Hedge hidden. Coverage gate 54/57 (remaining: hedge-only and one timing-tuning assertion, deliberately not forced). | `coverage-spec.md`, `lib/defense-lab/coverageGate.test.ts` (`COVERAGE_GATE=1`), `lib/defense-lab/engineHonesty.test.ts` |
 | **C. Normal-laptop performance** | Instrumented and tiered; **real-GPU FPS unvalidated** (workspace has only software GL). | `perf/README.md`, `scripts/perf/bench.mjs --gpu`, in-app `/?bench`, `/?debug` HUD |
 | **D. Complete golden path** | **Passed** on the integrated build: choose → run → why → fix → compare → break → fix vs counter → break again → save → teach → Our System → reload (persisted) → reopen. No console errors. | `scripts/qa-local/golden2.mjs` (local), screenshots summarized below |
@@ -30,4 +30,13 @@ Branch `claude/happy-mayer-xgfe3w`. Every pushed commit was verified in an isola
 - Second problem is engine-only; the UI is still P&R-specific.
 - First Compare shows a one-time ~5 s stall under software GL (cause not pinned).
 
-See `critique/final-adversarial.md` for the independent end-of-sprint attack.
+## End-of-sprint attacks and what was done
+- `critique/final-adversarial.md`: (a) "FastDraw in 3D" mostly beaten (coverages produce different possessions and problems); (b) trust defensible but attackable; (c) above the mockup floor, below the premium target; (d) coach split → phone fixed since; (e) unproven without real GPUs. Fixed after: coverage signatures on court (trap / switch / ICE force / drop spot), honest eye-level and baseline cameras, placebo drop-depth control removed outside Drop/ICE, Coaching-terms copy, phone layout.
+- `critique/coach-proxy-2.md` (proxy): fixed after — their/your jersey numbers, rounding that never contradicts, fixes ranked by the problem on screen with "makes it worse" flags, Simple-words jargon, feet, compact 720p card, compare labels naming the latest change, court labels never over the UI.
+
+## Next (ranked)
+1. Run the real coach test (`COACH-TEST.md`) and `/?bench` on 2–3 real laptops; calibrate tiers.
+2. Problem panel anchored in the world rather than a right-side card; Break replay that holds on the cause.
+3. Generalize the coach surface (answer vocabulary, coach cards, attack domain) so the baseline-drive problem becomes playable.
+4. Athlete close-range polish (hem specks, seam number ghost), cloth motion.
+5. Shareable one-page / clip export for players.
