@@ -40,7 +40,8 @@ export interface SystemEntry {
 export interface ProgramSystem {
   schema: 1
   program: string
-  register: 'plain' | 'coach'
+  /** Plain = no terminology; coach = common basketball terms; program = our own words. */
+  register: 'plain' | 'coach' | 'program'
   /** Team terminology: concept/answer/role id → team word. */
   terms: Record<string, string>
   entries: SystemEntry[]
@@ -58,7 +59,7 @@ const entrySchema = z.object({
   scope: z.enum(['program', 'varsity', 'jv', 'freshman', 'lineup', 'game']), when: z.string().max(120), versions: z.array(versionSchema).min(1).max(50),
 })
 export const systemSchema = z.object({
-  schema: z.literal(1), program: z.string().max(80), register: z.enum(['plain', 'coach']),
+  schema: z.literal(1), program: z.string().max(80), register: z.enum(['plain', 'coach', 'program']),
   terms: z.record(z.string().max(60), z.string().max(40)), entries: z.array(entrySchema).max(200),
 })
 
@@ -136,3 +137,13 @@ export function versionDiff(prev: SystemVersion | undefined, next: SystemVersion
   return out.length ? out : ['Same basketball (re-saved)']
 }
 const fmt = (v: unknown) => typeof v === 'number' ? (Math.round(v * 100) / 100).toString() : String(v)
+
+/** The voice CourtIQ speaks in for this program. Team words apply only in the
+ * program register, so "Plain" never surprises a new coach with jargon. */
+export function programVoice(system: Pick<ProgramSystem, 'register' | 'terms'>): { register: 'plain' | 'coach'; terms?: Record<string, string> } {
+  if (system.register === 'program') return { register: 'coach', terms: system.terms }
+  // The team's own name for its own answer is never jargon to that team.
+  const own = Object.fromEntries(Object.entries(system.terms).filter(([k]) => COVERAGE_IDS.includes(k)))
+  return { register: system.register, terms: own }
+}
+const COVERAGE_IDS = ['drop', 'switch', 'blitz', 'hedge', 'ice', 'custom']

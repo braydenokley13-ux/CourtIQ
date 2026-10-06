@@ -351,7 +351,7 @@ export class WorldRuntime {
     for (const p of frame.players) {
       const a = this.athletes.get(p.id); if (!a) continue
       a.root.position.set(p.x, p.pose.jump, p.z)
-      a.setPose({ time: frame.t, speed: Math.hypot(p.vx, p.vz), velocity: { x: p.vx, z: p.vz }, defensive: p.team === 'defense', pose: p.pose.stance, phase: p.pose.phase, hands: p.pose.hands, ball: frame.ball, hasBall: frame.ball.owner === p.id && frame.ball.phase !== 'pass', facing: p.yaw })
+      a.setPose({ time: frame.t, speed: Math.hypot(p.vx, p.vz), velocity: { x: p.vx, z: p.vz }, defensive: p.team === 'defense', pose: poseIntent(frame, p), phase: p.pose.phase, hands: p.pose.hands, ball: frame.ball, hasBall: frame.ball.owner === p.id && frame.ball.phase !== 'pass', facing: p.yaw })
       const hidden = s.camera === 'player' && p.id === s.pov
       a.figure.visible = !hidden
       const fade = highlight ? (highlight.has(p.id) ? 1 : 0) : 1
@@ -459,4 +459,24 @@ function contactShadowTexture() {
   const t = new THREE.CanvasTexture(canvas)
   // Alpha from luminance: draw as alphaMap on black.
   return t
+}
+
+/** Basketball intent for the animation layer, derived from the engine's own
+ * responsibilities and ball state (never invented by the renderer). */
+export function poseIntent(frame: import('@/lib/defense-lab/types').WorldFrame, p: PlayerState): string {
+  const speed = Math.hypot(p.vx, p.vz)
+  const fl = frame.ball.flight
+  if (fl && fl.from === p.id && frame.t - fl.start < 0.3 && fl.kind !== 'shot') return fl.kind === 'skip' || fl.kind === 'lob' ? 'skip' : 'pass'
+  if (p.team === 'defense') {
+    const job = frame.responsibilities.filter(r => r.defenderId === p.id).sort((a, b) => b.priority - a.priority)[0]
+    if (job?.kind === 'closeout' && speed > 0.6) return 'closeout'
+    if (job?.kind === 'chase' && speed > 0.5) return 'fight'
+    return p.pose.stance
+  }
+  if (p.pose.stance === 'run' && speed > 2.6) {
+    // A sharp change of direction relative to facing reads as a plant-and-cut.
+    const heading = Math.atan2(p.vx, p.vz), d = Math.atan2(Math.sin(heading - p.yaw), Math.cos(heading - p.yaw))
+    if (Math.abs(d) > 0.9) return 'cut'
+  }
+  return p.pose.stance
 }

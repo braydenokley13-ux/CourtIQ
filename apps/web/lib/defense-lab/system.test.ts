@@ -34,3 +34,12 @@ describe('Our System', () => {
     expect(contradictions(sys)).toHaveLength(1)
   })
 })
+
+describe('program voice', () => {
+  it('plain keeps only our coverage names; program uses all our words', async () => {
+    const { programVoice } = await import('./system')
+    const terms = { drop: 'Blue', 'low-man': 'Helper' }
+    expect(programVoice({ register: 'plain', terms })).toEqual({ register: 'plain', terms: { drop: 'Blue' } })
+    expect(programVoice({ register: 'program', terms })).toEqual({ register: 'coach', terms })
+  })
+})
