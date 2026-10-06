@@ -127,7 +127,7 @@
 .railOn::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
 
 /* ---------- moment / fix / tradeoff panel ---------- */
-.panel { position: absolute; z-index: 13; right: 16px; bottom: 86px; width: min(400px, calc(100vw - 32px)); max-height: calc(100vh - 210px); overflow: auto; border-radius: 20px; background: var(--glass-strong); border: 1px solid var(--line); backdrop-filter: blur(22px); box-shadow: 0 30px 70px rgba(0,0,0,.55); padding: 18px; animation: rise2 .35s cubic-bezier(.2,.8,.2,1); }
+.panel { position: absolute; z-index: 13; right: 16px; bottom: 86px; width: min(400px, calc(100vw - 32px)); max-height: calc(100vh - 270px); overflow: auto; border-radius: 20px; background: var(--glass-strong); border: 1px solid var(--line); backdrop-filter: blur(22px); box-shadow: 0 30px 70px rgba(0,0,0,.55); padding: 18px; animation: rise2 .35s cubic-bezier(.2,.8,.2,1); }
 .panelKicker { font: 700 10.5px var(--ui); letter-spacing: .16em; text-transform: uppercase; color: var(--threat); display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .panelKicker.good { color: var(--good); }
 .panelKicker.attack { color: #ff6d92; }

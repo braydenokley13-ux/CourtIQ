@@ -198,7 +198,7 @@ export default function CourtIQApp() {
     playing: tab === 'teach' ? teachPlaying : ambient || lab.playing, live, editable: tab === 'lab' && entered && !inBreak, tagGuide,
     rig: lab.phase === 'break-search' ? { azimuth: Math.PI + 0.6, elevation: 0.3, fov: 38, minDistance: 7 } : null,
     impact: lab.phase === 'break-moment' ? lab.attack?.selected.witness?.at ?? 1 : undefined,
-    inset: ambient ? { left: Math.min(640, viewport.w * 0.45), top: 60 } : tab === 'lab' && entered && viewport.w > 820 ? { right: panelOpen ? 430 : 0, left: selected && !lab.playing && !inBreak ? 350 : 0, top: 150, bottom: 80 } : { top: 120, bottom: 150 },
+    inset: ambient ? { left: Math.min(640, viewport.w * 0.45), top: 60 } : tab === 'lab' && entered && viewport.w > 820 ? { right: panelOpen ? 430 : 0, left: selected && !lab.playing && !inBreak ? 350 : 0, top: 215, bottom: 80 } : { top: 120, bottom: 150 },
   }), [viewport, panelOpen, frame, ghost, marks, lens, whyOn, focus, tab, teach, camera, selected, hover, teachPlaying, ambient, lab.playing, entered, inBreak, tagGuide, lab.phase, lab.attack, live])
 
   // ------------------------------------------------ actions

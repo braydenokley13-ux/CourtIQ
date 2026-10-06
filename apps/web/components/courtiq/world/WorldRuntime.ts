@@ -306,7 +306,9 @@ export class WorldRuntime {
         { kind: 'comet', id: 'w-comet', points: pts, outcome: 'held' },
         { kind: 'flare', id: 'w-flare', at: a, tone: 'threat' },
       ], this.state.frame, performance.now(), 0, 1)
-      const hide = () => { layer.root.visible = false; this.dirty = true }
+      // The hologram (ghost) material is a ShaderMaterial that otherwise first compiles when Compare opens: warm it too.
+      const ghostWasVisible = this.ghost.root.visible; this.ghost.root.visible = true
+      const hide = () => { layer.root.visible = false; this.ghost.root.visible = ghostWasVisible; this.dirty = true }
       this.renderer.compileAsync(this.scene, this.camera).then(hide, hide)
     } catch { /* pre-warm is best-effort */ }
   }

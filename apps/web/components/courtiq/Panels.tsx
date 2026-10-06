@@ -19,7 +19,12 @@ function causeSentence(m: TeachingMoment, voice: Voice): string | null {
   const p = voice.register === 'plain'
   const pulled = m.pulledDefenderId, rec = person(m.receiverId, voice)
   switch (m.cause) {
-    case 'deep-tag': return pulled ? (p ? `${cap(person(pulled, voice))} ran all the way to the screener, so nobody was left for ${rec}.` : `${person(pulled, voice)} tagged deep; nobody left for ${rec}.`) : null
+    case 'deep-tag': {
+      if (!pulled) return null
+      const own = pulled.slice(1) === m.receiverId.slice(1)
+      const left = own ? (p ? `his own man, ${rec}` : `his man ${rec}`) : rec
+      return p ? `${cap(person(pulled, voice))} ran all the way to the screener, so nobody was left for ${left}.` : `${person(pulled, voice)} tagged deep; nobody left for ${left}.`
+    }
     case 'late-rotation': return p ? `Nobody stepped in front of ${rec} in time.` : `Late rotation to ${rec}.`
     case 'switch-mismatch': return pulled ? (p ? `After the switch, ${person(pulled, voice)} is guarding someone bigger or quicker than him — and ${rec} goes right at it.` : `Switch mismatch: ${rec} attacks ${person(pulled, voice)}.`) : null
     case 'two-on-ball': return p ? `Two of your players went to the ball, so ${rec} caught it with room behind them.` : `Two on the ball; ${rec} plays 4-on-3 behind it.`
