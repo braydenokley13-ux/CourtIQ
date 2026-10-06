@@ -32,10 +32,15 @@ const PLAYBACK_TIMEOUT = Number(process.env.QA_PLAYBACK_TIMEOUT ?? 180_000)
 const errors = []
 const failedAssets = []
 const expectedNavigationAborts = []
+const expectedRetiredProbeErrors = []
+const retiredRouteStatuses = []
+const platformInjectedRequests = []
 const backendRequests = []
 const steps = []
 let currentStep = null
 let intentionalNavigationTarget = null
+let activeRetiredProbe = null
+let activeRetiredProbeConfirmed404 = false
 const assert = (condition, message) => {
   if (!condition) throw new Error(message)
 }
@@ -43,6 +48,9 @@ const step = async (name, action) => {
   const startedAt = new Date().toISOString()
   currentStep = name
   await action()
+  assert(backendRequests.length === 0, 'Unexpected API/backend or cross-origin requests were detected')
+  assert(failedAssets.length === 0, 'Asset load failures were detected')
+  assert(errors.length === 0, 'Browser console or page errors were detected')
   steps.push({ name, completedAt: new Date().toISOString(), startedAt })
   currentStep = null
   console.log(`✓ ${name}`)
@@ -61,7 +69,7 @@ function sanitizeText(value) {
   if (QA_ACCESS_URL) text = text.replaceAll(QA_ACCESS_URL, '[protected access URL]')
   return text
     .replace(/https?:\/\/[^\s)'"<>]+/g, (match) => safeUrl(match))
-    .replace(/^\s*cookie:\s*.*$/gim, 'cookie: [redacted]')
+    .replace(/^\s*(?:-\s*)?cookie:\s*.*$/gim, 'cookie: [redacted]')
     .replace(/((_vercel_jwt|_vercel_share|access_token|id_token|refresh_token)=)[^&\s]+/gi, '$1[redacted]')
     .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '[redacted-token]')
     .replace(/((?:token|secret|password|authorization|api[_-]?key)=)[^&\s]+/gi, '$1[redacted]')
@@ -73,6 +81,12 @@ function sanitizedDiagnostics() {
     expectedNavigationAborts: expectedNavigationAborts.map((asset) => ({
       ...asset,
       url: safeUrl(asset.url),
+    })),
+    retiredRouteStatuses: [...retiredRouteStatuses],
+    expectedRetiredProbeErrors: [...expectedRetiredProbeErrors],
+    platformInjectedRequests: platformInjectedRequests.map((request) => ({
+      ...request,
+      url: safeUrl(request.url),
     })),
     browserErrors: errors.map((error) => ({ ...error, text: sanitizeText(error.text) })),
   }
@@ -187,7 +201,31 @@ async function main() {
     }
   }
   page.on('console', (message) => {
-    if (message.type() === 'error') errors.push({ type: 'console', text: message.text() })
+    if (message.type() !== 'error') return
+    const text = message.text()
+    const location = message.location()
+    let locationMatchesProbe = false
+    try {
+      const sourceUrl = new URL(location.url)
+      locationMatchesProbe =
+        sourceUrl.origin === new URL(BASE_URL).origin && sourceUrl.pathname === activeRetiredProbe
+    } catch {
+      locationMatchesProbe = false
+    }
+    if (
+      activeRetiredProbe &&
+      activeRetiredProbeConfirmed404 &&
+      locationMatchesProbe &&
+      /status of 404/i.test(text)
+    ) {
+      expectedRetiredProbeErrors.push({
+        route: activeRetiredProbe,
+        sourceUrl: safeUrl(location.url),
+        text: sanitizeText(text),
+      })
+      return
+    }
+    errors.push({ type: 'console', text })
   })
   page.on('pageerror', (error) => errors.push({ type: 'pageerror', text: error.message }))
   page.on('requestfailed', (request) => {
@@ -205,6 +243,14 @@ async function main() {
   })
   page.on('response', (response) => {
     if (
+      activeRetiredProbe &&
+      response.status() === 404 &&
+      new URL(response.url()).origin === new URL(BASE_URL).origin &&
+      new URL(response.url()).pathname === activeRetiredProbe
+    ) {
+      activeRetiredProbeConfirmed404 = true
+    }
+    if (
       response.status() >= 400 &&
       /\.(?:js|css|woff2?|ttf|otf|png|jpe?g|webp|svg|glb|gltf)(?:\?|$)/i.test(response.url())
     ) {
@@ -216,6 +262,12 @@ async function main() {
     const baseOrigin = new URL(BASE_URL).origin
     const unsafeMethod = !['GET', 'HEAD', 'OPTIONS'].includes(request.method())
     if (
+      url.origin === 'https://vercel.live' &&
+      url.pathname === '/_next-live/feedback/feedback.js' &&
+      request.method() === 'GET'
+    ) {
+      platformInjectedRequests.push({ method: request.method(), url: request.url() })
+    } else if (
       url.origin !== baseOrigin ||
       unsafeMethod ||
       /^\/api(?:\/|$)/.test(url.pathname) ||
@@ -264,10 +316,19 @@ async function main() {
         for (const route of retiredRoutes) {
           // Probe through Chromium so protected-preview cookies and its network
           // configuration apply, without navigating the GPU-backed Lab page.
-          const status = await page.evaluate(async (path) => {
-            const response = await fetch(path, { credentials: 'include', redirect: 'manual' })
-            return response.status
-          }, route)
+          activeRetiredProbe = route
+          activeRetiredProbeConfirmed404 = false
+          let status
+          try {
+            status = await page.evaluate(async (path) => {
+              const response = await fetch(path, { credentials: 'include', redirect: 'manual' })
+              return response.status
+            }, route)
+            await page.waitForTimeout(50)
+          } finally {
+            activeRetiredProbe = null
+          }
+          retiredRouteStatuses.push({ route, status })
           assert(
             status === 404,
             `Retired route ${route} returned ${status}, expected 404`,
