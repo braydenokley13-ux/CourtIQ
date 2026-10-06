@@ -11,7 +11,8 @@ async function main() {
   const buffer = await fs.readFile(new URL('../../apps/web/public/athlete/lab-athlete.glb', import.meta.url))
   const native = await new GLTFLoader().parseAsync(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength), '')
   GLTFLoader.prototype.loadAsync = async () => native
-  const drawing = { beginPath() {}, roundRect() {}, fill() {}, fillText() {} }
+  // Canvas mock: every 2D-context call is a no-op; gradients expose addColorStop.
+  const drawing = new Proxy({}, { get: (_t, key) => key === 'createRadialGradient' || key === 'createLinearGradient' ? () => ({ addColorStop() {} }) : () => undefined, set: () => true })
   globalThis.document = { createElement: () => ({ width: 128, height: 128, getContext: () => drawing }) } as unknown as Document
   assert(await loadGlbAthleteAsset())
   const athletes = Array.from({ length: 10 }, (_, i) => createLabAthlete({ id: `${i < 5 ? 'D' : 'O'}${i % 5 + 1}`, team: i < 5 ? 'defense' : 'offense', height: 1.86 + i * .008 }, i, true))

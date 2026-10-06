@@ -335,23 +335,27 @@ export function buildLabEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRen
     const m = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 3), mat); m.position.set(x, 3.55, -4.04); env.add(m)
   }
 
-  // Slim trusses + overhead light banks (emissive, glow sprites). No ceiling plane.
+  // Overhead light banks + trusses live in `overhead`, hidden by updateEnvironmentForCamera when the
+  // camera is above them. Trusses stay outside the court footprint; no ceiling plane.
+  const overhead = new THREE.Group(); overhead.name = 'overhead-fixtures'; env.add(overhead)
   const frame = new Batch()
-  for (const z of [-3.5, 3.0, 9.0, 15]) frame.box([25, 0.16, 0.2], [0, 8.4, z], steel)
-  for (const x of [-9, -4.5, 0, 4.5, 9]) frame.box([0.14, 0.18, 22], [x, 8.55, 6.5], steel)
+  for (const z of [-3.5, 17.5]) frame.box([25, 0.16, 0.2], [0, 8.4, z], steel)
+  for (const x of [-10, 10]) frame.box([0.14, 0.18, 22], [x, 8.55, 6.5], steel)
   const housing = material('#14181c', 0.55, 0.4)
   const lampMat = new THREE.MeshBasicMaterial({ toneMapped: false }); lampMat.color.setRGB(2.6, 2.4, 2.0)
   const lamps = new Batch(), glowTex = track(makeGlowTexture(), 1)
-  const glowMat = new THREE.SpriteMaterial({ map: glowTex, color: '#ffe6b0', transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, fog: false })
-  const bankPositions: [number, number][] = []
-  for (const z of [2.2, 8.6, 14.6]) for (const x of [-4.8, 0, 4.8]) bankPositions.push([x, z])
-  for (const [x, z] of bankPositions) {
+  const glowMat = new THREE.MeshBasicMaterial({ map: glowTex, color: '#ffe6b0', transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, side: THREE.DoubleSide })
+  const glowGeos: THREE.BufferGeometry[] = []
+  for (const z of [2.2, 8.6, 14.6]) for (const x of [-4.8, 0, 4.8]) {
     frame.box([2.5, 0.2, 0.62], [x, 7.75, z], housing)
     for (const dx of [-0.9, 0.9]) frame.box([0.03, 0.65, 0.03], [x + dx, 8.1, z], steel)
     lamps.box([2.3, 0.02, 0.48], [x, 7.64, z], lampMat)
-    const glow = new THREE.Sprite(glowMat); glow.scale.set(6.5, 2.6, 1); glow.position.set(x, 7.5, z); env.add(glow)
+    const g = new THREE.PlaneGeometry(6.5, 2.6); g.rotateX(Math.PI / 2); g.translate(x, 7.5, z); glowGeos.push(g)
   }
-  frame.flush(env, 'frame'); lamps.flush(env, 'lamps')
+  const glow = new THREE.Mesh(mergeGeometries(glowGeos)!, glowMat); glow.renderOrder = 3; overhead.add(glow)
+  for (const g of glowGeos) g.dispose()
+  frame.flush(overhead, 'frame'); lamps.flush(overhead, 'lamps')
+  env.userData.overhead = overhead
 
   // Bleachers (retracted) on both sidelines: dark stepped mass for depth.
   const bleachMat = material('#2c241d', 0.78), riser = material('#1a1f24', 0.6, 0.35)
@@ -392,7 +396,7 @@ export function buildLabEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRen
     tintables.push({ material: mat, color: m.color.clone(), emissive: (m as THREE.MeshStandardMaterial).emissive?.clone(), emissiveIntensity: (m as THREE.MeshStandardMaterial).emissiveIntensity, opacity: (mat as THREE.SpriteMaterial).isSpriteMaterial ? mat.opacity : undefined })
   }
   const registerTree = (root: THREE.Object3D) => root.traverse(o => { const m = (o as THREE.Mesh).material; for (const mat of Array.isArray(m) ? m : m ? [m] : []) if ((mat as THREE.MeshStandardMaterial).isMeshStandardMaterial || (mat as THREE.MeshBasicMaterial).isMeshBasicMaterial || (mat as THREE.SpriteMaterial).isSpriteMaterial) { if (mat !== analyticalFloor.material && mat !== apron.material && mat !== floorMat) register(mat) } })
-  registerTree(env); for (const g of env.children) if (g instanceof THREE.Sprite) register(g.material)
+  registerTree(env)
   // Floors keep their (baked) albedo but darken in analytical mode through colour multiply.
   for (const m of [apron.material, floorMat]) register(m)
   const state: AnalysisState = { tintables, analyticalFloor, key, hemi, rimA, rimB, fill, quality,
@@ -547,4 +551,13 @@ export function disposeTree(root: THREE.Object3D) {
   for (const geometry of geometries) geometry.dispose()
   for (const texture of textures) texture.dispose()
   for (const mat of materials) mat.dispose()
+}
+
+/**
+ * Call each frame (cheap). Hides the overhead light banks / trusses whenever the camera is at or above
+ * them so elevated broadcast / top-down cameras never see beams across the court.
+ */
+export function updateEnvironmentForCamera(env: THREE.Group, camera: THREE.Camera) {
+  const overhead = env.userData.overhead as THREE.Object3D | undefined
+  if (overhead) overhead.visible = camera.position.y < 6.6
 }

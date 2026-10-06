@@ -1,6 +1,6 @@
 # CourtIQ basketball studio athlete
 
-Built 2026-10-05 in Blender 4.3.2. Defense Lab's normal-world players use `lab-athlete.glb`. This asset contains an anatomical skinned athlete, an authored practice uniform and basketball shoes, thirteen reusable basketball actions, and two mesh detail levels on one rig. The analytical representation is separate and is drawn from the simulation's body/reach geometry.
+Built 2026-10-05 in Blender 4.3.2; motion/material revision v2 built 2026-10-06 with Blender 5.2.2 (`pip install bpy`). Defense Lab's normal-world players use `lab-athlete.glb`. This asset contains an anatomical skinned athlete, an authored practice uniform and basketball shoes, twenty-one reusable basketball actions (v2), and two mesh detail levels on one rig. The analytical representation is separate and is drawn from the simulation's body/reach geometry.
 
 ## Source and rights
 
@@ -9,7 +9,37 @@ Built 2026-10-05 in Blender 4.3.2. Defense Lab's normal-world players use `lab-a
 - Local CourtIQ work: anatomical adaptation, sleeveless uniform pattern with a tailored shoulder yoke, contrast hems and waistband, shorts, sculpted shoe/sole/laces/sock geometry, scalp/eye treatment, materials, all thirteen basketball actions, LODs, optimization and runtime motion layering.
 - No commercial sports-game geometry, logos, athlete likenesses, third-party clothing or motion capture are included. The basketball motion is locally authored kinematic animation, not captured or measured biomechanics.
 
-## Reproducible production pipeline
+## v2 revision (motion, footwork, materials)
+
+Pipeline: `python3 scripts/athlete/build_studio_athlete.py` (bpy 5.x or `blender -b --python`), then the validators below. Motion lives in `scripts/athlete/motion_lib.py` (procedural IK/FK authoring, still no mocap or third-party motion). `preview_clips.py` renders CPU contact sheets, `shot_studio.mjs` / `shot_sequence.mjs` screenshot the dev route `/dev/athlete-studio`.
+
+- Locomotion is **distance-driven**: each loop covers a known ground distance (`stride`, in the GLB's `asset.extras.CourtIQMotion`); planted feet fall backwards at exactly body speed. The runtime advances the cycle by ground distance / blended stride. Measured planted-foot ground speed in pure-clip regimes is 1-3% of body speed (`validate_foot_planting.ts` -> `lab-athlete-planting.json`); blends between two gaits and the ready-to-move transition still slide a little.
+- Direction relative to facing selects forward / slide-left / slide-right / backpedal; speed selects walk-or-chop, jog, sprint, slow or fast (hop) slide. Weights are smoothed with a stored per-actor history, so rewinding to an already-played time restores the identical pose; unplayed jumps re-seed from absolute distance.
+- Arms are a separate layer from legs/torso/head.
+- Hands are curled once and baked into the bind pose (no finger tracks). Animation keys are reduced (<=0.02 deg / 0.2 mm error) and packed into one buffer view.
+- Jersey has a front/back UV atlas; the runtime paints team colours, side stripes and numerals (`player.number`) on a canvas. Materials are `MeshPhysicalMaterial` (warm skin sheen, fabric sheen, glossy shoes).
+
+| Clip | Mode | Intent |
+| --- | --- | --- |
+| `offense_ready` | time | soft knees, hands chest-high |
+| `defense_ready` | time | low hips, wide base, one high / one low active hand |
+| `receive` | time | catch-ready, hands up to shot pocket |
+| `screen_plant` | time | wide braced base, arms folded |
+| `screen_fight` | time | shoulder turn over a screen, tiny steps |
+| `closeout` | time | in-place chop steps, high contest hand |
+| `pivot`, `cut_plant` | time | pivot foot turn; plant-and-cut load |
+| `chest_pass`, `skip_pass`, `shot_release`, `dribble` | time | two-hand passes, shot, live ball hand |
+| `walk`, `jog`, `sprint` | distance | forward gaits (1.45 / 2.25 / 3.1 m per loop) |
+| `defense_slide_left/right`, `defense_slide_fast_left/right` | distance | push-step slides (0.9 m) and hop-slides (1.5 m), feet never cross |
+| `backpedal`, `chop` | distance | drop steps; low closeout chop steps |
+
+Sizes: lab-athlete.glb 935,528 B (LOD0 13,868 tris / LOD1 4,575 tris, 65 bones, 8 material primitives, 21 clips); lab-athlete-tactical.glb 432,900 B (LOD1 only). Draco/meshopt are not used.
+
+Known limits: no secondary cloth motion; shorts hems are open tubes (thin sliver visible from below); faces are blank; cut_plant/screen_fight/skip_pass need the world to feed `pose: 'cut' | 'fight' | 'skip'`; slides above ~3.4 m/s skate slightly (cadence cap).
+
+## v1 reference (original pipeline notes)
+
+### Original pipeline
 
 From repository root with Blender 4.3 and the web workspace's Node 22 dependencies:
 

@@ -28,7 +28,7 @@ describe('bounded physical execution', () => {
   it('halts the executed possession at body contact without inventing a catch or turnover', () => {
     const problem: ProblemDefinition = { ...HIGH_PNR_PROBLEM, reads: [{ ...HIGH_PNR_PROBLEM.reads[0], options: ['lift'], continuations: { lift: 'lift-read' } }, HIGH_PNR_PROBLEM.reads.find(node => node.id === 'lift-read')!] }
     const config = createDefaultConfig()
-    const run = simulateProblem(problem, { ...config, startingPositions: { D4: { x: -3.6, z: 7 } }, interventions: [{ id: 'body-in-lane', kind: 'move', at: 0, playerId: 'D4', target: { x: -3.6, z: 7 } }] })
+    const run = simulateProblem(problem, { ...config, startingPositions: { D4: { x: -3.4, z: 6.7 } }, interventions: [{ id: 'body-in-lane', kind: 'move', at: 0, playerId: 'D4', target: { x: -3.4, z: 6.7 } }] })
     const stop = run.diagnostics.flightStops?.[0]
     expect(stop?.playerId).toBe('D4')
     expect(stop?.clearance).toBeLessThan(0)

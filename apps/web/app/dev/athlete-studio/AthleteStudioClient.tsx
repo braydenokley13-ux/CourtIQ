@@ -25,10 +25,10 @@ function gallery(): Agent[] {
   const agents: Agent[] = []
   const add = (id: string, team: 'offense' | 'defense', number: number, x: number, z: number, script: (t: number) => Cmd) =>
     agents.push({ id, team, number, x0: x, z0: z, script, s: { x, z, vx: 0, vz: 0, yaw: team === 'defense' ? 0 : Math.PI, phase: (agents.length * 1.7) % TWO_PI } })
-  const dx = [-5, -2.5, 0, 2.5, 5]
+  const dx = [-5.4, -2.7, 0, 2.7, 5.4]
   // Defense (dark) - front row
   add('D1', 'defense', 1, dx[0], 2.2, () => ({ vx: 0, vz: 0, yaw: faceCamera, pose: 'defend', hands: .6 }))
-  add('D2', 'defense', 2, dx[1], 2.2, t => { const w = Math.sin(t * .9); return { vx: Math.cos(t * .9) * .9 * 2.2, vz: 0, yaw: faceCamera, pose: 'defend', hands: .6 } })
+  add('D2', 'defense', 2, dx[1], 2.2, t => ({ vx: Math.cos(t * 1.4) * 2.4, vz: 0, yaw: faceCamera, pose: 'defend', hands: .6 }))
   add('D3', 'defense', 3, dx[2], 2.2, t => {
     // closeout: sprint -> chop -> hold high hand, then reset
     const u = t % 5
@@ -36,24 +36,24 @@ function gallery(): Agent[] {
     if (u < 3.6) return { vx: 0, vz: 0, yaw: faceCamera, pose: 'closeout', hands: .9 }
     return { vx: 0, vz: -2.6, yaw: faceCamera, pose: 'defend', hands: .6 }
   })
-  add('D4', 'defense', 4, dx[3], 3.6, t => ({ vx: 0, vz: -2.2 * (Math.sin(t * .8) > 0 ? 1 : -1) * -1, yaw: faceCamera, pose: 'defend', hands: .6 }))
+  add('D4', 'defense', 4, dx[3], 3.6, t => ({ vx: 0, vz: -Math.cos(t * 1.1) * 2.2, yaw: faceCamera, pose: 'defend', hands: .6 }))
   add('D5', 'defense', 5, dx[4], 2.2, t => {
     const u = t % 6
     return u < 3 ? { vx: 0, vz: 0, yaw: faceCamera, pose: 'screen', hands: .2 } : { vx: 0, vz: 0, yaw: faceCamera + .5, pose: 'fight', hands: .6 }
   })
   // Offense (light) - back row, facing the camera too so numbers on the chest are visible
   add('O1', 'offense', 11, dx[0], -1.2, t => {
-    const a = t * .85; return { vx: Math.cos(a) * 1.6 * .85 * 1.9, vz: -Math.sin(a) * 1.6 * .85 * 1.9, yaw: Math.atan2(Math.cos(a), -Math.sin(a)), pose: 'run', hands: .2 }
+    const a = t * 1.5; return { vx: Math.cos(a) * 3.2, vz: -Math.sin(a) * 3.2, yaw: Math.atan2(Math.cos(a), -Math.sin(a)), pose: 'run', hands: .2 }
   })
-  add('O2', 'offense', 22, dx[1], -1.2, t => {
-    const dir = Math.sin(t * .5) >= 0 ? 1 : -1; return { vx: 0, vz: 2.6 * dir, yaw: dir > 0 ? 0 : Math.PI, pose: 'run', hands: .2 }
+  add('O2', 'offense', 22, dx[1], -3.5, t => {
+    const dir = Math.sin(t * 2.2) >= 0 ? 1 : -1; return { vx: 0, vz: 2.4 * dir, yaw: dir > 0 ? 0 : Math.PI, pose: 'run', hands: .2 }
   })
   add('O3', 'offense', 33, dx[2], -1.2, t => {
     const u = t % 4
     const pose = u < 1.6 ? 'catch' : u < 2.6 ? 'pass' : 'ready'
     return { vx: 0, vz: 0, yaw: faceCamera, pose, hands: .8, hasBall: u >= 1.6 && u < 2.6 }
   })
-  add('O4', 'offense', 44, dx[3], -1.2, t => ({ vx: Math.sin(t * .7) * 1.5, vz: 0, yaw: Math.sign(Math.cos(t * .7)) > 0 ? Math.PI / 2 : -Math.PI / 2, pose: 'dribble', hands: .25, hasBall: true }))
+  add('O4', 'offense', 44, dx[3], -1.2, t => ({ vx: Math.sin(t * .9) * 1.3, vz: 0, yaw: Math.sign(Math.cos(t * .9)) > 0 ? Math.PI / 2 : -Math.PI / 2, pose: 'dribble', hands: .25, hasBall: true }))
   add('O5', 'offense', 55, dx[4], -1.2, t => {
     const u = t % 4
     return u < 2 ? { vx: 0, vz: 0, yaw: faceCamera, pose: 'ready', hands: .2 } : { vx: 0, vz: 0, yaw: faceCamera, pose: 'shoot', hands: .8 }
@@ -127,9 +127,9 @@ export function AthleteStudioClient() {
       ? track((q.get('mode') ?? 'slide') as TrackMode, Number(q.get('speed') ?? 2.2), (q.get('dir') ?? 'left') === 'left')
       : gallery()
     let time = 0
-    const owner = { id: '' }
+    let ballShown = false
     function stepAgents() {
-      time += DT
+      time += DT; ballShown = false
       for (const a of agents) {
         const cmd = a.script(time), s = a.s
         const ax = 6 * DT
@@ -141,12 +141,12 @@ export function AthleteStudioClient() {
         // Ball: a dribbled ball bounces in front; a passed/caught ball sits in the hands.
         let ballPos = { x: s.x + Math.sin(s.yaw) * .22, y: .5 + Math.abs(Math.sin(time * 9)) * .65, z: s.z + Math.cos(s.yaw) * .22 }
         if (cmd.pose === 'pass' || cmd.pose === 'catch' || cmd.pose === 'shoot') ballPos = { x: s.x + Math.sin(s.yaw) * (cmd.pose === 'catch' ? .55 : .3), y: cmd.pose === 'shoot' ? 1.9 : 1.3, z: s.z + Math.cos(s.yaw) * (cmd.pose === 'catch' ? .55 : .3) }
-        if (cmd.hasBall) { owner.id = a.id; ball.position.set(ballPos.x, ballPos.y, ballPos.z) }
+        if (cmd.hasBall) { ballShown = true; ball.position.set(ballPos.x, ballPos.y, ballPos.z) }
         a.athlete.root.position.set(s.x, 0, s.z)
         const motion: AthleteMotion = { time, speed, velocity: { x: s.vx, z: s.vz }, defensive: a.team === 'defense', pose: cmd.pose, phase: s.phase, hands: cmd.hands, ball: ballPos, hasBall: !!cmd.hasBall, facing: s.yaw }
         a.athlete.setPose(motion)
       }
-      ball.visible = !!owner.id && agents.some(a => a.id === owner.id && a.script(time).hasBall)
+      ball.visible = ballShown
     }
     const spawn = () => {
       agents.forEach((a, i) => {
@@ -171,7 +171,7 @@ export function AthleteStudioClient() {
       else if (cam === 'side') { eye.set(14, 2.2, 1); center.set(0, 1, 0.6); camera.fov = 30 }
       else if (cam === 'front') { eye.set(0, 2.0, 13); center.set(0, 1, 0.6); camera.fov = 30 }
       else if (cam === 'top') { eye.set(0, 14, 9); center.set(0, 0, 0.4); camera.fov = 32 }
-      else { eye.set(Math.sin(angle) * 13, 8.2, Math.cos(angle) * 13 + .6); camera.fov = 30 }
+      else { eye.set(Math.sin(angle) * 15.5, 7.2, Math.cos(angle) * 15.5 + .8); camera.fov = 30; center.set(0, .85, .4) }
       camera.position.copy(eye); camera.lookAt(center); camera.updateProjectionMatrix()
       key.target.position.copy(center); key.position.set(center.x - 5, 9, center.z + 6)
       renderer.render(scene, camera)
@@ -189,6 +189,12 @@ export function AthleteStudioClient() {
       if (frozen !== null) {
         while (time < frozen - 1e-9) stepAgents()
         frame(0, 0); wrapper.__ready = true; document.body.dataset.ready = '1'
+        // Deterministic stepping hook for screenshot sequences (see scripts/athlete/shot_sequence.mjs).
+        ;(window as unknown as { __studioAdvance: (s: number) => number }).__studioAdvance = seconds => {
+          const end = time + seconds
+          while (time < end - 1e-9) stepAgents()
+          frame(0, 0); return time
+        }
         return
       }
       let acc = 0, prev = performance.now()

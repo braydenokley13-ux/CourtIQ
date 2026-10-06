@@ -12,6 +12,10 @@ export { createDefaultConfig } from './scenario'
 const rim = { x: 0, y: 3.05, z: 1.575 }
 /** Metres a ball carrier attacks past his current spot: the space a drive must win. */
 const DRIVE_STEP = 1.6
+/** Seconds of lead an open pass must have over the nearest closeout before a patient reader takes it. */
+const PASS_LEAD = 0.1
+/** A drive is taken early only when the carrier clearly beats the nearest defender. */
+const DRIVE_LEAD = 0.35
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v))
 const distance = (a: Point2, b: Point2) => Math.hypot(a.x - b.x, a.z - b.z)
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
@@ -340,7 +344,7 @@ export function simulateProblem(problem: ProblemDefinition, input: LabConfig): S
       previousResponsibilities.set(p.id, primary.threatId)
     }
     const node = problem.reads.find(n => n.id === runtime.nodeId)
-    const optionReadyAt = node?.trigger === 'catch' ? runtime.caughtAt + config.assumptions.gatherTime : strategy ? Math.max(node?.decisionAt ?? node?.earliest ?? 0, policyReadAfter(problem.offenseRules ?? [], runtime.policy)) : node?.earliest ?? 0
+    const optionReadyAt = node?.trigger === 'catch' ? runtime.caughtAt + config.assumptions.gatherTime : strategy ? Math.max(node?.earliest ?? 0, policyReadAfter(problem.offenseRules ?? [], runtime.policy)) : node?.earliest ?? 0
     const options = optionSet(players, ball, problem, config, t, responsibilities, node?.options ?? (runtime.driveAt !== null ? ['drive'] : []), node?.trigger === 'catch' ? runtime.caughtAt + (strategy ? 0 : config.assumptions.gatherTime) : node?.earliest ?? 0)
     if (strategy) for (const option of options) {
       // A ball carrier does not wait for a pass read: pulling up or attacking
@@ -357,11 +361,15 @@ export function simulateProblem(problem: ProblemDefinition, input: LabConfig): S
     // but an unencountered screen or unmet condition cannot create windows.
     const graphReady = node ? triggerReady && conditionReady : runtime.driveAt !== null
     if (!graphReady) for (const option of options) option.available = false
-    const readReady = triggerReady && conditionReady && node && t >= policyReadAfter(problem.offenseRules ?? [], runtime.policy) && !runtime.flight && runtime.driveAt === null && runtime.phase !== 'dead' && t >= (node.decisionAt ?? node.earliest) && (node.trigger !== 'catch' || t >= runtime.caughtAt + config.assumptions.gatherTime) && t - runtime.lastReadAt >= config.assumptions.readInterval
+    const readReady = triggerReady && conditionReady && node && t >= policyReadAfter(problem.offenseRules ?? [], runtime.policy) && !runtime.flight && runtime.driveAt === null && runtime.phase !== 'dead' && t >= (strategy ? node.earliest : node.decisionAt ?? node.earliest) && (node.trigger !== 'catch' || t >= runtime.caughtAt + config.assumptions.gatherTime) && t - runtime.lastReadAt >= config.assumptions.readInterval
     if (readReady && node) {
       runtime.lastReadAt = t
       const candidates = readCandidates(options, players, runtime.owner, problem, config, runtime.passCount).filter(c => node.options.includes(c.threatId))
-      const ranked = candidates.filter(c => c.available).sort((a, b) => b.value - a.value)
+      let ranked = candidates.filter(c => c.available).sort((a, b) => b.value - a.value)
+      // An adaptive offense reads continuously and takes the first opening that is
+      // clearly there; `decisionAt` is only the latest it waits ("the action runs out").
+      const patient = !!strategy && node.trigger !== 'catch' && node.decisionAt !== undefined && t < node.decisionAt - 1e-9
+      if (patient) ranked = ranked.filter(c => c.arrivalGap >= (c.threatId === 'drive' ? DRIVE_LEAD : PASS_LEAD))
       const choice = ranked[0]
       if (choice) {
         const alternative = ranked[1]
@@ -382,7 +390,7 @@ export function simulateProblem(problem: ProblemDefinition, input: LabConfig): S
           runtime.continuation = node.continuations[choice.threatId] ?? null; runtime.passCount++; runtime.phase = 'pass'
           event({ t, type: 'pass', label: `${runtime.flight.kind === 'pocket' ? 'Pocket' : runtime.flight.kind === 'lob' ? 'Lob' : runtime.flight.kind === 'skip' ? 'Skip' : 'Pass'} → ${choice.threatId}`, playerId: passer.id, targetId: receiver.id, threatId: choice.threatId, details: 'Ball endpoint fixed at release; launch shape chosen from present body geometry, never future frames.' })
         }
-      } else decisions.push({ t, nodeId: node.id, actorId: runtime.owner, selected: 'hold', reason: 'No basketball-feasible receiver in the current graph.', candidates })
+      } else if (!patient) decisions.push({ t, nodeId: node.id, actorId: runtime.owner, selected: 'hold', reason: 'No basketball-feasible receiver in the current graph.', candidates })
       ball = ballState(runtime, players, t, config)
       // Preserve this tick's evaluated options; launched ball is a separate state.
     }

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { buildLabEnvironment, setLabEnvironmentAnalytical, COURT, disposeTree, buildBall } from '@/components/defense-lab/labEnvironment'
+import { buildLabEnvironment, setLabEnvironmentAnalytical, updateEnvironmentForCamera, COURT, disposeTree, buildBall } from '@/components/defense-lab/labEnvironment'
 import { configureWorldRenderer, createContactShadow } from '@/components/defense-lab/worldLook'
 import { createLabAthlete, loadGlbAthleteAsset } from '@/components/defense-lab/labAthlete'
 import { HIGH_PNR_PROBLEM } from '@/lib/defense-lab/scenario'
@@ -11,7 +11,7 @@ import { HIGH_PNR_PROBLEM } from '@/lib/defense-lab/scenario'
 const VIEWS = {
   broadcast: { eye: [7, 7.5, 15.5], target: [0, 0.8, 5], fov: 39 },
   sideline: { eye: [8.8, 1.7, 12.8], target: [-1.5, 1.0, 4.2], fov: 46 },
-  top: { eye: [0, 26, 8], target: [0, 0, 6.5], fov: 39 },
+  top: { eye: [0, 21, 7.5], target: [0, 0, 6.5], fov: 39 },
 } as const
 
 interface Stats { quality: string; calls: number; triangles: number; geometries: number; textures: number; textureMB: number; frameMs: number; lines: number }
@@ -82,7 +82,7 @@ export default function WorldLookClient() {
     let frames = 0, measured = false
     const loop = () => {
       raf = requestAnimationFrame(loop)
-      setLabEnvironmentAnalytical(env, analytical, style)
+      setLabEnvironmentAnalytical(env, analytical, style); updateEnvironmentForCamera(env, camera)
       if (!dirty && frames > 3) return
       dirty = false; frames++
       renderer.render(scene, camera)
@@ -90,7 +90,7 @@ export default function WorldLookClient() {
         measured = true
         const gl = renderer.getContext()
         const info = renderer.info
-        const calls = info.render.calls, triangles = info.render.triangles, lines = info.render.lines
+        let envCalls = 0; env.traverseVisible(o => { const m = o as THREE.Mesh; if (m.isMesh || (o as THREE.Sprite).isSprite) envCalls += Array.isArray(m.material) ? m.material.length : 1 }); ;(window as unknown as { __envCalls: number }).__envCalls = envCalls; const calls = info.render.calls, triangles = info.render.triangles, lines = info.render.lines
         renderer.shadowMap.needsUpdate = true
         const sync = () => { const px = new Uint8Array(4); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px) }; sync(); const t0 = performance.now(); const N = 12
         for (let i = 0; i < N; i++) { renderer.shadowMap.needsUpdate = i === 0; renderer.render(scene, camera); sync() }
@@ -111,7 +111,7 @@ export default function WorldLookClient() {
       <div ref={host} style={{ position: 'absolute', inset: 0 }} />
       {hud && stats && (
         <pre data-world-stats style={{ position: 'absolute', left: 8, top: 8, margin: 0, padding: 8, background: 'rgba(0,0,0,.7)', color: '#9fe', font: '12px monospace' }}>
-          {`quality ${stats.quality}\ncalls ${stats.calls}  tris ${stats.triangles}\ngeoms ${stats.geometries}  tex ${stats.textures}  ~${stats.textureMB.toFixed(1)} MB\nframe ${stats.frameMs.toFixed(1)} ms (swiftshader)`}
+          {`quality ${stats.quality} envCalls ${(window as unknown as { __envCalls: number }).__envCalls}\ncalls ${stats.calls}  tris ${stats.triangles}\ngeoms ${stats.geometries}  tex ${stats.textures}  ~${stats.textureMB.toFixed(1)} MB\nframe ${stats.frameMs.toFixed(1)} ms (swiftshader)`}
         </pre>
       )}
       <span hidden>{COURT.length}</span>

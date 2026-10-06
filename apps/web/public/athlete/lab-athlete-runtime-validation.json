@@ -1,7 +1,7 @@
 {
   "actors": 10,
   "largestRepeatDifference": 0,
-  "lowestAnkle": 0.09519358407079653,
+  "lowestAnkle": 0.09546472729337208,
   "oneSkeletonPerActor": true,
   "independentlyOwnedResources": true,
   "qualitySwitches": "passed",

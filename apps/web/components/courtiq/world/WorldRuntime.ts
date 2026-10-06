@@ -4,7 +4,8 @@ import type { PlayerId, PlayerState, Point2 } from '@/lib/defense-lab/types'
 import { bodyCapsules } from '@/lib/defense-lab/analyticalGeometry'
 import { DEFAULT_ASSUMPTIONS } from '@/lib/defense-lab/scenario'
 import { tagDepthFromFloorPoint } from '@/lib/defense-lab/tagGuide'
-import { buildBall, buildLabEnvironment, disposeTree, setLabEnvironmentAnalytical } from '../../defense-lab/labEnvironment'
+import { buildBall, buildLabEnvironment, disposeTree, setLabEnvironmentAnalytical, updateEnvironmentForCamera } from '../../defense-lab/labEnvironment'
+import { configureWorldRenderer } from '../../defense-lab/worldLook'
 import { createLabAthlete, loadGlbAthleteAsset, type LabAthlete } from '../../defense-lab/labAthlete'
 import { DirectorCamera } from './camera'
 import { MarkLayer, TONES, resolveAnchor } from './marks'
@@ -63,24 +64,16 @@ export class WorldRuntime {
     this.quality = this.software ? 'low' : 'high'
     this.scale = Math.min(window.devicePixelRatio || 1, this.software ? 1 : 1.75)
     this.renderer.setPixelRatio(this.scale)
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping
-    this.renderer.toneMappingExposure = 0.9
-    this.renderer.shadowMap.enabled = true
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    configureWorldRenderer(this.renderer, this.quality)
     this.renderer.shadowMap.autoUpdate = false
     this.renderer.shadowMap.needsUpdate = true
-    void import('../../defense-lab/worldLook').then(mod => {
-      const configure = (mod as { configureWorldRenderer?: (r: THREE.WebGLRenderer, q: 'high' | 'low') => void }).configureWorldRenderer
-      if (configure && !this.disposed) { configure(this.renderer, this.quality); this.dirty = true }
-    }).catch(() => {})
     this.canvas = this.renderer.domElement
     this.canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none'
     this.canvas.tabIndex = 0
     this.canvas.setAttribute('aria-label', 'Basketball court. Click a defender to coach him. Drag to look around.')
     host.appendChild(this.canvas)
 
-    this.environment = buildLabEnvironment(this.scene, this.renderer, this.software, () => { this.dirty = true; this.renderer.shadowMap.needsUpdate = true })
+    this.environment = buildLabEnvironment(this.scene, this.renderer, this.software, () => { this.dirty = true; this.renderer.shadowMap.needsUpdate = true }, { quality: this.quality })
     this.controls = new OrbitControls(this.camera, this.canvas)
     this.controls.enableDamping = true; this.controls.dampingFactor = 0.12
     this.controls.minDistance = 3; this.controls.maxDistance = 34
@@ -313,6 +306,9 @@ export class WorldRuntime {
     if (key !== this.viewKey) {
       this.viewKey = key
       if (ox || oy) this.camera.setViewOffset(W, H, ox, oy, W, H); else this.camera.clearViewOffset()
+      this.camera.updateProjectionMatrix()
+      // Safe region expressed in the displayed NDC.
+      this.director.safe = { x0: -1 + 2 * l / W, x1: 1 - 2 * r / W, y0: -1 + 2 * b / H, y1: 1 - 2 * tp / H }
       this.director.fitAspect = Math.max(0.5, (W - l - r)) / Math.max(1, H - tp - b)
       this.dirty = true
     }
@@ -340,6 +336,7 @@ export class WorldRuntime {
 
     this.applyFrame(s, now)
     setLabEnvironmentAnalytical(this.environment, this.xray, 'porcelain')
+    updateEnvironmentForCamera(this.environment, this.camera)
     this.renderer.render(this.scene, this.camera)
     this.writeLabels(s)
     this.adapt(now, s.playing || animating)

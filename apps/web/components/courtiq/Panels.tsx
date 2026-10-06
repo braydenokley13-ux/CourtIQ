@@ -9,7 +9,7 @@ import { ROLE_OF, threatShort } from './basketball'
 import s from './courtiq.module.css'
 
 export function momentCopy(m: TeachingMoment, voice: Voice) {
-  return explainMoment({ threatId: m.threatId, openFor: m.openFor, defenderNeeds: m.defenderNeeds ?? undefined, responsibleRole: m.bestDefenderId ? ROLE_OF[m.bestDefenderId] : undefined, pulledRole: m.pulledDefenderId ? ROLE_OF[m.pulledDefenderId] : undefined, cause: m.cause }, voice)
+  return explainMoment({ threatId: m.threatId, openFor: m.openFor, defenderNeeds: m.defenderNeeds ?? undefined, responsibleRole: m.bestDefenderId ? ROLE_OF[m.bestDefenderId] : undefined, pulledRole: m.pulledDefenderId ? ROLE_OF[m.pulledDefenderId] : undefined, cause: m.cause, receiverRole: ROLE_OF[m.receiverId], releaseIn: m.releaseIn ?? undefined }, voice)
 }
 
 export function MomentPanel({ moment, voice, onWhy, onFix, onBreak, onSave, whyOn, fixesReady }: { moment: TeachingMoment; voice: Voice; onWhy(): void; onFix(): void; onBreak(): void; onSave(): void; whyOn: boolean; fixesReady: boolean }) {
@@ -19,10 +19,7 @@ export function MomentPanel({ moment, voice, onWhy, onFix, onBreak, onSave, whyO
       <div className={s.panelKicker}><span className={s.pulseDot} />Here’s the problem</div>
       <h2>{copy.headline}</h2>
       <p>{copy.body}</p>
-      <div className={s.numbers}>
-        <div className={`${s.number} ${s.numThreat}`}><b>{formatSeconds(moment.openFor)}</b><span>{voice.register === 'plain' ? 'open before anyone gets there' : 'window'}</span></div>
-        {moment.defenderNeeds != null && <div className={`${s.number} ${s.numWarn}`}><b>{formatSeconds(moment.defenderNeeds)}</b><span>{voice.register === 'plain' ? `the closest defender needs` : 'closest arrival'}{moment.releaseIn != null ? ` (shot ready in ${formatSeconds(moment.releaseIn)})` : ''}</span></div>}
-      </div>
+      <MomentNumbers openFor={moment.openFor} ready={moment.releaseIn} needs={moment.defenderNeeds} threatId={moment.threatId} voice={voice} />
       <div className={s.row}>
         <button className={`${s.btn} ${s.btnPrimary}`} onClick={onFix} disabled={!fixesReady}>{fixesReady ? 'How do I fix it?' : 'Testing fixes…'}</button>
         <button className={s.btn} onClick={onWhy} aria-pressed={whyOn}>{whyOn ? 'Back to game view' : 'Show me why'}</button>
@@ -89,6 +86,31 @@ export function FixPanel({ fixes, voice, busy, onHover, onPick, onClose, onKeep 
   )
 }
 
+export function MomentNumbers({ openFor, ready, needs, threatId, voice }: { openFor: number; ready: number | null | undefined; needs: number | null | undefined; threatId: ThreatId; voice: Voice }) {
+  const p = voice.register === 'plain'
+  const late = ready != null && needs != null ? needs - ready : null
+  const action = threatId === 'drive' || threatId === 'roll' ? (p ? 'Layup ready in' : 'Finish ready') : (p ? 'Shot ready in' : 'Release ready')
+  return (
+    <div className={s.numbers} style={{ gridTemplateColumns: late != null ? '1fr 1fr 1fr' : '1fr 1fr' }}>
+      {ready != null && <div className={s.number}><b>{formatSeconds(ready)}</b><span>{action}</span></div>}
+      {needs != null && <div className={`${s.number} ${s.numWarn}`}><b>{formatSeconds(needs)}</b><span>{p ? 'Closest defender needs' : 'Closest arrival'}</span></div>}
+      {late != null ? <div className={`${s.number} ${s.numThreat}`}><b>{late > 0 ? '+' : ''}{formatSeconds(Math.abs(late))}</b><span>{late > 0 ? (late < 0.1 ? (p ? 'Barely too late' : 'Just late') : (p ? 'Too late by' : 'Late by')) : 'In time by'}</span></div>
+        : <div className={`${s.number} ${s.numThreat}`}><b>{formatSeconds(openFor)}</b><span>{p ? 'Open before anyone gets there' : 'Window'}</span></div>}
+    </div>
+  )
+}
+
+/** Short, scannable verdict; the full sentence follows as body text. */
+export function tradeoffHeadline(rows: { id: ThreatId; direction: 'closes' | 'opens' | 'similar' }[], voice: Voice): string {
+  const closed = rows.filter(r => r.direction === 'closes').map(r => threatShort(r.id, voice).toLowerCase())
+  const opened = rows.filter(r => r.direction === 'opens').map(r => threatShort(r.id, voice).toLowerCase())
+  const list = (xs: string[]) => xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0]
+  if (closed.length && opened.length) return `Closed the ${list(closed)}. Opened the ${list(opened)}.`
+  if (closed.length) return `Closed the ${list(closed)} — nothing new opened.`
+  if (opened.length) return `Worse: the ${list(opened)} opened up.`
+  return 'Not much changed.'
+}
+
 const ORDER: ThreatId[] = ['lift', 'corner', 'roll', 'drive', 'pop', 'strong']
 export function ComparePanel({ comparison, voice, label, onAgain, onBreak, onSave, onMore, onClose }: { comparison: ComparisonResult; voice: Voice; label: string; onAgain(): void; onBreak(): void; onSave(): void; onMore(): void; onClose(): void }) {
   const rows = ORDER.map(id => comparison.tradeoffs.find(t => t.id === id)).filter((t): t is NonNullable<typeof t> => !!t && (t.before > 0.04 || t.after > 0.04))
@@ -99,8 +121,8 @@ export function ComparePanel({ comparison, voice, label, onAgain, onBreak, onSav
     <div className={s.panel}>
       <button className={s.closeX} onClick={onClose} aria-label="Close">×</button>
       <div className={`${s.panelKicker} ${better && !worse ? s.good : s.def}`}>{label}</div>
-      <h2>{sentence}</h2>
-      <p>The faint figures on the court are where your defenders were before. Trails show where each one went instead.</p>
+      <h2>{tradeoffHeadline(rows, voice)}</h2>
+      <p>{sentence} The faint figures are where your defenders were before; trails show where each one went instead.</p>
       <div className={s.bars}>
         {rows.length ? rows.map(r => (
           <div key={r.id} className={s.bar}>
@@ -150,7 +172,7 @@ export function BreakBar({ progress, attempts, onCancel }: { progress: number; a
 
 export function BreakMomentPanel({ report, voice, onFix, onAccept, onReplay, onExit }: { report: AttackReport; voice: Voice; onFix(): void; onAccept(): void; onReplay(): void; onExit(): void }) {
   const w = report.selected.witness!
-  const copy = explainMoment({ threatId: w.threatId, openFor: Math.max(0, w.interval.end - w.interval.start), defenderNeeds: w.arrivalSeconds, responsibleRole: w.limitingRole, cause: 'unknown' }, voice)
+  const copy = explainMoment({ threatId: w.threatId, openFor: Math.max(0, w.interval.end - w.interval.start), defenderNeeds: w.arrivalSeconds, responsibleRole: w.limitingRole, cause: 'unknown', receiverRole: ROLE_OF[w.playerId], releaseIn: w.releaseSeconds }, voice)
   const how = attackIntentLabel(report.selected)
   const retest = report.pairedRetest
   return (
@@ -158,10 +180,7 @@ export function BreakMomentPanel({ report, voice, onFix, onAccept, onReplay, onE
       <div className={`${s.panelKicker} ${s.attack}`}><span className={s.pulseDot} />They broke it</div>
       <h2>{copy.headline}</h2>
       <p><b style={{ color: 'var(--ink)' }}>How:</b> {how === 'Their current offense' ? 'Their normal offense already finds this.' : how}. {copy.body}</p>
-      <div className={s.numbers}>
-        <div className={`${s.number} ${s.numThreat}`}><b>{formatSeconds(Math.max(0, w.interval.end - w.interval.start))}</b><span>open</span></div>
-        <div className={`${s.number} ${s.numWarn}`}><b>{formatSeconds(w.arrivalSeconds)}</b><span>closest defender needs</span></div>
-      </div>
+      <MomentNumbers openFor={Math.max(0, w.interval.end - w.interval.start)} ready={w.releaseSeconds} needs={w.arrivalSeconds} threatId={w.threatId} voice={voice} />
       {retest && <p style={{ fontSize: 13 }}>{retest.current.witness ? 'Their previous counter still works against your new answer.' : 'Your fix holds against their previous counter — this is a new way in.'}</p>}
       <div className={s.row}>
         <button className={`${s.btn} ${s.btnPrimary}`} onClick={onFix}>Fix it</button>

@@ -93,6 +93,10 @@ export interface MomentInput {
   responsibleRole?: RoleId
   pulledRole?: RoleId
   cause?: MomentCause
+  /** The player who actually has the opening (a drive may come from any catcher). */
+  receiverRole?: RoleId
+  /** Seconds until the shot/finish is ready; "late" compares against this. */
+  releaseIn?: number
 }
 export interface Moment { headline: string; body: string; numbers: string[] }
 
@@ -109,14 +113,16 @@ export function explainMoment(input: MomentInput, voice: Voice): Moment {
   const low = the('low-man', voice), roller = the('roller', voice), xout = term('x-out', voice)
 
   let headline: string
-  if (plain) headline = threatId === 'drive' ? 'The ball handler gets to the basket.' : threatId === 'roll' ? 'Their screener is open near the basket.' : 'Their shooter is open.'
+  const driver = threatId === 'drive' && input.receiverRole && input.receiverRole !== 'ballhandler' ? roleName(input.receiverRole, voice) : null
+  if (driver) headline = plain ? `${cap(driver)} drives past his man to the basket.` : `${cap(driver)} attacks the closeout to the rim.`
+  else if (plain) headline = threatId === 'drive' ? 'The ball handler gets to the basket.' : threatId === 'roll' ? 'Their screener is open near the basket.' : 'Their shooter is open.'
   else if (cause === 'deep-tag' && spotShooter) headline = `Deep ${adj('low-man', voice)} ${term('tag', voice)} exposes ${threatNoun(threatId, voice)} before the ${xout} arrives.`
   else headline = describeThreat(threatId, voice)
 
   const sentences: string[] = []
   const pulled = input.pulledRole ? roleName(input.pulledRole, voice) : null
   switch (cause) {
-    case 'deep-tag': sentences.push(plain ? `Your ${term('low-man', voice)} goes all the way to the ${term('roller', voice)}, so the far side has less help.` : `${cap(low)} commits to ${roller}, so the weak side has no early help.`); break
+    case 'deep-tag': sentences.push(plain ? `${driver ? 'It starts at the screen: your' : 'Your'} ${term('low-man', voice)} goes all the way to the ${term('roller', voice)}, so the far side has less help.` : `${cap(low)} commits to ${roller}, so the weak side has no early help.`); break
     case 'late-rotation': sentences.push(plain ? 'The far-side defenders waited for the pass before moving, which is too late.' : `The ${term('rotation', voice)} started on the pass, not on the ${term('tag', voice)}.`); break
     case 'switch-mismatch': sentences.push(plain ? 'After the switch, the defenders have each other’s players and need time to get set.' : 'After the switch, the new matchups need time to get set.'); break
     case 'two-on-ball': sentences.push(plain ? 'Two of your defenders are on the ball handler, so someone behind them has to cover too much.' : 'Two on the ball leaves the weak side a man short.'); break
@@ -125,7 +131,7 @@ export function explainMoment(input: MomentInput, voice: Voice): Moment {
     case 'unknown': break
   }
   if (pulled && cause !== 'deep-tag') sentences.push(plain ? `${cap(pulled)} was pulled away from his own player.` : `${cap(pulled)} was pulled off his man.`)
-  const late = finiteNonNeg(input.defenderNeeds) && finiteNonNeg(input.openFor) && input.defenderNeeds > input.openFor
+  const late = finiteNonNeg(input.defenderNeeds) && (finiteNonNeg(input.releaseIn) ? input.defenderNeeds > input.releaseIn : finiteNonNeg(input.openFor) && input.defenderNeeds > input.openFor)
   if (input.responsibleRole) {
     const who = cap(roleName(input.responsibleRole, voice))
     sentences.push(plain ? `${who} has to cover that player${late ? ' but cannot get there in time' : ''}.` : `${who} owns it${late ? ' and is late' : ''}.`)

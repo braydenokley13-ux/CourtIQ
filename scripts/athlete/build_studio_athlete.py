@@ -27,6 +27,7 @@ def material(name,color,roughness=.75):
  return m
 skin=material('athlete_skin',(.43,.235,.135),.7)
 kit=material('athlete_kit',(.018,.13,.135),.84)
+jersey=material('athlete_jersey',(.018,.13,.135),.84)
 trim=material('athlete_trim',(.80,.82,.70),.76)
 shoe=material('athlete_shoe',(.055,.075,.068),.57)
 sole=material('athlete_sole',(.70,.73,.67),.80)
@@ -67,13 +68,18 @@ mod=body.modifiers.new('Production body reduction','DECIMATE');mod.ratio=.65
 bpy.ops.object.modifier_apply(modifier=mod.name)
 
 pieces=[]
-def mesh_object(name,verts,faces,materials,indices=None,weights=None):
+def mesh_object(name,verts,faces,materials,indices=None,weights=None,uvfn=None):
  me=bpy.data.meshes.new(name);me.from_pydata(verts,[],faces);me.update()
  ob=bpy.data.objects.new('LOD0_'+name,me);bpy.context.collection.objects.link(ob)
  for m in materials:me.materials.append(m)
  for p in me.polygons:
   p.use_smooth=True
   if indices:p.material_index=indices[p.index]
+ if uvfn:
+  # Per-loop UVs so the front/back atlas panels can meet at hard seam edges.
+  layer=me.uv_layers.new(name='UVMap')
+  for p in me.polygons:
+   for li in p.loop_indices:layer.data[li].uv=uvfn(p,me.loops[li].vertex_index)
  if weights:
   names=set(n for influences in weights for n,w in influences)
   for n in names:ob.vertex_groups.new(name=n)
@@ -114,7 +120,13 @@ for i in range(N):
  verts.append((.083*math.cos(a),-.020+.105*math.sin(a),z));weights.append(torso_weights(z))
 for i in range(N):
  faces.append((5*N+i,5*N+(i+1)%N,inner_start+(i+1)%N,inner_start+i));mi.append(0)
-mesh_object('jersey',verts,faces,[kit,trim],mi,weights)
+def jersey_uv(p,vi):
+ # Atlas: front panel u .02-.48, back panel u .52-.98, v 0 hem .. 1 shoulder (z .97-1.52).
+ if vi>=inner_start:return (.5,1.)
+ x,y,z=verts[vi];cy=sum(verts[i][1] for i in p.vertices)/len(p.vertices)
+ v=max(0.,min(1.,(z-.97)/.55))
+ return (.75-x*1.15,v) if cy>.008 else (.25+x*1.15,v)
+mesh_object('jersey',verts,faces,[jersey,trim],mi,weights,uvfn=jersey_uv)
 # Narrow contrast binding around the crew neck, authored on the same skin weights.
 v=[];f=[];w=[]
 for i in range(N):

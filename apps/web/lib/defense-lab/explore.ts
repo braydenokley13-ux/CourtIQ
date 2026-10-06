@@ -22,6 +22,8 @@ export interface TeachingMoment {
   bestDefenderId: PlayerId | null
   /** Catch-gather-release horizon (s) the defender has to beat. */
   releaseIn: number | null
+  /** defenderNeeds - releaseIn (s): how late the closest defender is. Positive means the shot is ready first. */
+  lateBy: number | null
   /** Defender who owns the opened threat in the live responsibilities. */
   responsibleDefenderId?: PlayerId
   /** Defender whose help created the opening (the tagger, the second man on the ball, the switcher). */
@@ -54,19 +56,28 @@ function arrivals(frame: WorldFrame, option: ThreatOption, result: SimulationRes
   }).sort((x, y) => x.seconds - y.seconds || x.id.localeCompare(y.id))
 }
 
-function pickFrame(result: SimulationResult, analysis: AnalysisResult): { frame: WorldFrame; threatId: ThreatId; basis: TeachingMoment['basis'] } | null {
+interface Picked { frame: WorldFrame; threatId: ThreatId; basis: TeachingMoment['basis']; origin?: { frame: WorldFrame; threatId: ThreatId } }
+function pickFrame(result: SimulationResult, analysis: AnalysisResult, windows: PlayerWindow[]): Picked | null {
   const a = result.config.assumptions
-  const intervalAt = (id: ThreatId, t: number) => analysis.windows.find(w => w.id === id)?.intervals.find(i => t >= i.start - EPS && t < i.end - EPS)
-  // 1. The offense's actual reads that took an opening that was open at that instant.
+  const intervalAt = (id: ThreatId, playerId: PlayerId, t: number) => windows.find(w => w.threatId === id && w.playerId === playerId)?.intervals.find(i => t >= i.start - EPS && t < i.end - EPS)
+  // 1. Reads the offense actually took while the opening was open. The freeze is the
+  //    one it exploited most dangerously (largest lateBy: how late the best closeout is
+  //    against the release horizon); the first such read is the origin of the chain.
   const used = result.decisions.flatMap(decision => {
     if (decision.selected === 'hold') return []
     const frame = result.frames.find(f => Math.abs(f.t - decision.t) < 1e-8)
     const option = frame?.options.find(o => o.id === decision.selected)
-    const interval = frame && option && isThreatOpen(option, frame, a) ? intervalAt(option.id, frame.t) : undefined
-    return frame && option && interval && interval.end - interval.start >= NOISE_SECONDS - EPS ? [{ frame, threatId: option.id, length: interval.end - interval.start }] : []
+    if (!frame || !option || !isThreatOpen(option, frame, a)) return []
+    const interval = intervalAt(option.id, option.playerId, frame.t)
+    if (!interval || interval.end - interval.start < NOISE_SECONDS - EPS) return []
+    const best = arrivals(frame, option, result)[0]
+    const release = option.timeToRelease ?? a.gatherTime + a.readInterval
+    return [{ frame, threatId: option.id, lateBy: best ? best.seconds - release : 0 }]
   }).sort((x, y) => x.frame.t - y.frame.t)
-  const first = used[0]
-  if (first) return { frame: first.frame, threatId: first.threatId, basis: 'used' }
+  if (used.length) {
+    const top = used.reduce((best, u) => (u.lateBy > best.lateBy + EPS ? u : best), used[0])
+    return { frame: top.frame, threatId: top.threatId, basis: 'used', ...(top !== used[0] ? { origin: { frame: used[0].frame, threatId: used[0].threatId } } : {}) }
+  }
   // 2. Attack-witness semantics: first executable open sample in a sustained window.
   const witness = findAttackWitness(result, analysis)
   if (witness) {
@@ -74,24 +85,37 @@ function pickFrame(result: SimulationResult, analysis: AnalysisResult): { frame:
     if (frame) return { frame, threatId: witness.threatId, basis: 'witness' }
   }
   // 3. Largest window, at the first sample that is truly open.
-  const largest = analysis.windows.filter(w => w.duration >= NOISE_SECONDS - EPS)[0]
+  const largest = windows.filter(w => w.duration >= NOISE_SECONDS - EPS)[0]
   const interval = largest?.intervals.reduce((best, i) => (i.end - i.start > best.end - best.start ? i : best), largest.intervals[0])
   if (largest && interval) {
-    const frame = result.frames.find(f => f.t >= interval.start - EPS && f.t < interval.end - EPS && f.options.some(o => o.id === largest.id && isThreatOpen(o, f, a)))
-    if (frame) return { frame, threatId: largest.id, basis: 'window' }
+    const frame = result.frames.find(f => f.t >= interval.start - EPS && f.t < interval.end - EPS && f.options.some(o => o.id === largest.threatId && o.playerId === largest.playerId && isThreatOpen(o, f, a)))
+    if (frame) return { frame, threatId: largest.threatId, basis: 'window' }
   }
   return null
 }
 
-/** Most useful freeze: the first opening the offense reads that is truly open,
+/** Most useful freeze: among the openings the offense reads and takes, the one it
+ * exploited most dangerously (largest lateBy), explained by what started the chain;
  * else the attack witness, else the largest window. null means the defense holds. */
 export function findTeachingMoment(result: SimulationResult, analysis: AnalysisResult = analyze(result)): TeachingMoment | null {
-  const picked = pickFrame(result, analysis)
+  const windows = playerWindows(result)
+  const picked = pickFrame(result, analysis, windows)
   if (!picked) return null
-  const { frame, threatId, basis } = picked
+  const moment = buildMoment(result, windows, picked.frame, picked.threatId, picked.basis)
+  if (!moment || !picked.origin) return moment
+  const origin = buildMoment(result, windows, picked.origin.frame, picked.origin.threatId, 'used')
+  const structural = origin && (origin.cause === 'deep-tag' || origin.cause === 'two-on-ball' || origin.cause === 'switch-mismatch' || origin.mechanism === 'shallow-tag')
+  if (!origin || !structural && moment.cause !== 'unknown') return moment
+  const involved = [...moment.involved]
+  for (const id of origin.involved) if (!involved.includes(id)) involved.push(id)
+  return { ...moment, cause: origin.cause, ...(origin.mechanism ? { mechanism: origin.mechanism } : {}), ...(origin.pulledDefenderId ? { pulledDefenderId: origin.pulledDefenderId } : {}), involved, evidence: [moment.evidence[0], `It started at ${sec(origin.t)}: ${origin.evidence.slice(1).join(' ')}`] }
+}
+
+function buildMoment(result: SimulationResult, windows: PlayerWindow[], frame: WorldFrame, threatId: ThreatId, basis: TeachingMoment['basis']): TeachingMoment | null {
   const problem = problemFor(result), roles = problem.roles, a = result.config.assumptions
   const option = frame.options.find(o => o.id === threatId)!
-  const interval = analysis.windows.find(w => w.id === threatId)!.intervals.find(i => frame.t >= i.start - EPS && frame.t < i.end - EPS)!
+  const interval = windows.find(w => w.threatId === threatId && w.playerId === option.playerId)?.intervals.find(i => frame.t >= i.start - EPS && frame.t < i.end - EPS)
+  if (!interval) return null
   const ranked = arrivals(frame, option, result)
   const best = ranked[0] ?? null
   const releaseIn = option.timeToRelease ?? a.gatherTime + a.readInterval
@@ -106,7 +130,7 @@ export function findTeachingMoment(result: SimulationResult, analysis: AnalysisR
   const big = at(roles.big), roller = at(roles.screener), handler = at(roles.ballhandler)
   let cause: TeachingCause = 'unknown', pulledDefenderId: PlayerId | undefined, mechanism: TeachingMoment['mechanism']
   const bestId = best?.id
-  evidence.push(`${receiver.id} is open at ${sec(frame.t)}: the earliest defender (${bestId}) needs ${best ? sec(best.seconds) : 'n/a'} but the catch-and-release horizon is ${sec(releaseIn)}.`)
+  evidence.push(`${receiver.id} is open at ${sec(frame.t)}: shot ready in ${sec(releaseIn)}, closest defender (${bestId}) needs ${best ? sec(best.seconds) : 'n/a'}${best ? ` → late by ${sec(best.seconds - releaseIn)}` : ''}.`)
 
   if (switchTasks.length >= 1 && frame.answer.coverage === 'switch') {
     cause = 'switch-mismatch'; pulledDefenderId = (switchTasks.find(r => r.offensivePlayerId === receiver.id) ?? switchTasks[0]).defenderId
@@ -144,7 +168,7 @@ export function findTeachingMoment(result: SimulationResult, analysis: AnalysisR
   const add = (id?: PlayerId | null) => { if (id && !involved.includes(id)) involved.push(id) }
   add(receiver.id); add(responsibleDefenderId); add(pulledDefenderId); add(tag?.offensivePlayerId); add(owner as PlayerId)
   if (cause === 'two-on-ball') onBall.forEach(r => add(r.defenderId))
-  return { t: frame.t, threatId, receiverId: receiver.id, openFor: interval.end - interval.start, window: { ...interval }, defenderNeeds: best ? best.seconds : null, bestDefenderId: best?.id ?? null, releaseIn, ...(responsibleDefenderId ? { responsibleDefenderId } : {}), ...(pulledDefenderId ? { pulledDefenderId } : {}), involved, cause, ...(mechanism ? { mechanism } : {}), evidence, basis }
+  return { t: frame.t, threatId, receiverId: receiver.id, openFor: interval.end - interval.start, window: { ...interval }, defenderNeeds: best ? best.seconds : null, bestDefenderId: best?.id ?? null, releaseIn, lateBy: best ? best.seconds - releaseIn : null, ...(responsibleDefenderId ? { responsibleDefenderId } : {}), ...(pulledDefenderId ? { pulledDefenderId } : {}), involved, cause, ...(mechanism ? { mechanism } : {}), evidence, basis }
 }
 
 /** Smallest circle containing the involved players and the ball at t. */
@@ -302,7 +326,7 @@ export function explore(config: LabConfig, opts: { max?: number; withFrames?: bo
 export interface Divergence {
   firstDivergenceAt: number | null
   perPlayer: Record<PlayerId, { maxGap: number; at: number }>
-  windows: { threatId: ThreatId; before: { start: number; end: number } | null; after: { start: number; end: number } | null; location: Point2 }[]
+  windows: { threatId: ThreatId; playerId: PlayerId; before: { start: number; end: number } | null; after: { start: number; end: number } | null; location: Point2 }[]
 }
 /** Metres a player must differ by before the replays count as diverged. */
 export const DIVERGENCE_METRES = 0.05
@@ -322,16 +346,16 @@ export function divergence(before: SimulationResult, after: SimulationResult): D
       if (firstDivergenceAt === null && gap > DIVERGENCE_METRES) firstDivergenceAt = fa.t
     }
   }
-  const aa = analyze(before), ab = analyze(after)
-  const longest = (w?: { duration: number; intervals: { start: number; end: number }[] }) => w && w.duration > 0 ? w.intervals.reduce((best, i) => (i.end - i.start > best.end - best.start ? i : best), w.intervals[0]) : null
-  const ids = new Set<ThreatId>([...aa.windows, ...ab.windows].filter(w => w.duration > 0).map(w => w.id))
-  const windows: Divergence['windows'] = [...ids].sort().map(threatId => {
-    const wb = aa.windows.find(w => w.id === threatId), wa = ab.windows.find(w => w.id === threatId)
-    const b = longest(wb), a = longest(wa)
-    const source = b ? { result: before, window: wb!, interval: b } : { result: after, window: wa!, interval: a! }
+  const wb = playerWindows(before), wa = playerWindows(after)
+  const longest = (w?: PlayerWindow) => w ? w.intervals.reduce((best, i) => (i.end - i.start > best.end - best.start ? i : best), w.intervals[0]) : null
+  const keys = new Map<string, { threatId: ThreatId; playerId: PlayerId }>()
+  for (const w of [...wb, ...wa]) keys.set(`${w.threatId}:${w.playerId}`, w)
+  const windows: Divergence['windows'] = [...keys.values()].sort((x, y) => x.threatId.localeCompare(y.threatId) || x.playerId.localeCompare(y.playerId)).map(({ threatId, playerId }) => {
+    const b = longest(wb.find(w => w.threatId === threatId && w.playerId === playerId)), a = longest(wa.find(w => w.threatId === threatId && w.playerId === playerId))
+    const source = b ? { result: before, interval: b } : { result: after, interval: a! }
     const mid = (source.interval.start + source.interval.end) / 2
-    const receiver = frameAt(source.result, mid).players.find(p => p.id === source.window.playerId)!
-    return { threatId, before: b ? { ...b } : null, after: a ? { ...a } : null, location: { x: receiver.x, z: receiver.z } }
+    const receiver = frameAt(source.result, mid).players.find(p => p.id === playerId)!
+    return { threatId, playerId, before: b ? { ...b } : null, after: a ? { ...a } : null, location: { x: receiver.x, z: receiver.z } }
   })
   return { firstDivergenceAt, perPlayer, windows }
 }

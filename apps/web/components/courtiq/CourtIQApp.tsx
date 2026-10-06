@@ -43,7 +43,8 @@ export default function CourtIQApp() {
   const [stats, setStats] = useState<string>('')
   const [teach, setTeach] = useState<TeachState | null>(null)
   const runtime = useRef<WorldRuntime | null>(null)
-  const debug = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug')
+  const [debug, setDebug] = useState(false)
+  useEffect(() => { setDebug(new URLSearchParams(window.location.search).has('debug')) }, [])
 
   useEffect(() => { setSystemState(loadSystem()) }, [])
   const setSystem = useCallback((next: ProgramSystem) => { setSystemState(next); persistSystem(next) }, [])
@@ -165,7 +166,7 @@ export default function CourtIQApp() {
     pov: tab === 'teach' ? teach?.player : selected, selectedId: selected, hoverId: hover,
     highlight: tab === 'teach' && teach?.player ? [teach.player, ...(primaryJob(frame, teach.player) ? [primaryJob(frame, teach.player)!.offensivePlayerId] : []), frame.ball.owner ?? 'O1'] : null,
     playing: tab === 'teach' ? teachPlaying : ambient || lab.playing, editable: tab === 'lab' && entered && !inBreak, tagGuide,
-    inset: ambient ? { left: Math.min(640, viewport.w * 0.45) } : tab === 'lab' && panelOpen && viewport.w > 820 ? { right: 420, bottom: 70 } : { bottom: 70 },
+    inset: ambient ? { left: Math.min(640, viewport.w * 0.45), top: 60 } : tab === 'lab' && entered && viewport.w > 820 ? { right: panelOpen || (selected && !lab.playing) ? 430 : 190, left: selected && !lab.playing && !inBreak ? 350 : 0, top: 150, bottom: 80 } : { top: 120, bottom: 150 },
   }), [viewport, panelOpen, frame, ghost, marks, lens, focus, tab, teach, camera, selected, hover, teachPlaying, ambient, lab.playing, entered, inBreak, tagGuide])
 
   // ------------------------------------------------ actions
@@ -246,7 +247,7 @@ export default function CourtIQApp() {
   const checkpoints = [
     ...(lab.result.events.filter(e => e.type === 'screen').slice(0, 1).map(e => ({ t: e.t, label: 'Screen' }))),
     ...(lab.result.events.filter(e => e.type === 'pass').slice(0, 2).map((e, i) => ({ t: e.t, label: i ? 'Pass 2' : 'Pass' }))),
-  ]
+  ].filter((c, i, all) => (!moment || Math.abs(c.t - moment.t) > 0.45) && all.slice(0, i).every(o => Math.abs(o.t - c.t) > 0.45))
   const answerSummary = coverageName(lab.config.answer, voice)
 
   return (
@@ -260,8 +261,8 @@ export default function CourtIQApp() {
           onCameraMode: m => setCamera(m),
           onStats: st => setStats(`${st.fps} fps · ${st.calls} calls · ${(st.triangles / 1000).toFixed(0)}k tris · ×${st.scale.toFixed(2)}`),
         }}>
-          {labels.map(l => (
-            <div key={`${l.anchor}-${l.text}`} className={s.tag} data-anchor={l.anchor} data-lift={l.lift ?? 0}>
+          {labels.map((l, i) => (
+            <div key={`${i}-${l.anchor}-${l.text}`} className={s.tag} data-anchor={l.anchor} data-lift={l.lift ?? 0}>
               <div className={`${s.tagInner} ${l.tone}`}>{l.text}</div>
             </div>
           ))}

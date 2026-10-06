@@ -73,6 +73,36 @@ export class DirectorCamera {
     const distance = THREE.MathUtils.clamp(Math.max(needW, needD) * 1.02, 8, 22)
     this.goalTarget.set(cx, 0.75, cz + 0.4)
     const az = this.azimuth, el = this.elevation
-    this.goalEye.set(cx + Math.sin(az) * Math.cos(el) * distance, 0.75 + Math.sin(el) * distance, cz + 0.4 + Math.cos(az) * Math.cos(el) * distance)
+    const dir = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el))
+    let dist = distance
+    this.goalEye.copy(this.goalTarget).addScaledVector(dir, dist)
+    // Refine with true perspective projection inside the safe region: bodies
+    // (feet and heads) must fit, centred, whatever the overlay layout.
+    const probe = this.probe
+    probe.fov = cam.fov; probe.aspect = cam.aspect; probe.near = cam.near; probe.far = cam.far
+    if (cam.view?.enabled) probe.setViewOffset(cam.view.fullWidth, cam.view.fullHeight, cam.view.offsetX, cam.view.offsetY, cam.view.width, cam.view.height); else probe.clearViewOffset()
+    probe.updateProjectionMatrix()
+    const safe = this.safe
+    const sx = (safe.x0 + safe.x1) / 2, sy = (safe.y0 + safe.y1) / 2, sw = safe.x1 - safe.x0, sh = safe.y1 - safe.y0
+    const v = new THREE.Vector3(), right = new THREE.Vector3(), upv = new THREE.Vector3()
+    const samples: THREE.Vector3[] = []
+    for (const p of pts) { samples.push(new THREE.Vector3(p.x, 0, p.z), new THREE.Vector3(p.x, 2.15, p.z)) }
+    // The rim and the paint anchor every composition.
+    samples.push(new THREE.Vector3(0, 3.05, 1.575), new THREE.Vector3(-1.8, 0, 0.6), new THREE.Vector3(1.8, 0, 0.6))
+    for (let i = 0; i < 5; i++) {
+      probe.position.copy(this.goalEye); probe.lookAt(this.goalTarget); probe.updateMatrixWorld()
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity
+      for (const q of samples) { v.copy(q).project(probe); x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y) }
+      const need = Math.max((x1 - x0) / (sw * 0.86), (y1 - y0) / (sh * 0.84))
+      const halfH = dist * Math.tan(vfov / 2)
+      right.set(1, 0, 0).applyQuaternion(probe.quaternion); upv.set(0, 1, 0).applyQuaternion(probe.quaternion)
+      const shift = right.multiplyScalar(((x0 + x1) / 2 - sx) * halfH * cam.aspect).add(upv.multiplyScalar(((y0 + y1) / 2 - sy) * halfH))
+      this.goalTarget.add(shift)
+      dist = THREE.MathUtils.clamp(dist * (0.35 + 0.65 * need), 9, 24)
+      this.goalEye.copy(this.goalTarget).addScaledVector(dir, dist)
+    }
   }
+  private probe = new THREE.PerspectiveCamera()
+  /** Safe region in NDC (after view offset). */
+  safe = { x0: -1, x1: 1, y0: -1, y1: 1 }
 }

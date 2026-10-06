@@ -114,7 +114,6 @@ function jerseyTexture(kit: typeof DEFENSE_KIT, number: string) {
 }
 
 const smoothstep = THREE.MathUtils.smoothstep
-const clamp01 = (x: number) => Math.min(1, Math.max(0, x))
 interface GaitState { t: number; dist: number; cycle: number; dir: [number, number, number, number]; valid: boolean }
 interface GaitRecord { t: number; cycle: number; dir: [number, number, number, number]; dist: number }
 
