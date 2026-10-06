@@ -15,6 +15,8 @@ import { chromium } from '@playwright/test'
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3000'
 const QA_ACCESS_URL = process.env.QA_ACCESS_URL
+const QA_FROM_IMPORT_FILE = process.env.QA_FROM_IMPORT_FILE
+const QA_SKIP_IMPORTED_TEACH = process.env.QA_SKIP_IMPORTED_TEACH === '1'
 const ARTIFACT_DIR = path.resolve(process.env.QA_ARTIFACT_DIR ?? '/tmp/courtiq-qa')
 const QA_ROUTE_MODE = process.env.QA_ROUTE_MODE ?? 'skip'
 const QA_ALLOW_DEV_RETIRED_ROUTES = process.env.QA_ALLOW_DEV_RETIRED_ROUTES === '1'
@@ -81,6 +83,22 @@ async function runtimeInfo(page) {
       .catch(() => null),
   }
 }
+function screenshotNames() {
+  return QA_FROM_IMPORT_FILE
+    ? [
+        ...(!QA_SKIP_IMPORTED_TEACH ? ['teach-first-read.png'] : []),
+        'final-system.png',
+        'restored-system.png',
+        'library-answer-run.png',
+      ]
+    : [
+        'lab-world-xray.png',
+        'teach-first-read.png',
+        'final-system.png',
+        'restored-system.png',
+        'library-answer-run.png',
+      ]
+}
 
 async function button(page, name) {
   const target = page.getByRole('button', { name: typeof name === 'string' ? nameRx(name) : name }).first()
@@ -101,7 +119,7 @@ async function clickWhenEnabled(locator, timeout = TIMEOUT) {
 async function waitForLabResult(page) {
   await page.getByRole('button', { name: /Run it/i }).waitFor({ state: 'visible', timeout: TIMEOUT })
   await page.getByRole('button', { name: /Break my defense/i }).waitFor({ state: 'visible', timeout: TIMEOUT })
-  await page.getByRole('button', { name: /Save/i }).waitFor({ state: 'visible', timeout: TIMEOUT })
+  await page.getByRole('button', { name: /^Save$/i }).waitFor({ state: 'visible', timeout: TIMEOUT })
   await page.waitForFunction(
     () => {
       const text = document.body.innerText
@@ -245,140 +263,177 @@ async function main() {
         }
       })
 
-    await step('Choose a situation, a goal, and a defensive answer', async () => {
-      await page
-        .getByRole('button', { name: /ball screen|pick.?and.?roll/i })
-        .first()
-        .click()
-      await page.getByRole('heading', { name: /What are you trying to stop\?/i }).waitFor({ state: 'visible' })
-      await page
-        .getByRole('button')
-        .filter({ has: page.locator('strong') })
-        .first()
-        .click()
-      await page
-        .locator('button')
-        .filter({ has: page.locator('h3') })
-        .first()
-        .click()
-      await page.getByRole('heading', { name: /What does your team call it\?/i }).waitFor({ state: 'visible' })
-      await page.getByRole('button', { name: /Doesn’t matter|Doesn't matter.*run it/i }).click()
-      await waitForLabResult(page)
-    })
-
-    await step('Inspect the play through X-Ray', async () => {
-      const toolbar = page.getByRole('toolbar', { name: /How to look at the play/i })
-      await toolbar.getByRole('button', { name: /Responsibilities|Who has who/i }).click()
-      await toolbar.getByRole('button', { name: /Reach in time|Who can get there/i }).click()
-      await toolbar.getByRole('button', { name: /Game view/i }).click()
-    })
-
-    await step('Change one defender responsibility and rerun the possession', async () => {
-      // The situation pills are accessible buttons; selecting the helper opens its coach controls.
-      await page.getByRole('button', { name: /Helper:|Low-man:|low man/i }).click()
-      const coach = page.getByRole('dialog', { name: /Coach/i })
-      await coach.waitFor({ state: 'visible', timeout: TIMEOUT })
-      const noHelp = coach.getByRole('button', { name: /No, stay home|No tag/i }).first()
-      const helping = coach.getByRole('button', { name: /Yes, help|Tag/i }).first()
-      const selected = await noHelp.getAttribute('aria-pressed')
-      if (selected === 'true') await helping.click()
-      else await noHelp.click()
-      await coach.getByRole('button', { name: /Close/i }).click()
-      await page.getByRole('button', { name: /Run it/i }).click()
-      await waitForLabResult(page)
-    })
-
-    await step('Break the changed defense and inspect the counter', async () => {
-      const breakButton = await button(page, /Break my defense/i)
-      await breakButton.click()
-      await waitForBreakCompletion(page)
-      await page
-        .getByRole('dialog', { name: /They broke it/i })
-        .waitFor({ state: 'visible', timeout: TIMEOUT })
-        .catch(async () => {
-          await page
-            .getByText(/CourtIQ couldn’t break it|CourtIQ couldn't break it/i)
-            .waitFor({ state: 'visible', timeout: TIMEOUT })
-        })
-    })
-
-    await step('Adopt the discovered offense, apply a fix, and rebreak the defense', async () => {
-      const fixed = page.getByRole('button', { name: /Fix it/i })
-      assert(
-        await fixed.isVisible().catch(() => false),
-        'Break Mode found no usable counter, so there is no offense to fix',
-      )
-      await fixed.click()
-      const fixes = page.getByRole('dialog', { name: /Fixes/i })
-      await fixes.waitFor({ state: 'visible', timeout: TIMEOUT })
-      await fixes
-        .getByRole('button')
-        .filter({ has: page.locator('strong') })
-        .first()
-        .click()
-      await page.getByRole('dialog', { name: /What changed/i }).waitFor({ state: 'visible', timeout: TIMEOUT })
-      await page.getByRole('button', { name: /Break my defense/i }).click()
-      await waitForBreakCompletion(page)
-      await page.getByRole('button', { name: /Back to my defense/i }).click()
-    })
-
-    await step('Rerun and compare the fix against the discovered counter', async () => {
-      await page.getByRole('button', { name: /Run it/i }).click()
-      await page.getByRole('dialog', { name: /What changed/i }).waitFor({ state: 'visible', timeout: TIMEOUT })
-    })
-
-    await step('Capture the Lab world with an X-Ray layer visible', async () => {
-      const toolbar = page.getByRole('toolbar', { name: /How to look at the play/i })
-      await toolbar.getByRole('button', { name: /Open passes|Passing windows/i }).click()
-      await page.screenshot({ path: path.join(ARTIFACT_DIR, 'lab-world-xray.png'), fullPage: true })
-    })
-
     const answerName = 'QA Foundation Answer'
-    await step('Save an answer with a note and enter Teach', async () => {
-      await page.getByRole('button', { name: /Save/i }).last().click()
-      const dialog = page.getByRole('dialog', { name: /Save as our answer/i })
-      await dialog.waitFor({ state: 'visible', timeout: TIMEOUT })
-      await dialog.getByLabel(/What do you call it\?/i).fill(answerName)
-      const addNote = dialog.getByRole('button', { name: /Add a note/i })
-      if (await addNote.isVisible().catch(() => false)) await addNote.click()
-      const note = dialog.getByLabel(/Anything to remember/i)
-      if (await note.isVisible().catch(() => false)) await note.fill('Foundation QA note')
-      await clickWhenEnabled(dialog.getByRole('button', { name: /Save and show the players/i }))
-      await page.getByRole('button', { name: /Teach/i }).click()
-      await page.getByText(new RegExp(`${answerName}.*version 1`, 'i')).waitFor({ state: 'visible', timeout: TIMEOUT })
-      const player = page.getByRole('button', { name: /helper under the basket|low man/i }).first()
-      await player.waitFor({ state: 'visible', timeout: TIMEOUT })
-      await player.click()
-      assert((await player.getAttribute('aria-pressed')) === 'true', 'Teach did not select the helper role')
-      const view = page.getByRole('button', { name: /Through his eyes/i })
-      await view.click()
-      assert((await view.getAttribute('aria-pressed')) === 'true', 'Teach did not switch to the player view')
-      // The read card starts paused at 0.0s. Start playback first; a visible
-      // “Next read” checkpoint proves the teaching playback advanced.
-      await page.getByRole('button', { name: /^Start$/i }).click()
-      const nextRead = page.getByRole('button', { name: /Next read/i })
-      const possessionDone = page.getByText(/That’s the possession|That's the possession/i)
-      await Promise.race([
-        nextRead.waitFor({ state: 'visible', timeout: PLAYBACK_TIMEOUT }),
-        possessionDone.waitFor({ state: 'visible', timeout: PLAYBACK_TIMEOUT }),
-      ])
-      if (await nextRead.isVisible().catch(() => false)) {
-        await nextRead.click()
-        await page.waitForFunction(
-          () => /Read 2 of \d+|That’s the possession|That's the possession/i.test(document.body.innerText),
-          null,
-          { timeout: TIMEOUT },
+    if (QA_FROM_IMPORT_FILE) {
+      await step('Seed an ordinary browser context through CourtIQ Import', async () => {
+        await page
+          .getByRole('button', { name: /Our System/i })
+          .first()
+          .click()
+        await page.getByRole('button', { name: /Import program/i }).click()
+        await page.getByLabel('Import CourtIQ program JSON').setInputFiles(QA_FROM_IMPORT_FILE)
+        await page
+          .getByRole('status')
+          .filter({ hasText: /Program imported and saved on this device/i })
+          .waitFor({ state: 'visible', timeout: TIMEOUT })
+        await page.getByRole('button', { name: new RegExp(answerName, 'i') }).waitFor({ state: 'visible' })
+      })
+    } else {
+      await step('Choose a situation, a goal, and a defensive answer', async () => {
+        await page
+          .getByRole('button', { name: /ball screen|pick.?and.?roll/i })
+          .first()
+          .click()
+        await page.getByRole('heading', { name: /What are you trying to stop\?/i }).waitFor({ state: 'visible' })
+        await page
+          .getByRole('button')
+          .filter({ has: page.locator('strong') })
+          .first()
+          .click()
+        await page
+          .locator('button')
+          .filter({ has: page.locator('h3') })
+          .first()
+          .click()
+        await page.getByRole('heading', { name: /What does your team call it\?/i }).waitFor({ state: 'visible' })
+        await page.getByRole('button', { name: /Doesn’t matter|Doesn't matter.*run it/i }).click()
+        await waitForLabResult(page)
+      })
+
+      await step('Inspect the play through X-Ray', async () => {
+        const toolbar = page.getByRole('toolbar', { name: /How to look at the play/i })
+        await toolbar.getByRole('button', { name: /Responsibilities|Who has who/i }).click()
+        await toolbar.getByRole('button', { name: /Reach in time|Who can get there/i }).click()
+        await toolbar.getByRole('button', { name: /Game view/i }).click()
+      })
+
+      await step('Change one defender responsibility and rerun the possession', async () => {
+        // The situation pills are accessible buttons; selecting the helper opens its coach controls.
+        await page.getByRole('button', { name: /Helper:|Low-man:|low man/i }).click()
+        const coach = page.getByRole('dialog', { name: /Coach/i })
+        await coach.waitFor({ state: 'visible', timeout: TIMEOUT })
+        const noHelp = coach.getByRole('button', { name: /No, stay home|No tag/i }).first()
+        const helping = coach.getByRole('button', { name: /Yes, help|Tag/i }).first()
+        const selected = await noHelp.getAttribute('aria-pressed')
+        if (selected === 'true') await helping.click()
+        else await noHelp.click()
+        await coach.getByRole('button', { name: /Close/i }).click()
+        await page.getByRole('button', { name: /Run it/i }).click()
+        await waitForLabResult(page)
+      })
+
+      await step('Break the changed defense and inspect the counter', async () => {
+        const breakButton = await button(page, /Break my defense/i)
+        await breakButton.click()
+        await waitForBreakCompletion(page)
+        await page
+          .getByRole('dialog', { name: /They broke it/i })
+          .waitFor({ state: 'visible', timeout: TIMEOUT })
+          .catch(async () => {
+            await page
+              .getByText(/CourtIQ couldn’t break it|CourtIQ couldn't break it/i)
+              .waitFor({ state: 'visible', timeout: TIMEOUT })
+          })
+      })
+
+      await step('Adopt the discovered offense, apply a fix, and rebreak the defense', async () => {
+        const fixed = page.getByRole('button', { name: /Fix it/i })
+        assert(
+          await fixed.isVisible().catch(() => false),
+          'Break Mode found no usable counter, so there is no offense to fix',
         )
-      }
-      await page.screenshot({ path: path.join(ARTIFACT_DIR, 'teach-first-read.png'), fullPage: true })
-    })
+        await fixed.click()
+        const fixes = page.getByRole('dialog', { name: /Fixes/i })
+        await fixes.waitFor({ state: 'visible', timeout: TIMEOUT })
+        await fixes
+          .getByRole('button')
+          .filter({ has: page.locator('strong') })
+          .first()
+          .click()
+        await page.getByRole('dialog', { name: /What changed/i }).waitFor({ state: 'visible', timeout: TIMEOUT })
+        await page.getByRole('button', { name: /Break my defense/i }).click()
+        await waitForBreakCompletion(page)
+        await page.getByRole('button', { name: /Back to my defense/i }).click()
+      })
+
+      await step('Rerun and compare the fix against the discovered counter', async () => {
+        await page.getByRole('button', { name: /Run it/i }).click()
+        await page.getByRole('dialog', { name: /What changed/i }).waitFor({ state: 'visible', timeout: TIMEOUT })
+      })
+
+      await step('Capture the Lab world with an X-Ray layer visible', async () => {
+        const toolbar = page.getByRole('toolbar', { name: /How to look at the play/i })
+        await toolbar.getByRole('button', { name: /Open passes|Passing windows/i }).click()
+        await page.screenshot({ path: path.join(ARTIFACT_DIR, 'lab-world-xray.png'), fullPage: true })
+      })
+    }
+
+    if (!QA_FROM_IMPORT_FILE || !QA_SKIP_IMPORTED_TEACH)
+      await step(
+        QA_FROM_IMPORT_FILE ? 'Teach the imported accepted answer' : 'Save an answer and enter Teach',
+        async () => {
+          if (!QA_FROM_IMPORT_FILE) {
+            await page.getByRole('button', { name: /Save/i }).last().click()
+            const dialog = page.getByRole('dialog', { name: /Save as our answer/i })
+            await dialog.waitFor({ state: 'visible', timeout: TIMEOUT })
+            await dialog.getByLabel(/What do you call it\?/i).fill(answerName)
+            const addNote = dialog.getByRole('button', { name: /Add a note/i })
+            if (await addNote.isVisible().catch(() => false)) await addNote.click()
+            const note = dialog.getByLabel(/Anything to remember/i)
+            if (await note.isVisible().catch(() => false)) await note.fill('Foundation QA note')
+            await clickWhenEnabled(dialog.getByRole('button', { name: /Save and show the players/i }))
+          }
+          await page.getByRole('button', { name: /^Teach$/i }).click()
+          await page
+            .getByText(new RegExp(`${answerName}.*version 1`, 'i'))
+            .waitFor({ state: 'visible', timeout: TIMEOUT })
+          const player = page.getByRole('button', { name: /helper under the basket|low man/i }).first()
+          await player.waitFor({ state: 'visible', timeout: TIMEOUT })
+          await player.click()
+          assert((await player.getAttribute('aria-pressed')) === 'true', 'Teach did not select the helper role')
+          const view = page.getByRole('button', { name: /Through his eyes/i })
+          await view.click()
+          assert((await view.getAttribute('aria-pressed')) === 'true', 'Teach did not switch to the player view')
+          // The read card starts paused at 0.0s. Start playback first; a visible
+          // “Next read” checkpoint proves the teaching playback advanced.
+          await page.getByRole('button', { name: /^Start$/i }).click()
+          const nextRead = page.getByRole('button', { name: /Next read/i })
+          const possessionDone = page.getByText(/That’s the possession|That's the possession/i)
+          await Promise.race([
+            nextRead.waitFor({ state: 'visible', timeout: PLAYBACK_TIMEOUT }),
+            possessionDone.waitFor({ state: 'visible', timeout: PLAYBACK_TIMEOUT }),
+          ])
+          if (await nextRead.isVisible().catch(() => false)) {
+            const readLabel = page.getByText(/Read \d+ of \d+ · [\d.]+ s/i)
+            const currentRead = (await readLabel.textContent())?.match(/Read (\d+) of/i)
+            assert(currentRead, 'Teach reached a Next read control without a visible checkpoint index')
+            const previousReadIndex = Number(currentRead[1])
+            await nextRead.click()
+            await page.waitForFunction(
+              (previousIndex) => {
+                const text = document.body.innerText
+                const match = text.match(/Read (\d+) of \d+/i)
+                return (
+                  (match && Number(match[1]) > previousIndex) ||
+                  /That’s the possession|That's the possession/i.test(text)
+                )
+              },
+              previousReadIndex,
+              { timeout: TIMEOUT },
+            )
+          }
+          await page.screenshot({ path: path.join(ARTIFACT_DIR, 'teach-first-read.png'), fullPage: true })
+        },
+      )
 
     await step('Open Our System and update the saved answer to version 2', async () => {
       await page
         .getByRole('button', { name: /Our System/i })
         .first()
         .click()
-      await page.getByRole('heading', { name: /How .* play defense/i }).waitFor({ state: 'visible', timeout: TIMEOUT })
+      await page
+        .getByRole('heading', { name: /How .* plays? defense/i })
+        .waitFor({ state: 'visible', timeout: TIMEOUT })
       await page.getByRole('button', { name: new RegExp(answerName, 'i') }).click()
       const open = page.getByRole('button', { name: /Open in Lab/i })
       await open.click()
@@ -387,6 +442,10 @@ async function main() {
       const dialog = page.getByRole('dialog', { name: /Save as our answer/i })
       await dialog.getByLabel(/What do you call it\?/i).fill(answerName)
       await clickWhenEnabled(dialog.getByRole('button', { name: /Update .*version 2/i }))
+      await page
+        .getByRole('status')
+        .filter({ hasText: /Updated .*version 2/i })
+        .waitFor({ state: 'visible', timeout: TIMEOUT })
       await page
         .getByRole('button', { name: /Our System/i })
         .first()
@@ -400,7 +459,7 @@ async function main() {
       await program.fill('QA Wildcats')
       await program.press('Tab')
       await page
-        .getByRole('heading', { name: /How QA Wildcats play defense/i })
+        .getByRole('heading', { name: /How QA Wildcats plays? defense/i })
         .waitFor({ state: 'visible', timeout: TIMEOUT })
       const wordsTab = page
         .locator('nav')
@@ -419,7 +478,7 @@ async function main() {
         .first()
         .click()
       await page
-        .getByRole('heading', { name: /How QA Wildcats play defense/i })
+        .getByRole('heading', { name: /How QA Wildcats plays? defense/i })
         .waitFor({ state: 'visible', timeout: TIMEOUT })
       await page
         .locator('nav')
@@ -437,7 +496,7 @@ async function main() {
         .first()
         .click()
       await page
-        .getByRole('heading', { name: /How QA Wildcats play defense/i })
+        .getByRole('heading', { name: /How QA Wildcats plays? defense/i })
         .waitFor({ state: 'visible', timeout: TIMEOUT })
       await page
         .getByRole('button', { name: new RegExp(answerName, 'i') })
@@ -457,6 +516,26 @@ async function main() {
         (await language.getByRole('button', { name: /Simple words/i }).getAttribute('class')) === page.__qaSimpleClass,
         'Wording preference did not survive reload',
       )
+    })
+
+    await step('Reopen the persisted version 2 answer in the Lab after reload', async () => {
+      await page
+        .locator('nav')
+        .filter({ hasText: /Our defense/i })
+        .getByRole('button', { name: /Our defense/i })
+        .click()
+      await page.getByRole('button', { name: new RegExp(answerName, 'i') }).click()
+      await page.getByRole('button', { name: /Open in Lab/i }).click()
+      await waitForLabResult(page)
+      await page
+        .getByRole('button', { name: /Our System/i })
+        .first()
+        .click()
+      await page
+        .locator('nav')
+        .filter({ hasText: /Our defense/i })
+        .getByRole('button', { name: /Our defense/i })
+        .click()
     })
 
     await step('Export, clear through the interface, then restore the exported system', async () => {
@@ -481,6 +560,11 @@ async function main() {
         .getByRole('status')
         .filter({ hasText: /Import did not change your program/i })
         .waitFor({ state: 'visible', timeout: TIMEOUT })
+      await page
+        .locator('nav')
+        .filter({ hasText: /Our defense/i })
+        .getByRole('button', { name: /Our defense/i })
+        .click()
       await page
         .getByRole('button', { name: new RegExp(answerName, 'i') })
         .waitFor({ state: 'visible', timeout: TIMEOUT })
@@ -508,7 +592,7 @@ async function main() {
         .filter({ hasText: /Program imported and saved on this device/i })
         .waitFor({ state: 'visible', timeout: TIMEOUT })
       await page
-        .getByRole('heading', { name: /How QA Wildcats play defense/i })
+        .getByRole('heading', { name: /How QA Wildcats plays? defense/i })
         .waitFor({ state: 'visible', timeout: TIMEOUT })
       await page
         .getByRole('button', { name: new RegExp(answerName, 'i') })
@@ -549,16 +633,11 @@ async function main() {
       route: '/lab',
       protectedBootstrap: Boolean(QA_ACCESS_URL),
       routeMode: QA_ROUTE_MODE,
+      runMode: QA_FROM_IMPORT_FILE ? 'imported-system-shakedown' : 'full-golden-path',
       ...(await runtimeInfo(page)),
       steps,
       ...sanitizedDiagnostics(),
-      screenshots: [
-        'lab-world-xray.png',
-        'teach-first-read.png',
-        'final-system.png',
-        'restored-system.png',
-        'library-answer-run.png',
-      ].map((file) => path.join(ARTIFACT_DIR, file)),
+      screenshots: screenshotNames().map((file) => path.join(ARTIFACT_DIR, file)),
     }
     await writeFile(path.join(ARTIFACT_DIR, 'report.json'), JSON.stringify(report, null, 2))
     console.log(`PASS — ${steps.length} browser flow stages; no backend API calls, browser errors, or failed assets.`)
@@ -575,19 +654,13 @@ async function main() {
       route: '/lab',
       protectedBootstrap: Boolean(QA_ACCESS_URL),
       routeMode: QA_ROUTE_MODE,
+      runMode: QA_FROM_IMPORT_FILE ? 'imported-system-shakedown' : 'full-golden-path',
       ...(await runtimeInfo(page)),
       steps,
       failedStep: currentStep,
       failure: sanitizeText(error instanceof Error ? (error.stack ?? error.message) : error),
       ...sanitizedDiagnostics(),
-      screenshots: [
-        'failure.png',
-        'lab-world-xray.png',
-        'teach-first-read.png',
-        'final-system.png',
-        'restored-system.png',
-        'library-answer-run.png',
-      ].map((file) => path.join(ARTIFACT_DIR, file)),
+      screenshots: ['failure.png', ...screenshotNames()].map((file) => path.join(ARTIFACT_DIR, file)),
     }
     await writeFile(path.join(ARTIFACT_DIR, 'report.json'), JSON.stringify(report, null, 2))
     throw error

@@ -27,7 +27,7 @@ The build validates/materializes Git-authored executable content before compilat
 
 ## Use
 
-Choose a situation and answer, run the reactive opponent, inspect X-Ray, change a rule and compare. Break My Defense searches bounded basketball alternatives and shows the executable vulnerability. Save commits an accepted version to Our System; Teach uses that exact version. Choose plain, coach or precise terminology. Export program knowledge before clearing this device or moving to another browser; Import restores it.
+Choose a situation and answer, run the reactive opponent, inspect X-Ray, change a rule and compare. Break My Defense searches bounded basketball alternatives and shows the executable vulnerability. Save commits an accepted version to Our System; Teach uses that exact version. Choose simple words, coaching terms or your program’s own words. Export program knowledge before clearing this device or moving to another browser; Import restores it.
 
 Legacy local answers remain available for retest and recovery. Storage failure is visible and an uncommitted candidate can be exported. Browser storage is origin-specific; cloud sync is a future adapter.
 
