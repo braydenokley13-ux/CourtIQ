@@ -1,10 +1,11 @@
 import { DEFAULT_OPPONENT } from './offensivePolicy'
+import { BASELINE_DRIVE_PROBLEM } from './problems/baselineDrive'
 import type { CounterId, CoverageId, LabConfig, ModelAssumptions, ProblemDefinition, RoleId, TeamAnswer } from './types'
 
 export const ENGINE_VERSION = 'defense-lab-1.0.0'
 export const CONFIG_SCHEMA_VERSION = 1
 export const DEFAULT_ANSWER: TeamAnswer = { coverage: 'drop', poa: 'over', bigDepth: 3.2, tag: true, tagDepth: 0.95, backside: 'x-out', rotationTiming: 'on-pass', recovery: 'on-pass' }
-export const DEFAULT_ASSUMPTIONS: ModelAssumptions = { dt: 0.025, duration: 5.8, maxSpeed: 4.7, acceleration: 6.2, reactionDelay: 0.2, passSpeed: 11.5, ballRadius: 0.12, bodyRadius: 0.28, contestRadius: 1.25, turnRate: 5, gatherTime: 0.26, readInterval: 0.15, gravity: 9.81, releaseHeight: 1.85 }
+export const DEFAULT_ASSUMPTIONS: ModelAssumptions = { dt: 0.025, duration: 5.8, maxSpeed: 4.7, acceleration: 6.2, reactionDelay: 0.3, passSpeed: 11.5, ballRadius: 0.12, bodyRadius: 0.28, contestRadius: 1.25, turnRate: 5, gatherTime: 0.26, readInterval: 0.15, gravity: 9.81, releaseHeight: 1.85 }
 export const COVERAGES: { id: CoverageId; label: string; description: string }[] = [
   { id: 'drop', label: 'Drop', description: 'Big contains below the screen; the chaser works back to the ball.' },
   { id: 'switch', label: 'Switch', description: 'Screen defenders exchange ball and screener responsibilities.' },
@@ -59,6 +60,19 @@ export const HIGH_PNR_PROBLEM: ProblemDefinition = {
     { id: 'stay-with-lift', label: 'Stay with the lifting receiver through the tag', answer: { backside: 'stay' }, assignments: [
       { defender: 'backside', offense: 'weakLift', threat: 'lift', kind: 'guard', gap: 0.9, priority: 1 },
     ] },
+    { id: 'stop-short-roll', label: 'Short roll released → low man stops it, backside rotates to the corner',
+      when: { kind: 'activated', ruleId: 'release-two-on-ball' }, assignments: [
+        { defender: 'lowMan', offense: 'screener', threat: 'roll', kind: 'contain', gap: 1.0, priority: 2 },
+        { defender: 'backside', offense: 'weakCorner', threat: 'corner', kind: 'closeout', gap: 0.9, priority: 1 },
+      ] },
+    { id: 'nail-the-reject', label: 'Screen rejected → strong-side helper steps up to the drive',
+      when: { kind: 'activated', ruleId: 'reject-overplay' }, assignments: [
+        { defender: 'strongSide', offense: 'ballhandler', threat: 'drive', kind: 'contain', gap: 1.6, priority: 2 },
+      ] },
+    { id: 'meet-the-rescreen', label: 'Second screen → low man takes the roller early',
+      when: { kind: 'activated', ruleId: 'second-screen' }, assignments: [
+        { defender: 'lowMan', offense: 'screener', threat: 'roll', kind: 'tag', gap: 1.2, priority: 1.5, target: 'tag-depth' },
+      ] },
   ],
   offenseRules: [
     { id: 'reject-overplay', label: 'Reject the overplayed screen', earliest: 0.2, latest: 0.75, priority: 30,
@@ -76,6 +90,7 @@ export const HIGH_PNR_PROBLEM: ProblemDefinition = {
         { kind: 'enabled', key: 'shortRoll' }, { kind: 'possession', role: 'ballhandler' },
         { kind: 'distance', a: 'poa', b: 'ballhandler', below: 1.8 },
         { kind: 'distance', a: 'big', b: 'ballhandler', below: 2.15 },
+        { kind: 'not', condition: { kind: 'responsibility', role: 'poa', task: 'switch' } },
       ] }, motions: [
         { role: 'screener', kind: 'roll', target: { x: -0.25, z: 4.1 }, speed: 3.3 },
       ] },
@@ -110,7 +125,7 @@ export const HIGH_PNR_PROBLEM: ProblemDefinition = {
     { id: 'pop-read', actorId: 'O5', earliest: 0, trigger: 'catch', options: ['drive', 'corner', 'lift'], continuations: { corner: 'corner-read', lift: 'lift-read' } },
   ],
 }
-export const PROBLEMS = [HIGH_PNR_PROBLEM]
+export const PROBLEMS = [HIGH_PNR_PROBLEM, BASELINE_DRIVE_PROBLEM]
 export const DEFAULT_PROBLEM = HIGH_PNR_PROBLEM
 export function createDefaultConfig(): LabConfig {
   return { problemId: HIGH_PNR_PROBLEM.id, seed: 2026, counter: 'lift', answer: { ...DEFAULT_ANSWER }, assumptions: { ...DEFAULT_ASSUMPTIONS }, interventions: [], opponent: { ...DEFAULT_OPPONENT } }

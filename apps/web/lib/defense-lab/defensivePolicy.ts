@@ -8,18 +8,29 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 const player = (ps: PlayerState[], id: PlayerId) => ps.find(p => p.id === id)!
 const towardRim = (p: Point2, gap: number): Point2 => { const d = distance(p, rim) || 1; return { x: p.x - p.x / d * gap, z: p.z + (rim.z - p.z) / d * gap } }
 
+/** The drop line: where the big's body sits while the ball is above him. bigDepth
+ * is the depth mark in metres from the attacked baseline; the big's centre sits
+ * 1.9 m past it so his chest, not his heels, is on the mark. He holds that line
+ * and only steps up once the handler is within a body length of it, so a deeper
+ * line concedes the pull-up space and a higher line takes it away. */
+export const DROP_LINE_OFFSET = 1.9
+export const dropLine = (bigDepth: number) => bigDepth + DROP_LINE_OFFSET
+
 /** Role-based ball-screen coverage policy. Coaching rules choose obligations;
  * the independent world integrator determines physical arrival. */
-export interface DefensePolicyState { screenAt: number | null; showReleased: boolean }
+export interface DefensePolicyState { screenAt: number | null; showReleased: boolean
+  /** Latched once a pass has been observed this possession. The ball phase alone returns to 'handle' when a catcher keeps it, which must not release a closeout. */
+  passed?: boolean }
 /** A screen encounter requires a declared screen action and observed bodies in
  * its encounter area. A baseline drive cannot turn into a timed switch. */
 export function observeScreen(observed: WorldFrame, problem: ProblemDefinition, state: DefensePolicyState): void {
+  if (observed.ball.phase === 'pass' || observed.ball.phase === 'gather' || observed.ball.phase === 'shot') state.passed = true
   const screen = problem.actions.find(a => a.kind === 'screen' && a.from <= observed.t)
   if (!screen || state.screenAt !== null) return
   const handler = player(observed.players, problem.roles.ballhandler), screener = player(observed.players, problem.roles.screener)
   if (distance(handler, screener) < 1.9 && Math.hypot(handler.vx, handler.vz) > 0.2) state.screenAt = observed.t
 }
-export function defenseResponsibilities(observed: WorldFrame, answer: TeamAnswer, problem: ProblemDefinition, config: LabConfig, t: number, state?: DefensePolicyState): Responsibility[] {
+export function defenseResponsibilities(observed: WorldFrame, answer: TeamAnswer, problem: ProblemDefinition, config: LabConfig, t: number, state?: DefensePolicyState, passed?: boolean): Responsibility[] {
   const r = problem.roles, ps = observed.players, ball = observed.ball, owner = ball.phase === 'pass' ? ball.receiver : ball.owner
   const handler = player(ps, r.ballhandler), roller = player(ps, r.screener), corner = player(ps, r.weakCorner), lift = player(ps, r.weakLift), strong = player(ps, r.strongCorner)
   const responsibilities: Responsibility[] = []
@@ -30,34 +41,47 @@ export function defenseResponsibilities(observed: WorldFrame, answer: TeamAnswer
   const hasScreen = problem.actions.some(a => a.kind === 'screen')
   const screenUsed = state ? state.screenAt !== null : hasScreen && observed.t >= 0.48
   const poa = player(ps, r.poa)
-  if (state && state.screenAt !== null && observed.t > state.screenAt + 0.35 && (distance(poa, handler) < 1.3 && poa.z < handler.z || roller.z < 5.5)) state.showReleased = true
+  if (state && state.screenAt !== null && (observed.t > state.screenAt + 0.35 && (distance(poa, handler) < 1.3 && poa.z < handler.z || roller.z < 5.5) || observed.t > state.screenAt + 0.02)) state.showReleased = true
   const showRecover = state ? state.showReleased : observed.t >= 1.2
   const switched = answer.coverage === 'switch' && screenUsed
+  const iced = answer.coverage === 'ice' && hasScreen
+  // ICE is directional: the on-ball defender top-locks the screen side so the handler is
+  // forced away from it, toward the nearer sideline; the big drops to the forced side.
+  const forceDir = Math.sign(handler.x) || 1
+  // A defender glued to his man leads the motion he observes by his own reaction time.
+  const lead = config.assumptions.reactionDelay
   if (switched) {
-    add(r.big, 'drive', r.ballhandler, 'switch', towardRim(handler, 0.85), 'Screen defenders exchange')
-    add(r.poa, roller.z > 7.7 && roller.vz >= 0 ? 'pop' : 'roll', r.screener, 'switch', towardRim(roller, 0.85), 'Take the screener after switch')
+    add(r.big, 'drive', r.ballhandler, 'switch', towardRim({ x: handler.x + handler.vx * lead, z: handler.z + handler.vz * lead }, 0.85), 'Screen defenders exchange')
+    // A guard cannot front a taller roller; he plays the ball side of him and the roller seals.
+    const popping = roller.z > 7.7 && roller.vz >= 0.3
+    add(r.poa, popping ? 'pop' : 'roll', r.screener, 'switch', popping ? towardRim(roller, 0.85) : { x: roller.x + roller.vx * lead, z: Math.min(13, roller.z + roller.vz * lead + 0.85) }, 'Take the screener after switch')
   } else {
-    const poaTarget = ballAtHandler ? { x: handler.x + (answer.coverage === 'ice' ? -0.8 : 0.12), z: handler.z + (answer.poa === 'over' ? 0.65 : -0.85) } : towardRim(handler, 0.9)
-    add(r.poa, 'drive', r.ballhandler, 'chase', poaTarget, answer.poa === 'over' ? 'Chase over the screen' : 'Go under the screen')
+    const poaTarget = ballAtHandler ? iced ? { x: handler.x + handler.vx * 0.3 - forceDir * 0.75, z: handler.z + handler.vz * 0.3 + 0.1 } : { x: handler.x + 0.12, z: handler.z + (answer.poa === 'over' ? 0.65 : -0.85) } : towardRim(handler, 0.9)
+    add(r.poa, 'drive', r.ballhandler, (iced || answer.coverage === 'blitz' && hasScreen) && ballAtHandler ? 'contain' : 'chase', poaTarget, iced && ballAtHandler ? 'Top-lock: force the handler away from the screen' : answer.coverage === 'blitz' && hasScreen && ballAtHandler ? 'Trap partner: stay attached at the hip' : answer.poa === 'over' ? 'Chase over the screen' : 'Go under the screen')
     let bigTarget: Point2
-    if (hasScreen && answer.coverage === 'blitz' && ballAtHandler) bigTarget = { x: handler.x - 0.75, z: handler.z - 0.15 }
-    else if (answer.coverage === 'hedge' && hasScreen && ballAtHandler && !showRecover) bigTarget = { x: handler.x - 0.35, z: handler.z - 0.55 }
+    if (hasScreen && answer.coverage === 'blitz' && ballAtHandler && !screenUsed) bigTarget = { x: handler.x - 0.5, z: handler.z - 0.2 }
+    else if (hasScreen && answer.coverage === 'blitz' && ballAtHandler) bigTarget = { x: handler.x + handler.vx * 0.45 - 0.75, z: handler.z + handler.vz * 0.45 }
+    else if (answer.coverage === 'hedge' && hasScreen && ballAtHandler && !showRecover) bigTarget = { x: handler.x - 0.35, z: handler.z - 1.3 }
     else if (!ballAtHandler || (answer.coverage === 'hedge' && hasScreen && showRecover)) bigTarget = towardRim(roller, 0.8)
-    else bigTarget = { x: handler.x, z: Math.max(answer.bigDepth, Math.min(5.3, handler.z - 0.95)) }
+    else if (iced && ballAtHandler) bigTarget = { x: clamp(handler.x + forceDir * 0.9, -6.5, 6.5), z: Math.min(dropLine(answer.bigDepth), handler.z - 1.2) }
+    else bigTarget = { x: handler.x, z: Math.min(dropLine(answer.bigDepth), handler.z - 0.95) }
     if (!hasScreen) bigTarget = towardRim(roller, 0.8)
     const bigOwnsRoll = !hasScreen || !ballAtHandler || answer.coverage === 'hedge' && hasScreen && showRecover
-    add(r.big, bigOwnsRoll ? roller.z > 7.7 && roller.vz >= 0 ? 'pop' : 'roll' : 'drive', bigOwnsRoll ? r.screener : r.ballhandler, answer.coverage === 'blitz' && ballAtHandler ? 'contain' : bigOwnsRoll ? 'recover' : 'contain', bigTarget, answer.coverage === 'blitz' ? 'Show two to the ball' : bigOwnsRoll ? 'Recover to the screener' : 'Contain ball and roll')
+    add(r.big, bigOwnsRoll ? roller.z > 7.7 && roller.vz >= 0.3 ? 'pop' : 'roll' : 'drive', bigOwnsRoll ? r.screener : r.ballhandler, answer.coverage === 'blitz' && ballAtHandler ? 'contain' : bigOwnsRoll ? 'recover' : answer.coverage === 'hedge' && hasScreen ? 'chase' : 'contain', bigTarget, answer.coverage === 'blitz' ? 'Show two to the ball' : answer.coverage === 'hedge' && hasScreen && !bigOwnsRoll ? 'Show: step to the level and turn the ball' : bigOwnsRoll ? 'Recover to the screener' : 'Contain ball and roll')
   }
   add(r.strongSide, 'strong', r.strongCorner, 'guard', towardRim(strong, 0.9), 'Protect strong-side spacing')
   const rollerThreat = roller.vz < -0.2 || roller.z < 5.5
-  const passSeen = ball.phase === 'pass' || ball.phase === 'gather' || ball.phase === 'shot'
+  const passSeen = passed ?? (ball.phase === 'pass' || ball.phase === 'gather' || ball.phase === 'shot')
   const rollerSecured = distance(bigPlayer, roller) <= config.assumptions.contestRadius && !ballAtHandler
+  const depth = iced ? Math.min(1, answer.tagDepth + 0.2) : answer.tagDepth
   const tagActive = hasScreen && answer.tag && !switched && rollerThreat && (answer.recovery === 'roller-secured' ? !rollerSecured : !passSeen)
-  const tagPlanned = hasScreen && answer.tag && !switched && ballAtHandler && roller.vz <= 0.2
-  const cornerGuard = towardRim(corner, 0.9), liftGuard = towardRim(lift, 0.9)
-  const tagTarget = { x: lerp(cornerGuard.x, roller.x - 0.8, answer.tagDepth), z: lerp(cornerGuard.z, clamp(roller.z - 1.2, 2.5, 3.7), answer.tagDepth) }
+  const tagPlanned = hasScreen && answer.tag && answer.coverage !== 'switch' && ballAtHandler && roller.vz <= 0.2
+  // Weak side shrinks toward the ball side while ICE holds the handler on the sideline.
+  const shrink = iced && ballAtHandler ? 0.9 : 0
+  const cornerGuard = towardRim({ x: corner.x + shrink, z: corner.z }, 0.9), liftGuard = towardRim({ x: lift.x + shrink, z: lift.z }, 0.9)
+  const tagTarget = { x: lerp(cornerGuard.x, roller.x - 0.8, depth), z: lerp(cornerGuard.z, clamp(roller.z - 1.2, 2.5, 3.7), depth) }
   const passCorner = passSeen && owner === r.weakCorner, passLift = passSeen && owner === r.weakLift
-  const earlyExchange = answer.backside === 'x-out' && answer.rotationTiming === 'early' && tagActive && answer.tagDepth > 0.45
+  const earlyExchange = answer.backside === 'x-out' && answer.rotationTiming === 'early' && tagActive && depth > 0.45
   const exchange = answer.backside === 'x-out' && (passCorner || earlyExchange)
   if (tagActive) {
     add(r.lowMan, 'roll', r.screener, 'tag', tagTarget, 'Roller enters weakside help', 1.5)
@@ -65,7 +89,7 @@ export function defenseResponsibilities(observed: WorldFrame, answer: TeamAnswer
     // after a real pass: simultaneous possible future passes are not obligations.
     add(r.lowMan, exchange ? 'lift' : 'corner', exchange ? r.weakLift : r.weakCorner, 'recover', exchange ? liftGuard : cornerGuard, 'Recover after the tag', 0.35, passSeen ? (ball.flight?.end ?? t) + config.assumptions.gatherTime : undefined)
   } else {
-    const preparedHelp = { x: lerp(cornerGuard.x, roller.x - 0.8, answer.tagDepth * 0.65), z: lerp(cornerGuard.z, 2.8, answer.tagDepth) }
+    const preparedHelp = { x: lerp(cornerGuard.x, roller.x - 0.8, depth * 0.65), z: lerp(cornerGuard.z, 2.8, depth) }
     add(r.lowMan, exchange ? 'lift' : 'corner', exchange ? r.weakLift : r.weakCorner, exchange ? 'closeout' : 'recover', exchange ? liftGuard : tagPlanned ? preparedHelp : cornerGuard, exchange ? 'Low man takes the lift' : tagPlanned ? 'Prepare weakside help without losing the corner' : 'Low man recovers to corner')
   }
   if (exchange) add(r.backside, 'corner', r.weakCorner, 'closeout', cornerGuard, earlyExchange ? 'Early X-out begins during the tag' : 'Backside takes first corner pass')
@@ -74,7 +98,7 @@ export function defenseResponsibilities(observed: WorldFrame, answer: TeamAnswer
     // This answer's authored help-the-helper rule: a shallow tag leaves the
     // low defender close enough to own the corner; a committed tag asks the
     // higher defender to split the pair. Coaches can choose stay or early X-out.
-    const split = clamp((answer.tagDepth - 0.3) * 0.95, 0, 0.6) * (tagActive ? 1 : 0.4), target = { x: lerp(liftGuard.x, cornerGuard.x, split), z: lerp(liftGuard.z, cornerGuard.z, split) }
+    const split = clamp((depth - 0.3) * 0.95, 0, 0.6) * (tagActive ? 1 : 0.4), target = { x: lerp(liftGuard.x, cornerGuard.x, split), z: lerp(liftGuard.z, cornerGuard.z, split) }
     add(r.backside, 'lift', r.weakLift, 'split', target, 'Split weakside receivers while low man tags')
     add(r.backside, 'corner', r.weakCorner, 'split', target, 'Help the helper; read the first weakside pass', 0.9)
   }

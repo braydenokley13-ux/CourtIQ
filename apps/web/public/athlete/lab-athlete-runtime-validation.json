@@ -1,9 +1,10 @@
 {
   "actors": 10,
   "largestRepeatDifference": 0,
-  "lowestAnkle": 0.09519358407079653,
+  "lowestAnkle": 0.09555713623114881,
   "oneSkeletonPerActor": true,
   "independentlyOwnedResources": true,
-  "qualitySwitches": "passed",
+  "qualitySwitches": "passed (high/balanced/low, focus override)",
+  "drawCallsPerAthlete": 1,
   "upperLowerMotionLayers": "passed"
 }

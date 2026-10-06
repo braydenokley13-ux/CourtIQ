@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
-import DefenseLab from '@/components/defense-lab/DefenseLab'
+import CourtIQApp from '@/components/courtiq/CourtIQApp'
 
 export const metadata: Metadata = {
-  title: 'Defense Lab — CourtIQ',
-  description: 'Test your defensive answer against an offense that responds. See the tradeoff, change the rule, and teach your team.',
+  title: 'CourtIQ — Basketball Strategy Lab',
+  description: 'Pick a basketball problem, run your answer against an offense that reacts, see the tradeoff, fix it, break it, save it and teach it.',
 }
 
 export default function CourtIQPage() {
-  return <DefenseLab />
+  return <CourtIQApp />
 }

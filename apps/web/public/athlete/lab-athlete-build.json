@@ -1,124 +1,282 @@
 {
-  "generator": "Blender 4.3.2",
+  "generator": "Blender 5.2.2 LTS",
   "fps": 24,
   "heightMeters": 1.808,
   "sourceBlend": "scripts/athlete/source/lab-athlete-studio.blend",
+  "meshes": {
+    "LOD0_athlete": {
+      "vertices": 8349,
+      "triangles": 16158
+    },
+    "LOD1_athlete": {
+      "vertices": 3040,
+      "triangles": 5416
+    },
+    "LOD2_athlete": {
+      "vertices": 1750,
+      "triangles": 2836
+    },
+    "HAIR_crop": {
+      "vertices": 684,
+      "triangles": 1364
+    },
+    "HAIR_buzz": {
+      "vertices": 684,
+      "triangles": 1364
+    },
+    "HAIR_hightop": {
+      "vertices": 526,
+      "triangles": 1048
+    },
+    "HAIR_afro": {
+      "vertices": 976,
+      "triangles": 1948
+    }
+  },
   "lod0": {
-    "vertices": 7282,
-    "triangles": 13868
+    "vertices": 8349,
+    "triangles": 16158
   },
   "lod1": {
-    "vertices": 2574,
-    "triangles": 4575
+    "vertices": 3040,
+    "triangles": 5416
+  },
+  "lod2": {
+    "vertices": 1750,
+    "triangles": 2836
   },
   "clips": [
     {
       "name": "offense_ready",
       "duration": 2.4166666666666665,
       "frames": 59,
-      "ankleHeightMin": 0.1037,
-      "ankleHeightMax": 0.1037,
-      "rootMotion": false
+      "ankleHeightMin": 0.1139,
+      "ankleHeightMax": 0.1139,
+      "ikMissMax": 0.0,
+      "rootMotion": false,
+      "mode": "time"
     },
     {
       "name": "defense_ready",
-      "duration": 2.4166666666666665,
-      "frames": 59,
-      "ankleHeightMin": 0.1037,
-      "ankleHeightMax": 0.1037,
-      "rootMotion": false
+      "duration": 2.0,
+      "frames": 49,
+      "ankleHeightMin": 0.1315,
+      "ankleHeightMax": 0.1315,
+      "ikMissMax": 0.0,
+      "rootMotion": false,
+      "mode": "time"
     },
     {
-      "name": "defense_slide_left",
-      "duration": 0.7916666666666666,
-      "frames": 20,
-      "ankleHeightMin": 0.1037,
-      "ankleHeightMax": 0.1487,
-      "rootMotion": false
-    },
-    {
-      "name": "defense_slide_right",
-      "duration": 0.7916666666666666,
-      "frames": 20,
-      "ankleHeightMin": 0.1037,
-      "ankleHeightMax": 0.1487,
-      "rootMotion": false
-    },
-    {
-      "name": "cut_run",
-      "duration": 0.7083333333333334,
-      "frames": 18,
-      "ankleHeightMin": 0.1037,
-      "ankleHeightMax": 0.2136,
-      "rootMotion": false
-    },
-    {
-      "name": "start_stop",
-      "duration": 1.0,
-      "frames": 25,
-      "ankleHeightMin": 0.1037,
-      "ankleHeightMax": 0.2135,
-      "rootMotion": false
+      "name": "receive",
+      "duration": 1.2083333333333333,
+      "frames": 30,
+      "ankleHeightMin": 0.1153,
+      "ankleHeightMax": 0.1153,
+      "ikMissMax": 0.0,
+      "rootMotion": false,
+      "mode": "time"
     },
     {
       "name": "screen_plant",
       "duration": 2.0,
       "frames": 49,
-      "ankleHeightMin": 0.1037,
-      "ankleHeightMax": 0.1037,
-      "rootMotion": false
+      "ankleHeightMin": 0.1081,
+      "ankleHeightMax": 0.1081,
+      "ikMissMax": 0.0,
+      "rootMotion": false,
+      "mode": "time"
     },
     {
-      "name": "pivot",
-      "duration": 1.4166666666666667,
-      "frames": 35,
+      "name": "screen_fight",
+      "duration": 1.2083333333333333,
+      "frames": 30,
       "ankleHeightMin": 0.1037,
-      "ankleHeightMax": 0.1286,
-      "rootMotion": false
-    },
-    {
-      "name": "receive",
-      "duration": 1.0,
-      "frames": 25,
-      "ankleHeightMin": 0.1037,
-      "ankleHeightMax": 0.1037,
-      "rootMotion": false
-    },
-    {
-      "name": "chest_pass",
-      "duration": 0.7916666666666666,
-      "frames": 20,
-      "ankleHeightMin": 0.1037,
-      "ankleHeightMax": 0.1037,
-      "rootMotion": false
-    },
-    {
-      "name": "shot_release",
-      "duration": 1.0,
-      "frames": 25,
-      "ankleHeightMin": 0.1037,
-      "ankleHeightMax": 0.1037,
-      "rootMotion": false
-    },
-    {
-      "name": "dribble",
-      "duration": 0.7916666666666666,
-      "frames": 20,
-      "ankleHeightMin": 0.1037,
-      "ankleHeightMax": 0.1037,
-      "rootMotion": false
+      "ankleHeightMax": 0.1536,
+      "ikMissMax": 0.0,
+      "rootMotion": false,
+      "mode": "time"
     },
     {
       "name": "closeout",
       "duration": 1.0,
       "frames": 25,
       "ankleHeightMin": 0.1037,
-      "ankleHeightMax": 0.1037,
-      "rootMotion": false
+      "ankleHeightMax": 0.1559,
+      "ikMissMax": 0.0,
+      "rootMotion": false,
+      "mode": "time"
+    },
+    {
+      "name": "pivot",
+      "duration": 1.4166666666666667,
+      "frames": 35,
+      "ankleHeightMin": 0.1037,
+      "ankleHeightMax": 0.1337,
+      "ikMissMax": 0.0,
+      "rootMotion": false,
+      "mode": "time"
+    },
+    {
+      "name": "cut_plant",
+      "duration": 1.0,
+      "frames": 25,
+      "ankleHeightMin": 0.1037,
+      "ankleHeightMax": 0.2037,
+      "ikMissMax": 0.0,
+      "rootMotion": false,
+      "mode": "time"
+    },
+    {
+      "name": "chest_pass",
+      "duration": 0.7916666666666666,
+      "frames": 20,
+      "ankleHeightMin": 0.1153,
+      "ankleHeightMax": 0.1153,
+      "ikMissMax": 0.0,
+      "rootMotion": false,
+      "mode": "time"
+    },
+    {
+      "name": "skip_pass",
+      "duration": 1.0,
+      "frames": 25,
+      "ankleHeightMin": 0.1167,
+      "ankleHeightMax": 0.1167,
+      "ikMissMax": 0.0,
+      "rootMotion": false,
+      "mode": "time"
+    },
+    {
+      "name": "shot_release",
+      "duration": 1.0,
+      "frames": 25,
+      "ankleHeightMin": 0.111,
+      "ankleHeightMax": 0.1494,
+      "ikMissMax": 0.0,
+      "rootMotion": false,
+      "mode": "time"
+    },
+    {
+      "name": "dribble",
+      "duration": 0.7916666666666666,
+      "frames": 20,
+      "ankleHeightMin": 0.1153,
+      "ankleHeightMax": 0.1153,
+      "ikMissMax": 0.0,
+      "rootMotion": false,
+      "mode": "time"
+    },
+    {
+      "name": "walk",
+      "duration": 1.0,
+      "frames": 25,
+      "ankleHeightMin": 0.1037,
+      "ankleHeightMax": 0.1823,
+      "ikMissMax": 0.0,
+      "rootMotion": false,
+      "mode": "distance",
+      "strideMeters": 1.45,
+      "stanceFraction": 0.62
+    },
+    {
+      "name": "jog",
+      "duration": 1.0,
+      "frames": 25,
+      "ankleHeightMin": 0.1037,
+      "ankleHeightMax": 0.2737,
+      "ikMissMax": 0.0,
+      "rootMotion": false,
+      "mode": "distance",
+      "strideMeters": 2.25,
+      "stanceFraction": 0.38
+    },
+    {
+      "name": "sprint",
+      "duration": 1.0,
+      "frames": 25,
+      "ankleHeightMin": 0.1037,
+      "ankleHeightMax": 0.4037,
+      "ikMissMax": 0.0,
+      "rootMotion": false,
+      "mode": "distance",
+      "strideMeters": 3.1,
+      "stanceFraction": 0.27
+    },
+    {
+      "name": "defense_slide_left",
+      "duration": 1.0,
+      "frames": 25,
+      "ankleHeightMin": 0.1037,
+      "ankleHeightMax": 0.1534,
+      "ikMissMax": 0.0,
+      "rootMotion": false,
+      "mode": "distance",
+      "strideMeters": 0.9,
+      "stanceFraction": 0.4
+    },
+    {
+      "name": "defense_slide_fast_left",
+      "duration": 1.0,
+      "frames": 25,
+      "ankleHeightMin": 0.1037,
+      "ankleHeightMax": 0.1935,
+      "ikMissMax": 0.0,
+      "rootMotion": false,
+      "mode": "distance",
+      "strideMeters": 1.5,
+      "stanceFraction": 0.25
+    },
+    {
+      "name": "defense_slide_right",
+      "duration": 1.0,
+      "frames": 25,
+      "ankleHeightMin": 0.1037,
+      "ankleHeightMax": 0.1534,
+      "ikMissMax": 0.0,
+      "rootMotion": false,
+      "mode": "distance",
+      "strideMeters": 0.9,
+      "stanceFraction": 0.4
+    },
+    {
+      "name": "defense_slide_fast_right",
+      "duration": 1.0,
+      "frames": 25,
+      "ankleHeightMin": 0.1037,
+      "ankleHeightMax": 0.1935,
+      "ikMissMax": 0.0,
+      "rootMotion": false,
+      "mode": "distance",
+      "strideMeters": 1.5,
+      "stanceFraction": 0.25
+    },
+    {
+      "name": "backpedal",
+      "duration": 1.0,
+      "frames": 25,
+      "ankleHeightMin": 0.1037,
+      "ankleHeightMax": 0.1887,
+      "ikMissMax": 0.0,
+      "rootMotion": false,
+      "mode": "distance",
+      "strideMeters": 1.75,
+      "stanceFraction": 0.5
+    },
+    {
+      "name": "chop",
+      "duration": 1.0,
+      "frames": 25,
+      "ankleHeightMin": 0.1037,
+      "ankleHeightMax": 0.1637,
+      "ikMissMax": 0.0,
+      "rootMotion": false,
+      "mode": "distance",
+      "strideMeters": 1.05,
+      "stanceFraction": 0.56
     }
   ],
   "bytes": {
-    "lab-athlete.glb": 828428,
-    "lab-athlete-tactical.glb": 327616
+    "lab-athlete.glb": 1251216,
+    "lab-athlete-tactical.glb": 630424
   }
 }

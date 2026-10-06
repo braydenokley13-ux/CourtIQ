@@ -1,4 +1,5 @@
 import { ballBodyClearance } from './analyticalGeometry'
+import { contestScale, directionalSpeed, type ReceiverRef } from './capability'
 import { flightPosition, interpolateBody } from './physicalExecution'
 import type { BallFlight, ModelAssumptions, PlayerId, PlayerState, Point2, Point3, Responsibility, SimulationResult, ThreatId, ThreatOption, WorldFrame } from './types'
 
@@ -51,11 +52,21 @@ export function travelTime(distanceRemaining: number, initialSpeed: number, acce
   return capTime + (distanceRemaining - capDistance) / maxSpeed
 }
 
-export function estimateArrival(player: Pick<PlayerState, 'x' | 'z' | 'vx' | 'vz'>, target: Point2, assumptions: Pick<ModelAssumptions, 'acceleration' | 'maxSpeed' | 'reactionDelay'>, influenceRadius = 0, remainingReaction = assumptions.reactionDelay) {
+type Mover = Pick<PlayerState, 'x' | 'z' | 'vx' | 'vz'> & Partial<Pick<PlayerState, 'speed' | 'acceleration' | 'lateral' | 'yaw'>>
+export function estimateArrival(player: Mover, target: Point2, assumptions: Pick<ModelAssumptions, 'acceleration' | 'maxSpeed' | 'reactionDelay'>, influenceRadius = 0, remainingReaction = assumptions.reactionDelay) {
   const gap = distance(player, target)
   if (gap <= influenceRadius) return 0
   const projectedSpeed = gap ? ((target.x - player.x) * player.vx + (target.z - player.z) * player.vz) / gap : 0
-  return Math.max(0, remainingReaction) + travelTime(gap - influenceRadius, projectedSpeed, assumptions.acceleration, assumptions.maxSpeed)
+  // Per-player capability: own top speed and acceleration, and a slower cap when
+  // the route is sideways or backward relative to where the body faces.
+  let cap = assumptions.maxSpeed * (player.speed ?? 1)
+  if (player.lateral !== undefined && player.yaw !== undefined && gap) cap = directionalSpeed(cap, player.lateral, player.yaw, (target.x - player.x) / gap, (target.z - player.z) / gap)
+  return Math.max(0, remainingReaction) + travelTime(gap - influenceRadius, projectedSpeed, assumptions.acceleration * (player.acceleration ?? 1), cap)
+}
+/** A defender's modeled time to contest a target: own capability, own reach. */
+export function defenderArrival(player: PlayerState, target: Point2, assumptions: ModelAssumptions, remainingReaction = assumptions.reactionDelay, receiver?: ReceiverRef) {
+  const scale = receiver === undefined ? player.contest ?? 1 : contestScale(player, receiver)
+  return estimateArrival(player, target, assumptions, assumptions.contestRadius * scale, remainingReaction)
 }
 
 /** Both visitation orders fail even with obstacles/turning/braking removed. */
@@ -77,7 +88,7 @@ export function responsibilityConflict(frame: WorldFrame, first: Responsibility,
 function arrivalForOption(player: PlayerState, option: ThreatOption, frame: WorldFrame, assumptions: ModelAssumptions) {
   const commitment = frame.responsibilities.find(task => task.defenderId === player.id && task.threatId === option.id)
   const remainingReaction = commitment ? Math.max(0, assumptions.reactionDelay - (frame.t - commitment.startedAt)) : assumptions.reactionDelay
-  return estimateArrival(player, option.target, assumptions, assumptions.contestRadius, remainingReaction)
+  return defenderArrival(player, option.target, assumptions, remainingReaction, frame.players.find(p => p.id === option.playerId))
 }
 
 export function isThreatOpen(option: ThreatOption, frame: WorldFrame, assumptions: ModelAssumptions) {
@@ -145,9 +156,9 @@ function arrivals(result: SimulationResult, windows: OptionWindow[]): ArrivalObs
       if (later.t < frame.t) continue
       const laterDefender = later.players.find(player => player.id === defenderId)
       const laterTarget = later.options.find(candidate => candidate.id === window.id)?.target
-      if (laterDefender && laterTarget && distance(laterDefender, laterTarget) <= radius) { observedArrivalAt = later.t; break }
+      if (laterDefender && laterTarget && distance(laterDefender, laterTarget) <= radius * (laterDefender.contest ?? 1)) { observedArrivalAt = later.t; break }
     }
-    const seconds = fastest?.seconds ?? (defender && target ? estimateArrival(defender, target, result.config.assumptions, radius) : null)
+    const seconds = fastest?.seconds ?? (defender && target ? defenderArrival(defender, target, result.config.assumptions) : null)
     const opportunitySeconds = option?.timeToRelease ?? null
     return { threatId: window.id, playerId: window.playerId, defenderId, at: frame.t, seconds, observedArrivalAt, opportunitySeconds, leadSeconds: seconds != null && opportunitySeconds != null ? seconds - opportunitySeconds : null, label: 'Earliest modeled defender influence versus this option’s flight-and-gather horizon; screens, turning and closeout control can delay arrival.' }
   })

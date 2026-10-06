@@ -1,156 +1,236 @@
 [
   {
     "filename": "lab-athlete.glb",
-    "bytes": 828428,
-    "vertices": 10677,
-    "triangles": 18443,
+    "bytes": 670300,
+    "vertices": 18287,
+    "triangles": 30134,
     "bones": 65,
-    "meshes": 14,
-    "minAnkle": 0.10328,
-    "maxAnkle": 0.21346,
-    "maxLoopGap": 0,
+    "meshes": 7,
+    "minAnkle": 0.10341,
+    "maxAnkle": 0.4038,
+    "maxLoopGap": 0.00006,
     "clips": [
       {
-        "name": "chest_pass",
-        "tracks": 14,
-        "duration": 0.7917
-      },
-      {
-        "name": "closeout",
-        "tracks": 14,
+        "name": "backpedal",
+        "tracks": 19,
         "duration": 1
       },
       {
-        "name": "cut_run",
-        "tracks": 14,
-        "duration": 0.7083
+        "name": "chest_pass",
+        "tracks": 19,
+        "duration": 0.7917
+      },
+      {
+        "name": "chop",
+        "tracks": 19,
+        "duration": 1
+      },
+      {
+        "name": "closeout",
+        "tracks": 19,
+        "duration": 1
+      },
+      {
+        "name": "cut_plant",
+        "tracks": 19,
+        "duration": 1
       },
       {
         "name": "defense_ready",
-        "tracks": 14,
-        "duration": 2.4167
+        "tracks": 19,
+        "duration": 2
+      },
+      {
+        "name": "defense_slide_fast_left",
+        "tracks": 19,
+        "duration": 1
+      },
+      {
+        "name": "defense_slide_fast_right",
+        "tracks": 19,
+        "duration": 1
       },
       {
         "name": "defense_slide_left",
-        "tracks": 14,
-        "duration": 0.7917
+        "tracks": 19,
+        "duration": 1
       },
       {
         "name": "defense_slide_right",
-        "tracks": 14,
-        "duration": 0.7917
+        "tracks": 19,
+        "duration": 1
       },
       {
         "name": "dribble",
-        "tracks": 14,
+        "tracks": 19,
         "duration": 0.7917
       },
       {
+        "name": "jog",
+        "tracks": 19,
+        "duration": 1
+      },
+      {
         "name": "offense_ready",
-        "tracks": 14,
+        "tracks": 19,
         "duration": 2.4167
       },
       {
         "name": "pivot",
-        "tracks": 15,
+        "tracks": 19,
         "duration": 1.4167
       },
       {
         "name": "receive",
-        "tracks": 14,
-        "duration": 1
+        "tracks": 19,
+        "duration": 1.2083
+      },
+      {
+        "name": "screen_fight",
+        "tracks": 19,
+        "duration": 1.2083
       },
       {
         "name": "screen_plant",
-        "tracks": 14,
+        "tracks": 19,
         "duration": 2
       },
       {
         "name": "shot_release",
-        "tracks": 14,
+        "tracks": 19,
         "duration": 1
       },
       {
-        "name": "start_stop",
-        "tracks": 14,
+        "name": "skip_pass",
+        "tracks": 19,
+        "duration": 1
+      },
+      {
+        "name": "sprint",
+        "tracks": 19,
+        "duration": 1
+      },
+      {
+        "name": "walk",
+        "tracks": 19,
         "duration": 1
       }
     ]
   },
   {
     "filename": "lab-athlete-tactical.glb",
-    "bytes": 327616,
-    "vertices": 2791,
-    "triangles": 4575,
+    "bytes": 630424,
+    "vertices": 6835,
+    "triangles": 11140,
     "bones": 65,
-    "meshes": 7,
-    "minAnkle": 0.10328,
-    "maxAnkle": 0.21346,
+    "meshes": 5,
+    "minAnkle": 0.10354,
+    "maxAnkle": 0.4037,
     "maxLoopGap": 0,
     "clips": [
       {
-        "name": "chest_pass",
-        "tracks": 14,
-        "duration": 0.7917
-      },
-      {
-        "name": "closeout",
-        "tracks": 14,
+        "name": "backpedal",
+        "tracks": 19,
         "duration": 1
       },
       {
-        "name": "cut_run",
-        "tracks": 14,
-        "duration": 0.7083
+        "name": "chest_pass",
+        "tracks": 19,
+        "duration": 0.7917
+      },
+      {
+        "name": "chop",
+        "tracks": 19,
+        "duration": 1
+      },
+      {
+        "name": "closeout",
+        "tracks": 19,
+        "duration": 1
+      },
+      {
+        "name": "cut_plant",
+        "tracks": 19,
+        "duration": 1
       },
       {
         "name": "defense_ready",
-        "tracks": 14,
-        "duration": 2.4167
+        "tracks": 19,
+        "duration": 2
+      },
+      {
+        "name": "defense_slide_fast_left",
+        "tracks": 19,
+        "duration": 1
+      },
+      {
+        "name": "defense_slide_fast_right",
+        "tracks": 19,
+        "duration": 1
       },
       {
         "name": "defense_slide_left",
-        "tracks": 14,
-        "duration": 0.7917
+        "tracks": 19,
+        "duration": 1
       },
       {
         "name": "defense_slide_right",
-        "tracks": 14,
-        "duration": 0.7917
+        "tracks": 19,
+        "duration": 1
       },
       {
         "name": "dribble",
-        "tracks": 14,
+        "tracks": 19,
         "duration": 0.7917
       },
       {
+        "name": "jog",
+        "tracks": 19,
+        "duration": 1
+      },
+      {
         "name": "offense_ready",
-        "tracks": 14,
+        "tracks": 19,
         "duration": 2.4167
       },
       {
         "name": "pivot",
-        "tracks": 15,
+        "tracks": 19,
         "duration": 1.4167
       },
       {
         "name": "receive",
-        "tracks": 14,
-        "duration": 1
+        "tracks": 19,
+        "duration": 1.2083
+      },
+      {
+        "name": "screen_fight",
+        "tracks": 19,
+        "duration": 1.2083
       },
       {
         "name": "screen_plant",
-        "tracks": 14,
+        "tracks": 19,
         "duration": 2
       },
       {
         "name": "shot_release",
-        "tracks": 14,
+        "tracks": 19,
         "duration": 1
       },
       {
-        "name": "start_stop",
-        "tracks": 14,
+        "name": "skip_pass",
+        "tracks": 19,
+        "duration": 1
+      },
+      {
+        "name": "sprint",
+        "tracks": 19,
+        "duration": 1
+      },
+      {
+        "name": "walk",
+        "tracks": 19,
         "duration": 1
       }
     ]

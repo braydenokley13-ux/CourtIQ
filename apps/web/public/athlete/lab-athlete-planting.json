@@ -1,0 +1,170 @@
+[
+  {
+    "case": "walk/jog/sprint forward",
+    "speed": 1.2,
+    "plantedFraction": 0.5,
+    "meanSkate": 0.087,
+    "p90Skate": 0.234,
+    "skateOverSpeed": 0.072
+  },
+  {
+    "case": "walk/jog/sprint forward",
+    "speed": 2,
+    "plantedFraction": 0,
+    "meanSkate": 0,
+    "p90Skate": 0,
+    "skateOverSpeed": 0
+  },
+  {
+    "case": "walk/jog/sprint forward",
+    "speed": 3,
+    "plantedFraction": 0.33,
+    "meanSkate": 0.193,
+    "p90Skate": 0.449,
+    "skateOverSpeed": 0.064
+  },
+  {
+    "case": "walk/jog/sprint forward",
+    "speed": 4.2,
+    "plantedFraction": 0,
+    "meanSkate": 0,
+    "p90Skate": 0,
+    "skateOverSpeed": 0
+  },
+  {
+    "case": "walk/jog/sprint forward",
+    "speed": 5.5,
+    "plantedFraction": 0.21,
+    "meanSkate": 0.344,
+    "p90Skate": 1.039,
+    "skateOverSpeed": 0.062
+  },
+  {
+    "case": "defensive chop/closeout forward",
+    "speed": 1,
+    "plantedFraction": 0.45,
+    "meanSkate": 0.045,
+    "p90Skate": 0.209,
+    "skateOverSpeed": 0.045
+  },
+  {
+    "case": "defensive chop/closeout forward",
+    "speed": 2,
+    "plantedFraction": 0,
+    "meanSkate": 0,
+    "p90Skate": 0,
+    "skateOverSpeed": 0
+  },
+  {
+    "case": "defensive chop/closeout forward",
+    "speed": 3,
+    "plantedFraction": 0.31,
+    "meanSkate": 0.202,
+    "p90Skate": 0.56,
+    "skateOverSpeed": 0.067
+  },
+  {
+    "case": "slide left",
+    "speed": 1,
+    "plantedFraction": 0.3,
+    "meanSkate": 0.048,
+    "p90Skate": 0.199,
+    "skateOverSpeed": 0.048
+  },
+  {
+    "case": "slide left",
+    "speed": 1.8,
+    "plantedFraction": 0.3,
+    "meanSkate": 0.068,
+    "p90Skate": 0.373,
+    "skateOverSpeed": 0.038
+  },
+  {
+    "case": "slide left",
+    "speed": 2.4,
+    "plantedFraction": 0,
+    "meanSkate": 0,
+    "p90Skate": 0,
+    "skateOverSpeed": 0
+  },
+  {
+    "case": "slide left",
+    "speed": 3,
+    "plantedFraction": 0.2,
+    "meanSkate": 0.167,
+    "p90Skate": 0.61,
+    "skateOverSpeed": 0.056
+  },
+  {
+    "case": "slide left",
+    "speed": 3.6,
+    "plantedFraction": 0.21,
+    "meanSkate": 0.335,
+    "p90Skate": 1.555,
+    "skateOverSpeed": 0.093
+  },
+  {
+    "case": "slide right",
+    "speed": 1,
+    "plantedFraction": 0.3,
+    "meanSkate": 0.048,
+    "p90Skate": 0.2,
+    "skateOverSpeed": 0.048
+  },
+  {
+    "case": "slide right",
+    "speed": 1.8,
+    "plantedFraction": 0.3,
+    "meanSkate": 0.068,
+    "p90Skate": 0.373,
+    "skateOverSpeed": 0.038
+  },
+  {
+    "case": "slide right",
+    "speed": 2.4,
+    "plantedFraction": 0,
+    "meanSkate": 0,
+    "p90Skate": 0,
+    "skateOverSpeed": 0
+  },
+  {
+    "case": "slide right",
+    "speed": 3,
+    "plantedFraction": 0.2,
+    "meanSkate": 0.167,
+    "p90Skate": 0.61,
+    "skateOverSpeed": 0.056
+  },
+  {
+    "case": "slide right",
+    "speed": 3.6,
+    "plantedFraction": 0.21,
+    "meanSkate": 0.336,
+    "p90Skate": 1.556,
+    "skateOverSpeed": 0.093
+  },
+  {
+    "case": "backpedal",
+    "speed": 1,
+    "plantedFraction": 0.4,
+    "meanSkate": 0.038,
+    "p90Skate": 0.143,
+    "skateOverSpeed": 0.038
+  },
+  {
+    "case": "backpedal",
+    "speed": 2,
+    "plantedFraction": 0.4,
+    "meanSkate": 0.069,
+    "p90Skate": 0.27,
+    "skateOverSpeed": 0.034
+  },
+  {
+    "case": "backpedal",
+    "speed": 3,
+    "plantedFraction": 0.4,
+    "meanSkate": 0.097,
+    "p90Skate": 0.338,
+    "skateOverSpeed": 0.032
+  }
+]

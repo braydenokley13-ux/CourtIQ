@@ -2,12 +2,24 @@ import { defenseResponsibilities, observeScreen, type DefensePolicyState } from 
 import { advancePolicies, evaluateCondition, opponentAt, OPPONENT_BOUNDS, policyGoals, policyReadAfter, type PolicyState } from './offensivePolicy'
 import { ENGINE_VERSION, HIGH_PNR_PROBLEM, PROBLEMS, createDefaultConfig } from './scenario'
 import { ballBodyClearance } from './analyticalGeometry'
+import { contestScale, directionalSpeed, resolveCapability, type Capability } from './capability'
+import { estimateArrival } from './analytics'
 import { canReachBall, catchSupport, firstFlightContact, flightPosition } from './physicalExecution'
 import type { BallFlight, BallState, LabConfig, OffensiveAction, PlayerId, PlayerState, Point2, ProblemDefinition, ReadCandidate, ReadDecision, Responsibility, SimulationDiagnostics, SimulationResult, TeamAnswer, ThreatId, ThreatOption, WorldEvent, WorldFrame } from './types'
 
 export { createDefaultConfig } from './scenario'
 
 const rim = { x: 0, y: 3.05, z: 1.575 }
+/** Metres a ball carrier attacks past his current spot: the space a drive must win. */
+/** Options a counter insists on at the first read of the possession ('auto' and 'lift' read freely). */
+const FIRST_READ: Partial<Record<LabConfig['counter'], ThreatId[]>> = { roll: ['roll'], 'short-roll': ['roll'], slip: ['roll'], skip: ['lift', 'corner'], extra: ['lift', 'corner'], pop: ['pop'], reject: ['drive'] }
+const DRIVE_STEP = 1.6
+/** Further than this from his spot, a defender turns his back to the ball and sprints. */
+const SPRINT_BEYOND = 2.2
+/** Seconds of lead an open pass must have over the nearest closeout before a patient reader takes it. */
+const PASS_LEAD = 0.1
+/** A drive is taken early only when the carrier clearly beats the nearest defender. */
+const DRIVE_LEAD = 0.35
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v))
 const distance = (a: Point2, b: Point2) => Math.hypot(a.x - b.x, a.z - b.z)
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
@@ -53,6 +65,11 @@ function validate(config: LabConfig, problem: ProblemDefinition) {
     }
     for (const key of ['reject', 'rescreen', 'shortRoll'] as const) if (typeof strategy[key] !== 'boolean') throw new Error(`Invalid opponent permission: ${key}`)
   }
+  for (const [id, person] of Object.entries(config.personnel ?? {})) {
+    if (!problem.players.some(p => p.id === id)) throw new Error(`Personnel names an unknown player: ${id}`)
+    const limits: Record<'speed' | 'lateral' | 'height', [number, number]> = { speed: [0.6, 1.25], lateral: [0.4, 1], height: [1.6, 2.3] }
+    for (const [key, [low, high]] of Object.entries(limits)) { const value = person?.[key as keyof typeof limits]; if (value !== undefined && (!Number.isFinite(value) || value < low || value > high)) throw new Error(`Invalid personnel ${key} for ${id}.`) }
+  }
   if (config.interventions.length > 64) throw new Error('Too many interventions.')
   for (const cue of config.interventions) {
     if (!Number.isFinite(cue.at) || cue.at < 0 || cue.at > a.duration) throw new Error('Invalid intervention time.')
@@ -63,13 +80,8 @@ function validate(config: LabConfig, problem: ProblemDefinition) {
 
 /** Idealized straight-line arrival estimate, ignoring transverse velocity and
  * bodies. The policy uses it as a read approximation, not an impossibility proof. */
-function arrival(p: PlayerState, target: Point2, influence: number, config: LabConfig): number {
-  const dx = target.x - p.x, dz = target.z - p.z, raw = Math.hypot(dx, dz), d = Math.max(0, raw - influence)
-  if (!d) return 0
-  const { acceleration: acc, maxSpeed: cap } = config.assumptions
-  const initial = clamp((p.vx * dx + p.vz * dz) / (raw || 1), -cap, cap)
-  const capTime = (cap - initial) / acc, capDistance = initial * capTime + 0.5 * acc * capTime * capTime
-  return d <= capDistance ? (-initial + Math.sqrt(initial * initial + 2 * acc * d)) / acc : capTime + (d - capDistance) / cap
+function arrival(p: PlayerState, target: Point2, influence: number, config: LabConfig, receiver?: PlayerState): number {
+  return estimateArrival(p, target, config.assumptions, influence * (receiver === undefined ? p.contest ?? 1 : contestScale(p, receiver)), 0)
 }
 function segmentDistance(p: Point2, a: Point2, b: Point2) {
   const dx = b.x - a.x, dz = b.z - a.z
@@ -85,15 +97,22 @@ function optionSet(players: PlayerState[], ball: BallState, problem: ProblemDefi
   const options: ThreatId[] = ['roll', 'lift', 'corner', 'drive', 'pop', 'strong']
   return options.map(id => {
     const idPlayer = threatPlayer(problem, id, owner), p = player(players, idPlayer)
-    const target = id === 'drive' ? { x: p.x, z: p.z } : { x: p.x, z: p.z }
+    // A drive threat is the space the carrier attacks, a step ahead toward the
+    // rim, not the spot he already occupies: a defender trailing him cannot cut
+    // that path off just because he stands close behind.
+    const ahead = distance(p, rim) || 1
+    const target = id === 'drive' ? { x: p.x - (p.x - rim.x) / ahead * DRIVE_STEP, z: p.z - (p.z - rim.z) / ahead * DRIVE_STEP } : { x: p.x, z: p.z }
     const isPop = config.counter === 'pop'
     const available = t >= earliest && ball.phase !== 'pass' && ball.phase !== 'dead' && ball.phase !== 'shot' && (id === 'pop' ? isPop : id === 'roll' ? !isPop && p.z < 7.7 : id === 'drive' ? true : idPlayer !== owner) && (!nodeOptions || nodeOptions.includes(id))
-    const nearest = defenders.reduce((best, d) => distance(d, target) < distance(best, target) ? d : best, defenders[0])
+    const scaled = (d: PlayerState) => distance(d, target) / contestScale(d, p)
+    const nearest = defenders.reduce((best, d) => scaled(d) < scaled(best) ? d : best, defenders[0])
     const flightTime = distance(carrier, p) / config.assumptions.passSpeed + 0.12
+    // A handler with a live dribble needs a first step, not a catch and gather.
+    const hold = id === 'drive' && idPlayer === owner && ball.phase === 'handle' ? config.assumptions.readInterval : config.assumptions.gatherTime
     // A floor corridor is a policy approximation, not actual 3D interception evidence.
     const clearance = id === 'drive' ? null : Math.min(...defenders.filter(d => distance(d, carrier) > 1.05).map(d => segmentDistance(d, carrier, p) - config.assumptions.bodyRadius - config.assumptions.ballRadius))
-    const responsibility = responsibilities.find(r => r.threatId === id && r.kind !== 'split') ?? responsibilities.find(r => r.threatId === id)
-    return { id, playerId: idPlayer, kind: id, target, available, passClearance: clearance === Infinity ? 9 : clearance, influenceDistance: distance(nearest, target), responsibleDefenderId: responsibility?.defenderId, opportunityDeadline: t + flightTime + config.assumptions.gatherTime, timeToRelease: flightTime + config.assumptions.gatherTime }
+    const responsibility = responsibilities.find(r => r.threatId === id && r.offensivePlayerId === idPlayer && r.kind !== 'split') ?? responsibilities.find(r => r.threatId === id && r.offensivePlayerId === idPlayer) ?? responsibilities.find(r => r.threatId === id && r.kind !== 'split') ?? responsibilities.find(r => r.threatId === id)
+    return { id, playerId: idPlayer, kind: id, target, available, passClearance: clearance === Infinity ? 9 : clearance, influenceDistance: scaled(nearest), responsibleDefenderId: responsibility?.defenderId, opportunityDeadline: t + flightTime + hold, timeToRelease: flightTime + hold }
   })
 }
 
@@ -156,10 +175,17 @@ function offenseGoals(players: PlayerState[], problem: ProblemDefinition, config
 }
 
 /** Acceleration-bounded velocity search. No position projection/teleportation. */
-function advance(p: PlayerState, goal: Point2, speed: number, players: PlayerState[], config: LabConfig, capability: number, scratch: Float64Array, facing?: Point2): { next: PlayerState; contact: boolean; breach: boolean } {
+function advance(p: PlayerState, goal: Point2, speed: number, players: PlayerState[], config: LabConfig, capability: number, scratch: Float64Array, facing?: Point2, profile?: Capability): { next: PlayerState; contact: boolean; breach: boolean } {
   const { dt, acceleration, maxSpeed, bodyRadius, turnRate } = config.assumptions
-  const dx = goal.x - p.x, dz = goal.z - p.z, d = Math.hypot(dx, dz), aLimit = acceleration * dt * capability
-  const cap = Math.min(speed, maxSpeed * capability), desiredSpeed = Math.min(cap, Math.sqrt(Math.max(0, 2 * acceleration * capability * d)))
+  const accelerationScale = capability * (profile?.acceleration ?? 1), speedScale = capability * (profile?.speed ?? 1)
+  const dx = goal.x - p.x, dz = goal.z - p.z, d = Math.hypot(dx, dz), aLimit = acceleration * dt * accelerationScale
+  // Bodies that face something (defenders face the ball) are slower sideways and
+  // backward. Movers without a facing target run forward by construction.
+  const lateral = facing && profile ? profile.lateral : 1
+  const topSpeed = maxSpeed * speedScale
+  const along = (vx: number, vz: number) => { const m = Math.hypot(vx, vz); return m < 1e-9 || lateral >= 1 ? topSpeed : directionalSpeed(topSpeed, lateral, p.yaw, vx / m, vz / m) }
+  const dirSpeed = d > 0 ? along(dx, dz) : topSpeed
+  const cap = Math.min(speed, dirSpeed), desiredSpeed = Math.min(cap, Math.sqrt(Math.max(0, 2 * acceleration * accelerationScale * d)))
   const desiredX = d > 0.035 ? dx / d * desiredSpeed : 0, desiredZ = d > 0.035 ? dz / d * desiredSpeed : 0
   const bound = (index: number, vx: number, vz: number) => {
     let ax = vx - p.vx, az = vz - p.vz
@@ -173,7 +199,7 @@ function advance(p: PlayerState, goal: Point2, speed: number, players: PlayerSta
   const proximity = bodyRadius * 2 + 0.12, proximitySquared = proximity * proximity
   for (let i = 0; i < 15; i++) {
     const vx = scratch[i * 2], vz = scratch[i * 2 + 1]
-    if (Math.hypot(vx, vz) > maxSpeed * capability + 1e-9) continue
+    if (Math.hypot(vx, vz) > along(vx, vz) + 1e-9) continue
     let cost = 0.16 * ((vx - desiredX) ** 2 + (vz - desiredZ) ** 2)
     const nextX = p.x + vx * dt, nextZ = p.z + vz * dt
     if (Math.abs(nextX) > 7.25 || nextZ < 0.4 || nextZ > 14) cost += 10000
@@ -227,7 +253,7 @@ function readCandidates(options: ThreatOption[], players: PlayerState[], actorId
   const actor = player(players, actorId), defenders = players.filter(p => p.team === 'defense')
   return options.map(option => {
     const receiver = player(players, option.playerId), travel = distance(actor, receiver) / config.assumptions.passSpeed + 0.12
-    const arrivals = defenders.map(d => arrival(d, receiver, config.assumptions.contestRadius, config))
+    const arrivals = defenders.map(d => arrival(d, receiver, config.assumptions.contestRadius, config, receiver))
     const gap = Math.min(...arrivals) - (option.id === 'drive' ? 0.35 : travel + config.assumptions.gatherTime)
     const lane = option.passClearance ?? 1
     let preference = 0
@@ -260,10 +286,14 @@ export function simulateProblem(problem: ProblemDefinition, input: LabConfig): S
   // Run-local candidate storage is reused by all motion/prediction calls. It
   // never enters retained replay snapshots or crosses a worker boundary.
   const motionScratch = new Float64Array(30)
-  const capabilities = new Map<PlayerId, number>()
+  const capabilities = new Map<PlayerId, number>(), profiles = new Map<PlayerId, Capability>()
   let players: PlayerState[] = problem.players.map(p => {
     capabilities.set(p.id, 0.96 + rand() * 0.04)
-    return { id: p.id, team: p.team, role: p.role, number: p.number, height: p.height, ...(config.startingPositions?.[p.id] ?? p.start), vx: 0, vz: 0, yaw: p.team === 'offense' ? Math.PI : 0, pose: { stance: p.team === 'offense' ? 'ready' : 'defend', hands: p.team === 'offense' ? 0.2 : 0.6, phase: rand() * Math.PI * 2, jump: 0 } }
+    const person = config.personnel?.[p.id]
+    const base = resolveCapability({ ...p, height: person?.height ?? p.height })
+    const profile: Capability = { ...base, speed: base.speed * (person?.speed ?? 1), lateral: person?.lateral ?? base.lateral }
+    profiles.set(p.id, profile)
+    return { id: p.id, team: p.team, role: p.role, number: p.number, height: person?.height ?? p.height, speed: profile.speed, acceleration: profile.acceleration, lateral: profile.lateral, contest: profile.contest, ...(config.startingPositions?.[p.id] ?? p.start), vx: 0, vz: 0, yaw: p.team === 'offense' ? Math.PI : 0, pose: { stance: p.team === 'offense' ? 'ready' : 'defend', hands: p.team === 'offense' ? 0.2 : 0.6, phase: rand() * Math.PI * 2, jump: 0 } }
   })
   const firstNode = problem.reads.find(n => n.trigger !== 'catch') ?? problem.reads[0]
   const runtime: Runtime = { owner: firstNode?.actorId ?? problem.roles.ballhandler, flight: null, phase: 'handle', nodeId: firstNode?.id ?? null, caughtAt: 0, lastReadAt: -10, passCount: 0, driveAt: null, shotAt: null, continuation: null, endedAt: null, policy: { activations: [] }, observed: null }
@@ -306,7 +336,7 @@ export function simulateProblem(problem: ProblemDefinition, input: LabConfig): S
     if (!screenAnnounced && defenseState.screenAt !== null) { screenAnnounced = true; event({ t, type: 'screen', label: config.counter === 'slip' ? 'Early screen encounter → slip' : 'Handler enters the screen encounter', playerId: problem.roles.screener, details: `Observed body encounter at ${defenseState.screenAt.toFixed(2)} s; this is not a certified contact or legality call.` }) }
     const strategy = opponentAt(config, t)
     if (observed === currentObserved && defenseState.screenAt !== null) observed.screenEngagedAt = defenseState.screenAt
-    const responsibilities = defenseResponsibilities(observed, answer, problem, config, t, strategy ? defenseState : undefined)
+    const responsibilities = defenseResponsibilities(observed, answer, problem, config, t, strategy ? defenseState : undefined, defenseState.passed === true)
     if (observed === currentObserved) observed.responsibilities = responsibilities
     runtime.observed = observed
     if (strategy && runtime.phase !== 'dead' && runtime.shotAt === null) {
@@ -316,7 +346,8 @@ export function simulateProblem(problem: ProblemDefinition, input: LabConfig): S
       }
     }
     for (const task of responsibilities) { if (!starts.has(task.id)) starts.set(task.id, t); task.startedAt = starts.get(task.id)! }
-    if (!tagAnnounced && responsibilities.some(r => r.kind === 'tag')) { tagAnnounced = true; event({ t, type: 'tag', label: 'Low man commits to the roll', playerId: problem.roles.lowMan, targetId: problem.roles.screener, threatId: 'roll' }) }
+    const helpTask = tagAnnounced ? undefined : responsibilities.find(r => r.kind === 'tag')
+    if (helpTask) { tagAnnounced = true; const helper = player(players, helpTask.defenderId), classic = helpTask.defenderId === problem.roles.lowMan && helpTask.threatId === 'roll'; event({ t, type: 'tag', label: classic ? 'Low man commits to the roll' : `${helper.number} commits to help on ${helpTask.threatId === 'drive' ? 'the ball' : helpTask.threatId}`, playerId: helpTask.defenderId, targetId: helpTask.offensivePlayerId, threatId: helpTask.threatId }) }
     for (const p of players.filter(p => p.team === 'defense')) {
       const primary = responsibilities.filter(r => r.defenderId === p.id).sort((a, b) => b.priority - a.priority)[0]
       if (!primary) continue
@@ -325,10 +356,12 @@ export function simulateProblem(problem: ProblemDefinition, input: LabConfig): S
       previousResponsibilities.set(p.id, primary.threatId)
     }
     const node = problem.reads.find(n => n.id === runtime.nodeId)
-    const optionReadyAt = node?.trigger === 'catch' ? runtime.caughtAt + config.assumptions.gatherTime : strategy ? Math.max(node?.decisionAt ?? node?.earliest ?? 0, policyReadAfter(problem.offenseRules ?? [], runtime.policy)) : node?.earliest ?? 0
+    const optionReadyAt = node?.trigger === 'catch' ? runtime.caughtAt + config.assumptions.gatherTime : strategy ? Math.max(node?.earliest ?? 0, policyReadAfter(problem.offenseRules ?? [], runtime.policy)) : node?.earliest ?? 0
     const options = optionSet(players, ball, problem, config, t, responsibilities, node?.options ?? (runtime.driveAt !== null ? ['drive'] : []), node?.trigger === 'catch' ? runtime.caughtAt + (strategy ? 0 : config.assumptions.gatherTime) : node?.earliest ?? 0)
     if (strategy) for (const option of options) {
-      const waiting = Math.max(0, optionReadyAt - t)
+      // A ball carrier does not wait for a pass read: pulling up or attacking
+      // the space is available the moment he comes off the screen.
+      const waiting = option.id === 'drive' && option.playerId === runtime.owner ? 0 : Math.max(0, optionReadyAt - t)
       option.readAvailableAt = optionReadyAt
       option.timeToRelease = (option.timeToRelease ?? 0) + waiting
       option.opportunityDeadline = (option.opportunityDeadline ?? t) + waiting
@@ -340,22 +373,30 @@ export function simulateProblem(problem: ProblemDefinition, input: LabConfig): S
     // but an unencountered screen or unmet condition cannot create windows.
     const graphReady = node ? triggerReady && conditionReady : runtime.driveAt !== null
     if (!graphReady) for (const option of options) option.available = false
-    const readReady = triggerReady && conditionReady && node && t >= policyReadAfter(problem.offenseRules ?? [], runtime.policy) && !runtime.flight && runtime.driveAt === null && runtime.phase !== 'dead' && t >= (node.decisionAt ?? node.earliest) && (node.trigger !== 'catch' || t >= runtime.caughtAt + config.assumptions.gatherTime) && t - runtime.lastReadAt >= config.assumptions.readInterval
+    const readReady = triggerReady && conditionReady && node && t >= policyReadAfter(problem.offenseRules ?? [], runtime.policy) && !runtime.flight && runtime.driveAt === null && runtime.phase !== 'dead' && t >= (strategy ? node.earliest : node.decisionAt ?? node.earliest) && (node.trigger !== 'catch' || t >= runtime.caughtAt + config.assumptions.gatherTime) && t - runtime.lastReadAt >= config.assumptions.readInterval
     if (readReady && node) {
       runtime.lastReadAt = t
       const candidates = readCandidates(options, players, runtime.owner, problem, config, runtime.passCount).filter(c => node.options.includes(c.threatId))
-      const ranked = candidates.filter(c => c.available).sort((a, b) => b.value - a.value)
+      let ranked = candidates.filter(c => c.available).sort((a, b) => b.value - a.value)
+      // An adaptive offense reads continuously and takes the first opening that is
+      // clearly there; `decisionAt` is only the latest it waits ("the action runs out").
+      // The chosen counter is a real first-read constraint whenever one of its options exists:
+      // the offense runs that action first, and whether it works is then the defense's doing.
+      const forced = runtime.passCount === 0 ? FIRST_READ[config.counter] : undefined
+      if (forced && ranked.some(c => forced.includes(c.threatId))) ranked = ranked.filter(c => forced.includes(c.threatId))
+      const patient = !!strategy && node.trigger !== 'catch' && node.decisionAt !== undefined && t < node.decisionAt - 1e-9
+      if (patient) ranked = ranked.filter(c => c.arrivalGap >= (c.threatId === 'drive' ? DRIVE_LEAD : PASS_LEAD))
       const choice = ranked[0]
       if (choice) {
         const alternative = ranked[1]
         const decision: ReadDecision = { t, nodeId: node.id, actorId: runtime.owner, selected: choice.threatId, reason: choice.threatId === 'drive' ? 'The ball carrier keeps the current advantage; passing options offer less time before defensive influence.' : `${choice.threatId === 'roll' ? 'The roller' : choice.threatId === 'corner' ? 'The weak corner' : choice.threatId === 'lift' ? 'The lift' : choice.threatId === 'pop' ? 'The popping screener' : 'Strong-side spacing'} offers the larger modeled catch-and-read opportunity${alternative ? ` than ${alternative.threatId}` : ''}. The read uses current defenders and offensive intent.`, candidates }
-        decisions.push(decision); event({ t, type: 'read', label: `Offense reads → ${choice.threatId === 'drive' ? 'keep' : choice.threatId}`, playerId: runtime.owner, targetId: choice.playerId, threatId: choice.threatId, details: decision.reason })
+        decisions.push(decision); event({ t, type: 'read', label: `Offense reads → ${choice.threatId === 'drive' ? 'shoot or attack' : choice.threatId}`, playerId: runtime.owner, targetId: choice.playerId, threatId: choice.threatId, details: decision.reason })
         if (choice.threatId === 'drive') { runtime.driveAt = t; runtime.nodeId = null; runtime.phase = 'handle' }
         else {
           const passer = player(players, runtime.owner), receiver = player(players, choice.playerId), goals = offenseGoals(players, problem, config, t, runtime), goal = goals.get(receiver.id)!
           let flightDuration = clamp(distance(passer, receiver) / config.assumptions.passSpeed + 0.12, 0.25, 1.3), endpoint: Point2 = receiver
           for (let j = 0; j < 3; j++) { endpoint = predictReceiver(receiver, goal.target, flightDuration, goal.speed, config, motionScratch); flightDuration = clamp(distance(passer, endpoint) / config.assumptions.passSpeed + 0.12, 0.25, 1.3) }
-          runtime.flight = { from: passer.id, to: receiver.id, start: t, end: t + flightDuration, a: { x: passer.x, y: choice.threatId === 'roll' ? 1.25 : config.assumptions.releaseHeight, z: passer.z }, b: { ...endpoint, y: 1.55 }, kind: choice.threatId === 'roll' ? 'pocket' : distance(passer, endpoint) > 6 ? 'skip' : 'chest' }
+          runtime.flight = { from: passer.id, to: receiver.id, start: t, end: t + flightDuration, a: { x: passer.x, y: choice.threatId === 'roll' ? 1.25 : config.assumptions.releaseHeight, z: passer.z }, b: { ...endpoint, y: 1.55 }, kind: choice.threatId === 'roll' ? 'pocket' : passer.x * endpoint.x < 0 && Math.abs(passer.x - endpoint.x) > 4 ? 'skip' : 'chest' }
           if (choice.threatId === 'roll' && previewClearance(runtime.flight, players, config) < 0.08) {
             const lobDuration = Math.min(1.1, flightDuration + 0.2)
             const lobEndpoint = predictReceiver(receiver, goal.target, lobDuration, goal.speed, config, motionScratch)
@@ -365,7 +406,7 @@ export function simulateProblem(problem: ProblemDefinition, input: LabConfig): S
           runtime.continuation = node.continuations[choice.threatId] ?? null; runtime.passCount++; runtime.phase = 'pass'
           event({ t, type: 'pass', label: `${runtime.flight.kind === 'pocket' ? 'Pocket' : runtime.flight.kind === 'lob' ? 'Lob' : runtime.flight.kind === 'skip' ? 'Skip' : 'Pass'} → ${choice.threatId}`, playerId: passer.id, targetId: receiver.id, threatId: choice.threatId, details: 'Ball endpoint fixed at release; launch shape chosen from present body geometry, never future frames.' })
         }
-      } else decisions.push({ t, nodeId: node.id, actorId: runtime.owner, selected: 'hold', reason: 'No basketball-feasible receiver in the current graph.', candidates })
+      } else if (!patient) decisions.push({ t, nodeId: node.id, actorId: runtime.owner, selected: 'hold', reason: 'No basketball-feasible receiver in the current graph.', candidates })
       ball = ballState(runtime, players, t, config)
       // Preserve this tick's evaluated options; launched ball is a separate state.
     }
@@ -384,7 +425,7 @@ export function simulateProblem(problem: ProblemDefinition, input: LabConfig): S
       p.pose.hands = p.team === 'defense' ? ball.phase === 'pass' || ball.phase === 'shot' ? 0.85 : 0.6 : 0.2
       if (p.id === ball.owner && ball.phase !== 'dead') { p.pose.stance = ball.phase === 'handle' ? 'dribble' : ball.phase === 'gather' ? 'catch' : ball.phase === 'shot' ? 'shoot' : 'pass'; p.pose.hands = ball.phase === 'handle' ? 0.25 : 0.8 }
       if (p.id === ball.receiver && ball.phase === 'pass') { p.pose.stance = 'catch'; p.pose.hands = 0.8 }
-      if (p.id === problem.roles.screener && t < 0.48 && config.counter !== 'slip') p.pose.stance = 'screen'
+      if (p.id === problem.roles.screener && t < 0.48 && config.counter !== 'slip' && problem.actions.some(a => a.kind === 'screen')) p.pose.stance = 'screen'
       p.pose.jump = runtime.shotAt !== null && p.id === runtime.owner ? Math.max(0, 0.23 * Math.sin(Math.min(Math.PI, (t - runtime.shotAt) * 8))) : 0
     }
     // Typed field copies avoid JSON serialization on the hot motion clock while
@@ -405,8 +446,10 @@ export function simulateProblem(problem: ProblemDefinition, input: LabConfig): S
       const primary = responsibilities.filter(r => r.defenderId === p.id).sort((a, b) => b.priority - a.priority)[0]
       const goal = cue?.kind === 'move' ? cue.target : p.team === 'offense' ? goals.get(p.id)?.target ?? p : primary?.target ?? p
       const speed = p.team === 'offense' ? goals.get(p.id)?.speed ?? 3.4 : config.assumptions.maxSpeed
-      const facing = p.team === 'defense' ? ball : ball.phase === 'pass' && ball.receiver === p.id ? ball : undefined
-      const next = advance(p, goal, speed, players, config, capabilities.get(p.id)!, motionScratch, facing)
+      // Defenders face the ball, but a defender with far to go (a trailing or recovering man) turns and runs.
+      const faceBall = p.team === 'defense' && distance(p, goal) <= SPRINT_BEYOND
+      const facing = faceBall ? ball : p.team === 'offense' && ball.phase === 'pass' && ball.receiver === p.id ? ball : undefined
+      const next = advance(p, goal, speed, players, config, capabilities.get(p.id)!, motionScratch, facing, profiles.get(p.id))
       if (next.contact) diagnostics.contactCount++
       diagnostics.boundaryBreach ||= next.breach
       return next.next

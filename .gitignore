@@ -59,3 +59,8 @@ coverage/
 !.claude/settings.json
 !.claude/hooks
 !.claude/hooks/**
+.next-*/
+scripts/athlete/__pycache__/
+*.blend1
+# Workers' throwaway engine probes
+apps/web/lib/defense-lab/zz*

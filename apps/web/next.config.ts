@@ -4,6 +4,8 @@ import { PRODUCTION_SECURITY_HEADERS } from './lib/securityHeaders'
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Parallel local dev servers (QA, asset review) need isolated build dirs.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   // Production security headers. Scoped to all paths via
   // `source: '/:path*'`. CSP is intentionally out — needs an explicit
   // allowlist pass first; see lib/securityHeaders.ts.

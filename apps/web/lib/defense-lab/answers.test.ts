@@ -221,4 +221,15 @@ describe('portable team answers', () => {
     expect(saved.error).toContain('unavailable')
     expect(loadAnswers().answers).toHaveLength(0)
   })
+
+  it('keeps bounded per-player personnel through save, load and import validation', () => {
+    const config = { ...createDefaultConfig(), personnel: { D3: { speed: 0.9, lateral: 0.7 }, O5: { height: 2.06 } } }
+    const storage = device()
+    saveAnswer(createAnswer({ name: 'With personnel', config }), storage)
+    const loaded = loadAnswers(device(storage.value()!)).answers[0]!
+    expect((loaded.config as typeof config).personnel).toEqual(config.personnel)
+    expect(() => parseLabConfig({ ...createDefaultConfig(), personnel: { D3: { speed: 9 } } })).toThrow()
+    expect(() => parseLabConfig({ ...createDefaultConfig(), personnel: { D9: { speed: 1 } } })).toThrow()
+    expect(() => parseLabConfig({ ...createDefaultConfig(), personnel: { D3: { grit: 1 } } })).toThrow()
+  })
 })

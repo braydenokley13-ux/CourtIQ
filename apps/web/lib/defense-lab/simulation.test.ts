@@ -69,7 +69,10 @@ describe('coupled basketball simulation', () => {
     expect(edited.decisions[0]?.selected).toBe('roll')
     const change = compare(baseline, edited)
     expect(change.tradeoffs.find(tradeoff => tradeoff.id === 'lift')?.direction).toBe('closes')
-    expect(change.tradeoffs.find(tradeoff => tradeoff.id === 'roll')?.direction).toBe('opens')
+    // The slower, longer-reaching big leaves a brief pocket window on the roll even against the
+    // deep tag in the no-opponent replay, so the shallow tag keeps it open rather than creating it.
+    expect(change.tradeoffs.find(tradeoff => tradeoff.id === 'roll')?.direction).not.toBe('closes')
+    expect(change.after.windows.find(window => window.id === 'roll')!.duration).toBeGreaterThan(0.1)
     const launched = change.after.flightEvidence.find(flight => flight.to === 'O5')
     expect(launched?.kind).toBe('lob')
     expect(launched?.minClearance).toBeGreaterThan(0)
