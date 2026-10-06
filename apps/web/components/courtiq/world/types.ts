@@ -11,7 +11,7 @@ export type Anchor = PlayerId | Point2
 
 export type Mark =
   | { kind: 'ring'; id: string; at: Anchor; tone: Tone; radius?: number; pulse?: boolean; opacity?: number }
-  | { kind: 'path'; id: string; points: Point2[]; tone: Tone; width?: number; arrow?: boolean; dashed?: boolean; opacity?: number; lift?: number }
+  | { kind: 'path'; id: string; points: Point2[]; tone: Tone; width?: number; arrow?: boolean; dashed?: boolean; opacity?: number; lift?: number; /** Draw-on duration in ms (animates from first appearance). */ grow?: number }
   | { kind: 'lane'; id: string; from: Anchor; to: Anchor; tone: Tone; width?: number; opacity?: number }
   | { kind: 'disc'; id: string; center: Anchor; radius: number; tone: Tone; opacity?: number; edge?: boolean }
   | { kind: 'tether'; id: string; from: Anchor; to: Anchor; tone: Tone; opacity?: number; width?: number }
@@ -46,5 +46,5 @@ export interface WorldCallbacks {
   onTagDepth?(depth: number, final: boolean): void
   onCameraMode?(mode: CameraMode): void
   onReady?(info: { webgl: boolean; software: boolean }): void
-  onStats?(stats: { fps: number; scale: number; calls: number; triangles: number }): void
+  onStats?(stats: { fps: number; scale: number; calls: number; triangles: number; cpu: number }): void
 }

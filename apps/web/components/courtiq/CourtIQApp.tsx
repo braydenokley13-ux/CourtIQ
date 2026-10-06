@@ -12,7 +12,7 @@ import type { LabConfig, PlayerId, SimulationResult, ThreatId } from '@/lib/defe
 import CourtWorld from './world/CourtWorld'
 import type { CameraMode, Lens, Mark, WorldScene } from './world/types'
 import type { WorldRuntime } from './world/WorldRuntime'
-import { LENSES, divergenceMarks, lensMarks, momentMarks } from './lenses'
+import { LENSES, divergenceMarks, lensMarks, momentMarks, whyMarks } from './lenses'
 import { useLab } from './useLab'
 import Entry, { type EntryChoice } from './Entry'
 import { BreakBar, BreakHeldPanel, BreakMomentPanel, ComparePanel, FixPanel, HoldsPanel, MomentPanel } from './Panels'
@@ -34,6 +34,7 @@ export default function CourtIQApp() {
   const [preview, setPreview] = useState<SimulationResult | null>(null)
   const [system, setSystemState] = useState<ProgramSystem>(() => ({ schema: 1, program: 'Our program', register: 'plain', terms: {}, entries: [] }))
   const [lens, setLens] = useState<Lens>('normal')
+  const [why, setWhy] = useState(false)
   const [camera, setCamera] = useState<CameraMode>('director')
   const [selected, setSelected] = useState<PlayerId | null>(null)
   const [hover, setHover] = useState<PlayerId | null>(null)
@@ -107,11 +108,13 @@ export default function CourtIQApp() {
   useEffect(() => { const on = () => setViewport({ w: window.innerWidth, h: window.innerHeight }); on(); window.addEventListener('resize', on); return () => window.removeEventListener('resize', on) }, [])
   const panelOpen = ['moment', 'holds', 'fix', 'compare', 'break-moment', 'break-held'].includes(lab.phase) && !lab.playing
   const inBreak = lab.phase.startsWith('break')
-  const showWhy = lens !== 'normal'
+  const whyOn = why && lab.phase === 'moment' && !!lab.moment
+  const whyView = useMemo(() => whyOn && lab.moment ? whyMarks(lab.moment, lab.result, lab.time, lab.config.assumptions) : null, [whyOn, lab.moment, lab.result, lab.time, lab.config.assumptions])
   const frame = tab === 'teach' && teachResult ? frameAt(teachResult, teachT) : ambient ? frameAt(ambientResult, Math.min(ambientT, lab.duration)) : lab.frame
   const tagGuide = useMemo(() => tab === 'lab' && entered && !lab.playing && selected === HIGH_PNR_PROBLEM.roles.lowMan ? getTagGuide(lab.frame, lab.config.answer, HIGH_PNR_PROBLEM, lab.config) : null, [tab, entered, lab.playing, selected, lab.frame, lab.config])
 
   const hoverFix = lab.phase === 'fix' ? lab.hoverFix : null
+  const compareDivergence = useMemo(() => lab.previous ? divergence(lab.previous.result, lab.result) : null, [lab.previous, lab.result])
   const ghostResult = hoverFix ? hoverFix.result : (lab.phase === 'compare' || (lab.previous && lab.phase === 'playing')) ? lab.previous?.result ?? null : null
   const ghost = ghostResult && tab === 'lab' ? frameAt(ghostResult, lab.time) : null
 
@@ -126,15 +129,15 @@ export default function CourtIQApp() {
     if (ambient) return []
     const out: Mark[] = []
     if (lens !== 'normal') out.push(...lensMarks(lens, frame, lab.config.assumptions, selected))
-    if (lab.phase === 'moment' && lab.moment && lens === 'normal') out.push(...momentMarks(lab.moment, frame))
+    if (whyView) out.push(...whyView.marks)
+    else if (lab.phase === 'moment' && lab.moment && lens === 'normal') out.push(...momentMarks(lab.moment, frame))
     if (hoverFix) out.push(...divergenceMarks(lab.result, hoverFix.result, lab.time))
     if (lab.phase === 'compare' && lab.previous) {
       out.push(...divergenceMarks(lab.previous.result, lab.result, lab.time))
-      const d = divergence(lab.previous.result, lab.result)
-      for (const w of d.windows) {
+      for (const w of compareDivergence?.windows ?? []) {
         const before = w.before ? w.before.end - w.before.start : 0, after = w.after ? w.after.end - w.after.start : 0
         if (Math.abs(after - before) < 0.1) continue
-        out.push({ kind: 'disc', id: `win-${w.threatId}`, center: w.location, radius: 0.9, tone: after > before ? 'threat' : 'good', opacity: 0.4, edge: true })
+        out.push({ kind: 'disc', id: `win-${w.threatId}-${w.playerId}`, center: w.location, radius: 0.9, tone: after > before ? 'threat' : 'good', opacity: 0.4, edge: true })
       }
     }
     if (inBreak) {
@@ -142,7 +145,7 @@ export default function CourtIQApp() {
         if (a.points.length < 2) continue
         const broke = a.verdict !== 'held'
         if (lab.phase !== 'break-search' && !a.selected && !broke) continue
-        out.push({ kind: 'path', id: `atk-${a.id}`, points: a.points, tone: broke ? 'attack' : 'neutral', width: a.selected ? 0.14 : 0.07, opacity: broke ? (a.selected ? 0.95 : 0.6) : 0.18, arrow: broke })
+        out.push({ kind: 'path', id: `atk-${a.id}`, points: a.points, tone: broke ? 'attack' : 'neutral', width: a.selected ? 0.14 : 0.07, opacity: broke ? (a.selected ? 0.95 : 0.6) : 0.22, arrow: broke, grow: 900 })
       }
       const w = lab.attack?.selected.witness
       if (w && (lab.phase === 'break-moment')) {
@@ -151,7 +154,7 @@ export default function CourtIQApp() {
       }
     }
     return out
-  }, [tab, teach, frame, teachPlaying, ambient, lens, lab.phase, lab.moment, lab.config.assumptions, selected, hoverFix, lab.result, lab.time, lab.previous, inBreak, lab.attempts, lab.attack])
+  }, [tab, teach, frame, teachPlaying, ambient, lens, lab.phase, lab.moment, lab.config.assumptions, selected, hoverFix, lab.result, lab.time, lab.previous, inBreak, lab.attempts, lab.attack, compareDivergence, whyView])
 
   const focus: PlayerId[] = useMemo(() => {
     if (tab === 'teach' && teach?.player) { const j = primaryJob(frame, teach.player); return [teach.player, ...(j ? [j.offensivePlayerId] : []), 'O1', 'O5'] }
@@ -161,7 +164,7 @@ export default function CourtIQApp() {
   }, [tab, teach, frame, lab.phase, lab.moment, lab.attack])
 
   const scene: WorldScene = useMemo(() => ({
-    frame, ghost, marks, lens: tab === 'teach' ? 'normal' : lens, focus,
+    frame, ghost, marks, lens: tab === 'teach' ? 'normal' : whyOn ? 'space' : lens, focus,
     camera: tab === 'teach' ? (teach?.view === 'player' && teach.player ? 'player' : teach?.view === 'overhead' ? 'overhead' : 'director') : camera,
     pov: tab === 'teach' ? teach?.player : selected, selectedId: selected, hoverId: hover,
     highlight: tab === 'teach' && teach?.player ? [teach.player, ...(primaryJob(frame, teach.player) ? [primaryJob(frame, teach.player)!.offensivePlayerId] : []), frame.ball.owner ?? 'O1'] : null,
@@ -170,10 +173,11 @@ export default function CourtIQApp() {
   }), [viewport, panelOpen, frame, ghost, marks, lens, focus, tab, teach, camera, selected, hover, teachPlaying, ambient, lab.playing, entered, inBreak, tagGuide])
 
   // ------------------------------------------------ actions
+  const [editFrom, setEditFrom] = useState<'start' | 'now'>('start')
   const change = useCallback((patch: Parameters<typeof lab.change>[0], label: string) => {
-    lab.change(patch, label, { autoRun: false })
+    lab.change(patch, label, { autoRun: false, from: editFrom === 'now' ? lab.time : 0 })
     if (lab.phase === 'moment' || lab.phase === 'holds' || lab.phase === 'fix') lab.setPhase('compare')
-  }, [lab])
+  }, [lab, editFrom])
   const accepts = useMemo(() => lab.analysis.windows.filter(w => w.duration >= 0.1).slice(0, 4).map(w => ({ threatId: w.id as ThreatId, seconds: Math.round(w.duration * 100) / 100 })), [lab.analysis])
   const knownBreaks = useMemo(() => {
     const w = lab.attack?.selected.witness
@@ -217,6 +221,7 @@ export default function CourtIQApp() {
       return out
     }
     if (ambient) return out
+    if (whyView) for (const l of whyView.labels) out.push({ anchor: l.anchor, text: l.text, tone: l.kind === 'reach' ? s.tagDef : l.kind === 'help' ? s.tagWarn : '', lift: l.kind === 'pass' ? 0.4 : 0.1 })
     if (lab.phase === 'moment' && lab.moment && lens === 'normal') {
       const m = lab.moment
       out.push({ anchor: m.receiverId, text: `Open ${formatSeconds(m.openFor)}`, tone: s.tagThreat })
@@ -228,9 +233,8 @@ export default function CourtIQApp() {
       out.push({ anchor: w.playerId, text: `Open ${formatSeconds(w.interval.end - w.interval.start)}`, tone: s.tagThreat })
       out.push({ anchor: w.limitingDefenderId, text: `Needs ${formatSeconds(w.arrivalSeconds)}`, tone: s.tagWarn })
     }
-    if (lab.phase === 'compare' && lab.previous) {
-      const d = divergence(lab.previous.result, lab.result)
-      for (const w of d.windows) {
+    if (lab.phase === 'compare' && compareDivergence) {
+      for (const w of compareDivergence.windows) {
         const before = w.before ? w.before.end - w.before.start : 0, after = w.after ? w.after.end - w.after.start : 0
         if (Math.abs(after - before) < 0.1) continue
         out.push({ anchor: `pt:${w.location.x},${w.location.z}`, text: `${threatShort(w.threatId, voice)} ${after > before ? 'opened' : 'closed'} ${before.toFixed(2)}→${after.toFixed(2)} s`, tone: after > before ? s.tagThreat : s.tagGood, lift: 1.9 })
@@ -239,7 +243,7 @@ export default function CourtIQApp() {
     if (selected && !out.some(l => l.anchor === selected)) out.push({ anchor: selected, text: who(selected, voice), tone: s.tagDef })
     if (hover && hover !== selected && !out.some(l => l.anchor === hover)) out.push({ anchor: hover, text: who(hover, voice), tone: '' })
     return out
-  }, [tab, teach, voice, ambient, lab.phase, lab.moment, lens, lab.attack, lab.previous, lab.result, selected, hover])
+  }, [tab, teach, voice, ambient, lab.phase, lab.moment, lens, lab.attack, compareDivergence, selected, hover, whyView])
 
   // ------------------------------------------------ render
   const vignette = ambient ? s.vignetteEntry : inBreak ? s.vignetteAttack : tab === 'teach' ? s.vignetteTeach : ''
@@ -259,7 +263,7 @@ export default function CourtIQApp() {
           onMove: (id, target) => { lab.moveDefender(id, target); notify(`${who(id, voice)} moves there from ${lab.time.toFixed(1)} s — watch what changes.`) },
           onTagDepth: (depth, final) => { if (final) change({ tagDepth: Math.round(depth * 100) / 100 }, 'Help depth') },
           onCameraMode: m => setCamera(m),
-          onStats: st => setStats(`${st.fps} fps · ${st.calls} calls · ${(st.triangles / 1000).toFixed(0)}k tris · ×${st.scale.toFixed(2)}`),
+          onStats: st => setStats(`${st.fps} fps · cpu ${st.cpu} ms · ${st.calls} calls · ${(st.triangles / 1000).toFixed(0)}k tris · ×${st.scale.toFixed(2)}`),
         }}>
           {labels.map((l, i) => (
             <div key={`${i}-${l.anchor}-${l.text}`} className={s.tag} data-anchor={l.anchor} data-lift={l.lift ?? 0}>
@@ -307,7 +311,7 @@ export default function CourtIQApp() {
             <div className={s.railLabel}>X-Ray</div>
             {LENSES.map(l => <button key={l.id} className={`${s.railBtn} ${lens === l.id ? s.railOn : ''}`} onClick={() => setLens(l.id)}>{voice.register === 'plain' ? l.plain : l.coach}</button>)}
           </div>
-          {lens !== 'normal' && <div className={s.lensIdea}>{LENSES.find(l => l.id === lens)!.idea}</div>}
+          {lens !== 'normal' && !panelOpen && <div className={s.lensIdea}>{LENSES.find(l => l.id === lens)!.idea}</div>}
           <div className={s.railGroup}>
             <div className={s.railLabel}>Camera</div>
             {([['director', 'Follow the play'], ['overhead', 'Overhead'], ['baseline', 'Baseline'], ['player', 'Defender’s eyes'], ['free', 'Free look']] as [CameraMode, string][]).map(([id, label]) => (
@@ -317,16 +321,16 @@ export default function CourtIQApp() {
         </div>
 
         {selected && !lab.playing && !inBreak && (
-          <CoachCard id={selected} frame={lab.frame} config={lab.config} voice={voice} onClose={() => setSelected(null)}
+          <CoachCard id={selected} frame={lab.frame} config={lab.config} voice={voice} onClose={() => setSelected(null)} editFrom={editFrom} onEditFrom={setEditFrom} time={lab.time}
             onChange={change}
             onOpponent={patch => { lab.setPrevious({ config: lab.config, result: lab.result, moment: lab.moment, label: 'Their change' }); lab.setConfig(c => ({ ...c, opponent: { ...(c.opponent ?? createDefaultConfig().opponent!), ...patch } })) }}
             onAssumption={patch => lab.setConfig(c => ({ ...c, assumptions: { ...c.assumptions, ...patch } }))}
             onCounter={counter => lab.setConfig(c => ({ ...c, counter }))} />
         )}
 
-        {lab.phase === 'moment' && moment && <MomentPanel moment={moment} voice={voice} whyOn={showWhy} fixesReady={!!lab.explore?.fixes.length}
-          onWhy={() => setLens(l => l === 'normal' ? (moment.threatId === 'drive' || moment.threatId === 'roll' ? 'space' : 'reach') : 'normal')}
-          onFix={() => { setLens('normal'); lab.setPhase('fix') }} onBreak={lab.breakDefense} onSave={() => setSaving(true)} />}
+        {lab.phase === 'moment' && moment && <MomentPanel moment={moment} voice={voice} whyOn={whyOn} fixesReady={!!lab.explore?.fixes.length}
+          onWhy={() => { setLens('normal'); setWhy(w => !w) }}
+          onFix={() => { setWhy(false); setLens('normal'); lab.setPhase('fix') }} onBreak={lab.breakDefense} onSave={() => setSaving(true)} />}
         {lab.phase === 'holds' && <HoldsPanel voice={voice} onBreak={lab.breakDefense} onSave={() => setSaving(true)} onAgain={() => lab.run()} />}
         {lab.phase === 'fix' && <FixPanel fixes={lab.explore?.fixes ?? []} busy={lab.exploreBusy} voice={voice} onHover={lab.setHoverFix} onPick={lab.applyFix} onClose={() => lab.setPhase(moment ? 'moment' : 'ready')} onKeep={() => setSaving(true)} />}
         {lab.phase === 'compare' && lab.comparison && !lab.playing && <ComparePanel comparison={lab.comparison} voice={voice} label={lab.previous?.label ? `After: ${lab.previous.label}` : 'What changed'}

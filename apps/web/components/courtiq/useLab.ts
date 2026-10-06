@@ -118,10 +118,14 @@ export function useLab() {
   runRef.current = run
 
   /** Change the basketball. The previous world is kept for comparison. */
-  const change = useCallback((patch: Partial<TeamAnswer>, label: string, opts: { autoRun?: boolean } = {}) => {
+  const change = useCallback((patch: Partial<TeamAnswer>, label: string, opts: { autoRun?: boolean; from?: number } = {}) => {
     attackAbort.current?.abort()
     const snap: Snapshot = { config: copy(config), result, moment, label }
-    setConfigRaw(c => ({ ...c, answer: { ...c.answer, ...patch }, interventions: c.interventions.filter(i => i.kind !== 'answer') }))
+    const at = opts.from && opts.from > 0.02 ? Math.round(opts.from / config.assumptions.dt) * config.assumptions.dt : 0
+    if (at > 0 && config.interventions.length < 60) {
+      // From this moment forward: earlier frames are preserved exactly.
+      setConfigRaw(c => ({ ...c, interventions: [...c.interventions.filter(i => !(i.kind === 'answer' && Math.abs(i.at - at) < 1e-6 && Object.keys(i.patch).join() === Object.keys(patch).join())), { id: `ans-${Date.now()}`, at, kind: 'answer', patch }] }))
+    } else setConfigRaw(c => ({ ...c, answer: { ...c.answer, ...patch }, interventions: c.interventions.filter(i => i.kind !== 'answer') }))
     setPrevious(prev => prev && opts.autoRun === false ? prev : snap)
     if (opts.autoRun) setPendingRun(true)
   }, [config, result, moment])

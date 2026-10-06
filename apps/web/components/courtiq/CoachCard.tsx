@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { Voice } from '@/lib/defense-lab/corpus'
 import { COACH_RULE_BOUNDS, coachRuleSentence } from '@/lib/defense-lab/coachRules'
 import { COUNTERS } from '@/lib/defense-lab/scenario'
+import { answerAt } from '@/lib/defense-lab/simulation'
 import type { CoachRule, CounterId, LabConfig, PlayerId, TeamAnswer, WorldFrame } from '@/lib/defense-lab/types'
 import { coverageName, helpAmount, jobSentence, primaryJob, who } from './basketball'
 import s from './courtiq.module.css'
@@ -16,12 +17,14 @@ function Seg<T extends string>({ value, options, onChange }: { value: T; options
 
 /** Controls attach to the basketball role that was clicked: you coach a player,
  * not a settings page. "Full control" opens everything for power users. */
-export default function CoachCard({ id, frame, config, voice, onChange, onClose, onOpponent, onAssumption, onCounter }: {
+export default function CoachCard({ id, frame, config, voice, onChange, onClose, onOpponent, onAssumption, onCounter, editFrom, onEditFrom, time }: {
+  editFrom: 'start' | 'now'; onEditFrom(v: 'start' | 'now'): void; time: number
   id: PlayerId; frame: WorldFrame; config: LabConfig; voice: Voice; onChange: Change; onClose(): void
   onOpponent(patch: Partial<NonNullable<LabConfig['opponent']>>): void; onAssumption(patch: Partial<LabConfig['assumptions']>): void; onCounter(c: CounterId): void
 }) {
   const [full, setFull] = useState(false)
-  const a = config.answer
+  // The rules in force at this moment (timed edits included).
+  const a = answerAt(config, time)
   const p = voice.register === 'plain'
   const job = primaryJob(frame, id)
   const isOffense = id.startsWith('O')
@@ -67,6 +70,11 @@ export default function CoachCard({ id, frame, config, voice, onChange, onClose,
 
       {id === 'D2' && <div className={s.hint}>{p ? 'He stays home on the near-side shooter in this action.' : 'Strong-side defender stays attached; no strong-side help in this policy.'}</div>}
 
+      {!isOffense && time > 0.05 && <>
+        <div className={s.ctrlLabel}>{p ? 'Change it from' : 'Apply from'}</div>
+        <Seg value={editFrom} options={[{ id: 'start', label: p ? 'The start of the play' : 'Start' }, { id: 'now', label: `${p ? 'This moment' : 'Now'} (${time.toFixed(1)} s)` }]} onChange={onEditFrom} />
+        {editFrom === 'now' && <div className={s.hint}>Everything before {time.toFixed(1)} s stays exactly the same; your change plays out from here.</div>}
+      </>}
       <button className={s.ghostLink} onClick={() => setFull(f => !f)}>{full ? 'Hide full control' : 'Full control →'}</button>
       {full && <FullControl config={config} voice={voice} onChange={onChange} onOpponent={onOpponent} onAssumption={onAssumption} onCounter={onCounter} />}
     </div>

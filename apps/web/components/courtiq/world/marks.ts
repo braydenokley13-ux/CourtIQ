@@ -108,7 +108,7 @@ function ribbonGeometry(points: Point2[], width: number, y: number, arrow: boole
   return geometry
 }
 
-interface Entry { object: THREE.Object3D; signature: string; mark: Mark; born: number }
+interface Entry { object: THREE.Object3D; signature: string; shape: string; mark: Mark; born: number }
 
 /** Keyed, pooled renderer for analytical marks. Geometry rebuilds only when a
  * mark's spatial signature changes; per-frame anchored marks update in place. */
@@ -133,14 +133,17 @@ export class MarkLayer {
     let animating = false
     for (const mark of marks) {
       seen.add(mark.id)
-      const signature = this.signature(mark, frame)
+      const signature = this.signature(mark), shape = this.shape(mark, frame)
       let entry = this.entries.get(mark.id)
       if (!entry || entry.signature !== signature) {
         if (entry) this.dispose(entry)
         const object = this.build(mark, frame)
         if (!object) continue
-        entry = { object, signature, mark, born: entry?.born ?? now }
+        entry = { object, signature, shape, mark, born: entry?.born ?? now }
         this.entries.set(mark.id, entry); this.root.add(object)
+      } else if (entry.shape !== shape) {
+        entry.mark = mark; entry.shape = shape
+        this.reshape(entry, frame)
       }
       entry.mark = mark
       this.place(entry, frame)
@@ -148,6 +151,14 @@ export class MarkLayer {
       if (age < 1) animating = true
       const pulse = 'pulse' in mark && mark.pulse
       if (pulse) animating = true
+      if (mark.kind === 'path' && mark.grow) {
+        const u = Math.min(1, (now - entry.born) / mark.grow), eased = 1 - (1 - u) ** 3
+        if (u < 1) animating = true
+        entry.object.traverse(o => {
+          const g = (o as THREE.Mesh).geometry
+          if (g?.index) g.setDrawRange(0, Math.max(3, Math.floor(g.index.count * eased / 3) * 3))
+        })
+      }
       const base = (mark.opacity ?? defaultOpacity(mark)) * fade * (age * age * (3 - 2 * age))
       entry.object.traverse(o => {
         const m = (o as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined
@@ -164,20 +175,45 @@ export class MarkLayer {
     return animating
   }
 
-  private signature(mark: Mark, frame: WorldFrame): string {
+  /** Structure: what meshes/materials exist. Shape: where vertices are. */
+  private signature(mark: Mark): string {
     switch (mark.kind) {
-      case 'path': return `p:${mark.tone}:${mark.width}:${mark.arrow}:${mark.dashed}:${mark.lift}:${mark.points.map(p => `${p.x.toFixed(2)},${p.z.toFixed(2)}`).join(';')}`
-      case 'lane': case 'tether': {
-        const a = resolveAnchor(frame, mark.from), b = resolveAnchor(frame, mark.to)
-        return `${mark.kind}:${mark.tone}:${mark.width}:${a?.x.toFixed(2)},${a?.z.toFixed(2)}:${b?.x.toFixed(2)},${b?.z.toFixed(2)}`
-      }
-      case 'wedge': {
-        const a = resolveAnchor(frame, mark.apex), b = resolveAnchor(frame, mark.toward)
-        return `w:${mark.tone}:${mark.length.toFixed(2)}:${mark.spread.toFixed(2)}:${a?.x.toFixed(2)},${a?.z.toFixed(2)}:${b?.x.toFixed(2)},${b?.z.toFixed(2)}`
-      }
+      case 'path': return `p:${mark.tone}:${mark.width}:${mark.arrow}:${mark.dashed}:${mark.lift}:${mark.points.length}`
+      case 'lane': case 'tether': return `${mark.kind}:${mark.tone}:${mark.width}`
+      case 'wedge': return `w:${mark.tone}:${mark.length.toFixed(2)}:${mark.spread.toFixed(2)}`
       case 'ring': return `r:${mark.tone}:${mark.radius ?? 0.55}`
       case 'disc': return `d:${mark.tone}:${mark.radius.toFixed(2)}:${mark.edge}`
     }
+  }
+  private shape(mark: Mark, frame: WorldFrame): string {
+    const f = (p: Point2 | null) => p ? `${p.x.toFixed(3)},${p.z.toFixed(3)}` : '-'
+    switch (mark.kind) {
+      case 'path': return mark.points.map(f).join(';')
+      case 'lane': case 'tether': return `${f(resolveAnchor(frame, mark.from))}>${f(resolveAnchor(frame, mark.to))}`
+      case 'wedge': return `${f(resolveAnchor(frame, mark.apex))}>${f(resolveAnchor(frame, mark.toward))}`
+      default: return ''
+    }
+  }
+
+  /** Rebuild only vertex data, reusing GPU buffers when sizes match. */
+  private reshape(entry: Entry, frame: WorldFrame) {
+    const fresh = this.build(entry.mark, frame)
+    if (!fresh) return
+    const oldMeshes: THREE.Mesh[] = [], newMeshes: THREE.Mesh[] = []
+    entry.object.traverse(o => { if ((o as THREE.Mesh).isMesh) oldMeshes.push(o as THREE.Mesh) })
+    fresh.traverse(o => { if ((o as THREE.Mesh).isMesh) newMeshes.push(o as THREE.Mesh) })
+    oldMeshes.forEach((mesh, i) => {
+      const next = newMeshes[i]?.geometry
+      if (!next) return
+      const a = mesh.geometry.getAttribute('position') as THREE.BufferAttribute | undefined, b = next.getAttribute('position') as THREE.BufferAttribute
+      const ua = mesh.geometry.getAttribute('uv') as THREE.BufferAttribute | undefined, ub = next.getAttribute('uv') as THREE.BufferAttribute | undefined
+      if (a && b && a.count === b.count && (!ua || !ub || ua.count === ub.count)) {
+        ;(a.array as Float32Array).set(b.array as Float32Array); a.needsUpdate = true
+        if (ua && ub) { (ua.array as Float32Array).set(ub.array as Float32Array); ua.needsUpdate = true }
+        mesh.geometry.computeBoundingSphere()
+      } else { mesh.geometry.dispose(); mesh.geometry = next.clone() }
+    })
+    fresh.traverse(o => { const m = o as THREE.Mesh; m.geometry?.dispose(); const mat = m.material as THREE.MeshBasicMaterial | undefined; if (mat) { if (mat.map && mat.map !== gradientTexture && mat.map !== radialTexture && mat.map !== this.dashTexture) mat.map.dispose(); mat.dispose() } })
   }
 
   private build(mark: Mark, frame: WorldFrame): THREE.Object3D | null {

@@ -56,6 +56,7 @@ export class WorldRuntime {
   private quality: 'high' | 'low'
   private observer: ResizeObserver
   private viewKey = ''
+  private cpu = 0
 
   constructor(private host: HTMLElement, private callbacks: WorldCallbacks) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' })
@@ -334,11 +335,13 @@ export class WorldRuntime {
     if (!this.dirty && !animating) return
     this.dirty = false
 
+    const began = performance.now()
     this.applyFrame(s, now)
     setLabEnvironmentAnalytical(this.environment, this.xray, 'porcelain')
     updateEnvironmentForCamera(this.environment, this.camera)
     this.renderer.render(this.scene, this.camera)
     this.writeLabels(s)
+    this.cpu = this.cpu * 0.9 + (performance.now() - began) * 0.1
     this.adapt(now, s.playing || animating)
   }
 
@@ -431,7 +434,7 @@ export class WorldRuntime {
     if (now - this.fpsAt > 1000) {
       this.fps = this.frames * 1000 / (now - this.fpsAt); this.frames = 0; this.fpsAt = now
       const info = this.renderer.info.render
-      this.callbacks.onStats?.({ fps: Math.round(this.fps), scale: this.scale, calls: info.calls, triangles: info.triangles })
+      this.callbacks.onStats?.({ fps: Math.round(this.fps), scale: this.scale, calls: info.calls, triangles: info.triangles, cpu: Math.round(this.cpu * 10) / 10 })
       if (!active) return
       // Hysteresis: degrade resolution first, recover slowly. Never the simulation.
       if (this.fps < 40) { this.slow++; this.fast = 0 } else if (this.fps > 57) { this.fast++; this.slow = 0 }

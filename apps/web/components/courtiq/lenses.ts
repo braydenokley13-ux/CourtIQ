@@ -74,8 +74,8 @@ export function lensMarks(lens: Lens, frame: WorldFrame, assumptions: ModelAssum
   const rim: Point2 = { x: 0, z: 1.575 }
   const drive = frame.options.find(o => o.id === 'drive')
   const roller = THREAT_RECEIVER(frame, 'roll')
-  marks.push({ kind: 'wedge', id: 'space-drive', apex: owner, toward: rim, length: 4.2, spread: 0.5, tone: drive && open.has('drive') ? 'threat' : 'neutral', opacity: drive && open.has('drive') ? 0.5 : 0.2 })
-  if (roller) marks.push({ kind: 'wedge', id: 'space-roll', apex: roller, toward: rim, length: 3.2, spread: 0.6, tone: open.has('roll') ? 'threat' : 'neutral', opacity: open.has('roll') ? 0.5 : 0.18 })
+  marks.push({ kind: 'wedge', id: 'space-drive', apex: owner, toward: rim, length: 4.2, spread: 0.5, tone: drive && open.has('drive') ? 'threat' : 'neutral', opacity: drive && open.has('drive') ? 0.75 : 0.35 })
+  if (roller) marks.push({ kind: 'wedge', id: 'space-roll', apex: roller, toward: rim, length: 3.2, spread: 0.6, tone: open.has('roll') ? 'threat' : 'neutral', opacity: open.has('roll') ? 0.75 : 0.32 })
   marks.push({ kind: 'disc', id: 'space-rim', center: rim, radius: 1.25, tone: 'focus', opacity: 0.08, edge: true })
   return marks
 }
@@ -122,4 +122,45 @@ export function divergenceMarks(before: SimulationResult, after: SimulationResul
     marks.push({ kind: 'path', id: `dv-a-${id}`, points: a, tone: 'defense', width: 0.09, arrow: true })
   }
   return marks
+}
+
+/** "Show me why": the causal chain behind one moment, in one picture.
+ * Passes that led here, the help that got pulled, and the late defender's
+ * reach (how far he can get before the shot is ready) versus the open man. */
+export function whyMarks(moment: TeachingMoment, result: SimulationResult, t: number, assumptions: ModelAssumptions): { marks: Mark[]; labels: { anchor: string; text: string; kind: 'pass' | 'reach' | 'help' }[] } {
+  const frame = frameAt(result, t)
+  const marks: Mark[] = [], labels: { anchor: string; text: string; kind: 'pass' | 'reach' | 'help' }[] = []
+  // 1. The ball's journey to this moment.
+  let n = 0
+  for (const f of result.frames) {
+    const fl = f.ball.flight
+    if (!fl || f.t > t || fl.kind === 'shot') continue
+    if (marks.some(m => m.id === `why-pass-${fl.start}`)) continue
+    n++
+    const mid = { x: (fl.a.x + fl.b.x) / 2, z: (fl.a.z + fl.b.z) / 2 }
+    marks.push({ kind: 'path', id: `why-pass-${fl.start}`, points: [{ x: fl.a.x, z: fl.a.z }, { x: fl.b.x, z: fl.b.z }], tone: 'offense', width: 0.12, arrow: true, opacity: 0.9, grow: 700 })
+    labels.push({ anchor: `pt:${mid.x.toFixed(2)},${mid.z.toFixed(2)}`, text: `Pass ${n}`, kind: 'pass' })
+  }
+  // 2. The help that started it.
+  const pulled = moment.pulledDefenderId
+  if (pulled) {
+    const tagged = result.frames.find(f => f.responsibilities.some(r => r.defenderId === pulled && (r.kind === 'tag' || r.kind === 'split')))
+    const task = tagged?.responsibilities.find(r => r.defenderId === pulled && (r.kind === 'tag' || r.kind === 'split'))
+    const me = tagged?.players.find(p => p.id === pulled)
+    if (tagged && task && me) {
+      marks.push({ kind: 'path', id: 'why-help', points: [{ x: me.x, z: me.z }, task.target], tone: 'warn', width: 0.09, dashed: true, arrow: true })
+      labels.push({ anchor: `pt:${me.x.toFixed(2)},${me.z.toFixed(2)}`, text: `Helps at ${tagged.t.toFixed(1)} s`, kind: 'help' })
+    }
+  }
+  // 3. Reach before the shot is ready vs. the open man.
+  const best = frame.players.find(p => p.id === (moment.bestDefenderId ?? moment.responsibleDefenderId))
+  const receiver = frame.players.find(p => p.id === moment.receiverId)
+  if (best && receiver && moment.releaseIn != null) {
+    const r = reachDistance(moment.releaseIn, assumptions, Math.hypot(best.vx, best.vz)) + assumptions.contestRadius
+    marks.push({ kind: 'disc', id: 'why-reach', center: best.id, radius: Math.max(0.5, r), tone: 'defense', opacity: 0.35, edge: true })
+    marks.push({ kind: 'ring', id: 'why-open', at: receiver.id, tone: 'threat', radius: 0.65, pulse: true })
+    labels.push({ anchor: `pt:${best.x.toFixed(2)},${(best.z).toFixed(2)}`, text: `Can reach this far in ${moment.releaseIn.toFixed(2)} s`, kind: 'reach' })
+  }
+  if (moment.threatId === 'drive' && receiver) marks.push({ kind: 'wedge', id: 'why-lane', apex: receiver.id, toward: { x: 0, z: 1.575 }, length: Math.hypot(receiver.x, receiver.z - 1.575), spread: 0.42, tone: 'threat', opacity: 0.55 })
+  return { marks, labels }
 }
