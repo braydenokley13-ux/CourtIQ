@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 
-export type WorldQuality = 'high' | 'low'
+export type WorldQuality = 'high' | 'balanced' | 'low'
 
 /**
  * Renderer settings for the "Normal World" look. Call once, right after creating the
@@ -15,7 +15,7 @@ export type WorldQuality = 'high' | 'low'
 export function configureWorldRenderer(renderer: THREE.WebGLRenderer, quality: WorldQuality): void {
   renderer.outputColorSpace = THREE.SRGBColorSpace
   renderer.toneMapping = THREE.NeutralToneMapping
-  renderer.toneMappingExposure = quality === 'high' ? 0.94 : 0.92
+  renderer.toneMappingExposure = quality === 'low' ? 0.92 : 0.94
   renderer.shadowMap.enabled = true
   // PCFSoftShadowMap is deprecated in r184; PCFShadowMap already filters.
   renderer.shadowMap.type = THREE.PCFShadowMap

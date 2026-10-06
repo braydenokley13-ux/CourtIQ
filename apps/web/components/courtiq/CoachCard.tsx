@@ -2,25 +2,18 @@
 
 import { useState } from 'react'
 import type { Voice } from '@/lib/defense-lab/corpus'
-import { COACH_RULE_BOUNDS, coachRuleSentence } from '@/lib/defense-lab/coachRules'
-import { COUNTERS } from '@/lib/defense-lab/scenario'
 import { answerAt } from '@/lib/defense-lab/simulation'
-import type { CoachRule, CounterId, LabConfig, PlayerId, TeamAnswer, WorldFrame } from '@/lib/defense-lab/types'
+import type { CoachRule, CounterId, LabConfig, PlayerId, WorldFrame } from '@/lib/defense-lab/types'
 import { coverageName, helpAmount, jobSentence, primaryJob, who } from './basketball'
+import FullControl, { Seg, type Change } from './FullControl'
 import s from './courtiq.module.css'
-
-type Change = (patch: Partial<TeamAnswer>, label: string) => void
-
-function Seg<T extends string>({ value, options, onChange }: { value: T; options: { id: T; label: string }[]; onChange(v: T): void }) {
-  return <div className={s.seg}>{options.map(o => <button key={o.id} className={`${s.segBtn} ${value === o.id ? s.segOn : ''}`} onClick={() => value !== o.id && onChange(o.id)}>{o.label}</button>)}</div>
-}
 
 /** Controls attach to the basketball role that was clicked: you coach a player,
  * not a settings page. "Full control" opens everything for power users. */
-export default function CoachCard({ id, frame, config, voice, onChange, onClose, onOpponent, onAssumption, onCounter, editFrom, onEditFrom, time, ruleFired }: {
+export default function CoachCard({ id, frame, config, voice, onChange, onClose, onOpponent, onAssumption, onCounter, onConfig, editFrom, onEditFrom, time, ruleFired }: {
   editFrom: 'start' | 'now'; onEditFrom(v: 'start' | 'now'): void; time: number; ruleFired: Partial<Record<CoachRule['kind'], number | null>>
   id: PlayerId; frame: WorldFrame; config: LabConfig; voice: Voice; onChange: Change; onClose(): void
-  onOpponent(patch: Partial<NonNullable<LabConfig['opponent']>>): void; onAssumption(patch: Partial<LabConfig['assumptions']>): void; onCounter(c: CounterId): void
+  onOpponent(patch: Partial<NonNullable<LabConfig['opponent']>>): void; onAssumption(patch: Partial<LabConfig['assumptions']>): void; onCounter(c: CounterId): void; onConfig(f: (c: LabConfig) => LabConfig): void
 }) {
   const [full, setFull] = useState(false)
   // The rules in force at this moment (timed edits included).
@@ -75,63 +68,8 @@ export default function CoachCard({ id, frame, config, voice, onChange, onClose,
         <Seg value={editFrom} options={[{ id: 'start', label: p ? 'The start of the play' : 'Start' }, { id: 'now', label: `${p ? 'This moment' : 'Now'} (${time.toFixed(1)} s)` }]} onChange={onEditFrom} />
         {editFrom === 'now' && <div className={s.hint}>Everything before {time.toFixed(1)} s stays exactly the same; your change plays out from here.</div>}
       </>}
-      <button className={s.ghostLink} onClick={() => setFull(f => !f)}>{full ? 'Hide full control' : 'Full control →'}</button>
-      {full && <FullControl config={config} voice={voice} ruleFired={ruleFired} onChange={onChange} onOpponent={onOpponent} onAssumption={onAssumption} onCounter={onCounter} />}
+      <button className={s.ghostLink} aria-expanded={full} onClick={() => setFull(f => !f)}>{full ? 'Hide full control' : 'Full control →'}</button>
+      {full && <FullControl config={config} voice={voice} ruleFired={ruleFired} onChange={onChange} onOpponent={onOpponent} onAssumption={onAssumption} onCounter={onCounter} onConfig={onConfig} />}
     </div>
   )
-}
-
-function Num({ label, value, min, max, step, onChange, unit = '' }: { label: string; value: number; min: number; max: number; step: number; onChange(v: number): void; unit?: string }) {
-  return <>
-    <div className={s.ctrlLabel}><span>{label}</span><span>{value.toFixed(step < 0.1 ? 2 : 1)}{unit}</span></div>
-    <input className={s.range} type="range" min={min} max={max} step={step} value={value} onChange={e => onChange(Number(e.target.value))} />
-  </>
-}
-
-function FullControl({ config, onChange, onOpponent, onAssumption, onCounter, ruleFired }: { ruleFired: Partial<Record<CoachRule['kind'], number | null>>; config: LabConfig; voice: Voice; onChange: Change; onOpponent(p: Partial<NonNullable<LabConfig['opponent']>>): void; onAssumption(p: Partial<LabConfig['assumptions']>): void; onCounter(c: CounterId): void }) {
-  const a = config.answer, o = config.opponent, m = config.assumptions
-  const rules = a.coachRules ?? []
-  const setRule = (kind: CoachRule['kind'], rule: CoachRule | null) => onChange({ coachRules: [...rules.filter(r => r.kind !== kind), ...(rule ? [rule] : [])] }, 'Coach rule')
-  const depthRule = rules.find(r => r.kind === 'roller-depth') as Extract<CoachRule, { kind: 'roller-depth' }> | undefined
-  const riseRule = rules.find(r => r.kind === 'lift-rise') as Extract<CoachRule, { kind: 'lift-rise' }> | undefined
-  return (
-    <div>
-      <div className={s.sectionLabel}>Our rules (if → then)</div>
-      <label className={s.ctrlLabel}><span><input type="checkbox" checked={!!depthRule} onChange={e => setRule('roller-depth', e.target.checked ? { kind: 'roller-depth', depth: 4.5, response: 'low-man-tags' } : null)} /> If the roller gets deep…</span></label>
-      {depthRule && <>
-        <Num label="…past this depth (m from baseline)" value={depthRule.depth} min={COACH_RULE_BOUNDS.depth[0]} max={COACH_RULE_BOUNDS.depth[1]} step={0.1} onChange={v => setRule('roller-depth', { ...depthRule, depth: v })} />
-        <Seg value={depthRule.response} options={[{ id: 'low-man-tags', label: 'Low man tags' }, { id: 'big-recovers', label: 'Big recovers' }]} onChange={v => setRule('roller-depth', { ...depthRule, response: v })} />
-        <div className={s.hint}>{coachRuleSentence(depthRule)} <Fired at={ruleFired['roller-depth']} /></div>
-      </>}
-      <label className={s.ctrlLabel}><span><input type="checkbox" checked={!!riseRule} onChange={e => setRule('lift-rise', e.target.checked ? { kind: 'lift-rise', rise: 1.5, response: 'stay-with-lift' } : null)} /> If the weak-side shooter lifts…</span></label>
-      {riseRule && <>
-        <Num label="…this far (m)" value={riseRule.rise} min={COACH_RULE_BOUNDS.rise[0]} max={COACH_RULE_BOUNDS.rise[1]} step={0.1} onChange={v => setRule('lift-rise', { ...riseRule, rise: v })} />
-        <Seg value={riseRule.response} options={[{ id: 'stay-with-lift', label: 'Stay with him' }, { id: 'x-out', label: 'X-out' }]} onChange={v => setRule('lift-rise', { ...riseRule, response: v })} />
-        <div className={s.hint}>{coachRuleSentence(riseRule)} <Fired at={ruleFired['lift-rise']} /></div>
-      </>}
-
-      <div className={s.sectionLabel}>Their offense</div>
-      <div className={s.seg}>{COUNTERS.map(c => <button key={c.id} className={`${s.segBtn} ${config.counter === c.id ? s.segOn : ''}`} title={c.description} onClick={() => onCounter(c.id)}>{c.label}</button>)}</div>
-      {o && <>
-        <Num label="Screen angle" value={o.screenAngle * 180 / Math.PI} min={-25} max={25} step={1} unit="°" onChange={v => onOpponent({ screenAngle: v * Math.PI / 180 })} />
-        <Num label="Lift delay" value={o.liftDelay} min={-0.2} max={0.6} step={0.05} unit=" s" onChange={v => onOpponent({ liftDelay: v })} />
-        <div className={s.seg} style={{ marginTop: 8 }}>
-          {(['reject', 'rescreen', 'shortRoll'] as const).map(k => <button key={k} className={`${s.segBtn} ${o[k] ? s.segOn : ''}`} onClick={() => onOpponent({ [k]: !o[k] })}>{k === 'shortRoll' ? 'Short roll' : k === 'rescreen' ? 'Re-screen' : 'Reject'}</button>)}
-        </div>
-      </>}
-
-      <div className={s.sectionLabel}>Our players & assumptions</div>
-      <Num label="Reaction time" value={m.reactionDelay} min={0.05} max={0.6} step={0.01} unit=" s" onChange={v => onAssumption({ reactionDelay: v })} />
-      <Num label="Top speed" value={m.maxSpeed} min={3} max={7} step={0.1} unit=" m/s" onChange={v => onAssumption({ maxSpeed: v })} />
-      <Num label="Pass speed" value={m.passSpeed} min={7} max={16} step={0.5} unit=" m/s" onChange={v => onAssumption({ passSpeed: v })} />
-      <div className={s.hint}>These numbers drive every window CourtIQ shows. Set them to your players.</div>
-    </div>
-  )
-}
-
-function Fired({ at }: { at: number | null | undefined }) {
-  if (at === undefined) return null
-  return at === null
-    ? <b style={{ color: 'var(--warn)' }}>Never fired in this run — try a different trigger.</b>
-    : <b style={{ color: 'var(--good)' }}>Fired at {at.toFixed(1)} s.</b>
 }

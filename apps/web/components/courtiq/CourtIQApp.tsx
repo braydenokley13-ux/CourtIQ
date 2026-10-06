@@ -7,7 +7,7 @@ import { getTagGuide } from '@/lib/defense-lab/tagGuide'
 import { HIGH_PNR_PROBLEM, createDefaultConfig } from '@/lib/defense-lab/scenario'
 import { frameAt } from '@/lib/defense-lab/simulation'
 import { simulateCached } from '@/lib/defense-lab/replayCache'
-import { loadSystem, persistSystem, saveToSystem, type ProgramSystem, type SystemEntry } from '@/lib/defense-lab/system'
+import { loadSystem, persistSystem, programVoice, saveToSystem, type ProgramSystem, type SystemEntry } from '@/lib/defense-lab/system'
 import type { LabConfig, PlayerId, SimulationResult, ThreatId } from '@/lib/defense-lab/types'
 import CourtWorld from './world/CourtWorld'
 import type { CameraMode, Lens, Mark, WorldScene } from './world/types'
@@ -45,11 +45,11 @@ export default function CourtIQApp() {
   const [teach, setTeach] = useState<TeachState | null>(null)
   const runtime = useRef<WorldRuntime | null>(null)
   const [debug, setDebug] = useState(false)
-  useEffect(() => { setDebug(new URLSearchParams(window.location.search).has('debug')) }, [])
+  useEffect(() => { const q = new URLSearchParams(window.location.search); setDebug(q.has('debug')); const sel = q.get('select'); if (sel && /^[OD][1-5]$/.test(sel)) setSelected(sel as PlayerId) }, [])
 
   useEffect(() => { setSystemState(loadSystem()) }, [])
   const setSystem = useCallback((next: ProgramSystem) => { setSystemState(next); persistSystem(next) }, [])
-  const voice: Voice = useMemo(() => ({ register: system.register, terms: system.terms }), [system.register, system.terms])
+  const voice: Voice = useMemo(() => programVoice(system), [system])
   const notify = useCallback((text: string) => { setToast(text); setTimeout(() => setToast(t => t === text ? null : t), 3800) }, [])
 
   // ------------------------------------------------ ambient world behind entry
@@ -296,6 +296,7 @@ export default function CourtIQApp() {
           <div className={s.voice} role="group" aria-label="Language">
             <button className={system.register === 'plain' ? s.voiceOn : ''} onClick={() => setSystem({ ...system, register: 'plain' })}>Plain</button>
             <button className={system.register === 'coach' ? s.voiceOn : ''} onClick={() => setSystem({ ...system, register: 'coach' })}>Coach</button>
+            <button className={system.register === 'program' ? s.voiceOn : ''} title={Object.keys(system.terms).length ? 'Our own words' : 'Name things in Our System → Our words'} onClick={() => setSystem({ ...system, register: 'program' })}>Ours</button>
           </div>
         </div>
       </header>
@@ -305,7 +306,7 @@ export default function CourtIQApp() {
       {tab === 'lab' && entered && <>
         <div className={s.situation}>
           <div className={s.kicker} style={{ marginBottom: 0 }}><i />{voice.register === 'plain' ? 'Ball screen · top of the key' : 'High P&R · middle'}</div>
-          <div className={s.sitTitle}>{system.terms[lab.config.answer.coverage] ? `${system.terms[lab.config.answer.coverage]} ` : ''}{voice.register === 'plain' ? 'vs. a ball screen with a shooter lifting' : 'vs. high P&R → weakside lift'}</div>
+          <div className={s.sitTitle}>{voice.terms?.[lab.config.answer.coverage] ? `${voice.terms[lab.config.answer.coverage]} ` : ''}{voice.register === 'plain' ? 'vs. a ball screen with a shooter lifting' : 'vs. high P&R → weakside lift'}</div>
           <div className={s.sitMeta}>
             <button className={s.pill} onClick={() => setSelected('D5')}><span className={s.pillDot} />{answerSummary}</button>
             <button className={s.pill} onClick={() => setSelected('D3')}>{voice.register === 'plain' ? 'Helper' : term('low-man', voice)}: {lab.config.answer.tag ? `${Math.round(lab.config.answer.tagDepth * 100)}%` : 'home'}</button>
@@ -333,7 +334,7 @@ export default function CourtIQApp() {
             onChange={change}
             onOpponent={patch => { lab.setPrevious({ config: lab.config, result: lab.result, moment: lab.moment, label: 'Their change' }); lab.setConfig(c => ({ ...c, opponent: { ...(c.opponent ?? createDefaultConfig().opponent!), ...patch } })) }}
             onAssumption={patch => lab.setConfig(c => ({ ...c, assumptions: { ...c.assumptions, ...patch } }))}
-            onCounter={counter => lab.setConfig(c => ({ ...c, counter }))} />
+            onCounter={counter => lab.setConfig(c => ({ ...c, counter }))} onConfig={f => lab.setConfig(f)} />
         )}
 
         {lab.phase === 'moment' && moment && <MomentPanel moment={moment} voice={voice} whyOn={whyOn} fixesReady={!!lab.explore?.fixes.length}

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { buildLabEnvironment, setLabEnvironmentAnalytical, updateEnvironmentForCamera, COURT, disposeTree, buildBall } from '@/components/defense-lab/labEnvironment'
+import { buildLabEnvironment, setLabEnvironmentAnalytical, updateEnvironmentForCamera, setEnvironmentQuality, COURT, disposeTree, buildBall } from '@/components/defense-lab/labEnvironment'
 import { configureWorldRenderer, createContactShadow } from '@/components/defense-lab/worldLook'
 import { createLabAthlete, loadGlbAthleteAsset } from '@/components/defense-lab/labAthlete'
 import { HIGH_PNR_PROBLEM } from '@/lib/defense-lab/scenario'
@@ -43,11 +43,11 @@ export default function WorldLookClient() {
   useEffect(() => {
     const container = host.current!
     const q = new URLSearchParams(window.location.search)
-    const quality = q.get('quality') === 'low' ? 'low' : 'high'
+    const quality = (['low', 'balanced'].includes(q.get('quality') ?? '') ? q.get('quality') : 'high') as 'high' | 'balanced' | 'low'
     const view = VIEWS[(q.get('view') as keyof typeof VIEWS) in VIEWS ? (q.get('view') as keyof typeof VIEWS) : 'broadcast']
     const analytical = Math.min(1, Math.max(0, Number(q.get('analytical') ?? 0) || 0))
     const style = (q.get('style') === 'spectral' ? 'spectral' : 'night') as 'night' | 'spectral'
-    const renderer = new THREE.WebGLRenderer({ antialias: quality === 'high', powerPreference: 'high-performance' })
+    const renderer = new THREE.WebGLRenderer({ antialias: quality !== 'low', powerPreference: 'high-performance' })
     renderer.setPixelRatio(1)
     configureWorldRenderer(renderer, quality)
     renderer.shadowMap.autoUpdate = false
@@ -57,6 +57,8 @@ export default function WorldLookClient() {
     const env = buildLabEnvironment(scene, renderer, false, () => { renderer.shadowMap.needsUpdate = true; dirty = true }, { quality })
     const controls = new OrbitControls(camera, canvas)
     controls.target.set(...(view.target as unknown as [number, number, number])); camera.position.set(...(view.eye as unknown as [number, number, number])); controls.update()
+    const then = q.get('then') as 'high' | 'balanced' | 'low' | null
+    if (then) setTimeout(() => { setEnvironmentQuality(env, renderer, then); dirty = true }, 12000)
     let dirty = true, disposed = false, raf = 0
     const athletes: ReturnType<typeof createLabAthlete>[] = []
     const ball = buildBall(); scene.add(ball)
@@ -64,7 +66,7 @@ export default function WorldLookClient() {
       if (disposed) return
       HIGH_PNR_PROBLEM.players.forEach((p, i) => {
         const a = createLabAthlete({ id: p.id, team: p.team, height: p.height, role: p.role }, i, ready)
-        a.setQuality(quality)
+        a.setQuality(quality === 'low' ? 'low' : 'high')
         a.root.position.set(p.start.x, 0, p.start.z)
         a.root.add(createContactShadow({ radius: 0.62 }))
         const toBall = Math.atan2(1.6 - p.start.x, 8.4 - p.start.z)

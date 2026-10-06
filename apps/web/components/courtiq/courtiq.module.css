@@ -277,3 +277,24 @@
 .soonRow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 14px; }
 .soonLabel { font: 700 10px var(--ui); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); margin-right: 4px; }
 .soonChip { font-size: 12px; color: var(--ink-3); border: 1px dashed var(--line-2); padding: 4px 9px; border-radius: 99px; }
+
+/* Full control: sectioned power-user panel */
+.fcSec { border-top: 1px solid var(--line); margin-top: 6px; }
+.fcSum { list-style: none; cursor: pointer; font: 700 10.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); padding: 11px 2px 9px; display: flex; justify-content: space-between; align-items: center; border-radius: 6px; }
+.fcSum::-webkit-details-marker { display: none; }
+.fcSum::after { content: '+'; color: var(--ink-3); font-size: 14px; }
+.fcSec[open] > .fcSum::after { content: '–'; }
+.fcSum:focus-visible, .fcSel:focus-visible, .fcDel:focus-visible, .fcChk:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fcRule { border: 1px solid var(--line); border-radius: 11px; padding: 4px 10px 10px; margin-bottom: 8px; background: rgba(255,255,255,.025); }
+.fcChk { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--ink); margin: 8px 0 2px; cursor: pointer; }
+.fcGrid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px 6px; align-items: center; font-size: 12px; color: var(--ink-2); }
+.fcGridHead { font: 700 9.5px var(--ui); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.fcSel { appearance: none; background: rgba(255,255,255,.05); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; font: 500 12px var(--ui); padding: 5px 6px; width: 100%; }
+.fcSel option { color: #111; }
+.fcBadge { font: 700 9px var(--ui); letter-spacing: .12em; text-transform: uppercase; color: var(--warn); border: 1px dashed var(--warn); border-radius: 99px; padding: 1px 7px; margin-left: 8px; }
+.fcStub { font-size: 12.5px; color: var(--ink-3); border: 1px dashed var(--line-2); border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; line-height: 1.4; }
+.fcCue { display: grid; grid-template-columns: 44px 1fr auto; gap: 8px; align-items: center; font-size: 12.5px; color: var(--ink-2); padding: 6px 0; border-bottom: 1px solid var(--line); }
+.fcCue b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.fcDel { appearance: none; border: 1px solid var(--line); background: rgba(255,255,255,.04); color: var(--ink-2); border-radius: 8px; font: 500 12px var(--ui); padding: 4px 9px; cursor: pointer; }
+.fcDel:hover { color: var(--warn); border-color: var(--warn); }
+.fcFired { font-weight: 700; }
