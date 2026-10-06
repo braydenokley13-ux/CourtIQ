@@ -1174,7 +1174,7 @@ function TrainPageInner() {
             data-attention={learnPhase === 'read' || learnPhase === 'choose' ? 'on' : 'off'}
           >
             <Scenario3DView
-              height={280}
+              height="min(72vh, 600px)"
               scene={scene}
               concept={isDecoder ? undefined : current.concept_tags.join(', ')}
               replayMode={replayMode}

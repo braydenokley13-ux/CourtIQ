@@ -66,31 +66,16 @@ export function isOrbitDebug(): boolean {
 }
 
 /**
- * V1 UX completion — pass-arrival camera shake gate.
- *
- * The pre-V1 imperative loop applied a damped sine offset to the
- * camera position on every `motion.consumePassArrival()` (amplitude
- * ~0.45 ft over 220 ms). The intent was a tactile "the ball
- * arrived" cue, but in practice the offset stacked on top of the
- * controller's eased lerp toward the camera target, reading as
- * jitter during replay legs that contained passes. The V1
- * stabilization report flagged it as a residual shake source, and
- * production now defaults the effect OFF.
- *
- * Set `?shake=1` to opt back in for dev / motion-design testing —
- * the dev override exists so QA can verify the pass-arrival hook
- * still fires deterministically on demand.
- *
- * SSR-safe: returns `false` when `window` is unavailable so the
- * imperative loop's first frame never runs the effect on the server.
+ * Pass-arrival camera shake is permanently disabled. The pre-V1
+ * imperative loop applied a damped sine offset on every
+ * `motion.consumePassArrival()`, but it stacked on top of the
+ * controller's eased lerp and read as jitter. The gate is kept so
+ * the existing shake code path in `Scenario3DCanvas` stays wired
+ * (preserving its structural tests) while always evaluating to
+ * `false` at runtime — no URL flag can re-enable it.
  */
 export function isCameraShakeEnabled(): boolean {
-  if (typeof window === 'undefined') return false
-  try {
-    return new URLSearchParams(window.location.search).get('shake') === '1'
-  } catch {
-    return false
-  }
+  return false
 }
 
 /**

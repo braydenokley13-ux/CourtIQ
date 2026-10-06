@@ -41,7 +41,9 @@ if (typeof window !== 'undefined' && isGlbAthletePreviewActive()) {
 interface Scenario3DViewProps {
   fallback: ReactNode
   children?: ReactNode
-  height?: number
+  /** Number treated as pixels; string passed through as a CSS length
+   *  (e.g. `'min(70vh, 560px)'`). */
+  height?: number | string
   className?: string
   scene?: Scene3D | null
   concept?: string

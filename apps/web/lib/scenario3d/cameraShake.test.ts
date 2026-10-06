@@ -1,14 +1,9 @@
 /* @vitest-environment jsdom */
 /**
- * V1 UX completion — pass-arrival camera shake gate.
- *
- * Pins the contract that the pre-V1 damped-sine shake on pass
- * arrival is OFF by default (so production users do not see jitter
- * stacking on top of the eased camera lerp during replay legs that
- * contain passes), and ON only when `?shake=1` is set on the URL.
- *
- * Pure feature-flag test — no canvas mount, no THREE.js. Just
- * exercises `isCameraShakeEnabled` against window.location.search.
+ * Pass-arrival camera shake is permanently disabled. Pins the
+ * contract that `isCameraShakeEnabled()` always returns `false`,
+ * regardless of URL flags, so no future packet accidentally
+ * re-enables the jitter.
  */
 
 import { describe, expect, it, beforeEach } from 'vitest'
@@ -22,7 +17,7 @@ function setSearch(search: string) {
   })
 }
 
-describe('V1 UX — pass-arrival camera shake is gated behind ?shake=1', () => {
+describe('camera shake is permanently disabled', () => {
   beforeEach(() => {
     setSearch('')
   })
@@ -38,9 +33,9 @@ describe('V1 UX — pass-arrival camera shake is gated behind ?shake=1', () => {
     expect(isCameraShakeEnabled()).toBe(false)
   })
 
-  it('returns true only when ?shake=1', () => {
+  it('returns false even when ?shake=1 is set (no opt-in path)', () => {
     setSearch('?shake=1')
-    expect(isCameraShakeEnabled()).toBe(true)
+    expect(isCameraShakeEnabled()).toBe(false)
   })
 
   it('returns false for anything other than ?shake=1', () => {
