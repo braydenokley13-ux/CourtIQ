@@ -35,8 +35,8 @@ void main(){
 void main(){
   float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.2);
   float scan = smoothstep(0.55, 0.9, 0.5 + 0.5 * sin(vY * 70.0 - uTime * 0.003));
-  float a = (0.16 + f * 0.7 + scan * 0.12) * uOpacity;
-  gl_FragColor = vec4(mix(uColor, vec3(1.0), f * 0.55), a);
+  float a = (0.1 + f * 0.62 + scan * 0.1) * uOpacity;
+  gl_FragColor = vec4(mix(uColor, vec3(1.0), f * 0.35), a);
 }`,
   })
 }

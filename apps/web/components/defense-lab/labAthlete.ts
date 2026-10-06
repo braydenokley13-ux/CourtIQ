@@ -141,7 +141,7 @@ function paintAtlas(spec: AtlasSpec) {
   g.addColorStop(0, 'rgba(255,255,255,.07)'); g.addColorStop(.55, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,.10)')
   ctx.fillStyle = g; ctx.fillRect(0, 128, 512, 384)
   // side panels: front panel edges (x 15..240) and back panel edges (x 273..497)
-  for (const [a, b] of [[10, 28], [228, 246], [266, 284], [484, 502]]) { ctx.fillStyle = kit.trim; ctx.fillRect(a, 128, b - a, 384) }
+  for (const [a, b] of [[13, 18], [238, 243], [269, 274], [490, 495]]) { ctx.fillStyle = kit.trim; ctx.fillRect(a, 128, b - a, 384) }
   ctx.fillStyle = mix(kit.body, kit.trim, .55); ctx.fillRect(0, 128, 512, 12)      // strap / yoke piping
   ctx.fillStyle = kit.trim; ctx.fillRect(0, 507, 512, 5)                   // hem piping
   

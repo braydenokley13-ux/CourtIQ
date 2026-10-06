@@ -3,9 +3,9 @@
     "case": "walk/jog/sprint forward",
     "speed": 1.2,
     "plantedFraction": 0.5,
-    "meanSkate": 0.038,
-    "p90Skate": 0.085,
-    "skateOverSpeed": 0.032
+    "meanSkate": 0.087,
+    "p90Skate": 0.234,
+    "skateOverSpeed": 0.072
   },
   {
     "case": "walk/jog/sprint forward",
@@ -19,9 +19,9 @@
     "case": "walk/jog/sprint forward",
     "speed": 3,
     "plantedFraction": 0.33,
-    "meanSkate": 0.079,
-    "p90Skate": 0.238,
-    "skateOverSpeed": 0.026
+    "meanSkate": 0.193,
+    "p90Skate": 0.449,
+    "skateOverSpeed": 0.064
   },
   {
     "case": "walk/jog/sprint forward",
@@ -35,17 +35,17 @@
     "case": "walk/jog/sprint forward",
     "speed": 5.5,
     "plantedFraction": 0.21,
-    "meanSkate": 0.135,
-    "p90Skate": 0.147,
-    "skateOverSpeed": 0.024
+    "meanSkate": 0.344,
+    "p90Skate": 1.039,
+    "skateOverSpeed": 0.062
   },
   {
     "case": "defensive chop/closeout forward",
     "speed": 1,
     "plantedFraction": 0.45,
-    "meanSkate": 0.017,
-    "p90Skate": 0.027,
-    "skateOverSpeed": 0.017
+    "meanSkate": 0.045,
+    "p90Skate": 0.209,
+    "skateOverSpeed": 0.045
   },
   {
     "case": "defensive chop/closeout forward",
@@ -59,25 +59,25 @@
     "case": "defensive chop/closeout forward",
     "speed": 3,
     "plantedFraction": 0.31,
-    "meanSkate": 0.066,
-    "p90Skate": 0.18,
-    "skateOverSpeed": 0.022
+    "meanSkate": 0.202,
+    "p90Skate": 0.56,
+    "skateOverSpeed": 0.067
   },
   {
     "case": "slide left",
     "speed": 1,
     "plantedFraction": 0.3,
-    "meanSkate": 0.015,
-    "p90Skate": 0.021,
-    "skateOverSpeed": 0.015
+    "meanSkate": 0.048,
+    "p90Skate": 0.199,
+    "skateOverSpeed": 0.048
   },
   {
     "case": "slide left",
     "speed": 1.8,
     "plantedFraction": 0.3,
-    "meanSkate": 0.023,
-    "p90Skate": 0.025,
-    "skateOverSpeed": 0.013
+    "meanSkate": 0.068,
+    "p90Skate": 0.373,
+    "skateOverSpeed": 0.038
   },
   {
     "case": "slide left",
@@ -91,33 +91,33 @@
     "case": "slide left",
     "speed": 3,
     "plantedFraction": 0.2,
-    "meanSkate": 0.083,
-    "p90Skate": 0.188,
-    "skateOverSpeed": 0.028
+    "meanSkate": 0.167,
+    "p90Skate": 0.61,
+    "skateOverSpeed": 0.056
   },
   {
     "case": "slide left",
     "speed": 3.6,
     "plantedFraction": 0.21,
-    "meanSkate": 0.258,
-    "p90Skate": 1.558,
-    "skateOverSpeed": 0.072
+    "meanSkate": 0.335,
+    "p90Skate": 1.555,
+    "skateOverSpeed": 0.093
   },
   {
     "case": "slide right",
     "speed": 1,
     "plantedFraction": 0.3,
-    "meanSkate": 0.014,
-    "p90Skate": 0.022,
-    "skateOverSpeed": 0.014
+    "meanSkate": 0.048,
+    "p90Skate": 0.2,
+    "skateOverSpeed": 0.048
   },
   {
     "case": "slide right",
     "speed": 1.8,
     "plantedFraction": 0.3,
-    "meanSkate": 0.023,
-    "p90Skate": 0.025,
-    "skateOverSpeed": 0.013
+    "meanSkate": 0.068,
+    "p90Skate": 0.373,
+    "skateOverSpeed": 0.038
   },
   {
     "case": "slide right",
@@ -131,40 +131,40 @@
     "case": "slide right",
     "speed": 3,
     "plantedFraction": 0.2,
-    "meanSkate": 0.083,
-    "p90Skate": 0.188,
-    "skateOverSpeed": 0.028
+    "meanSkate": 0.167,
+    "p90Skate": 0.61,
+    "skateOverSpeed": 0.056
   },
   {
     "case": "slide right",
     "speed": 3.6,
     "plantedFraction": 0.21,
-    "meanSkate": 0.256,
-    "p90Skate": 1.558,
-    "skateOverSpeed": 0.071
+    "meanSkate": 0.336,
+    "p90Skate": 1.556,
+    "skateOverSpeed": 0.093
   },
   {
     "case": "backpedal",
     "speed": 1,
     "plantedFraction": 0.4,
-    "meanSkate": 0.017,
-    "p90Skate": 0.023,
-    "skateOverSpeed": 0.017
+    "meanSkate": 0.038,
+    "p90Skate": 0.143,
+    "skateOverSpeed": 0.038
   },
   {
     "case": "backpedal",
     "speed": 2,
     "plantedFraction": 0.4,
-    "meanSkate": 0.032,
-    "p90Skate": 0.042,
-    "skateOverSpeed": 0.016
+    "meanSkate": 0.069,
+    "p90Skate": 0.27,
+    "skateOverSpeed": 0.034
   },
   {
     "case": "backpedal",
     "speed": 3,
     "plantedFraction": 0.4,
-    "meanSkate": 0.048,
-    "p90Skate": 0.061,
-    "skateOverSpeed": 0.016
+    "meanSkate": 0.097,
+    "p90Skate": 0.338,
+    "skateOverSpeed": 0.032
   }
 ]

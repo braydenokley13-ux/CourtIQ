@@ -501,6 +501,8 @@ export class WorldRuntime {
       const p = frame.players[pi]
       const a = this.athletes.get(p.id); if (!a) continue
       a.root.position.set(p.x, p.pose.jump, p.z)
+      // Full detail for the athletes the problem is about; the rest may use cheaper LOD.
+      a.setFocus?.(s.focus.length ? s.focus.includes(p.id) || p.id === s.selectedId || frame.ball.owner === p.id : undefined)
       a.setPose({ time: frame.t, speed: Math.hypot(p.vx, p.vz), velocity: { x: p.vx, z: p.vz }, defensive: p.team === 'defense', pose: poseIntent(frame, p), phase: p.pose.phase, hands: p.pose.hands, ball: frame.ball, hasBall: frame.ball.owner === p.id && frame.ball.phase !== 'pass', facing: p.yaw })
       const hidden = s.camera === 'player' && p.id === s.pov
       a.figure.visible = !hidden

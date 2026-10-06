@@ -3,6 +3,7 @@ import type { PlayerId, WorldFrame } from '@/lib/defense-lab/types'
 import type { CameraMode, WorldScene } from './types'
 
 const RIM = new THREE.Vector3(0, 3.05, 1.575)
+const ROOM_MIN_Z = -3.3
 const FOV = { director: 30, overhead: 34, baseline: 48, player: 66 } as const
 
 /** Director camera: frames the basketball problem (focus bodies + ball), not the
@@ -143,18 +144,28 @@ export class DirectorCamera {
     const safe = this.safe
     const sx = (safe.x0 + safe.x1) / 2, sy = (safe.y0 + safe.y1) / 2, sw = safe.x1 - safe.x0, sh = safe.y1 - safe.y0
     const v = this.v, right = this.right, upv = this.upv
+    // The eye must stay inside the gym: behind-the-defense angles are limited by the end wall.
+    const clampEye = () => {
+      const e = this.goalEye
+      if (dir.z < -0.05 && e.z < ROOM_MIN_Z) { dist = (ROOM_MIN_Z - target.z) / dir.z; e.copy(target).addScaledVector(dir, dist); return true }
+      return false
+    }
+    let need = 1, clamped = false
     for (let i = 0; i < 6; i++) {
       probe.position.copy(this.goalEye); probe.lookAt(target); probe.updateMatrixWorld()
       let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity
       for (const q of samples) { v.copy(q).project(probe); x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y) }
-      const need = Math.max((x1 - x0) / (sw * fillX), (y1 - y0) / (sh * fillY))
+      need = Math.max((x1 - x0) / (sw * fillX), (y1 - y0) / (sh * fillY))
       const halfH = dist * Math.tan(vfov / 2)
       right.set(1, 0, 0).applyQuaternion(probe.quaternion); upv.set(0, 1, 0).applyQuaternion(probe.quaternion)
       const shift = right.multiplyScalar(((x0 + x1) / 2 - sx) * halfH * cam.aspect).add(upv.multiplyScalar(((y0 + y1) / 2 - sy) * halfH))
       target.add(shift)
       dist = THREE.MathUtils.clamp(dist * (0.35 + 0.65 * need), minD, maxD)
       this.goalEye.copy(target).addScaledVector(dir, dist)
+      clamped = clampEye()
     }
+    // Pinned against the wall and still too big: open the lens instead of leaving the room.
+    if (clamped && need > 1.02) this.goalFov = Math.min(48, THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(vfov / 2) * need)))
   }
   private probe = new THREE.PerspectiveCamera()
   private v = new THREE.Vector3()

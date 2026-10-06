@@ -10,7 +10,7 @@ export const TONES: Record<Tone, string> = {
   defense: '#3fb0ff',
   offense: '#f2d48a',
   neutral: '#c9d3dc',
-  ghost: '#b9c7ff',
+  ghost: '#9db4ff',
   attack: '#ff3d6e',
   focus: '#ffffff',
   warn: '#ffe14d',
@@ -104,11 +104,11 @@ varying vec2 vUv; varying vec3 vW;
 void main(){
   float u = vUv.x, v = vUv.y;
   float edge = pow(1.0 - min(v, 1.0 - v) * 2.0, 4.0);
-  float a = 0.12 + edge * 0.85;
+  float a = 0.07 + edge * 0.8;
   vec3 col = uColor;
   float c = fract(u * uLen * 0.8 - uTime * 0.0012 - abs(v - 0.5) * 0.7);
   float chev = smoothstep(0.0, 0.08, c) * smoothstep(0.34, 0.22, c);
-  a += chev * 0.45 * (1.0 - uBlocked);
+  a += chev * 0.22 * (1.0 - uBlocked);
   if (uBlocked > 0.5) { float h = step(0.5, fract((u * uLen + v) * 2.6)); a = (0.05 + edge * 0.4) * (0.35 + 0.65 * h); }
   for (int i = 0; i < 3; i++) {
     vec2 k = uCut[i];
@@ -620,7 +620,7 @@ export class MarkLayer {
       u.uBall.value = mark.ballTime ?? -1
       const isl = u.uIsl.value as THREE.Vector3[]
       let ni = 0
-      for (const anchor of mark.islands ?? []) { const p = resolveAnchor(frame, anchor); if (p && ni < 3) isl[ni++].set(p.x, p.z, 1.15) }
+      for (const anchor of mark.islands ?? []) { const p = resolveAnchor(frame, anchor); if (p && ni < 3) isl[ni++].set(p.x, p.z, 1.6) }
       u.uNI.value = ni
     } else if (dynamic(mark)) {
       this.reshape(entry, frame, now)

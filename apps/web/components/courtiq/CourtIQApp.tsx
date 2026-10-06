@@ -182,8 +182,11 @@ export default function CourtIQApp() {
   const focus: PlayerId[] = useMemo(() => {
     if (tab === 'teach' && teach?.player) { const j = primaryJob(frame, teach.player); return [teach.player, ...(j ? [j.offensivePlayerId] : []), 'O1', 'O5'] }
     if (lab.phase === 'moment' && lab.moment) return lab.moment.involved
-    if (lab.phase === 'break-moment' && lab.attack?.selected.witness) { const w = lab.attack.selected.witness; return [...new Set([w.playerId, w.limitingDefenderId, lab.frame.ball.owner ?? 'O1'])] }
-    if (lab.phase === 'break-search') return lab.frame.players.map(p => p.id)
+    if (lab.phase === 'break-moment' && lab.attack?.selected.witness) { const w = lab.attack.selected.witness, at = lab.frame.players.find(p => p.id === w.playerId)
+      // The hole in context: the open man, the late defender, the ball, and the two other defenders nearest him.
+      const near = at ? lab.frame.players.filter(p => p.team === 'defense' && p.id !== w.limitingDefenderId).sort((a, b) => Math.hypot(a.x - at.x, a.z - at.z) - Math.hypot(b.x - at.x, b.z - at.z)).slice(0, 2).map(p => p.id) : []
+      return [...new Set([w.playerId, w.limitingDefenderId, lab.frame.ball.owner ?? 'O1', ...near])] }
+    if (lab.phase === 'break-search') { const b = lab.frame.ball; return [...lab.frame.players].sort((p, q) => Math.hypot(p.x - b.x, p.z - b.z) - Math.hypot(q.x - b.x, q.z - b.z)).slice(0, 7).map(p => p.id) }
     return []
   }, [tab, teach, frame, lab.phase, lab.moment, lab.attack, lab.frame])
 
@@ -193,7 +196,7 @@ export default function CourtIQApp() {
     pov: tab === 'teach' ? teach?.player : selected, selectedId: selected, hoverId: hover,
     highlight: tab === 'teach' && teach?.player ? [teach.player, ...(primaryJob(frame, teach.player) ? [primaryJob(frame, teach.player)!.offensivePlayerId] : []), frame.ball.owner ?? 'O1'] : null,
     playing: tab === 'teach' ? teachPlaying : ambient || lab.playing, live, editable: tab === 'lab' && entered && !inBreak, tagGuide,
-    rig: lab.phase === 'break-search' ? { azimuth: Math.PI + 0.28, elevation: 0.3, fov: 34, minDistance: 8 } : null,
+    rig: lab.phase === 'break-search' ? { azimuth: Math.PI + 0.28, elevation: 0.3, fov: 38, minDistance: 7 } : null,
     impact: lab.phase === 'break-moment' ? lab.attack?.selected.witness?.at ?? 1 : undefined,
     inset: ambient ? { left: Math.min(640, viewport.w * 0.45), top: 60 } : tab === 'lab' && entered && viewport.w > 820 ? { right: panelOpen ? 430 : 0, left: selected && !lab.playing && !inBreak ? 350 : 0, top: 150, bottom: 80 } : { top: 120, bottom: 150 },
   }), [viewport, panelOpen, frame, ghost, marks, lens, whyOn, focus, tab, teach, camera, selected, hover, teachPlaying, ambient, lab.playing, entered, inBreak, tagGuide, lab.phase, lab.attack, live])

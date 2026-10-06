@@ -92,7 +92,10 @@ export function lensMarks(lens: Lens, frame: WorldFrame, assumptions: ModelAssum
       const torn = tornJobs(frame, d.id)
       const young = frame.t - top.startedAt
       const flash = top.startedAt > 0.05 && young >= 0 && young < 0.6 ? 1 - young / 0.6 : 0
-      const tone: Tone = torn ? 'threat' : KIND_TONE[top.kind] ?? 'defense'
+      // Tension: a string stretched across the floor is a job he cannot hold.
+      const man = frame.players.find(q => q.id === top.offensivePlayerId)
+      const len = man ? Math.hypot(man.x - d.x, man.z - d.z) : 0
+      const tone: Tone = torn ? 'threat' : len > 4 ? 'threat' : len > 2.6 ? 'warn' : KIND_TONE[top.kind] === 'good' ? 'good' : 'defense'
       marks.push({ kind: 'tether', id: `own-${d.id}`, from: d.id, to: top.offensivePlayerId, tone, y: CHEST, sag: torn ? 0.14 : 0.04, width: d.id === selected ? 0.11 : 0.075, fray: !!torn, flash, opacity: 0.95 })
       if (torn) marks.push({ kind: 'tether', id: `own2-${d.id}`, from: d.id, to: torn[1].offensivePlayerId, tone: 'threat', y: CHEST + 0.08, sag: 0.16, width: 0.07, fray: true, opacity: 0.85 })
       // A transfer: the old string snaps loose while the new one whips tight.
@@ -232,8 +235,9 @@ export function divergenceLabels(before: SimulationResult, after: SimulationResu
     if (!q) continue
     const sep = Math.hypot(p.x - q.x, p.z - q.z)
     if (sep < 0.3) continue
-    const dz = p.z - q.z
-    const word = Math.abs(dz) > Math.abs(p.x - q.x) * 0.6 ? (dz > 0 ? 'higher' : 'deeper') : p.x > q.x ? 'right' : 'left'
+    // Where the other world's defender stands relative to where he stands now.
+    const dz = q.z - p.z, dx = q.x - p.x
+    const word = Math.abs(dz) > Math.abs(dx) * 0.6 ? (dz < 0 ? 'deeper' : 'higher') : dx > 0 ? 'to the right' : 'to the left'
     out.push({ anchor: `pt:${((p.x + q.x) / 2).toFixed(2)},${((p.z + q.z) / 2).toFixed(2)}`, text: `${sep.toFixed(1)} m ${word}` })
   }
   return out
@@ -288,7 +292,12 @@ export function lensLabels(lens: Lens, frame: WorldFrame, assumptions: ModelAssu
   const openOpt = frame.options.find(o => open.has(o.id))
   if (lens === 'ownership') {
     for (const p of frame.players) if (p.team === 'defense' && tornJobs(frame, p.id)) out.push({ anchor: p.id, text: 'Owes two jobs', tone: 'threat' })
-    if (openOpt) out.push({ anchor: openOpt.playerId, text: 'Nobody tied to him', tone: 'threat' })
+    if (openOpt) {
+      const jobs = frame.responsibilities.filter(r => r.offensivePlayerId === openOpt.playerId)
+      const owner = jobs.length ? frame.players.find(q => q.id === jobs[0].defenderId) : null, him = frame.players.find(q => q.id === openOpt.playerId)
+      const far = owner && him ? Math.hypot(owner.x - him.x, owner.z - him.z) : 0
+      out.push({ anchor: openOpt.playerId, text: owner && far > 2.6 ? `His string is ${far.toFixed(0)} m long` : 'Nobody tied to him', tone: 'threat' })
+    }
   } else if (lens === 'reach' && openOpt) {
     out.push({ anchor: openOpt.playerId, text: `Nobody there in ${ballClock(frame, assumptions, open).toFixed(1)} s`, tone: 'threat' })
   } else if (lens === 'passing') {

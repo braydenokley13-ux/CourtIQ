@@ -9,6 +9,25 @@ Built 2026-10-05 in Blender 4.3.2; motion/material revision v2 built 2026-10-06 
 - Local CourtIQ work: anatomical adaptation, sleeveless uniform pattern with a tailored shoulder yoke, contrast hems and waistband, shorts, sculpted shoe/sole/laces/sock geometry, scalp/eye treatment, materials, all thirteen basketball actions, LODs, optimization and runtime motion layering.
 - No commercial sports-game geometry, logos, athlete likenesses, third-party clothing or motion capture are included. The basketball motion is locally authored kinematic animation, not captured or measured biomechanics.
 
+## v3 revision (look, one draw call, runtime foot-lock) - 2026-10-06
+
+Build: `python3 scripts/athlete/build_studio_athlete.py` (about 70 s; `GEOMETRY_ONLY=1` stops after meshes and saves `source/lab-athlete-geometry.blend`; `python3 scripts/athlete/preview_geo.py out.png [pose=ready clip=jog p=0.3 debug=1]` renders a Cycles CPU sheet of the geometry with a test atlas). Geometry helpers live in `scripts/athlete/athlete_geo.py`.
+
+- **Body**: the MakeHuman base is reshaped (broader shoulders/traps, lats, pecs, narrower waist, thigh/calf/forearm volume) before anything is cut from it.
+- **Uniform**: the jersey is the athlete's own torso surface, boolean-cut to a tank top (clean neck and armholes, pinned during decimation), offset and solidified with a trim-coloured rim; the hem moves with the pelvis exactly like the shorts. Shorts are baggy leg tubes with a closed, rolled hem (no sliver). Shoes are chunkier lasted sneakers with laces and ankle socks.
+- **Faces/hair**: brows, eyes (sclera + iris) and mouth are conformed to the face surface; hair is a shell grown from the scalp with four styles (`crop`, `buzz`, `hightop`, `afro`; `bald` = none) selected per player (`AthleteAppearance.hair` or an id hash). Skin tones and hair colours are palette-driven.
+- **One draw call per athlete**: every part samples ONE 512x512 atlas (16 colour swatches + jersey front/back panels, layout in `athlete_geo.SWATCH`, also recorded in `CourtIQMotion.atlas`). The runtime paints the atlas per team / number / skin / hair / shoes (plus a roughness map) and merges the chosen hair into each LOD geometry. Baked per-vertex ambient occlusion (COLOR_0, computed in a defensive stance) supplies the form shading. Before: 8 skinned primitives per athlete (80 draw calls for ten). After: 1 (12 calls for ten athletes + floor + ball).
+- **LODs** on one skeleton: LOD0 15.5k tris, LOD1 5.3k, LOD2 2.5k. Mesh data is quantised in the optimizer (COLOR_0 u8, WEIGHTS_0 u16, TEXCOORD_0 u16, core glTF, no decoder needed). lab-athlete.glb 1.16 MB; lab-athlete-tactical.glb (LOD1 + hair) 0.60 MB.
+- **Quality tiers** (`setQuality('high'|'balanced'|'low')`): high = LOD0, physical material (sheen, roughness map), 2-iteration hand IK; balanced = LOD1, cheaper material; low = LOD2 + no shadow casting + half-rate skeleton/IK for unfocused athletes. The ball handler (or `setFocus(true)`) stays LOD1 and full rate in low. All tiers share one mixer.
+- **Foot-lock IK**: plant markers per foot per clip frame are baked into `CourtIQMotion.clips[*].plant`. The runtime blends them by clip weight, pins planted feet to the court (bounded drag, release on large turns) and solves two-bone leg IK, so blends, starts, stops and passes (the stepping foot is unplanted) do not skate. Measured locked-foot ground speed 0.002-0.25 m/s for walk / chop / slide / backpedal / sprint (`scripts/qa-local/athlete/plant.mjs`).
+- **Body mechanics**: heading vs facing picks forward / slide / backpedal sectors with wide dead zones; the residual angle becomes a hip yaw (root) with the chest and head counter-rotating toward the facing. Smoothed world acceleration leans the spine forward when accelerating, back and sinks the hips when braking, and leans into lateral acceleration (turns, cuts).
+- **Poses**: lower, more forward defensive stance (hip hinge 0.25 rad, chest 0.30), wider base, bent-elbow active hands, forward-lean slides / chops / backpedal, closeout high hand beside the head, passes and shots own the legs at low speed so the lead foot steps into the pass.
+- Fixes: ball hands bracket the ball (the original left hand crossed the chest), shorts crotch side no longer a flat see-through sheet.
+
+Validators: `node scripts/athlete/validate_studio_athlete.mjs`, `tsx scripts/athlete/validate_studio_runtime.ts` (determinism after scrubbing 2.6e-16, one visible skinned mesh per athlete) and `validate_foot_planting.ts`.
+
+Remaining: no cloth simulation; skin shading is a single material (no real SSS); hem fringe artifacts on some shorts at close range and a faint back-numeral ghost at the jersey side seam; faces have no expression; screens/fights are only as good as the single `screen_fight` loop; LOD2 loses the face.
+
 ## v2 revision (motion, footwork, materials)
 
 Pipeline: `python3 scripts/athlete/build_studio_athlete.py` (bpy 5.x or `blender -b --python`), then the validators below. Motion lives in `scripts/athlete/motion_lib.py` (procedural IK/FK authoring, still no mocap or third-party motion). `preview_clips.py` renders CPU contact sheets, `shot_studio.mjs` / `shot_sequence.mjs` screenshot the dev route `/dev/athlete-studio`.
@@ -33,7 +52,7 @@ Pipeline: `python3 scripts/athlete/build_studio_athlete.py` (bpy 5.x or `blender
 | `defense_slide_left/right`, `defense_slide_fast_left/right` | distance | push-step slides (0.9 m) and hop-slides (1.5 m), feet never cross |
 | `backpedal`, `chop` | distance | drop steps; low closeout chop steps |
 
-Sizes: lab-athlete.glb 935,528 B (LOD0 13,868 tris / LOD1 4,575 tris, 65 bones, 8 material primitives, 21 clips); lab-athlete-tactical.glb 432,900 B (LOD1 only). Draco/meshopt are not used.
+(v2 sizes superseded by v3 above.)
 
 Known limits: no secondary cloth motion; shorts hems are open tubes (thin sliver visible from below); faces are blank; cut_plant/screen_fight/skip_pass need the world to feed `pose: 'cut' | 'fight' | 'skip'`; slides above ~3.4 m/s skate slightly (cadence cap).
 

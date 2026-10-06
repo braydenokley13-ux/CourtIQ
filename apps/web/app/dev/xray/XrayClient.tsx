@@ -17,7 +17,7 @@ const INSETS = { panel: { right: 430, left: 0, top: 150, bottom: 80 }, none: {} 
 export default function XrayClient() {
   const config = useMemo(() => createDefaultConfig(), [])
   const result = useMemo(() => simulate(config), [config])
-  const alt = useMemo(() => simulate({ ...config, answer: { ...config.answer, tagDepth: Math.min(1, config.answer.tagDepth + 0.7) } }), [config])
+  const alt = useMemo(() => simulate({ ...config, answer: { ...config.answer, tagDepth: 0.15 } }), [config])
   const moment = useMemo(() => findTeachingMoment(result, analyze(result)), [result])
   const [state, setState] = useState<State>(() => {
     const q = typeof window === 'undefined' ? new URLSearchParams() : new URLSearchParams(window.location.search)
@@ -39,6 +39,14 @@ export default function XrayClient() {
         list.forEach((p, i) => setTimeout(() => setAttempts(a => [...a.filter(x => x.id !== p.id), p]), 600 + i * everyMs))
         setTimeout(() => setState(s => ({ ...s, phase: 'break-moment', t: report.current?.selected.witness?.at ?? s.t })), 1200 + list.length * everyMs)
         return { previews: list.length, witness: report.current?.selected.witness?.at ?? null }
+      },
+      /** Software GL runs ~1 fps, so damped cameras never settle in a still: jump to the goal pose. */
+      snap: () => {
+        const r = rt.current as unknown as { director: { rig: unknown; step(...a: unknown[]): void }; state: WorldScene; dirty: boolean } | null
+        if (!r) return false
+        r.director.rig = r.state.rig ?? null
+        r.director.step(r.state.camera, r.state.frame, r.state.focus, r.state.pov, 1, true); r.dirty = true
+        return true
       },
       dump: () => {
         const scene = (rt.current as { scene?: import('three').Scene } | null)?.scene
@@ -83,13 +91,17 @@ export default function XrayClient() {
   }, [state, frame, config, result, alt, moment, attempts, w])
   const focus = useMemo(() => {
     if (state.phase === 'moment' && moment) return moment.involved
-    if (state.phase === 'break-moment' && w) return [...new Set([w.playerId, w.limitingDefenderId, frame.ball.owner ?? 'O1'])] as never[]
-    if (state.phase === 'break-search') return frame.players.map(p => p.id)
+    if (state.phase === 'break-moment' && w) {
+      const at = frame.players.find(p => p.id === w.playerId)
+      const near = at ? frame.players.filter(p => p.team === 'defense' && p.id !== w.limitingDefenderId).sort((a, b) => Math.hypot(a.x - at.x, a.z - at.z) - Math.hypot(b.x - at.x, b.z - at.z)).slice(0, 2).map(p => p.id) : []
+      return [...new Set([w.playerId, w.limitingDefenderId, frame.ball.owner ?? 'O1', ...near])] as never[]
+    }
+    if (state.phase === 'break-search') { const b = frame.ball; return [...frame.players].sort((p, q) => Math.hypot(p.x - b.x, p.z - b.z) - Math.hypot(q.x - b.x, q.z - b.z)).slice(0, 7).map(p => p.id) as never[] }
     return state.lens !== 'normal' && moment ? moment.involved : []
   }, [state.phase, state.lens, moment, w, frame])
   const scene: WorldScene = useMemo(() => ({
     frame, ghost, marks, lens: state.lens, focus, camera: state.camera, pov: (state.pov as never) ?? 'D3', selectedId: null, playing: false, editable: false,
-    rig: state.phase === 'break-search' ? { azimuth: Math.PI + 0.28, elevation: 0.3, fov: 34, minDistance: 8 } : null,
+    rig: state.phase === 'break-search' ? { azimuth: Math.PI + 0.28, elevation: 0.3, fov: 38, minDistance: 7 } : null,
     impact: state.phase === 'break-moment' ? 1 : undefined,
     inset: INSETS[state.inset],
   }), [frame, ghost, marks, state, focus])
