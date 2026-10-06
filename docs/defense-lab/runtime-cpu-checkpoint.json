@@ -1,0 +1,276 @@
+{
+  "note": "Managed cloud CPU observations from Oct 5, 2026; not laptop or GPU certification. Before and after sample counts differ; repeat was measured during parallel production work.",
+  "before": {
+    "measurements": [
+      {
+        "name": "simulate-default",
+        "count": 20,
+        "medianMs": 72.26900799999999,
+        "p95Ms": 96.11373300000014
+      },
+      {
+        "name": "analyze-default",
+        "count": 20,
+        "medianMs": 5.15946699999995,
+        "p95Ms": 7.095348999999715
+      },
+      {
+        "name": "frameAt",
+        "count": 1000,
+        "medianMs": 0.003515000000334112,
+        "p95Ms": 0.004406999999901018
+      },
+      {
+        "name": "attack-28",
+        "count": 3,
+        "medianMs": 2308.425450999999,
+        "p95Ms": 2345.5204219999996
+      }
+    ],
+    "tradeoffs": [
+      {
+        "id": "drive",
+        "label": "Ball / drive",
+        "before": 1,
+        "after": 0.3,
+        "delta": -0.7,
+        "direction": "closes"
+      },
+      {
+        "id": "corner",
+        "label": "Weak corner",
+        "before": 0.3,
+        "after": 0,
+        "delta": -0.3,
+        "direction": "closes"
+      },
+      {
+        "id": "lift",
+        "label": "Weakside lift",
+        "before": 0.1,
+        "after": 0,
+        "delta": -0.1,
+        "direction": "closes"
+      },
+      {
+        "id": "roll",
+        "label": "Roller",
+        "before": 0,
+        "after": 0.15,
+        "delta": 0.15,
+        "direction": "opens"
+      },
+      {
+        "id": "pop",
+        "label": "Pop",
+        "before": 0,
+        "after": 0,
+        "delta": 0,
+        "direction": "similar"
+      },
+      {
+        "id": "strong",
+        "label": "Strong corner",
+        "before": 0,
+        "after": 0,
+        "delta": 0,
+        "direction": "similar"
+      }
+    ],
+    "decisions": [
+      "lift",
+      "corner",
+      "drive"
+    ],
+    "frameCount": 233,
+    "replayJsonBytes": 1494733
+  },
+  "after": {
+    "recordedAt": "2026-10-05T22:53:37.361Z",
+    "environment": {
+      "node": "v22.23.3",
+      "cpu": "AMD EPYC 9V74 80-Core Processor",
+      "platform": "linux",
+      "architecture": "x64",
+      "note": "Managed cloud CPU; not a normal-laptop or GPU certification."
+    },
+    "measurements": [
+      {
+        "name": "simulate-default-233-frames",
+        "samples": 30,
+        "medianMs": 18.5726,
+        "p95Ms": 22.6515
+      },
+      {
+        "name": "analyze-full-flight",
+        "samples": 30,
+        "medianMs": 6.8808,
+        "p95Ms": 7.8109
+      },
+      {
+        "name": "frameAt-interpolation",
+        "samples": 1000,
+        "medianMs": 0.0041,
+        "p95Ms": 0.0054
+      },
+      {
+        "name": "bounded-search-28",
+        "samples": 5,
+        "medianMs": 734.1072,
+        "p95Ms": 753.4981
+      },
+      {
+        "name": "cached-exact-replay",
+        "samples": 1000,
+        "medianMs": 0.0039,
+        "p95Ms": 0.0047
+      }
+    ],
+    "replay": {
+      "frameCount": 233,
+      "serializedBytes": 1495317,
+      "motionHz": 40,
+      "playerCount": 10,
+      "flightProbeMs": 5
+    },
+    "searchBudget": {
+      "limit": 28,
+      "used": 28,
+      "pruned": 6
+    },
+    "retainedCache": {
+      "entries": 1,
+      "retainedFrames": 233,
+      "hits": 1002,
+      "misses": 1,
+      "limits": {
+        "entries": 3,
+        "frames": 800
+      }
+    },
+    "deepReads": [
+      "lift",
+      "corner",
+      "drive"
+    ],
+    "shallowReads": [
+      "roll",
+      "drive"
+    ],
+    "measuredTradeoffs": [
+      {
+        "id": "lift",
+        "label": "Weakside lift",
+        "before": 0.1,
+        "after": 0,
+        "delta": -0.1,
+        "direction": "closes"
+      },
+      {
+        "id": "roll",
+        "label": "Roller",
+        "before": 0,
+        "after": 0.15,
+        "delta": 0.15,
+        "direction": "opens"
+      }
+    ]
+  },
+  "repeatWithClone": {
+    "recordedAt": "2026-10-05T22:56:14.471Z",
+    "environment": {
+      "node": "v22.23.3",
+      "cpu": "AMD EPYC 9V74 80-Core Processor",
+      "platform": "linux",
+      "architecture": "x64",
+      "note": "Managed cloud CPU; not a normal-laptop or GPU certification."
+    },
+    "measurements": [
+      {
+        "name": "simulate-default-233-frames",
+        "samples": 30,
+        "medianMs": 32.9858,
+        "p95Ms": 57.753
+      },
+      {
+        "name": "analyze-full-flight",
+        "samples": 30,
+        "medianMs": 10.346,
+        "p95Ms": 28.9404
+      },
+      {
+        "name": "frameAt-interpolation",
+        "samples": 1000,
+        "medianMs": 0.0024,
+        "p95Ms": 0.0051
+      },
+      {
+        "name": "structuredClone-replay",
+        "samples": 30,
+        "medianMs": 17.4448,
+        "p95Ms": 35.7395
+      },
+      {
+        "name": "bounded-search-28",
+        "samples": 5,
+        "medianMs": 1442.3133,
+        "p95Ms": 1988.5383
+      },
+      {
+        "name": "cached-exact-replay",
+        "samples": 1000,
+        "medianMs": 0.0053,
+        "p95Ms": 0.0062
+      }
+    ],
+    "replay": {
+      "frameCount": 233,
+      "serializedBytes": 1495317,
+      "motionHz": 40,
+      "playerCount": 10,
+      "flightProbeMs": 5
+    },
+    "searchBudget": {
+      "limit": 28,
+      "used": 28,
+      "pruned": 6
+    },
+    "retainedCache": {
+      "entries": 1,
+      "retainedFrames": 233,
+      "hits": 1002,
+      "misses": 1,
+      "limits": {
+        "entries": 3,
+        "frames": 800
+      }
+    },
+    "deepReads": [
+      "lift",
+      "corner",
+      "drive"
+    ],
+    "shallowReads": [
+      "roll",
+      "drive"
+    ],
+    "measuredTradeoffs": [
+      {
+        "id": "lift",
+        "label": "Weakside lift",
+        "before": 0.1,
+        "after": 0,
+        "delta": -0.1,
+        "direction": "closes"
+      },
+      {
+        "id": "roll",
+        "label": "Roller",
+        "before": 0,
+        "after": 0.15,
+        "delta": 0.15,
+        "direction": "opens"
+      }
+    ]
+  }
+}

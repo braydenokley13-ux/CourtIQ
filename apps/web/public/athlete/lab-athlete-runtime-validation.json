@@ -1,0 +1,9 @@
+{
+  "actors": 10,
+  "largestRepeatDifference": 0,
+  "lowestAnkle": 0.09519358407079653,
+  "oneSkeletonPerActor": true,
+  "independentlyOwnedResources": true,
+  "qualitySwitches": "passed",
+  "upperLowerMotionLayers": "passed"
+}

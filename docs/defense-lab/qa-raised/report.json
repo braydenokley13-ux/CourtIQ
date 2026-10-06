@@ -1,0 +1,864 @@
+{
+  "generatedAt": "2026-10-05T22:30:00.269Z",
+  "baseUrl": "http://localhost:3000",
+  "browser": "Chromium SwiftShader; real anonymous browser UI and observed worker reports. Engine recalculation checks coherence, not visual realism or physical hardware speed.",
+  "passed": true,
+  "steps": [
+    {
+      "name": "anonymous world-first first value",
+      "passed": true,
+      "evidence": {
+        "readyMs": 4980,
+        "screenshot": "/workspace/CourtIQ/docs/defense-lab/qa-raised/01-full-world.png"
+      }
+    },
+    {
+      "name": "Run freezes at exact 0.75 seconds",
+      "passed": true,
+      "evidence": {
+        "clock": "0.75s",
+        "screenshot": "/workspace/CourtIQ/docs/defense-lab/qa-raised/02-run-freeze.png"
+      }
+    },
+    {
+      "name": "direct D3 shallower coaching creates a timed rule",
+      "passed": true,
+      "evidence": {
+        "screenshot": "/workspace/CourtIQ/docs/defense-lab/qa-raised/03-selected-shallow.png",
+        "config": {
+          "problemId": "high-pnr-weakside-lift",
+          "seed": 2026,
+          "counter": "lift",
+          "answer": {
+            "coverage": "drop",
+            "poa": "over",
+            "bigDepth": 3.2,
+            "tag": true,
+            "tagDepth": 0.95,
+            "backside": "x-out",
+            "rotationTiming": "on-pass",
+            "recovery": "on-pass"
+          },
+          "assumptions": {
+            "dt": 0.025,
+            "duration": 5.8,
+            "maxSpeed": 4.7,
+            "acceleration": 6.2,
+            "reactionDelay": 0.2,
+            "passSpeed": 11.5,
+            "ballRadius": 0.12,
+            "bodyRadius": 0.28,
+            "contestRadius": 1.25,
+            "turnRate": 5,
+            "gatherTime": 0.26,
+            "readInterval": 0.15,
+            "gravity": 9.81,
+            "releaseHeight": 1.85
+          },
+          "interventions": [
+            {
+              "id": "4198d544-74b2-4689-b38b-b7223731d65f",
+              "at": 0.75,
+              "kind": "answer",
+              "patch": {
+                "tag": true,
+                "tagDepth": 0.25
+              }
+            }
+          ],
+          "opponent": {
+            "screenAngle": 0,
+            "liftDelay": 0,
+            "liftWidth": 0,
+            "reject": true,
+            "rescreen": false,
+            "shortRoll": true
+          }
+        }
+      }
+    },
+    {
+      "name": "Run this change freezes at exact 1.40 seconds",
+      "passed": true,
+      "evidence": {
+        "screenshot": "/workspace/CourtIQ/docs/defense-lab/qa-raised/04-rerun-freeze.png"
+      }
+    },
+    {
+      "name": "comparison uses same geometry and engine windows",
+      "passed": true,
+      "evidence": {
+        "text": "Before \u2192 Our revised answer\nTake the lift \u2192 Protect the roller\nSame opponent, seed and movement assumptions\nBall / drive\n1.00 \u2192 0.30s\nWeak corner\n0.30 \u2192 0.00s\nRoller\n0.00 \u2192 0.15s",
+        "tradeoffs": [
+          {
+            "id": "drive",
+            "label": "Ball / drive",
+            "before": 1,
+            "after": 0.3,
+            "delta": -0.7,
+            "direction": "closes"
+          },
+          {
+            "id": "corner",
+            "label": "Weak corner",
+            "before": 0.3,
+            "after": 0,
+            "delta": -0.3,
+            "direction": "closes"
+          },
+          {
+            "id": "lift",
+            "label": "Weakside lift",
+            "before": 0.1,
+            "after": 0,
+            "delta": -0.1,
+            "direction": "closes"
+          },
+          {
+            "id": "roll",
+            "label": "Roller",
+            "before": 0,
+            "after": 0.15,
+            "delta": 0.15,
+            "direction": "opens"
+          },
+          {
+            "id": "pop",
+            "label": "Pop",
+            "before": 0,
+            "after": 0,
+            "delta": 0,
+            "direction": "similar"
+          },
+          {
+            "id": "strong",
+            "label": "Strong corner",
+            "before": 0,
+            "after": 0,
+            "delta": 0,
+            "direction": "similar"
+          }
+        ],
+        "screenshot": "/workspace/CourtIQ/docs/defense-lab/qa-raised/05-same-geometry-comparison.png"
+      }
+    },
+    {
+      "name": "Break My Defense executes worker and freezes witnessed predicate",
+      "passed": true,
+      "evidence": {
+        "selectedChanges": [
+          {
+            "parameter": "screenAngle",
+            "before": 0,
+            "after": 0.325,
+            "label": "Screen angle"
+          }
+        ],
+        "witness": {
+          "at": 2.85,
+          "interval": {
+            "start": 2.85,
+            "end": 3.325
+          },
+          "threatId": "drive",
+          "playerId": "O5",
+          "limitingDefenderId": "D1",
+          "limitingRole": "poa",
+          "target": {
+            "x": 2.611605675068797,
+            "z": 2.5894466974226193
+          },
+          "defenderPosition": {
+            "x": -1.0941547305630843,
+            "z": 4.714158127448466
+          },
+          "arrivalSeconds": 0.7796983141339453,
+          "releaseSeconds": 0.6400000000000002,
+          "readAvailableAt": 3.1100000000000003,
+          "leadSeconds": 0.13969831413394507,
+          "passClearance": null,
+          "chain": [
+            {
+              "t": 0.275,
+              "type": "screen",
+              "label": "Handler enters the screen encounter",
+              "playerId": "O5",
+              "details": "Observed body encounter at 0.07 s; this is not a certified contact or legality call.",
+              "id": "event-0"
+            },
+            {
+              "t": 0.75,
+              "type": "tag",
+              "label": "Low man commits to the roll",
+              "playerId": "D3",
+              "targetId": "O5",
+              "threatId": "roll",
+              "id": "event-2"
+            },
+            {
+              "t": 0.75,
+              "type": "transfer",
+              "label": "3 takes roll",
+              "playerId": "D3",
+              "targetId": "O5",
+              "threatId": "roll",
+              "details": "Roller enters weakside help",
+              "id": "event-3"
+            },
+            {
+              "t": 0.875,
+              "type": "counter",
+              "label": "Low help commits \u2192 lift behind the tag",
+              "details": "Observed at 0.68 s: screen action is present; ballhandler controls the ball; screener vz: -0.95; lowMan vx: 0.76; lowMan relative to weakCorner x: 3.91 m.",
+              "id": "event-4"
+            },
+            {
+              "t": 2.1,
+              "type": "read",
+              "label": "Offense reads \u2192 roll",
+              "playerId": "O1",
+              "targetId": "O5",
+              "threatId": "roll",
+              "details": "The roller offers the larger modeled catch-and-read opportunity than corner. The read uses current defenders and offensive intent.",
+              "id": "event-5"
+            },
+            {
+              "t": 2.1,
+              "type": "pass",
+              "label": "Lob \u2192 roll",
+              "playerId": "O1",
+              "targetId": "O5",
+              "threatId": "roll",
+              "details": "Ball endpoint fixed at release; launch shape chosen from present body geometry, never future frames.",
+              "id": "event-6"
+            },
+            {
+              "t": 2.325,
+              "type": "transfer",
+              "label": "3 takes corner",
+              "playerId": "D3",
+              "targetId": "O3",
+              "threatId": "corner",
+              "details": "Low man recovers to corner",
+              "id": "event-7"
+            },
+            {
+              "t": 2.325,
+              "type": "transfer",
+              "label": "5 takes roll",
+              "playerId": "D5",
+              "targetId": "O5",
+              "threatId": "roll",
+              "details": "Recover to the screener",
+              "id": "event-8"
+            },
+            {
+              "t": 2.85,
+              "type": "catch",
+              "label": "Catch \u2192 read the closeout",
+              "playerId": "O5",
+              "id": "event-9"
+            }
+          ],
+          "decision": {
+            "t": 2.1,
+            "nodeId": "handler-read",
+            "actorId": "O1",
+            "selected": "roll",
+            "reason": "The roller offers the larger modeled catch-and-read opportunity than corner. The read uses current defenders and offensive intent.",
+            "candidates": [
+              {
+                "threatId": "roll",
+                "playerId": "O5",
+                "available": true,
+                "clearance": 2.2406749638075514,
+                "arrivalGap": 0.09865795695991497,
+                "value": 0.6586579569599149
+              },
+              {
+                "threatId": "lift",
+                "playerId": "O4",
+                "available": true,
+                "clearance": 0.7034157814066774,
+                "arrivalGap": -0.6169985464618974,
+                "value": -0.35479359957749684
+              },
+              {
+                "threatId": "corner",
+                "playerId": "O3",
+                "available": true,
+                "clearance": 0.5910792506856095,
+                "arrivalGap": -0.1139952631433605,
+                "value": 0.18146949189777606
+              },
+              {
+                "threatId": "drive",
+                "playerId": "O1",
+                "available": true,
+                "clearance": 1,
+                "arrivalGap": -0.35,
+                "value": -0.25
+              },
+              {
+                "threatId": "pop",
+                "playerId": "O5",
+                "available": false,
+                "clearance": 2.2406749638075514,
+                "arrivalGap": 0.09865795695991497,
+                "value": 0.418657956959915
+              }
+            ]
+          },
+          "conditional": false,
+          "explanation": "Ball / drive is available from 2.85\u20133.33 s. D1 (poa) is the earliest modeled closeout: 0.78 s against a 0.64 s horizon to the next permitted release."
+        },
+        "budget": {
+          "limit": 28,
+          "used": 28,
+          "pruned": 6
+        },
+        "screenshot": "/workspace/CourtIQ/docs/defense-lab/qa-raised/06-break-witness.png"
+      }
+    },
+    {
+      "name": "change and stress again pairs the actual previous opponent",
+      "passed": true,
+      "evidence": {
+        "paired": {
+          "previous": {
+            "id": "attack-2",
+            "changes": [
+              {
+                "parameter": "screenAngle",
+                "before": 0,
+                "after": 0.325,
+                "label": "Screen angle"
+              }
+            ],
+            "opponent": {
+              "screenAngle": 0.325,
+              "liftDelay": 0,
+              "liftWidth": 0,
+              "reject": true,
+              "rescreen": false,
+              "shortRoll": true
+            },
+            "witness": {
+              "at": 2.85,
+              "interval": {
+                "start": 2.85,
+                "end": 3.325
+              },
+              "threatId": "drive",
+              "playerId": "O5",
+              "limitingDefenderId": "D1",
+              "limitingRole": "poa",
+              "target": {
+                "x": 2.611605675068797,
+                "z": 2.5894466974226193
+              },
+              "defenderPosition": {
+                "x": -1.0941547305630843,
+                "z": 4.714158127448466
+              },
+              "arrivalSeconds": 0.7796983141339453,
+              "releaseSeconds": 0.6400000000000002,
+              "readAvailableAt": 3.1100000000000003,
+              "leadSeconds": 0.13969831413394507,
+              "passClearance": null,
+              "chain": [
+                {
+                  "t": 0.275,
+                  "type": "screen",
+                  "label": "Handler enters the screen encounter",
+                  "playerId": "O5",
+                  "details": "Observed body encounter at 0.07 s; this is not a certified contact or legality call.",
+                  "id": "event-0"
+                },
+                {
+                  "t": 0.75,
+                  "type": "tag",
+                  "label": "Low man commits to the roll",
+                  "playerId": "D3",
+                  "targetId": "O5",
+                  "threatId": "roll",
+                  "id": "event-2"
+                },
+                {
+                  "t": 0.75,
+                  "type": "transfer",
+                  "label": "3 takes roll",
+                  "playerId": "D3",
+                  "targetId": "O5",
+                  "threatId": "roll",
+                  "details": "Roller enters weakside help",
+                  "id": "event-3"
+                },
+                {
+                  "t": 0.875,
+                  "type": "counter",
+                  "label": "Low help commits \u2192 lift behind the tag",
+                  "details": "Observed at 0.68 s: screen action is present; ballhandler controls the ball; screener vz: -0.95; lowMan vx: 0.76; lowMan relative to weakCorner x: 3.91 m.",
+                  "id": "event-4"
+                },
+                {
+                  "t": 2.1,
+                  "type": "read",
+                  "label": "Offense reads \u2192 roll",
+                  "playerId": "O1",
+                  "targetId": "O5",
+                  "threatId": "roll",
+                  "details": "The roller offers the larger modeled catch-and-read opportunity than corner. The read uses current defenders and offensive intent.",
+                  "id": "event-5"
+                },
+                {
+                  "t": 2.1,
+                  "type": "pass",
+                  "label": "Lob \u2192 roll",
+                  "playerId": "O1",
+                  "targetId": "O5",
+                  "threatId": "roll",
+                  "details": "Ball endpoint fixed at release; launch shape chosen from present body geometry, never future frames.",
+                  "id": "event-6"
+                },
+                {
+                  "t": 2.325,
+                  "type": "transfer",
+                  "label": "3 takes corner",
+                  "playerId": "D3",
+                  "targetId": "O3",
+                  "threatId": "corner",
+                  "details": "Low man recovers to corner",
+                  "id": "event-7"
+                },
+                {
+                  "t": 2.325,
+                  "type": "transfer",
+                  "label": "5 takes roll",
+                  "playerId": "D5",
+                  "targetId": "O5",
+                  "threatId": "roll",
+                  "details": "Recover to the screener",
+                  "id": "event-8"
+                },
+                {
+                  "t": 2.85,
+                  "type": "catch",
+                  "label": "Catch \u2192 read the closeout",
+                  "playerId": "O5",
+                  "id": "event-9"
+                }
+              ],
+              "decision": {
+                "t": 2.1,
+                "nodeId": "handler-read",
+                "actorId": "O1",
+                "selected": "roll",
+                "reason": "The roller offers the larger modeled catch-and-read opportunity than corner. The read uses current defenders and offensive intent.",
+                "candidates": [
+                  {
+                    "threatId": "roll",
+                    "playerId": "O5",
+                    "available": true,
+                    "clearance": 2.2406749638075514,
+                    "arrivalGap": 0.09865795695991497,
+                    "value": 0.6586579569599149
+                  },
+                  {
+                    "threatId": "lift",
+                    "playerId": "O4",
+                    "available": true,
+                    "clearance": 0.7034157814066774,
+                    "arrivalGap": -0.6169985464618974,
+                    "value": -0.35479359957749684
+                  },
+                  {
+                    "threatId": "corner",
+                    "playerId": "O3",
+                    "available": true,
+                    "clearance": 0.5910792506856095,
+                    "arrivalGap": -0.1139952631433605,
+                    "value": 0.18146949189777606
+                  },
+                  {
+                    "threatId": "drive",
+                    "playerId": "O1",
+                    "available": true,
+                    "clearance": 1,
+                    "arrivalGap": -0.35,
+                    "value": -0.25
+                  },
+                  {
+                    "threatId": "pop",
+                    "playerId": "O5",
+                    "available": false,
+                    "clearance": 2.2406749638075514,
+                    "arrivalGap": 0.09865795695991497,
+                    "value": 0.418657956959915
+                  }
+                ]
+              },
+              "conditional": false,
+              "explanation": "Ball / drive is available from 2.85\u20133.33 s. D1 (poa) is the earliest modeled closeout: 0.78 s against a 0.64 s horizon to the next permitted release."
+            },
+            "warnings": [],
+            "longestWindow": 0.475,
+            "editDistance": 0.25
+          },
+          "current": {
+            "id": "retest",
+            "opponent": {
+              "screenAngle": 0.325,
+              "liftDelay": 0,
+              "liftWidth": 0,
+              "reject": true,
+              "rescreen": false,
+              "shortRoll": true
+            },
+            "config": {
+              "problemId": "high-pnr-weakside-lift",
+              "seed": 2026,
+              "counter": "lift",
+              "answer": {
+                "coverage": "drop",
+                "poa": "over",
+                "bigDepth": 3.2,
+                "tag": true,
+                "tagDepth": 0.95,
+                "backside": "x-out",
+                "rotationTiming": "on-pass",
+                "recovery": "on-pass"
+              },
+              "assumptions": {
+                "dt": 0.025,
+                "duration": 5.8,
+                "maxSpeed": 4.7,
+                "acceleration": 6.2,
+                "reactionDelay": 0.2,
+                "passSpeed": 11.5,
+                "ballRadius": 0.12,
+                "bodyRadius": 0.28,
+                "contestRadius": 1.25,
+                "turnRate": 5,
+                "gatherTime": 0.26,
+                "readInterval": 0.15,
+                "gravity": 9.81,
+                "releaseHeight": 1.85
+              },
+              "interventions": [
+                {
+                  "id": "4198d544-74b2-4689-b38b-b7223731d65f",
+                  "at": 0.75,
+                  "kind": "answer",
+                  "patch": {
+                    "tag": true,
+                    "tagDepth": 0.25
+                  }
+                },
+                {
+                  "id": "d05a399f-4826-4905-ad24-ae32f5a9ca90",
+                  "at": 2.85,
+                  "kind": "answer",
+                  "patch": {
+                    "tag": false
+                  }
+                }
+              ],
+              "opponent": {
+                "screenAngle": 0.325,
+                "liftDelay": 0,
+                "liftWidth": 0,
+                "reject": true,
+                "rescreen": false,
+                "shortRoll": true
+              }
+            },
+            "witness": {
+              "at": 2.85,
+              "interval": {
+                "start": 2.85,
+                "end": 3.325
+              },
+              "threatId": "drive",
+              "playerId": "O5",
+              "limitingDefenderId": "D1",
+              "limitingRole": "poa",
+              "target": {
+                "x": 2.611605675068797,
+                "z": 2.5894466974226193
+              },
+              "defenderPosition": {
+                "x": -1.0941547305630843,
+                "z": 4.714158127448466
+              },
+              "arrivalSeconds": 0.7796983141339453,
+              "releaseSeconds": 0.6400000000000002,
+              "readAvailableAt": 3.1100000000000003,
+              "leadSeconds": 0.13969831413394507,
+              "passClearance": null,
+              "chain": [
+                {
+                  "t": 0.275,
+                  "type": "screen",
+                  "label": "Handler enters the screen encounter",
+                  "playerId": "O5",
+                  "details": "Observed body encounter at 0.07 s; this is not a certified contact or legality call.",
+                  "id": "event-0"
+                },
+                {
+                  "t": 0.75,
+                  "type": "tag",
+                  "label": "Low man commits to the roll",
+                  "playerId": "D3",
+                  "targetId": "O5",
+                  "threatId": "roll",
+                  "id": "event-2"
+                },
+                {
+                  "t": 0.75,
+                  "type": "transfer",
+                  "label": "3 takes roll",
+                  "playerId": "D3",
+                  "targetId": "O5",
+                  "threatId": "roll",
+                  "details": "Roller enters weakside help",
+                  "id": "event-3"
+                },
+                {
+                  "t": 0.875,
+                  "type": "counter",
+                  "label": "Low help commits \u2192 lift behind the tag",
+                  "details": "Observed at 0.68 s: screen action is present; ballhandler controls the ball; screener vz: -0.95; lowMan vx: 0.76; lowMan relative to weakCorner x: 3.91 m.",
+                  "id": "event-4"
+                },
+                {
+                  "t": 2.1,
+                  "type": "read",
+                  "label": "Offense reads \u2192 roll",
+                  "playerId": "O1",
+                  "targetId": "O5",
+                  "threatId": "roll",
+                  "details": "The roller offers the larger modeled catch-and-read opportunity than corner. The read uses current defenders and offensive intent.",
+                  "id": "event-5"
+                },
+                {
+                  "t": 2.1,
+                  "type": "pass",
+                  "label": "Lob \u2192 roll",
+                  "playerId": "O1",
+                  "targetId": "O5",
+                  "threatId": "roll",
+                  "details": "Ball endpoint fixed at release; launch shape chosen from present body geometry, never future frames.",
+                  "id": "event-6"
+                },
+                {
+                  "t": 2.325,
+                  "type": "transfer",
+                  "label": "3 takes corner",
+                  "playerId": "D3",
+                  "targetId": "O3",
+                  "threatId": "corner",
+                  "details": "Low man recovers to corner",
+                  "id": "event-7"
+                },
+                {
+                  "t": 2.325,
+                  "type": "transfer",
+                  "label": "5 takes roll",
+                  "playerId": "D5",
+                  "targetId": "O5",
+                  "threatId": "roll",
+                  "details": "Recover to the screener",
+                  "id": "event-8"
+                },
+                {
+                  "t": 2.85,
+                  "type": "catch",
+                  "label": "Catch \u2192 read the closeout",
+                  "playerId": "O5",
+                  "id": "event-10"
+                }
+              ],
+              "decision": {
+                "t": 2.1,
+                "nodeId": "handler-read",
+                "actorId": "O1",
+                "selected": "roll",
+                "reason": "The roller offers the larger modeled catch-and-read opportunity than corner. The read uses current defenders and offensive intent.",
+                "candidates": [
+                  {
+                    "threatId": "roll",
+                    "playerId": "O5",
+                    "available": true,
+                    "clearance": 2.2406749638075514,
+                    "arrivalGap": 0.09865795695991497,
+                    "value": 0.6586579569599149
+                  },
+                  {
+                    "threatId": "lift",
+                    "playerId": "O4",
+                    "available": true,
+                    "clearance": 0.7034157814066774,
+                    "arrivalGap": -0.6169985464618974,
+                    "value": -0.35479359957749684
+                  },
+                  {
+                    "threatId": "corner",
+                    "playerId": "O3",
+                    "available": true,
+                    "clearance": 0.5910792506856095,
+                    "arrivalGap": -0.1139952631433605,
+                    "value": 0.18146949189777606
+                  },
+                  {
+                    "threatId": "drive",
+                    "playerId": "O1",
+                    "available": true,
+                    "clearance": 1,
+                    "arrivalGap": -0.35,
+                    "value": -0.25
+                  },
+                  {
+                    "threatId": "pop",
+                    "playerId": "O5",
+                    "available": false,
+                    "clearance": 2.2406749638075514,
+                    "arrivalGap": 0.09865795695991497,
+                    "value": 0.418657956959915
+                  }
+                ]
+              },
+              "conditional": false,
+              "explanation": "Ball / drive is available from 2.85\u20133.33 s. D1 (poa) is the earliest modeled closeout: 0.78 s against a 0.64 s horizon to the next permitted release."
+            }
+          },
+          "sameExperiment": true,
+          "explanation": "Previous attack replayed against your current answer with the same seed, starting geometry and assumptions."
+        },
+        "screenshot": "/workspace/CourtIQ/docs/defense-lab/qa-raised/07-paired-retest.png"
+      }
+    },
+    {
+      "name": "keyboard nudge preserves prefix and moves without teleport",
+      "passed": true,
+      "evidence": {
+        "cue": {
+          "id": "4a10ac56-a152-4757-8ba9-7b620b465c24",
+          "at": 1.4000000000000001,
+          "kind": "move",
+          "playerId": "D3",
+          "target": {
+            "x": -3.5662581500017714,
+            "z": 1.7725003282430425
+          },
+          "untilTrigger": "ball-leaves"
+        },
+        "prefixFrames": 56,
+        "instantDisplacement": 0,
+        "screenshot": "/workspace/CourtIQ/docs/defense-lab/qa-raised/08-movement-cue.png"
+      }
+    },
+    {
+      "name": "reload restores complete saved config",
+      "passed": true,
+      "evidence": {
+        "screenshot": "/workspace/CourtIQ/docs/defense-lab/qa-raised/09-reloaded-exact-answer.png"
+      }
+    },
+    {
+      "name": "Teach uses saved revision and primary then conditional jobs",
+      "passed": true,
+      "evidence": {
+        "primary": {
+          "id": "D3:roll:tag",
+          "defenderId": "D3",
+          "threatId": "roll",
+          "offensivePlayerId": "O5",
+          "kind": "tag",
+          "target": {
+            "x": -4.374220932890443,
+            "z": 1.9608513986905802
+          },
+          "priority": 1.5,
+          "trigger": "Roller enters weakside help",
+          "startedAt": 0.75,
+          "influenceRadius": 1.25
+        },
+        "job": "Protect the roller",
+        "screenshot": "/workspace/CourtIQ/docs/defense-lab/qa-raised/10-teach-primary-job.png",
+        "draftRestored": true
+      }
+    },
+    {
+      "name": "supported coaching preview is explicit; arbitrary text remains disabled",
+      "passed": true,
+      "evidence": {
+        "screenshot": "/workspace/CourtIQ/docs/defense-lab/qa-raised/11-supported-coaching.png"
+      }
+    },
+    {
+      "name": "mobile controls fit and modal keyboard Escape works",
+      "passed": true,
+      "evidence": {
+        "focus": {
+          "tag": "INPUT",
+          "left": 31,
+          "right": 359
+        },
+        "screenshot": "/workspace/CourtIQ/docs/defense-lab/qa-raised/12-mobile.png"
+      }
+    },
+    {
+      "name": "invalid import produces feedback and preserves answer collection",
+      "passed": true,
+      "evidence": {
+        "text": [
+          "Answer data is not supported: format \u2014 Invalid literal value, expected \"courtiq-defense-lab-answers\""
+        ],
+        "before": 4
+      }
+    },
+    {
+      "name": "storage failure preserves in-memory answer and offers export",
+      "passed": true,
+      "evidence": {
+        "download": "courtiq-team-answers.json",
+        "screenshot": "/workspace/CourtIQ/docs/defense-lab/qa-raised/13-storage-fallback.png"
+      }
+    },
+    {
+      "name": "no browser runtime errors",
+      "passed": true,
+      "evidence": {
+        "errors": [],
+        "warnings": [
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.WebGLShadowMap: PCFSoftShadowMap has been deprecated. Using PCFShadowMap instead.",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.WebGLShadowMap: PCFSoftShadowMap has been deprecated. Using PCFShadowMap instead."
+        ],
+        "failedRequests": []
+      }
+    }
+  ],
+  "errors": [],
+  "warnings": [
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.WebGLShadowMap: PCFSoftShadowMap has been deprecated. Using PCFShadowMap instead.",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.WebGLShadowMap: PCFSoftShadowMap has been deprecated. Using PCFShadowMap instead."
+  ],
+  "failedRequests": []
+}

@@ -41,7 +41,10 @@ function PostHogPageView() {
 }
 
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
+  const publicLab = pathname === '/' || pathname === '/lab'
   useEffect(() => {
+    if (publicLab) return
     const key = process.env.NEXT_PUBLIC_POSTHOG_KEY
     if (!key) return
     posthog.init(key, {
@@ -52,12 +55,13 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
         if (process.env.NODE_ENV === 'development') ph.debug()
       },
     })
-  }, [])
+  }, [publicLab])
 
   // Tie the PostHog identity to the Supabase session so events downstream are
   // attached to a real user. PII guardrail (ARCHITECTURE.md §10): only email +
   // display_name are sent as traits.
   useEffect(() => {
+    if (publicLab) return
     const supabase = createClient()
 
     supabase.auth.getSession().then(({ data }) => {
@@ -84,7 +88,9 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     })
 
     return () => subscription.unsubscribe()
-  }, [])
+  }, [publicLab])
+
+  if (publicLab) return <>{children}</>
 
   return (
     <PHProvider client={posthog}>

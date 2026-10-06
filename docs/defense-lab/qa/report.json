@@ -1,0 +1,216 @@
+{
+  "generatedAt": "2026-10-05T22:01:20.787Z",
+  "baseUrl": "http://localhost:3000",
+  "browser": "Chromium with SwiftShader in managed cloud; visual/performance evidence is not a physical laptop benchmark",
+  "passed": false,
+  "steps": [
+    {
+      "name": "zero-film anonymous first value",
+      "passed": true,
+      "evidence": {
+        "firstValueReadyMs": 6777,
+        "screenshot": "docs/defense-lab/qa/01-first-value.png"
+      }
+    },
+    {
+      "name": "run pauses at the defensive stress point",
+      "passed": false,
+      "error": "Error: expect(locator).toContainText(expected) failed\n\nLocator: getByTestId('lab-clock')\nExpected substring: \"0.75\"\nReceived string:    \"0.76s\"\nTimeout: 5000ms\n\nCall log:\n  - Expect \"to.have.text\" with timeout 5000ms\n  - waiting for getByTestId('lab-clock')\n    9 × locator resolved to <span data-testid=\"lab-clock\" class=\"DefenseLab_timeLabel__PEJzQ\">…</span>\n      - unexpected value \"0.76s\"\n"
+    },
+    {
+      "name": "X-ray reveals selectable responsibility evidence",
+      "passed": true,
+      "evidence": {
+        "screenshots": [
+          "docs/defense-lab/qa/03-responsibility-xray.png",
+          "docs/defense-lab/qa/04-passing-window-xray.png"
+        ]
+      }
+    },
+    {
+      "name": "frame stepping changes modeled time without starting playback",
+      "passed": false,
+      "error": "Error: expect(locator).toContainText(expected) failed\n\nLocator: getByTestId('lab-clock')\nExpected substring: \"0.78\"\nReceived string:    \"0.79s\"\nTimeout: 5000ms\n\nCall log:\n  - Expect \"to.have.text\" with timeout 5000ms\n  - waiting for getByTestId('lab-clock')\n    7 × locator resolved to <span data-testid=\"lab-clock\" class=\"DefenseLab_timeLabel__PEJzQ\">…</span>\n      - unexpected value \"0.79s\"\n"
+    },
+    {
+      "name": "shallower tag becomes a timed basketball rule adjustment",
+      "passed": false,
+      "error": "Error: expect(locator).toContainText(expected) failed\n\nLocator: getByTestId('lab-insight')\nExpected substring: \"FROM 0.75 s\"\nReceived string:    \"YOUR CHANGE / FROM 0.78 sA different answer. A different tradeoff.Weakside lift closes by 1.0 s; roller opens by 0.1 s.Why? Try a shallower tag \"\nTimeout: 5000ms\n\nCall log:\n  - Expect \"to.have.text\" with timeout 5000ms\n  - waiting for getByTestId('lab-insight')\n    8 × locator resolved to <div data-testid=\"lab-insight\" class=\"DefenseLab_insight__CLD1H\">…</div>\n      - unexpected value \"YOUR CHANGE / FROM 0.78 sA different answer. A different tradeoff.Weakside lift closes by 1.0 s; roller opens by 0.1 s.Why? Try a shallower tag \"\n"
+    },
+    {
+      "name": "rerun and compare expose the changed modeled opportunities",
+      "passed": false,
+      "error": "Error: expect(locator).toContainText(expected) failed\n\nLocator: getByTestId('lab-clock')\nExpected substring: \"1.40\"\nReceived string:    \"1.48s\"\nTimeout: 5000ms\n\nCall log:\n  - Expect \"to.have.text\" with timeout 5000ms\n  - waiting for getByTestId('lab-clock')\n    9 × locator resolved to <span data-testid=\"lab-clock\" class=\"DefenseLab_timeLabel__PEJzQ\">…</span>\n      - unexpected value \"1.48s\"\n"
+    },
+    {
+      "name": "stress test evaluates connected offensive continuations",
+      "passed": true,
+      "evidence": {
+        "text": "COURTIQ / DEFENSE LAB\n\nPut your answer under stress\n\nConnected offensive continuations, replayed under the same disclosed movement and read settings. Holds / Thin / Breaks describe this model’s exposures.\n\nWeakside lift\n\n2 of 7 inspected settings retain an exposure; the answer depends on execution assumptions.\n\nThin\nRoll\n\n2 of 7 inspected settings retain an exposure; the answer depends on execution assumptions.\n\nThin\nReject\n\nInspect flight/catch/movement diagnostics; this branch remains assumption-sensitive.\n\nThin\nPop\n\n2 of 7 inspected settings retain an exposure; the answer depends on execution assumptions.\n\nThin\nSlip\n\n5 of 7 inspected settings retain an exposure; the answer depends on execution assumptions.\n\nThin\nSkip\n\n2 of 7 inspected settings retain an exposure; the answer depends on execution assumptions.\n\nThin\nSkip → one more\n\n2 of 7 inspected settings retain an exposure; the answer depends on execution assumptions.\n\nThin\nShort roll\n\n2 of 7 inspected settings retain an exposure; the answer depends on execution assumptions.\n\nThin\n\n7 paired settings per counter. These are finite checks, not odds. Click a row to inspect its possession.\n\nInspect model assumptions",
+        "screenshot": "docs/defense-lab/qa/08-stress-test.png"
+      }
+    },
+    {
+      "name": "save stores the complete executed team answer",
+      "passed": false,
+      "error": "Error: expect(received).toMatchObject(expected)\n\n- Expected  - 1\n+ Received  + 1\n\n  Object {\n-   \"at\": 0.75,\n+   \"at\": 0.775,\n    \"kind\": \"answer\",\n    \"patch\": Object {\n      \"tagDepth\": 0.25,\n    },\n  }"
+    },
+    {
+      "name": "saved late edit preserves every prior simulated frame",
+      "passed": false,
+      "error": "Error: expect(received).toBeDefined()\n\nReceived: undefined"
+    },
+    {
+      "name": "saved answer survives a complete reload and restores the adjustment",
+      "passed": false,
+      "error": "Error: expect(locator).toBeVisible() failed\n\nLocator: getByTestId('saved-answer').filter({ hasText: 'QA · Shallow tag with weakside exchange' })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"to.be.visible\" with timeout 5000ms\n  - waiting for getByTestId('saved-answer').filter({ hasText: 'QA · Shallow tag with weakside exchange' })\n"
+    },
+    {
+      "name": "Teach uses the saved revision, role terminology and actual read checkpoints",
+      "passed": false,
+      "error": "Error: locator.fill: Error: Malformed value\nCall log:\n\u001b[2m  - waiting for getByRole('slider', { name: 'Replay time', exact: true })\u001b[22m\n\u001b[2m    - locator resolved to <input min=\"0\" max=\"5.8\" value=\"2.6\" type=\"range\" step=\"0.025\" aria-label=\"Replay time\" class=\"DefenseLab_timelineRange__MGjgC\" aria-valuetext=\"2.60 seconds, catch-and-read\"/>\u001b[22m\n\u001b[2m    - fill(\"1.40\")\u001b[22m\n\u001b[2m  - attempting fill action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and editable\u001b[22m\n"
+    },
+    {
+      "name": "defender selection and movement work without dragging",
+      "passed": false,
+      "error": "TimeoutError: locator.focus: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Edit rules', exact: true })\u001b[22m\n"
+    },
+    {
+      "name": "keyboard controls receive visible focus",
+      "passed": true,
+      "evidence": {
+        "tag": "BUTTON",
+        "text": "Screen",
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "boxShadow": "none"
+      }
+    },
+    {
+      "name": "no horizontal clipping at a standard coach laptop size",
+      "passed": true,
+      "evidence": {
+        "viewport": 1280,
+        "document": 1280,
+        "body": 1280,
+        "screenshot": "docs/defense-lab/qa/laptop-1280.png"
+      }
+    },
+    {
+      "name": "buttons have names and their pointer target sizes are recorded",
+      "passed": true,
+      "evidence": {
+        "count": 27,
+        "unnamed": [],
+        "undersized": [
+          {
+            "name": "Model & assumptions",
+            "width": 95.609375,
+            "height": 14,
+            "visible": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "meaningful canvas and no framework overlay",
+      "passed": true,
+      "evidence": {
+        "width": 1244,
+        "height": 486,
+        "css": {
+          "width": 1244,
+          "height": 487
+        }
+      }
+    },
+    {
+      "name": "reduced-motion lab keeps playback under coach control",
+      "passed": true,
+      "evidence": {
+        "screenshot": "docs/defense-lab/qa/reduced-motion.png"
+      }
+    },
+    {
+      "name": "unsupported WebGL preserves a usable overhead lab",
+      "passed": true,
+      "evidence": {
+        "screenshot": "docs/defense-lab/qa/webgl-fallback.png"
+      }
+    },
+    {
+      "name": "no browser runtime errors",
+      "passed": true,
+      "evidence": {
+        "errors": [],
+        "warnings": [
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.WebGLShadowMap: PCFSoftShadowMap has been deprecated. Using PCFShadowMap instead.",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.WebGLShadowMap: PCFSoftShadowMap has been deprecated. Using PCFShadowMap instead.",
+          "The resource http://localhost:3000/_next/static/css/app/lab/page.css?1791237573356 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+          "The resource http://localhost:3000/_next/static/css/app/layout.css?1791237573356 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.WebGLShadowMap: PCFSoftShadowMap has been deprecated. Using PCFShadowMap instead.",
+          "The resource http://localhost:3000/_next/static/css/app/lab/page.css?1791237573356 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+          "The resource http://localhost:3000/_next/static/css/app/layout.css?1791237573356 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.WebGLShadowMap: PCFSoftShadowMap has been deprecated. Using PCFShadowMap instead.",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+          "THREE.WebGLShadowMap: PCFSoftShadowMap has been deprecated. Using PCFShadowMap instead."
+        ],
+        "networkFailures": [
+          {
+            "url": "http://localhost:3000/lab?_rsc=1bukp",
+            "message": "net::ERR_ABORTED"
+          }
+        ]
+      }
+    }
+  ],
+  "browserErrors": [],
+  "consoleWarnings": [
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.WebGLShadowMap: PCFSoftShadowMap has been deprecated. Using PCFShadowMap instead.",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.WebGLShadowMap: PCFSoftShadowMap has been deprecated. Using PCFShadowMap instead.",
+    "The resource http://localhost:3000/_next/static/css/app/lab/page.css?1791237573356 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "The resource http://localhost:3000/_next/static/css/app/layout.css?1791237573356 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.WebGLShadowMap: PCFSoftShadowMap has been deprecated. Using PCFShadowMap instead.",
+    "The resource http://localhost:3000/_next/static/css/app/lab/page.css?1791237573356 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "The resource http://localhost:3000/_next/static/css/app/layout.css?1791237573356 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.WebGLShadowMap: PCFSoftShadowMap has been deprecated. Using PCFShadowMap instead.",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.sigmaRadians, 0.06, is too large and will clip, as it requested 30 samples when the maximum is set to 20",
+    "THREE.WebGLShadowMap: PCFSoftShadowMap has been deprecated. Using PCFShadowMap instead."
+  ],
+  "networkFailures": [
+    {
+      "url": "http://localhost:3000/lab?_rsc=1bukp",
+      "message": "net::ERR_ABORTED"
+    }
+  ]
+}

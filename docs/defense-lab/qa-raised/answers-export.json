@@ -1,0 +1,440 @@
+{
+  "format": "courtiq-defense-lab-answers",
+  "schemaVersion": 1,
+  "answers": [
+    {
+      "schemaVersion": 1,
+      "id": "0eec0765-3842-45f6-b79b-fbe27e9ea2cb",
+      "name": "QA shallow 0.75",
+      "createdAt": "2026-10-05T22:28:52.087Z",
+      "updatedAt": "2026-10-05T22:28:52.093Z",
+      "problemVersion": "1.0.0",
+      "engineVersion": "defense-lab-1.0.0",
+      "config": {
+        "problemId": "high-pnr-weakside-lift",
+        "seed": 2026,
+        "counter": "lift",
+        "answer": {
+          "coverage": "drop",
+          "poa": "over",
+          "bigDepth": 3.2,
+          "tag": true,
+          "tagDepth": 0.95,
+          "backside": "x-out",
+          "rotationTiming": "on-pass",
+          "recovery": "on-pass"
+        },
+        "assumptions": {
+          "dt": 0.025,
+          "duration": 5.8,
+          "maxSpeed": 4.7,
+          "acceleration": 6.2,
+          "reactionDelay": 0.2,
+          "passSpeed": 11.5,
+          "ballRadius": 0.12,
+          "bodyRadius": 0.28,
+          "contestRadius": 1.25,
+          "turnRate": 5,
+          "gatherTime": 0.26,
+          "readInterval": 0.15,
+          "gravity": 9.81,
+          "releaseHeight": 1.85
+        },
+        "interventions": [
+          {
+            "id": "4198d544-74b2-4689-b38b-b7223731d65f",
+            "at": 0.75,
+            "kind": "answer",
+            "patch": {
+              "tag": true,
+              "tagDepth": 0.25
+            }
+          }
+        ],
+        "opponent": {
+          "screenAngle": 0,
+          "liftDelay": 0,
+          "liftWidth": 0,
+          "reject": true,
+          "rescreen": false,
+          "shortRoll": true
+        }
+      },
+      "terminology": {
+        "low-man": "Anchor"
+      },
+      "teaching": {
+        "role": "low-man",
+        "checkpointTimes": [
+          0.325,
+          0.75,
+          2.6
+        ],
+        "cue": "Tag. See the roller and the weakside. Release on your saved team rule."
+      },
+      "notes": ""
+    },
+    {
+      "schemaVersion": 1,
+      "id": "3ad2a756-87f9-4b00-9561-cf0c5569ea95",
+      "name": "QA before nudge",
+      "createdAt": "2026-10-05T22:29:27.556Z",
+      "updatedAt": "2026-10-05T22:29:27.557Z",
+      "problemVersion": "1.0.0",
+      "engineVersion": "defense-lab-1.0.0",
+      "config": {
+        "problemId": "high-pnr-weakside-lift",
+        "seed": 2026,
+        "counter": "lift",
+        "answer": {
+          "coverage": "drop",
+          "poa": "over",
+          "bigDepth": 3.2,
+          "tag": true,
+          "tagDepth": 0.95,
+          "backside": "x-out",
+          "rotationTiming": "on-pass",
+          "recovery": "on-pass"
+        },
+        "assumptions": {
+          "dt": 0.025,
+          "duration": 5.8,
+          "maxSpeed": 4.7,
+          "acceleration": 6.2,
+          "reactionDelay": 0.2,
+          "passSpeed": 11.5,
+          "ballRadius": 0.12,
+          "bodyRadius": 0.28,
+          "contestRadius": 1.25,
+          "turnRate": 5,
+          "gatherTime": 0.26,
+          "readInterval": 0.15,
+          "gravity": 9.81,
+          "releaseHeight": 1.85
+        },
+        "interventions": [
+          {
+            "id": "4198d544-74b2-4689-b38b-b7223731d65f",
+            "at": 0.75,
+            "kind": "answer",
+            "patch": {
+              "tag": true,
+              "tagDepth": 0.25
+            }
+          },
+          {
+            "id": "d05a399f-4826-4905-ad24-ae32f5a9ca90",
+            "at": 2.85,
+            "kind": "answer",
+            "patch": {
+              "tag": false
+            }
+          }
+        ],
+        "opponent": {
+          "screenAngle": 0.325,
+          "liftDelay": 0,
+          "liftWidth": 0,
+          "reject": true,
+          "rescreen": false,
+          "shortRoll": true
+        }
+      },
+      "terminology": {
+        "low-man": "Anchor"
+      },
+      "teaching": {
+        "role": "low-man",
+        "checkpointTimes": [
+          0.275,
+          0.75,
+          2.6
+        ],
+        "cue": "Tag. See the roller and the weakside. Release on your saved team rule."
+      },
+      "notes": ""
+    },
+    {
+      "schemaVersion": 1,
+      "id": "8982e924-7476-4f34-9e6a-fd8b8aa8f676",
+      "name": "QA moved exact answer",
+      "createdAt": "2026-10-05T22:29:29.469Z",
+      "updatedAt": "2026-10-05T22:29:29.469Z",
+      "problemVersion": "1.0.0",
+      "engineVersion": "defense-lab-1.0.0",
+      "config": {
+        "problemId": "high-pnr-weakside-lift",
+        "seed": 2026,
+        "counter": "lift",
+        "answer": {
+          "coverage": "drop",
+          "poa": "over",
+          "bigDepth": 3.2,
+          "tag": true,
+          "tagDepth": 0.95,
+          "backside": "x-out",
+          "rotationTiming": "on-pass",
+          "recovery": "on-pass"
+        },
+        "assumptions": {
+          "dt": 0.025,
+          "duration": 5.8,
+          "maxSpeed": 4.7,
+          "acceleration": 6.2,
+          "reactionDelay": 0.2,
+          "passSpeed": 11.5,
+          "ballRadius": 0.12,
+          "bodyRadius": 0.28,
+          "contestRadius": 1.25,
+          "turnRate": 5,
+          "gatherTime": 0.26,
+          "readInterval": 0.15,
+          "gravity": 9.81,
+          "releaseHeight": 1.85
+        },
+        "interventions": [
+          {
+            "id": "4198d544-74b2-4689-b38b-b7223731d65f",
+            "at": 0.75,
+            "kind": "answer",
+            "patch": {
+              "tag": true,
+              "tagDepth": 0.25
+            }
+          },
+          {
+            "id": "4a10ac56-a152-4757-8ba9-7b620b465c24",
+            "at": 1.4000000000000001,
+            "kind": "move",
+            "playerId": "D3",
+            "target": {
+              "x": -3.5662581500017714,
+              "z": 1.7725003282430425
+            },
+            "untilTrigger": "ball-leaves"
+          },
+          {
+            "id": "d05a399f-4826-4905-ad24-ae32f5a9ca90",
+            "at": 2.85,
+            "kind": "answer",
+            "patch": {
+              "tag": false
+            }
+          }
+        ],
+        "opponent": {
+          "screenAngle": 0.325,
+          "liftDelay": 0,
+          "liftWidth": 0,
+          "reject": true,
+          "rescreen": false,
+          "shortRoll": true
+        }
+      },
+      "terminology": {
+        "low-man": "Anchor"
+      },
+      "teaching": {
+        "role": "low-man",
+        "checkpointTimes": [
+          0.275,
+          0.75,
+          2.6
+        ],
+        "cue": "Tag. See the roller and the weakside. Release on your saved team rule."
+      },
+      "notes": ""
+    },
+    {
+      "schemaVersion": 1,
+      "id": "c380ff9d-4848-40f9-bce4-55287102ad25",
+      "name": "QA reopened full config",
+      "createdAt": "2026-10-05T22:29:44.540Z",
+      "updatedAt": "2026-10-05T22:29:44.541Z",
+      "problemVersion": "1.0.0",
+      "engineVersion": "defense-lab-1.0.0",
+      "config": {
+        "problemId": "high-pnr-weakside-lift",
+        "seed": 2026,
+        "counter": "lift",
+        "answer": {
+          "coverage": "drop",
+          "poa": "over",
+          "bigDepth": 3.2,
+          "tag": true,
+          "tagDepth": 0.95,
+          "backside": "x-out",
+          "rotationTiming": "on-pass",
+          "recovery": "on-pass"
+        },
+        "assumptions": {
+          "dt": 0.025,
+          "duration": 5.8,
+          "maxSpeed": 4.7,
+          "acceleration": 6.2,
+          "reactionDelay": 0.2,
+          "passSpeed": 11.5,
+          "ballRadius": 0.12,
+          "bodyRadius": 0.28,
+          "contestRadius": 1.25,
+          "turnRate": 5,
+          "gatherTime": 0.26,
+          "readInterval": 0.15,
+          "gravity": 9.81,
+          "releaseHeight": 1.85
+        },
+        "interventions": [
+          {
+            "id": "4198d544-74b2-4689-b38b-b7223731d65f",
+            "at": 0.75,
+            "kind": "answer",
+            "patch": {
+              "tag": true,
+              "tagDepth": 0.25
+            }
+          },
+          {
+            "id": "4a10ac56-a152-4757-8ba9-7b620b465c24",
+            "at": 1.4000000000000001,
+            "kind": "move",
+            "playerId": "D3",
+            "target": {
+              "x": -3.5662581500017714,
+              "z": 1.7725003282430425
+            },
+            "untilTrigger": "ball-leaves"
+          },
+          {
+            "id": "d05a399f-4826-4905-ad24-ae32f5a9ca90",
+            "at": 2.85,
+            "kind": "answer",
+            "patch": {
+              "tag": false
+            }
+          }
+        ],
+        "opponent": {
+          "screenAngle": 0.325,
+          "liftDelay": 0,
+          "liftWidth": 0,
+          "reject": true,
+          "rescreen": false,
+          "shortRoll": true
+        }
+      },
+      "terminology": {
+        "low-man": "Anchor"
+      },
+      "teaching": {
+        "role": "low-man",
+        "checkpointTimes": [
+          0.275,
+          0.75,
+          2.6
+        ],
+        "cue": "Tag. See the roller and the weakside. Release on your saved team rule."
+      },
+      "notes": ""
+    },
+    {
+      "schemaVersion": 1,
+      "id": "e3575c65-4378-49c7-8218-d946b7dbcfe7",
+      "name": "QA memory only",
+      "createdAt": "2026-10-05T22:29:58.878Z",
+      "updatedAt": "2026-10-05T22:29:58.878Z",
+      "problemVersion": "1.0.0",
+      "engineVersion": "defense-lab-1.0.0",
+      "config": {
+        "problemId": "high-pnr-weakside-lift",
+        "seed": 2026,
+        "counter": "lift",
+        "answer": {
+          "coverage": "drop",
+          "poa": "over",
+          "bigDepth": 3.2,
+          "tag": true,
+          "tagDepth": 0.95,
+          "backside": "x-out",
+          "rotationTiming": "on-pass",
+          "recovery": "on-pass"
+        },
+        "assumptions": {
+          "dt": 0.025,
+          "duration": 5.8,
+          "maxSpeed": 4.7,
+          "acceleration": 6.2,
+          "reactionDelay": 0.2,
+          "passSpeed": 11.5,
+          "ballRadius": 0.12,
+          "bodyRadius": 0.28,
+          "contestRadius": 1.25,
+          "turnRate": 5,
+          "gatherTime": 0.26,
+          "readInterval": 0.15,
+          "gravity": 9.81,
+          "releaseHeight": 1.85
+        },
+        "interventions": [
+          {
+            "id": "4198d544-74b2-4689-b38b-b7223731d65f",
+            "at": 0.75,
+            "kind": "answer",
+            "patch": {
+              "tag": true,
+              "tagDepth": 0.25
+            }
+          },
+          {
+            "id": "4a10ac56-a152-4757-8ba9-7b620b465c24",
+            "at": 1.4000000000000001,
+            "kind": "move",
+            "playerId": "D3",
+            "target": {
+              "x": -3.5662581500017714,
+              "z": 1.7725003282430425
+            },
+            "untilTrigger": "ball-leaves"
+          },
+          {
+            "id": "394b457f-2f90-457b-a549-e56693fd21d7",
+            "at": 1.4000000000000001,
+            "kind": "answer",
+            "patch": {
+              "tag": true,
+              "tagDepth": 0.95
+            }
+          },
+          {
+            "id": "d05a399f-4826-4905-ad24-ae32f5a9ca90",
+            "at": 2.85,
+            "kind": "answer",
+            "patch": {
+              "tag": false
+            }
+          }
+        ],
+        "opponent": {
+          "screenAngle": 0.325,
+          "liftDelay": 0,
+          "liftWidth": 0,
+          "reject": true,
+          "rescreen": false,
+          "shortRoll": true
+        }
+      },
+      "terminology": {
+        "low-man": "Anchor"
+      },
+      "teaching": {
+        "role": "low-man",
+        "checkpointTimes": [
+          0.275,
+          0.75,
+          2.6
+        ],
+        "cue": "Tag. See the roller and the weakside. Release on your saved team rule."
+      },
+      "notes": ""
+    }
+  ]
+}

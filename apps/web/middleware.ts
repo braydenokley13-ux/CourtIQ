@@ -41,7 +41,9 @@ export async function middleware(request: NextRequest) {
   // Supabase. The page guards `NODE_ENV` so a leaked deploy still
   // 404s; keeping middleware out of the path lets local QA run with
   // an empty `.env` file.
-  if (isDevPublicPath(pathname)) {
+  // The self-contained Defense Lab needs no session or server credentials.
+  // Legacy player routes continue to use the existing authentication flow.
+  if (pathname === '/' || pathname === '/lab' || isDevPublicPath(pathname)) {
     return supabaseResponse
   }
 
@@ -70,13 +72,6 @@ export async function middleware(request: NextRequest) {
   // Refreshes session — required for Server Components to read auth state correctly
   const { data: { user } } = await supabase.auth.getUser()
   const onboarded = user?.user_metadata?.onboarded === true
-
-  // Root → redirect based on auth + onboarding state
-  if (pathname === '/') {
-    const url = request.nextUrl.clone()
-    url.pathname = user ? (onboarded ? '/home' : '/onboarding') : '/login'
-    return NextResponse.redirect(url)
-  }
 
   // Authenticated users hitting auth pages → send into the app
   // (exception: /auth/callback handles its own redirect)

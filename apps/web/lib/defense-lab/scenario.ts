@@ -1,0 +1,118 @@
+import { DEFAULT_OPPONENT } from './offensivePolicy'
+import type { CounterId, CoverageId, LabConfig, ModelAssumptions, ProblemDefinition, RoleId, TeamAnswer } from './types'
+
+export const ENGINE_VERSION = 'defense-lab-1.0.0'
+export const CONFIG_SCHEMA_VERSION = 1
+export const DEFAULT_ANSWER: TeamAnswer = { coverage: 'drop', poa: 'over', bigDepth: 3.2, tag: true, tagDepth: 0.95, backside: 'x-out', rotationTiming: 'on-pass', recovery: 'on-pass' }
+export const DEFAULT_ASSUMPTIONS: ModelAssumptions = { dt: 0.025, duration: 5.8, maxSpeed: 4.7, acceleration: 6.2, reactionDelay: 0.2, passSpeed: 11.5, ballRadius: 0.12, bodyRadius: 0.28, contestRadius: 1.25, turnRate: 5, gatherTime: 0.26, readInterval: 0.15, gravity: 9.81, releaseHeight: 1.85 }
+export const COVERAGES: { id: CoverageId; label: string; description: string }[] = [
+  { id: 'drop', label: 'Drop', description: 'Big contains below the screen; the chaser works back to the ball.' },
+  { id: 'switch', label: 'Switch', description: 'Screen defenders exchange ball and screener responsibilities.' },
+  { id: 'blitz', label: 'Blitz', description: 'Two defenders commit to the ball; the weakside handles the release.' },
+  { id: 'hedge', label: 'Hedge / show', description: 'Big shows at screen level then recovers to the roller.' },
+  { id: 'ice', label: 'Force side / ICE', description: 'Force the handler away from the screen. Middle-screen approximation; not a sideline ICE clinic.' },
+  { id: 'custom', label: 'Custom', description: 'Use your chosen chase, depth, tag and recovery settings.' },
+]
+export const COUNTERS: { id: CounterId; label: string; description: string }[] = [
+  { id: 'auto', label: 'Read the defense', description: 'The offense chooses from current roll, lift, corner and drive geometry.' },
+  { id: 'lift', label: 'Weakside lift', description: 'The wing lifts as the roll draws help; the handler reads both.' },
+  { id: 'roll', label: 'Roll', description: 'Look inside first; move the ball if help closes the roll.' },
+  { id: 'reject', label: 'Reject', description: 'Reject the screen and force help from a different angle.' },
+  { id: 'pop', label: 'Pop', description: 'Screener opens above the arc; the handler reads the big.' },
+  { id: 'slip', label: 'Slip', description: 'Screener leaves before contact; help must react to the early dive.' },
+  { id: 'skip', label: 'Skip', description: 'Look weakside when the low defender commits.' },
+  { id: 'extra', label: 'Skip → one more', description: 'The first weakside receiver reads the next closeout and can move it again.' },
+  { id: 'short-roll', label: 'Short roll', description: 'Screener stops in the pocket and reads the rotation at catch.' },
+]
+export const ROLE_LABELS: Record<RoleId, string> = { ballhandler: 'Ballhandler', screener: 'Screener / roller', 'strong-corner': 'Strong corner', 'weak-corner': 'Weak corner', 'weak-lift': 'Weakside lift', poa: 'On-ball defender', big: 'Screen defender', 'low-man': 'Low man', backside: 'Backside defender', 'strong-side': 'Strong-side defender' }
+
+export const HIGH_PNR_PROBLEM: ProblemDefinition = {
+  id: 'high-pnr-weakside-lift', version: '1.0.0', title: 'High P&R → Weakside lift',
+  description: 'Five defensive rules meet one connected ball-screen action. The offense reads the tag, then the closeout.', stressAt: 0.75,
+  players: [
+    { id: 'O1', team: 'offense', role: 'ballhandler', number: 1, height: 1.86, start: { x: 1.6, z: 8.4 } },
+    { id: 'O2', team: 'offense', role: 'strong-corner', number: 2, height: 1.9, start: { x: 6.5, z: 1.4 } },
+    { id: 'O3', team: 'offense', role: 'weak-corner', number: 3, height: 1.92, start: { x: -6.5, z: 1.35 } },
+    { id: 'O4', team: 'offense', role: 'weak-lift', number: 4, height: 1.94, start: { x: -5.7, z: 5.25 } },
+    { id: 'O5', team: 'offense', role: 'screener', number: 5, height: 2.02, start: { x: 0.1, z: 8 } },
+    { id: 'D1', team: 'defense', role: 'poa', number: 1, height: 1.87, start: { x: 1.25, z: 7.65 } },
+    { id: 'D2', team: 'defense', role: 'strong-side', number: 2, height: 1.9, start: { x: 5.6, z: 2.25 } },
+    { id: 'D3', team: 'defense', role: 'low-man', number: 3, height: 1.94, start: { x: -3.5, z: 2.5 } },
+    { id: 'D4', team: 'defense', role: 'backside', number: 4, height: 1.96, start: { x: -4.45, z: 5.1 } },
+    { id: 'D5', team: 'defense', role: 'big', number: 5, height: 2.03, start: { x: 0.0, z: 5.3 } },
+  ],
+  roles: { ballhandler: 'O1', strongCorner: 'O2', weakCorner: 'O3', weakLift: 'O4', screener: 'O5', poa: 'D1', strongSide: 'D2', lowMan: 'D3', backside: 'D4', big: 'D5' },
+  actions: [
+    { id: 'high-screen', kind: 'screen', playerId: 'O5', from: 0, target: { x: 0.1, z: 8 } },
+    { id: 'use-screen', kind: 'drive', playerId: 'O1', from: 0.15, target: { x: -2.0, z: 5.8 }, speed: 3.45 },
+    { id: 'reject-screen', kind: 'drive', playerId: 'O1', from: 0.15, target: { x: 3, z: 4.7 }, speed: 3.45, counter: ['reject'] },
+    { id: 'dive', kind: 'roll', playerId: 'O5', from: 0.48, target: { x: 0.75, z: 2.1 }, speed: 3.9 },
+    { id: 'early-slip', kind: 'roll', playerId: 'O5', from: 0.18, target: { x: 0.75, z: 2.1 }, speed: 3.9, counter: ['slip'] },
+    { id: 'short-roll', kind: 'roll', playerId: 'O5', from: 0.48, target: { x: -0.25, z: 4.1 }, speed: 3.3, counter: ['short-roll'] },
+    { id: 'pop', kind: 'pop', playerId: 'O5', from: 0.48, target: { x: 1.3, z: 9.1 }, speed: 3.3, counter: ['pop'] },
+    { id: 'weak-lift', kind: 'relocate', playerId: 'O4', from: 0.5, target: { x: -5.1, z: 7.5 }, speed: 2.8 },
+  ],
+  defenseRules: [
+    { id: 'protect-strong-spacing', label: 'Protect strong-side spacing', assignments: [
+      { defender: 'strongSide', offense: 'strongCorner', threat: 'strong', kind: 'guard', gap: 0.9, priority: 1 },
+    ] },
+    { id: 'stay-with-lift', label: 'Stay with the lifting receiver through the tag', answer: { backside: 'stay' }, assignments: [
+      { defender: 'backside', offense: 'weakLift', threat: 'lift', kind: 'guard', gap: 0.9, priority: 1 },
+    ] },
+  ],
+  offenseRules: [
+    { id: 'reject-overplay', label: 'Reject the overplayed screen', earliest: 0.2, latest: 0.75, priority: 30,
+      when: { kind: 'all', conditions: [
+        { kind: 'action-present', action: 'screen' },
+        { kind: 'enabled', key: 'reject' }, { kind: 'possession', role: 'ballhandler' },
+        { kind: 'relative', a: 'poa', b: 'ballhandler', axis: 'x', below: -0.55 },
+        { kind: 'distance', a: 'poa', b: 'ballhandler', below: 1.5 },
+      ] }, excludes: ['second-screen'], motions: [
+        { role: 'ballhandler', kind: 'drive', target: { x: 3, z: 4.7 }, speed: 3.45 },
+      ] },
+    { id: 'release-two-on-ball', label: 'Two at the ball → short-roll release', earliest: 0.45, latest: 2.5, priority: 40,
+      when: { kind: 'all', conditions: [
+        { kind: 'action-present', action: 'screen' },
+        { kind: 'enabled', key: 'shortRoll' }, { kind: 'possession', role: 'ballhandler' },
+        { kind: 'distance', a: 'poa', b: 'ballhandler', below: 1.8 },
+        { kind: 'distance', a: 'big', b: 'ballhandler', below: 2.15 },
+      ] }, motions: [
+        { role: 'screener', kind: 'roll', target: { x: -0.25, z: 4.1 }, speed: 3.3 },
+      ] },
+    { id: 'second-screen', label: 'Containment holds → turn the screen', earliest: 0.85, latest: 1.25, priority: 20,
+      when: { kind: 'all', conditions: [
+        { kind: 'action-present', action: 'screen' },
+        { kind: 'screen-used' }, { kind: 'enabled', key: 'rescreen' }, { kind: 'possession', role: 'ballhandler' },
+        { kind: 'coordinate', role: 'ballhandler', axis: 'z', above: 6.5 },
+        { kind: 'distance', a: 'poa', b: 'ballhandler', below: 1.5 },
+        { kind: 'distance', a: 'screener', b: 'ballhandler', below: 2.5 },
+        { kind: 'not', condition: { kind: 'activated', ruleId: 'release-two-on-ball' } },
+      ] }, excludes: ['reject-overplay', 'release-two-on-ball'], deferReadFor: 1.3, motions: [
+        { role: 'screener', kind: 'screen', target: { relativeTo: 'ballhandler', offset: { x: 0.75, z: -0.2 } }, speed: 2.8, until: 0.5 },
+        { role: 'ballhandler', kind: 'hold', target: { relativeTo: 'screener', offset: { x: -0.8, z: 0.6 } }, speed: 1.8, until: 0.5 },
+        { role: 'ballhandler', kind: 'drive', target: { x: 2.2, z: 5.3 }, speed: 3.45, from: 0.5 },
+        { role: 'screener', kind: 'roll', target: { x: 0.75, z: 2.1 }, speed: 3.9, from: 0.5 },
+      ] },
+    { id: 'lift-behind-tag', label: 'Low help commits → lift behind the tag', earliest: 0.35, priority: 10,
+      when: { kind: 'all', conditions: [
+        { kind: 'action-present', action: 'screen' },
+        { kind: 'possession', role: 'ballhandler' },
+        { kind: 'coordinate', role: 'screener', axis: 'vz', below: -0.2 },
+        { kind: 'coordinate', role: 'lowMan', axis: 'vx', above: 0.2 },
+        { kind: 'relative', a: 'lowMan', b: 'weakCorner', axis: 'x', above: 3.9 },
+      ] }, motions: [ { role: 'weakLift', kind: 'relocate', target: { x: -5.1, z: 7.5 }, speed: 2.8 } ] },
+  ],
+  reads: [
+    { id: 'handler-read', actorId: 'O1', earliest: 1.1, decisionAt: 2.1, trigger: 'screen-used', options: ['roll', 'pop', 'lift', 'corner', 'drive'], continuations: { roll: 'roller-read', corner: 'corner-read', lift: 'lift-read', pop: 'pop-read' } },
+    { id: 'roller-read', actorId: 'O5', earliest: 0, trigger: 'catch', options: ['drive', 'corner', 'lift', 'strong'], continuations: { corner: 'corner-read', lift: 'lift-read' } },
+    { id: 'corner-read', actorId: 'O3', earliest: 0, trigger: 'catch', options: ['drive', 'lift'], continuations: { lift: 'lift-read' } },
+    { id: 'lift-read', actorId: 'O4', earliest: 0, trigger: 'catch', options: ['drive', 'corner'], continuations: { corner: 'corner-read' } },
+    { id: 'pop-read', actorId: 'O5', earliest: 0, trigger: 'catch', options: ['drive', 'corner', 'lift'], continuations: { corner: 'corner-read', lift: 'lift-read' } },
+  ],
+}
+export const PROBLEMS = [HIGH_PNR_PROBLEM]
+export const DEFAULT_PROBLEM = HIGH_PNR_PROBLEM
+export function createDefaultConfig(): LabConfig {
+  return { problemId: HIGH_PNR_PROBLEM.id, seed: 2026, counter: 'lift', answer: { ...DEFAULT_ANSWER }, assumptions: { ...DEFAULT_ASSUMPTIONS }, interventions: [], opponent: { ...DEFAULT_OPPONENT } }
+}
+export const DEFAULT_CONFIG = createDefaultConfig()
