@@ -436,8 +436,8 @@ export function buildLabEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRen
   key.shadow.mapSize.set(sp, sp)
   key.shadow.camera.near = 10; key.shadow.camera.far = 34; key.shadow.bias = -0.00025; key.shadow.normalBias = 0.03; key.shadow.radius = 3
   env.add(key, key.target)
-  const rimA = new THREE.DirectionalLight('#9ec3ff', 1.3); rimA.position.set(7, 10, -9); rimA.target.position.set(0, 1, 6)
-  const rimB = new THREE.DirectionalLight('#ffb987', 0.75); rimB.position.set(-9, 10, -8); rimB.target.position.set(0, 1, 6)
+  const rimA = new THREE.DirectionalLight('#9ec3ff', 1.35); rimA.position.set(13, 7, -2); rimA.target.position.set(0, 1, 6)
+  const rimB = new THREE.DirectionalLight('#ffb987', 0.5); rimB.position.set(-13, 7, -3); rimB.target.position.set(0, 1, 6)
   const fill = new THREE.DirectionalLight('#c9d6ee', 0.32); fill.position.set(8, 9, 16); fill.target.position.set(0, 0.5, 5)
   env.add(rimA, rimA.target, rimB, rimB.target, fill, fill.target)
 

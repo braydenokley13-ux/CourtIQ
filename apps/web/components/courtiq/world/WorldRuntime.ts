@@ -1,15 +1,17 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { PlayerId, PlayerState, Point2 } from '@/lib/defense-lab/types'
-import { bodyCapsules } from '@/lib/defense-lab/analyticalGeometry'
-import { DEFAULT_ASSUMPTIONS } from '@/lib/defense-lab/scenario'
 import { tagDepthFromFloorPoint } from '@/lib/defense-lab/tagGuide'
+import * as Env from '../../defense-lab/labEnvironment'
 import { buildBall, buildLabEnvironment, disposeTree, setLabEnvironmentAnalytical, updateEnvironmentForCamera } from '../../defense-lab/labEnvironment'
 import { configureWorldRenderer } from '../../defense-lab/worldLook'
 import { createLabAthlete, loadGlbAthleteAsset, type LabAthlete } from '../../defense-lab/labAthlete'
 import { DirectorCamera } from './camera'
-import { MarkLayer, TONES, resolveAnchor } from './marks'
-import type { CameraMode, WorldCallbacks, WorldScene } from './types'
+import { createGhostWorld, type GhostWorld } from './ghost'
+import { MarkLayer, TONES, resolveAnchor, setMarkDetail } from './marks'
+import { PerfRecorder, round, type SegmentSummary } from './perf'
+import { AdaptiveController, chooseInitialTier, gpuWarmup, probeDevice, readOverride, refineTier, tierSettings, writeOverride, type DeviceProbe, type QualityOverride, type QualityTier } from './quality'
+import type { CameraMode, WorldCallbacks, WorldScene, WorldStats } from './types'
 
 type RimUniforms = { uXray: { value: number }; uRim: { value: THREE.Color }; uFade: { value: number } }
 
@@ -29,7 +31,7 @@ export class WorldRuntime {
   private shadows = new Map<PlayerId, THREE.Mesh>()
   private ball: THREE.Group
   private marks: MarkLayer
-  private ghost: { root: THREE.Group; shafts: THREE.InstancedMesh; caps: THREE.InstancedMesh; t: THREE.Object3D }
+  private ghost: GhostWorld
   private tag: { root: THREE.Group; rail: THREE.Mesh; handle: THREE.Mesh; hit: THREE.Mesh }
   private dropRing: THREE.Mesh
   private raycaster = new THREE.Raycaster()
@@ -48,33 +50,66 @@ export class WorldRuntime {
   private orbiting = false
   private lastMode: CameraMode | null = null
   private scale = 1
-  private slow = 0
-  private fast = 0
   private frames = 0
   private fpsAt = 0
   private fps = 0
-  private quality: 'high' | 'low'
   private observer: ResizeObserver
   private viewKey = ''
   private cpu = 0
+  // ---- quality / perf (see quality.ts, perf.ts)
+  readonly probe: DeviceProbe
+  private tier: QualityTier
+  private tierReason = ''
+  private override: QualityOverride
+  private controller: AdaptiveController
+  private perf: PerfRecorder
+  private lastRenderAt = 0
+  private nodraw = false
+  private lastXray = -1
+  private viewW = 1
+  private viewH = 1
+  private tierAdjusted = false
+  private contactTex: THREE.CanvasTexture | null = null
+  private labelObserver: MutationObserver | null = null
+  private lastChange: { at: number; why: string } | null = null
+  private readonly proj = new THREE.Vector3()
 
   constructor(private host: HTMLElement, private callbacks: WorldCallbacks) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' })
-    const gl = this.renderer.getContext(), info = gl.getExtension('WEBGL_debug_renderer_info')
-    this.software = info ? /swiftshader|llvmpipe|software/i.test(String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL))) : false
-    this.quality = this.software ? 'low' : 'high'
-    this.scale = Math.min(window.devicePixelRatio || 1, this.software ? 1 : 1.75)
+    // Capability probe on a throwaway context: MSAA is fixed at context creation, so the
+    // initial tier must be known before the real renderer exists.
+    const search = window.location.search
+    this.override = readOverride(search)
+    this.nodraw = new URLSearchParams(search).has('nodraw')
+    const early = probeEarly()
+    const initial = chooseInitialTier(early, this.override)
+    this.tier = initial.tier; this.tierReason = initial.reason
+    const st = tierSettings(this.tier)
+    this.renderer = new THREE.WebGLRenderer({ antialias: st.antialias, alpha: false, powerPreference: 'high-performance' })
+    const gl = this.renderer.getContext()
+    this.probe = probeDevice(gl)
+    this.software = this.probe.software
+    this.perf = new PerfRecorder(gl)
+    this.scale = Math.min(this.probe.devicePixelRatio, st.maxPixelRatio)
+    this.controller = new AdaptiveController(this.tier, this.scale, this.override !== 'auto')
     this.renderer.setPixelRatio(this.scale)
-    configureWorldRenderer(this.renderer, this.quality)
+    configureWorldRenderer(this.renderer, this.tier === 'high' ? 'high' : 'low')
     this.renderer.shadowMap.autoUpdate = false
     this.renderer.shadowMap.needsUpdate = true
+    if (this.override === 'auto') void gpuWarmup(this.probe).then(w => {
+      this.probe.warmupMs = w.ms; this.probe.warmupMethod = w.method
+      // Refine once, before the coach has had time to notice: at most one step.
+      if (this.disposed || this.override !== 'auto' || this.tierAdjusted) return
+      const refined = refineTier(this.tier, w.ms)
+      if (refined !== this.tier) { this.tierReason += `; warm-up ${w.ms?.toFixed(1)} ms`; this.applyTier(refined, 'warmup') }
+    })
     this.canvas = this.renderer.domElement
     this.canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none'
     this.canvas.tabIndex = 0
     this.canvas.setAttribute('aria-label', 'Basketball court. Click a defender to coach him. Drag to look around.')
     host.appendChild(this.canvas)
 
-    this.environment = buildLabEnvironment(this.scene, this.renderer, this.software, () => { this.dirty = true; this.renderer.shadowMap.needsUpdate = true }, { quality: this.quality })
+    this.environment = buildLabEnvironment(this.scene, this.renderer, this.software, () => { this.dirty = true; this.renderer.shadowMap.needsUpdate = true }, { quality: st.environment === 'low' ? 'low' : 'high' })
+    this.applyShadows(st)
     this.controls = new OrbitControls(this.camera, this.canvas)
     this.controls.enableDamping = true; this.controls.dampingFactor = 0.12
     this.controls.minDistance = 3; this.controls.maxDistance = 34
@@ -88,6 +123,7 @@ export class WorldRuntime {
     this.director = new DirectorCamera(this.camera)
 
     this.ball = buildBall(); this.scene.add(this.ball)
+    setMarkDetail(st.markDetail)
     this.marks = new MarkLayer(this.scene)
     this.ghost = this.createGhost()
     this.tag = this.createTagHandle()
@@ -110,13 +146,14 @@ export class WorldRuntime {
     if (!prev || prev.frame.players.length !== next.frame.players.length) this.rebuildAthletes()
     if (!prev || prev.frame !== next.frame) this.renderer.shadowMap.needsUpdate = true
     this.xrayTarget = next.lens === 'normal' ? 0 : 1
+    if (prev && next.impact !== undefined && next.impact !== prev.impact) this.director.kick(1)
     this.dirty = true
   }
 
   /** Project a court point to canvas pixels. */
   project(x: number, y: number, z: number): { x: number; y: number; visible: boolean } {
-    const v = new THREE.Vector3(x, y, z).project(this.camera)
-    const w = this.canvas.clientWidth, h = this.canvas.clientHeight
+    const v = this.proj.set(x, y, z).project(this.camera)
+    const w = this.viewW, h = this.viewH
     return { x: (v.x + 1) / 2 * w, y: (1 - v.y) / 2 * h, visible: v.z < 1 && Math.abs(v.x) < 1.05 && Math.abs(v.y) < 1.05 }
   }
 
@@ -125,7 +162,7 @@ export class WorldRuntime {
   dispose() {
     this.disposed = true
     cancelAnimationFrame(this.raf); this.observer.disconnect(); this.controls.dispose()
-    this.marks.clear()
+    this.marks.clear(); this.perf.dispose(); this.labelObserver?.disconnect(); this.contactTex?.dispose(); this.contactTex = null
     this.environment.userData.disposed = true
     disposeTree(this.scene)
     ;(this.environment.userData.environmentTarget as THREE.WebGLRenderTarget | undefined)?.dispose()
@@ -139,10 +176,10 @@ export class WorldRuntime {
     for (const [, a] of this.athletes) { this.scene.remove(a.root); disposeTree(a.root) }
     for (const [, s] of this.shadows) { this.scene.remove(s); s.geometry.dispose(); (s.material as THREE.Material).dispose() }
     this.athletes.clear(); this.rims.clear(); this.shadows.clear()
-    const shadowTex = contactShadowTexture()
+    const shadowTex = this.contactTex ??= contactShadowTexture(tierSettings(this.tier).contactShadowTex)
     this.state.frame.players.forEach((player, i) => {
       const athlete = createLabAthlete(player, i, this.glbReady)
-      athlete.setQuality(this.quality)
+      setAthleteQuality(athlete, tierSettings(this.tier).athlete)
       const uniforms: RimUniforms[] = []
       const rim = new THREE.Color(player.team === 'defense' ? TONES.defense : TONES.offense)
       athlete.figure.traverse(o => {
@@ -177,15 +214,69 @@ export class WorldRuntime {
     this.dirty = true
   }
 
+  // ---------------------------------------------------------------- quality
+
+  /** Key-light shadow per tier. The shadow type stays fixed (changing it would recompile every material). */
+  private applyShadows(st: ReturnType<typeof tierSettings>) {
+    const key = (this.environment.userData.analysisState as { key?: THREE.SpotLight } | undefined)?.key
+    if (!key) return
+    const size = this.software ? Math.min(st.shadows.mapSize, 1024) : st.shadows.mapSize
+    if (key.shadow.mapSize.x !== size) { key.shadow.mapSize.set(size, size); key.shadow.map?.dispose(); key.shadow.map = null }
+    key.castShadow = st.shadows.enabled
+    this.renderer.shadowMap.needsUpdate = true; this.dirty = true
+  }
+
+  /** Apply every tier-dependent setting. Never touches frames, the simulation or basketball state. */
+  private applyTier(tier: QualityTier, why: string, scale?: number) {
+    const changed = tier !== this.tier
+    this.tier = tier
+    if (changed) this.tierAdjusted = true
+    const st = tierSettings(tier)
+    this.scale = Math.min(scale ?? this.scale, this.probe.devicePixelRatio, st.maxPixelRatio)
+    this.scale = Math.max(Math.min(st.minScale, this.probe.devicePixelRatio), this.scale)
+    this.renderer.setPixelRatio(this.scale); this.resize()
+    configureWorldRenderer(this.renderer, tier === 'high' ? 'high' : 'low')
+    for (const a of this.athletes.values()) setAthleteQuality(a, st.athlete)
+    const setEnv = (Env as unknown as Record<string, unknown>).setEnvironmentQuality as undefined | ((env: THREE.Group, r: THREE.WebGLRenderer, t: QualityTier) => void)
+    if (changed && typeof setEnv === 'function') { try { setEnv(this.environment, this.renderer, st.environment) } catch { /* environment keeps its build-time quality */ } }
+    this.applyShadows(st)
+    setMarkDetail(st.markDetail)
+    if (this.ghost) {
+      this.ghost.shafts.geometry.dispose(); this.ghost.shafts.geometry = new THREE.CylinderGeometry(1, 1, 1, st.ghost.radial)
+      this.ghost.caps.geometry.dispose(); this.ghost.caps.geometry = new THREE.SphereGeometry(1, st.ghost.sphere[0], st.ghost.sphere[1])
+    }
+    this.controller.setTier(tier, this.scale, this.override !== 'auto')
+    this.lastRenderAt = 0; this.lastXray = -1
+    this.lastChange = { at: performance.now(), why: `${why} -> ${tier} ×${this.scale.toFixed(2)}` }
+    this.dirty = true
+  }
+
+  /** User override ('auto' re-enables the controller). Persisted. */
+  setQualityOverride(next: QualityOverride) {
+    this.override = next; writeOverride(next)
+    if (next === 'auto') { const t = chooseInitialTier(this.probe, 'auto'); this.tierReason = t.reason; this.applyTier(refineTier(t.tier, this.probe.warmupMs), 'auto') }
+    else { this.tierReason = `override:${next}`; this.applyTier(next, 'override', tierSettings(next).maxPixelRatio) }
+    this.controller.setTier(this.tier, this.scale, next !== 'auto')
+  }
+  getQualityOverride(): QualityOverride { return this.override }
+
+  /** Start/stop a named measurement segment (used by ?bench and scripts/perf/bench.mjs). */
+  beginSegment(name: string) { this.perf.begin(name) }
+  endSegment(): SegmentSummary | null { return this.perf.end(this.counters(), this.tier, this.scale) }
+  segments(): SegmentSummary[] { return this.perf.done }
+  /** Full device + tier description for the metrics JSON. */
+  describe() { return { probe: this.probe, tier: this.tier, tierReason: this.tierReason, override: this.override, scale: this.scale, lastChange: this.lastChange, settings: tierSettings(this.tier), software: this.software, nodraw: this.nodraw, canvas: { w: this.renderer.domElement.width, h: this.renderer.domElement.height } } }
+
+  private counters() {
+    const i = this.renderer.info
+    return { calls: i.render.calls, triangles: i.render.triangles, programs: i.programs?.length ?? 0, textures: i.memory.textures, geometries: i.memory.geometries }
+  }
+
   private createGhost() {
-    const root = new THREE.Group(); root.name = 'alternate-world'
-    const mat = new THREE.MeshBasicMaterial({ color: TONES.ghost, transparent: true, opacity: 0.22, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending })
-    const shafts = new THREE.InstancedMesh(new THREE.CylinderGeometry(1, 1, 1, 10), mat, 140)
-    const caps = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 12, 8), mat, 280)
-    shafts.frustumCulled = caps.frustumCulled = false
-    shafts.instanceMatrix.setUsage(THREE.DynamicDrawUsage); caps.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
-    root.add(shafts, caps); this.scene.add(root)
-    return { root, shafts, caps, t: new THREE.Object3D() }
+    const gd = tierSettings(this.tier).ghost
+    const ghost = createGhostWorld(gd.radial, gd.sphere)
+    this.scene.add(ghost.root)
+    return ghost
   }
 
   private createTagHandle() {
@@ -276,6 +367,7 @@ export class WorldRuntime {
   private resize() {
     const { width, height } = this.host.getBoundingClientRect()
     this.renderer.setSize(Math.max(1, width), Math.max(1, height), false)
+    this.viewW = Math.max(1, width); this.viewH = Math.max(1, height); this.controller.interrupt()
     this.camera.aspect = Math.max(1, width) / Math.max(1, height); this.viewKey = ''; this.camera.updateProjectionMatrix()
     this.dirty = true
   }
@@ -285,6 +377,7 @@ export class WorldRuntime {
   private tick = (now: number) => {
     if (this.disposed) return
     this.raf = requestAnimationFrame(this.tick)
+    const began = performance.now()
     const s = this.state
     if (!s) return
     const dt = this.lastTick ? Math.min(0.1, (now - this.lastTick) / 1000) : 1 / 60
@@ -300,10 +393,10 @@ export class WorldRuntime {
 
     // Safe area: shift the principal point so the play composes beside UI panels.
     const inset = s.inset ?? {}
-    const W = this.canvas.clientWidth || 1, H = this.canvas.clientHeight || 1
+    const W = this.viewW, H = this.viewH // cached from resize(): no layout read per frame
     const l = inset.left ?? 0, r = inset.right ?? 0, tp = inset.top ?? 0, b = inset.bottom ?? 0
     const ox = (r - l) / 2, oy = (b - tp) / 2
-    const key = `${W}:${H}:${ox}:${oy}`
+    const key = W + ':' + H + ':' + ox + ':' + oy
     if (key !== this.viewKey) {
       this.viewKey = key
       if (ox || oy) this.camera.setViewOffset(W, H, ox, oy, W, H); else this.camera.clearViewOffset()
@@ -325,24 +418,27 @@ export class WorldRuntime {
     if (s.camera === 'free') {
       if (this.controls.update()) animating = true
     } else if (!this.orbiting) {
+      this.director.rig = s.rig ?? null
       if (this.director.step(s.camera, s.frame, s.focus, s.pov, dt, false)) { animating = true; this.dirty = true }
       this.controls.target.copy(this.director.target)
     } else this.controls.update()
 
     if (s.playing || this.drag) this.dirty = true
-    const marksAnimate = this.marks.update(s.marks, s.frame, now, 1)
+    const marksAnimate = this.marks.update(s.marks, s.frame, now, 1, this.xray)
     if (marksAnimate) { animating = true; this.dirty = true }
-    if (!this.dirty && !animating) return
+    if (!this.dirty && !animating) { this.lastRenderAt = 0; return }
     this.dirty = false
 
-    const began = performance.now()
     this.applyFrame(s, now)
-    setLabEnvironmentAnalytical(this.environment, this.xray, 'porcelain')
+    // The analytical blend walks every tintable material and allocates colours: only when it changed.
+    if (this.xray !== this.lastXray) { setLabEnvironmentAnalytical(this.environment, this.xray, 'porcelain'); this.lastXray = this.xray }
     updateEnvironmentForCamera(this.environment, this.camera)
-    this.renderer.render(this.scene, this.camera)
+    const timer = this.perf.gpu
+    if (this.nodraw) this.scene.updateMatrixWorld() // ?nodraw: measure the JS pipeline without GPU work
+    else { timer.begin(); this.renderer.render(this.scene, this.camera); timer.end() }
     this.writeLabels(s)
-    this.cpu = this.cpu * 0.9 + (performance.now() - began) * 0.1
-    this.adapt(now, s.playing || animating)
+    timer.poll()
+    this.record(now, performance.now() - began, s.playing || animating)
   }
 
   private applyFrame(s: WorldScene, now: number) {
@@ -363,27 +459,8 @@ export class WorldRuntime {
     this.ball.rotation.set(frame.t * 6, frame.t * 1.3, 0)
     this.ball.visible = frame.ball.phase !== 'dead' || true
 
-    // Ghost world.
-    const g = s.ghost
-    this.ghost.root.visible = !!g
-    if (g) {
-      let si = 0, ci = 0
-      const t = this.ghost.t, upv = new THREE.Vector3(0, 1, 0)
-      for (const p of g.players) {
-        if (p.team !== 'defense') continue
-        const now2 = frame.players.find(q => q.id === p.id)
-        if (now2 && Math.hypot(now2.x - p.x, now2.z - p.z) < 0.15) continue
-        for (const c of bodyCapsules(p as PlayerState, DEFAULT_ASSUMPTIONS)) {
-          const a = new THREE.Vector3(c.a.x, c.a.y, c.a.z), b = new THREE.Vector3(c.b.x, c.b.y, c.b.z), dir = b.clone().sub(a)
-          t.position.copy(a).add(b).multiplyScalar(0.5); t.scale.set(c.radius, Math.max(1e-4, dir.length()), c.radius)
-          t.quaternion.identity(); if (dir.lengthSq() > 1e-10) t.quaternion.setFromUnitVectors(upv, dir.normalize())
-          t.updateMatrix(); this.ghost.shafts.setMatrixAt(si++, t.matrix)
-          for (const q of [a, b]) { t.position.copy(q); t.scale.setScalar(c.radius); t.quaternion.identity(); t.updateMatrix(); this.ghost.caps.setMatrixAt(ci++, t.matrix) }
-        }
-      }
-      this.ghost.shafts.count = si; this.ghost.caps.count = ci
-      this.ghost.shafts.instanceMatrix.needsUpdate = this.ghost.caps.instanceMatrix.needsUpdate = true
-    }
+    // Ghost world (hologram bodies for divergent defenders; see ghost.ts).
+    this.ghost.update(frame, s.ghost ?? null, now)
 
     // Tag handle.
     const guide = s.tagGuide
@@ -408,54 +485,107 @@ export class WorldRuntime {
     if (drag) this.dropRing.position.set(drag.target.x, 0.03, drag.target.z)
   }
 
+  /** Label nodes are looked up once per DOM change (MutationObserver), not with querySelectorAll every frame. */
+  private labelNodes: { node: HTMLElement; anchor: string; lift: number; pt: { x: number; z: number } | null; last: string }[] = []
+  private labelsStale = true
+
+  private refreshLabels(layer: HTMLElement) {
+    if (!this.labelObserver) {
+      this.labelObserver = new MutationObserver(() => { this.labelsStale = true; this.dirty = true })
+      this.labelObserver.observe(layer, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-anchor', 'data-lift'] })
+    }
+    this.labelNodes = []
+    layer.querySelectorAll<HTMLElement>('[data-anchor]').forEach(node => {
+      const anchor = node.dataset.anchor!
+      let pt: { x: number; z: number } | null = null
+      if (anchor.startsWith('pt:')) { const [x, z] = anchor.slice(3).split(',').map(Number); pt = { x, z } }
+      this.labelNodes.push({ node, anchor, lift: Number(node.dataset.lift ?? '0'), pt, last: '' })
+    })
+    this.labelsStale = false
+  }
+
   private writeLabels(s: WorldScene) {
     const layer = this.labelLayer
     if (!layer) return
-    const nodes = layer.querySelectorAll<HTMLElement>('[data-anchor]')
-    nodes.forEach(node => {
-      const anchor = node.dataset.anchor!
-      const lift = Number(node.dataset.lift ?? '0')
-      let pt: { x: number; z: number } | null, y = lift
-      if (anchor.startsWith('pt:')) { const [x, z] = anchor.slice(3).split(',').map(Number); pt = { x, z } }
-      else {
-        pt = resolveAnchor(s.frame, anchor as PlayerId)
-        const p = s.frame.players.find(q => q.id === anchor)
-        if (p) y = p.height + 0.28 + lift
+    if (this.labelsStale || !this.labelObserver) this.refreshLabels(layer)
+    for (const L of this.labelNodes) {
+      const node = L.node
+      let pt: { x: number; z: number } | null = L.pt, y = L.lift
+      if (!pt) {
+        pt = resolveAnchor(s.frame, L.anchor as PlayerId)
+        const p = s.frame.players.find(q => q.id === L.anchor)
+        if (p) y = p.height + 0.28 + L.lift
       }
-      if (!pt) { node.style.opacity = '0'; return }
+      if (!pt) { if (L.last !== 'hidden') { node.style.opacity = '0'; L.last = 'hidden' } continue }
       const pr = this.project(pt.x, y, pt.z)
-      node.style.transform = `translate3d(${pr.x.toFixed(1)}px, ${pr.y.toFixed(1)}px, 0)`
-      node.style.opacity = pr.visible ? '' : '0'
-    })
-  }
-
-  private adapt(now: number, active: boolean) {
-    this.frames++
-    if (now - this.fpsAt > 1000) {
-      this.fps = this.frames * 1000 / (now - this.fpsAt); this.frames = 0; this.fpsAt = now
-      const info = this.renderer.info.render
-      this.callbacks.onStats?.({ fps: Math.round(this.fps), scale: this.scale, calls: info.calls, triangles: info.triangles, cpu: Math.round(this.cpu * 10) / 10 })
-      if (!active) return
-      // Hysteresis: degrade resolution first, recover slowly. Never the simulation.
-      if (this.fps < 40) { this.slow++; this.fast = 0 } else if (this.fps > 57) { this.fast++; this.slow = 0 }
-      const max = Math.min(window.devicePixelRatio || 1, this.software ? 1 : 1.75), min = this.software ? 0.6 : 0.85
-      if (this.slow >= 2 && this.scale > min) { this.scale = Math.max(min, this.scale - 0.2); this.renderer.setPixelRatio(this.scale); this.slow = 0; if (this.scale <= 1) this.setQuality('low') }
-      else if (this.fast >= 6 && this.scale < max) { this.scale = Math.min(max, this.scale + 0.15); this.renderer.setPixelRatio(this.scale); this.fast = 0 }
+      const t = 'translate3d(' + pr.x.toFixed(1) + 'px, ' + pr.y.toFixed(1) + 'px, 0)' + (pr.visible ? '' : '|0')
+      if (t !== L.last) { // skip identical writes: no style invalidation for a still label
+        L.last = t
+        node.style.transform = t.endsWith('|0') ? t.slice(0, -2) : t
+        node.style.opacity = pr.visible ? '' : '0'
+      }
     }
   }
 
-  private setQuality(q: 'high' | 'low') {
-    if (this.quality === q) return
-    this.quality = q
-    for (const a of this.athletes.values()) a.setQuality(q)
+  /** Per rendered frame: record samples, feed the adaptive controller, emit ~1 Hz stats. */
+  private record(now: number, jsMs: number, active: boolean) {
+    let interval: number | null = this.lastRenderAt ? now - this.lastRenderAt : null
+    this.lastRenderAt = now
+    if (interval !== null && interval > 500) { interval = null; this.controller.interrupt() } // tab was hidden / stalled
+    this.cpu = this.cpu * 0.9 + jsMs * 0.1
+    const c = this.counters()
+    this.perf.frame(interval, jsMs, c)
+    this.frames++
+    if (interval !== null && active && !this.nodraw) {
+      const d = this.controller.push({ intervalMs: interval, jsMs, gpuMs: this.perf.gpu.p50() }, now, this.probe.devicePixelRatio)
+      if (d?.kind === 'scale') { this.scale = d.scale; this.renderer.setPixelRatio(this.scale); this.lastChange = { at: now, why: `scale ${d.scale.toFixed(2)} (${d.why})` }; this.dirty = true }
+      else if (d?.kind === 'tier') this.applyTier(d.tier, d.why, d.scale)
+    } else if (!active) this.controller.interrupt()
+    if (now - this.fpsAt > 1000) {
+      this.fps = this.frames * 1000 / (now - this.fpsAt); this.frames = 0; this.fpsAt = now
+      this.callbacks.onStats?.(this.stats())
+    }
+  }
+
+  /** The debug-HUD contract: everything a coach, founder or script needs to read the world's health. */
+  stats(): WorldStats {
+    const c = this.counters(), iv = this.perf.intervals, js = this.perf.js
+    return {
+      fps: Math.round(this.fps), scale: this.scale, calls: c.calls, triangles: c.triangles, cpu: round(this.cpu, 1),
+      frameP50: round(iv.percentile(0.5), 1), frameP95: round(iv.percentile(0.95), 1),
+      jsMs: round(js.mean(), 1), jsP95: round(js.percentile(0.95), 1),
+      gpuMs: this.perf.gpu.p50() === null ? null : round(this.perf.gpu.p50()!, 2),
+      programs: c.programs, textures: c.textures, geometries: c.geometries,
+      tier: this.tier, auto: this.override === 'auto', software: this.software,
+      longTasks: this.perf.longTaskCount, change: this.lastChange?.why ?? null,
+    }
   }
 }
 
-function contactShadowTexture() {
-  const canvas = document.createElement('canvas'); canvas.width = canvas.height = 64
-  const ctx = canvas.getContext('2d')!, g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32)
+
+/** Athlete detail per tier. labAthlete.setQuality(‘balanced’) is feature-detected so an older
+ * athlete module (high | low only) never ends up with both meshes hidden. */
+let athleteBalanced: boolean | null = null
+function setAthleteQuality(a: LabAthlete, q: QualityTier) {
+  if (athleteBalanced === null) { const src = String(a.setQuality); athleteBalanced = /['"]balanced['"]/.test(src) }
+  const set = a.setQuality as (q: string) => void
+  set.call(a, q === 'balanced' && !athleteBalanced ? 'high' : q)
+}
+
+/** Throwaway context so the initial tier (and MSAA) is known before the real renderer exists. */
+function probeEarly(): DeviceProbe {
+  const canvas = document.createElement('canvas')
+  const gl = (canvas.getContext('webgl2') ?? canvas.getContext('webgl')) as WebGLRenderingContext | WebGL2RenderingContext | null
+  const probe = probeDevice(gl)
+  gl?.getExtension('WEBGL_lose_context')?.loseContext()
+  return probe
+}
+
+function contactShadowTexture(size = 64) {
+  const canvas = document.createElement('canvas'); canvas.width = canvas.height = size
+  const h = size / 2, ctx = canvas.getContext('2d')!, g = ctx.createRadialGradient(h, h, 0, h, h, h)
   g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.45, 'rgba(255,255,255,.55)'); g.addColorStop(1, 'rgba(255,255,255,0)')
-  ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64)
+  ctx.fillStyle = g; ctx.fillRect(0, 0, size, size)
   const t = new THREE.CanvasTexture(canvas)
   // Alpha from luminance: draw as alphaMap on black.
   return t
@@ -468,7 +598,9 @@ export function poseIntent(frame: import('@/lib/defense-lab/types').WorldFrame, 
   const fl = frame.ball.flight
   if (fl && fl.from === p.id && frame.t - fl.start < 0.3 && fl.kind !== 'shot') return fl.kind === 'skip' || fl.kind === 'lob' ? 'skip' : 'pass'
   if (p.team === 'defense') {
-    const job = frame.responsibilities.filter(r => r.defenderId === p.id).sort((a, b) => b.priority - a.priority)[0]
+    // Highest-priority job (first wins on ties, as the stable sort did) without allocating per defender per frame.
+    let job: (typeof frame.responsibilities)[number] | undefined
+    for (const r of frame.responsibilities) if (r.defenderId === p.id && (!job || r.priority > job.priority)) job = r
     if (job?.kind === 'closeout' && speed > 0.6) return 'closeout'
     if (job?.kind === 'chase' && speed > 0.5) return 'fight'
     return p.pose.stance

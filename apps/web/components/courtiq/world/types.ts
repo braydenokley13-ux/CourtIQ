@@ -58,5 +58,33 @@ export interface WorldCallbacks {
   onTagDepth?(depth: number, final: boolean): void
   onCameraMode?(mode: CameraMode): void
   onReady?(info: { webgl: boolean; software: boolean }): void
-  onStats?(stats: { fps: number; scale: number; calls: number; triangles: number; cpu: number }): void
+  onStats?(stats: WorldStats): void
+}
+
+/** Debug-HUD / perf contract, emitted ~1 Hz while the world renders. Times in ms. */
+export interface WorldStats {
+  fps: number
+  /** Effective renderer pixel ratio (render scale). */
+  scale: number
+  calls: number
+  triangles: number
+  /** Smoothed JS time per rendered frame inside the runtime tick (legacy name). */
+  cpu: number
+  /** Interval between consecutive rendered frames. */
+  frameP50: number
+  frameP95: number
+  jsMs: number
+  jsP95: number
+  /** GPU time per frame from EXT_disjoint_timer_query_webgl2; null when the browser does not expose it. */
+  gpuMs: number | null
+  programs: number
+  textures: number
+  geometries: number
+  tier: 'high' | 'balanced' | 'low'
+  /** true = adaptive controller may change tier; false = user override. */
+  auto: boolean
+  software: boolean
+  longTasks: number
+  /** Last automatic or manual quality change, for the HUD. */
+  change: string | null
 }
